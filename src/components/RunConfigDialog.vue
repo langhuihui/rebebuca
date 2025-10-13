@@ -215,7 +215,7 @@
           v-model:value="formValue.environment"
           placeholder="变量名=值"
           :min="0"
-          #="{ value, index }"
+          #="{ value }"
         >
           <n-input-group>
             <n-input

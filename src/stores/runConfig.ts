@@ -286,8 +286,6 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
   // Execute command using Tauri
   const executeCommand = async (config: RunConfig): Promise<{ processId: string; historyId: string; }> => {
-    const startTime = Date.now();
-
     // Create run record
     const runRecord: Omit<RunHistory, 'id'> = {
       configId: config.id,
