@@ -64,7 +64,7 @@
                     color: white;
                   "
                 >
-                  Rebebuca
+                  {{ t("app.title") }}
                 </h3>
                 <p
                   style="
@@ -73,7 +73,7 @@
                     color: rgba(255, 255, 255, 0.6);
                   "
                 >
-                  管理你的运行配置
+                  {{ t("app.subtitle") }}
                 </p>
               </div>
               <n-button size="small" text @click="handleNewConfig">
@@ -240,7 +240,7 @@
                         margin: 0 0 16px 0;
                       "
                     >
-                      欢迎使用 Rebebuca
+                      {{ t("welcome.title") }}
                     </h2>
                     <p
                       style="
@@ -250,7 +250,7 @@
                         margin: 0 0 24px 0;
                       "
                     >
-                      一个强大的运行配置管理工具，帮助你快速执行和管理各种命令和脚本。
+                      {{ t("welcome.description") }}
                     </p>
                     <div
                       style="
@@ -276,7 +276,7 @@
                             margin: 0 0 8px 0;
                           "
                         >
-                          🚀 快速开始
+                          {{ t("welcome.quickStart.title") }}
                         </h3>
                         <p
                           style="
@@ -286,7 +286,7 @@
                             line-height: 1.4;
                           "
                         >
-                          点击左侧的"新建"按钮创建你的第一个运行配置
+                          {{ t("welcome.quickStart.description") }}
                         </p>
                       </div>
                       <div
@@ -305,7 +305,7 @@
                             margin: 0 0 8px 0;
                           "
                         >
-                          ⚡ 高效执行
+                          {{ t("welcome.efficientExecution.title") }}
                         </h3>
                         <p
                           style="
@@ -315,7 +315,7 @@
                             line-height: 1.4;
                           "
                         >
-                          一键运行命令，实时查看输出结果
+                          {{ t("welcome.efficientExecution.description") }}
                         </p>
                       </div>
                       <div
@@ -334,7 +334,7 @@
                             margin: 0 0 8px 0;
                           "
                         >
-                          📝 配置管理
+                          {{ t("welcome.configManagement.title") }}
                         </h3>
                         <p
                           style="
@@ -344,7 +344,7 @@
                             line-height: 1.4;
                           "
                         >
-                          支持工作目录、环境变量等高级配置
+                          {{ t("welcome.configManagement.description") }}
                         </p>
                       </div>
                       <div
@@ -363,7 +363,7 @@
                             margin: 0 0 8px 0;
                           "
                         >
-                          🕒 历史记录
+                          {{ t("welcome.history.title") }}
                         </h3>
                         <p
                           style="
@@ -373,7 +373,7 @@
                             line-height: 1.4;
                           "
                         >
-                          自动保存运行历史，方便重复执行
+                          {{ t("welcome.history.description") }}
                         </p>
                       </div>
                     </div>
@@ -561,7 +561,7 @@
                         padding: 8px 8px 4px 8px;
                       "
                     >
-                      <span>运行历史</span>
+                      <span>{{ t("history.title") }}</span>
                       <n-button size="small" text @click="handleClearHistory">
                         <template #icon>
                           <n-icon size="18">
@@ -692,7 +692,7 @@
                   </div>
                   <div v-else style="padding: 16px">
                     <div class="text-center py-12 text-gray-500">
-                      暂无运行历史
+                      {{ t("history.empty") }}
                     </div>
                   </div>
                 </n-card>
@@ -707,6 +707,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, inject, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   darkTheme,
   NMessageProvider,
@@ -737,6 +738,9 @@ import AnsiToHtml from "ansi-to-html";
 
 // Get hljs from main.ts
 const hljs = inject<any>("hljs");
+
+// i18n
+const { t } = useI18n();
 
 // Create discrete API for dialog
 const { dialog } = createDiscreteApi(["dialog"], {
@@ -860,7 +864,7 @@ const addTab = (config: RunConfig, processId: string, historyId?: string) => {
   const newTab: Tab = {
     id: tabId,
     name: tabName,
-    output: `> 准备运行: ${config.command}\n`,
+    output: `> ${t("console.preparing")}: ${config.command}\n`,
     configId: config.id,
     processId: processId,
     historyId: historyId,
@@ -925,7 +929,7 @@ const handleRestartTab = async (tab: Tab) => {
         }
 
         // Clear the current tab output and reset status
-        tab.output = "> 重新运行...\n";
+        tab.output = `> ${t("console.restarting")}\n`;
         tab.status = "running";
         tab.hasError = false;
 
@@ -939,7 +943,7 @@ const handleRestartTab = async (tab: Tab) => {
         tab.historyId = historyId;
       } catch (error) {
         console.error("Failed to restart command:", error);
-        tab.output += `> 重启失败: ${error}\n`;
+        tab.output += `> ${t("console.restartFailed")}: ${error}\n`;
         tab.status = "error";
         tab.hasError = true;
       }
@@ -952,7 +956,7 @@ const handleStopTab = async (tab: Tab) => {
   if (tab.processId) {
     try {
       await runConfigStore.stopCurrentRun(tab.processId);
-      tab.output += `> 正在停止进程...\n`;
+      tab.output += `> ${t("console.stopping")}\n`;
 
       // Update history with output when manually stopped
       if (tab.historyId) {
@@ -962,7 +966,7 @@ const handleStopTab = async (tab: Tab) => {
         });
       }
     } catch (error) {
-      tab.output += `> 停止进程失败: ${error}\n`;
+      tab.output += `> ${t("console.stopFailed")}: ${error}\n`;
       tab.status = "error";
 
       // Update history with error output
@@ -991,7 +995,7 @@ const handleExportTab = (tab: Tab) => {
 
 // Clear tab output
 const handleClearTab = (tab: Tab) => {
-  tab.output = "> 控制台已清空\n";
+  tab.output = `> ${t("console.cleared")}\n`;
 };
 
 const handleTabClose = (tabId: string) => {
@@ -1053,12 +1057,14 @@ const handleViewHistory = (history: any) => {
   const hasErrorOutput = history.output && history.output.includes("[ERROR]");
   const newTab: Tab = {
     id: tabId,
-    name: `${history.name} (历史)`,
+    name: `${history.name} (${t("tab.history")})`,
     output:
       history.output ||
-      `> 历史记录\n> 配置: ${history.name}\n> 命令: ${
-        history.command
-      }\n> 时间: ${formatTime(history.timestamp)}\n\n暂无输出记录\n`,
+      `> ${t("history.historyRecord")}\n> ${t("history.config")}: ${
+        history.name
+      }\n> ${t("history.command")}: ${history.command}\n> ${t(
+        "history.time"
+      )}: ${formatTime(history.timestamp)}\n\n${t("console.noOutput")}\n`,
     configId: history.configId, // Add configId so restart works
     status:
       history.status === "success"
@@ -1083,17 +1089,17 @@ const handleReRunHistory = async (history: any) => {
       (tab) => tab.id === activeTabId.value
     );
     if (currentTab) {
-      currentTab.output += "> 找不到对应的运行配置\n";
+      currentTab.output += `> ${t("history.configNotFound")}\n`;
     }
   }
 };
 
 const handleClearHistory = () => {
   dialog.warning({
-    title: "确认清空",
-    content: "确定要清空所有运行历史吗？此操作不可撤销。",
-    positiveText: "确定",
-    negativeText: "取消",
+    title: t("history.confirmClear"),
+    content: t("history.confirmClearMessage"),
+    positiveText: t("history.confirm"),
+    negativeText: t("history.cancel"),
     onPositiveClick: async () => {
       await runConfigStore.clearHistory();
     },
@@ -1131,7 +1137,7 @@ onMounted(async () => {
       if (tab) {
         try {
           sendNotification({
-            title: `错误: ${tab.name}`,
+            title: `${t("error.title")}: ${tab.name}`,
             body: content.trim().substring(0, 100), // Limit notification content
           });
         } catch (error) {

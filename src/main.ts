@@ -21,6 +21,7 @@ import App from './App.vue';
 import { createPinia } from 'pinia';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
+import i18n from './locales';
 
 // Naive UI
 import {
@@ -105,4 +106,5 @@ app.provide('hljs', hljs);
 
 app.use(naive);
 app.use(pinia);
+app.use(i18n);
 app.mount('#app');

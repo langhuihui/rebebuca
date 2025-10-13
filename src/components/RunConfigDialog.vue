@@ -20,7 +20,7 @@
   <n-modal
     v-model:show="show"
     preset="dialog"
-    title="运行配置"
+    :title="t('dialog.title')"
     style="width: 600px"
   >
     <template #action>
@@ -71,14 +71,17 @@
       require-mark-placement="right-hanging"
       size="medium"
     >
-      <n-form-item label="配置名称" path="name">
-        <n-input v-model:value="formValue.name" placeholder="请输入配置名称" />
+      <n-form-item :label="t('dialog.configName')" path="name">
+        <n-input
+          v-model:value="formValue.name"
+          :placeholder="t('dialog.configNamePlaceholder')"
+        />
       </n-form-item>
 
-      <n-form-item label="执行程序" path="command">
+      <n-form-item :label="t('dialog.program')" path="command">
         <n-input
           v-model:value="formValue.command"
-          placeholder="请输入程序路径或命令"
+          :placeholder="t('dialog.programPlaceholder')"
         >
           <template #suffix>
             <n-button text @click="selectProgram">
@@ -105,10 +108,13 @@
         </n-input>
       </n-form-item>
 
-      <n-form-item label="工作目录" path="workingDirectory">
+      <n-form-item
+        :label="t('dialog.workingDirectory')"
+        path="workingDirectory"
+      >
         <n-input
           v-model:value="formValue.workingDirectory"
-          placeholder="请输入工作目录路径"
+          :placeholder="t('dialog.workingDirectoryPlaceholder')"
         >
           <template #suffix>
             <n-button text @click="selectWorkingDirectory">
@@ -134,7 +140,7 @@
         </n-input>
       </n-form-item>
 
-      <n-form-item label="命令行参数" path="arguments">
+      <n-form-item :label="t('dialog.arguments')" path="arguments">
         <div style="width: 100%">
           <n-space vertical style="width: 100%">
             <n-button-group>
@@ -192,7 +198,7 @@
             <n-dynamic-input
               v-if="argumentsMode === 'list'"
               v-model:value="formValue.arguments"
-              placeholder="请输入参数"
+              :placeholder="t('dialog.argumentsPlaceholder')"
               :min="0"
             />
 
@@ -200,7 +206,7 @@
               v-else
               v-model:value="argumentsText"
               type="textarea"
-              placeholder="请输入参数，用空格分隔"
+              :placeholder="t('dialog.argumentsTextPlaceholder')"
               :autosize="{
                 minRows: 3,
                 maxRows: 6,
@@ -210,22 +216,22 @@
         </div>
       </n-form-item>
 
-      <n-form-item label="环境变量" path="environment">
+      <n-form-item :label="t('dialog.environment')" path="environment">
         <n-dynamic-input
           v-model:value="formValue.environment"
-          placeholder="变量名=值"
+          :placeholder="t('dialog.environmentPlaceholder')"
           :min="0"
           #="{ value }"
         >
           <n-input-group>
             <n-input
               v-model:value="value.key"
-              placeholder="变量名"
+              :placeholder="t('dialog.variableName')"
               style="width: 40%"
             />
             <n-input
               v-model:value="value.value"
-              placeholder="值"
+              :placeholder="t('dialog.value')"
               style="width: 60%"
             />
           </n-input-group>
@@ -240,6 +246,7 @@ import { ref, watch, computed } from "vue";
 import { FormInst, useMessage, NSpace, NButton, NIcon } from "naive-ui";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { RunConfig } from "../stores/runConfig";
+import { useI18n } from "vue-i18n";
 
 interface Props {
   show: boolean;
@@ -256,6 +263,7 @@ const emit = defineEmits<Emits>();
 
 const message = useMessage();
 const formRef = ref<FormInst | null>(null);
+const { t } = useI18n();
 
 // Form data
 const formValue = ref({
@@ -271,18 +279,18 @@ const argumentsMode = ref<"list" | "text">("list");
 const argumentsText = ref("");
 
 // Form validation rules
-const rules = {
+const rules = computed(() => ({
   name: {
     required: true,
-    message: "请输入配置名称",
+    message: t("dialog.configNameRequired"),
     trigger: ["input", "blur"],
   },
   command: {
     required: true,
-    message: "请输入执行命令",
+    message: t("dialog.programRequired"),
     trigger: ["input", "blur"],
   },
-};
+}));
 
 // Computed properties
 const show = computed({
@@ -296,7 +304,7 @@ const selectProgram = async () => {
     const selected = await open({
       multiple: false,
       directory: false,
-      title: "选择可执行程序",
+      title: t("dialog.selectProgram"),
     });
     if (selected && typeof selected === "string") {
       formValue.value.command = selected;
@@ -311,7 +319,7 @@ const selectWorkingDirectory = async () => {
     const selected = await open({
       multiple: false,
       directory: true,
-      title: "选择工作目录",
+      title: t("dialog.selectWorkingDirectory"),
     });
     if (selected && typeof selected === "string") {
       formValue.value.workingDirectory = selected;
@@ -461,7 +469,7 @@ const handleSave = () => {
 
   formRef.value?.validate((errors) => {
     if (errors) {
-      message.error("请检查表单数据");
+      message.error(t("dialog.checkForm"));
       return;
     }
 
@@ -482,7 +490,7 @@ const handleSave = () => {
     };
 
     emit("saved", configData as any);
-    message.success("配置保存成功");
+    message.success(t("dialog.saveSuccess"));
     show.value = false;
   });
 };
