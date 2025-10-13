@@ -7,7 +7,7 @@
   
   <p>A modern desktop application that helps developers quickly manage and execute various commands and scripts</p>
 
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/yourusername/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/yourusername/rebebuca/actions)
+  [![Build Status](https://img.shields.io/github/actions/workflow/status/langhuihui/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/langhuihui/rebebuca/actions)
   [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
   [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -31,7 +31,7 @@
 ## 📸 Preview
 
 <div align="center">
-  <img src="docs/screenshot.png" alt="Application Screenshot" width="800">
+  <img src="screenshot.png" alt="Application Screenshot" width="800">
 </div>
 
 ## 🛠️ Tech Stack

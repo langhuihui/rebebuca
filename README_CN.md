@@ -7,7 +7,7 @@
   
   <p>一个现代化的桌面应用，帮助开发者快速管理和执行各种命令与脚本</p>
 
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/yourusername/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/yourusername/rebebuca/actions)
+  [![Build Status](https://img.shields.io/github/actions/workflow/status/langhuihui/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/langhuihui/rebebuca/actions)
   [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
   [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -31,7 +31,7 @@
 ## 📸 预览
 
 <div align="center">
-  <img src="docs/screenshot.png" alt="应用截图" width="800">
+  <img src="screenshot_CN.png" alt="应用截图" width="800">
 </div>
 
 ## 🛠️ 技术栈
