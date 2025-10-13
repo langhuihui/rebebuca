@@ -1,0 +1,6 @@
+[env]
+# 禁用 clang 模块功能以解决 macOS 15 (Sequoia) 的兼容性问题
+CFLAGS = "-fno-modules"
+CXXFLAGS = "-fno-modules"
+OBJCFLAGS = "-fno-modules"
+
