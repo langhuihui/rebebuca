@@ -50,6 +50,10 @@ export default {
     export: 'Export',
     clear: 'Clear',
     history: 'History',
+    confirmClose: 'Confirm Close',
+    confirmCloseMessage: 'Are you sure you want to close this tab? If the process is running, it will be terminated.',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
   },
   console: {
     preparing: 'Preparing to run',
@@ -73,6 +77,7 @@ export default {
     command: 'Command',
     time: 'Time',
     configNotFound: 'Configuration not found',
+    openLogsFolder: 'Open Logs Folder',
   },
   dialog: {
     title: 'Run Configuration',

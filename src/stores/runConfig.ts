@@ -42,6 +42,7 @@ export interface RunHistory {
   timestamp: Date;
   output?: string;
   duration?: number;
+  logFilename?: string;
 }
 
 export const useRunConfigStore = defineStore('runConfig', () => {
@@ -250,14 +251,44 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   };
 
   const clearHistory = async () => {
+    // Delete all log files before clearing history
+    for (const item of history.value) {
+      if (item.logFilename) {
+        try {
+          await invoke('delete_log_file', { logFilename: item.logFilename });
+        } catch (error) {
+          console.error('Failed to delete log file:', error);
+        }
+      }
+    }
     history.value = [];
     await saveHistory();
   };
 
   const removeHistory = async (index: number) => {
     if (index >= 0 && index < history.value.length) {
+      const item = history.value[index];
+
+      // Delete log file if exists
+      if (item.logFilename) {
+        try {
+          await invoke('delete_log_file', { logFilename: item.logFilename });
+        } catch (error) {
+          console.error('Failed to delete log file:', error);
+        }
+      }
+
       history.value.splice(index, 1);
       await saveHistory();
+    }
+  };
+
+  const openLogsFolder = async () => {
+    try {
+      await invoke('open_logs_folder');
+    } catch (error) {
+      console.error('Failed to open logs folder:', error);
+      throw error;
     }
   };
 
@@ -309,12 +340,25 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
     try {
       // Call Tauri command to execute the process
-      const processId = await invoke<string>('execute_command', {
+      const result = await invoke<string>('execute_command', {
         config: tauriConfig
       });
 
+      // Parse the result to get process_id and log_filename
+      const { process_id, log_filename } = JSON.parse(result);
+
+      // Update history with log filename
+      const index = history.value.findIndex(h => h.id === newHistory.id);
+      if (index !== -1) {
+        history.value[index] = {
+          ...history.value[index],
+          logFilename: log_filename
+        };
+        await saveHistory();
+      }
+
       // Return both process ID and history ID
-      return { processId, historyId: newHistory.id };
+      return { processId: process_id, historyId: newHistory.id };
     } catch (error) {
       const errorMessage = `执行错误: ${error instanceof Error ? error.message : String(error)}\n`;
       appendConsoleOutput(errorMessage);
@@ -380,5 +424,6 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     saveConfigs,
     loadHistory,
     saveHistory,
+    openLogsFolder,
   };
 });

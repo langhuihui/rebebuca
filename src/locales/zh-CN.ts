@@ -50,6 +50,10 @@ export default {
     export: '导出',
     clear: '清空',
     history: '历史',
+    confirmClose: '确认关闭',
+    confirmCloseMessage: '确定要关闭此标签页吗？如果进程正在运行，将会被终止。',
+    confirm: '确定',
+    cancel: '取消',
   },
   console: {
     preparing: '准备运行',
@@ -73,6 +77,7 @@ export default {
     command: '命令',
     time: '时间',
     configNotFound: '找不到对应的运行配置',
+    openLogsFolder: '打开日志目录',
   },
   dialog: {
     title: '运行配置',
