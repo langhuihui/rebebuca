@@ -166,7 +166,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
       if (storeInstance) {
         // Use Tauri store
-        const savedConfigs = await storeInstance.get<any[]>('configs');
+        const savedConfigs = await storeInstance.get('configs');
 
         if (savedConfigs && Array.isArray(savedConfigs)) {
           configs.value = savedConfigs.map(deserializeConfig);
@@ -298,7 +298,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
       if (storeInstance) {
         // Use Tauri store
-        const savedHistory = await storeInstance.get<any[]>('history');
+        const savedHistory = await storeInstance.get('history');
 
         if (savedHistory && Array.isArray(savedHistory)) {
           history.value = savedHistory.map(deserializeHistory);
@@ -486,12 +486,12 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
     try {
       // Call Tauri command to execute the process
-      const result = await safeInvoke<string>('execute_command', {
+      const result = await safeInvoke('execute_command', {
         config: tauriConfig
       });
 
       // Parse the result to get process_id and log_filename
-      const { process_id, log_filename } = JSON.parse(result);
+      const { process_id, log_filename } = JSON.parse(result as string);
 
       // Update history with log filename
       const index = history.value.findIndex(h => h.id === newHistory.id);
