@@ -502,7 +502,7 @@ const handleCancel = () => {
 // Force dialog background color when component mounts or show changes
 const forceDialogBackground = () => {
   nextTick(() => {
-    const dialog = document.querySelector('[role="dialog"]');
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
     if (dialog) {
       // Check if we're in light theme
       const configProvider = document.querySelector(".n-config-provider");
@@ -515,8 +515,8 @@ const forceDialogBackground = () => {
       dialog.style.setProperty("background-color", bgColor, "important");
 
       // Also set content and body backgrounds
-      const content = dialog.querySelector(".n-dialog__content");
-      const body = dialog.querySelector(".n-dialog__body");
+      const content = dialog.querySelector(".n-dialog__content") as HTMLElement;
+      const body = dialog.querySelector(".n-dialog__body") as HTMLElement;
 
       if (content) {
         content.style.setProperty("background-color", bgColor, "important");
@@ -525,6 +525,49 @@ const forceDialogBackground = () => {
         body.style.setProperty("background-color", bgColor, "important");
       }
     }
+  });
+};
+
+// Force theme on all floating components (similar to App.vue)
+const forceThemeOnFloatingComponents = () => {
+  nextTick(() => {
+    const configProvider = document.querySelector(".n-config-provider");
+    const isLightTheme = configProvider?.classList.contains(
+      "n-config-provider--light"
+    );
+    const bgColor = isLightTheme ? "#ffffff" : "#000000";
+
+    // Apply theme to all existing dialogs
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    dialogs.forEach((dialog) => {
+      const dialogElement = dialog as HTMLElement;
+      dialogElement.style.setProperty("background-color", bgColor, "important");
+
+      const content = dialogElement.querySelector(
+        ".n-dialog__content"
+      ) as HTMLElement;
+      const body = dialogElement.querySelector(
+        ".n-dialog__body"
+      ) as HTMLElement;
+
+      if (content) {
+        content.style.setProperty("background-color", bgColor, "important");
+      }
+      if (body) {
+        body.style.setProperty("background-color", bgColor, "important");
+      }
+    });
+
+    // Apply theme to all dropdown menus
+    const dropdowns = document.querySelectorAll(".n-dropdown-menu");
+    dropdowns.forEach((dropdown) => {
+      const dropdownElement = dropdown as HTMLElement;
+      dropdownElement.style.setProperty(
+        "background-color",
+        bgColor,
+        "important"
+      );
+    });
   });
 };
 
@@ -537,6 +580,9 @@ watch(show, (newShow) => {
 
 // Force background on mount
 onMounted(() => {
+  // Always force theme on floating components when component mounts
+  forceThemeOnFloatingComponents();
+
   if (show.value) {
     forceDialogBackground();
   }

@@ -82,13 +82,20 @@
             <!-- Logo and title -->
             <div class="titlebar-center">
               <img
-                src="/logo-dark.svg"
+                :src="
+                  effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'
+                "
                 alt="Logo"
                 style="width: 20px; height: 20px; margin: 0 8px"
               />
               <img
-                src="/text.svg"
+                :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
                 alt="Rebebuca"
+                :class="
+                  effectiveTheme === 'light'
+                    ? 'text-logo-light'
+                    : 'text-logo-dark'
+                "
                 style="height: 16px; margin: 0"
               />
             </div>
@@ -108,7 +115,9 @@
                 >
                   <template #icon>
                     <n-icon size="18">
+                      <!-- Light theme icon (sun) -->
                       <svg
+                        v-if="effectiveTheme === 'light'"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
                         fill="none"
@@ -131,6 +140,21 @@
                         <line x1="21" y1="12" x2="23" y2="12"></line>
                         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
                         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                      </svg>
+                      <!-- Dark theme icon (moon) -->
+                      <svg
+                        v-else
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                        ></path>
                       </svg>
                     </n-icon>
                   </template>
@@ -420,7 +444,11 @@
                     >
                       <div style="margin-bottom: 24px">
                         <img
-                          src="/logo-dark.svg"
+                          :src="
+                            effectiveTheme === 'light'
+                              ? '/logo.svg'
+                              : '/logo-dark.svg'
+                          "
                           alt="Rebebuca"
                           style="
                             width: 64px;
@@ -1065,6 +1093,7 @@ import {
   inject,
   nextTick,
   h,
+  watch,
 } from "vue";
 import { useI18n } from "vue-i18n";
 // Safe window functions that handle browser environment
@@ -1203,7 +1232,8 @@ const safeGetCurrentWindow = async () => {
 const { t } = useI18n();
 
 // Theme
-const { currentTheme, setThemeMode, effectiveTheme, themeMode } = useTheme();
+const { currentTheme, setThemeMode, effectiveTheme, themeMode, systemTheme } =
+  useTheme();
 
 // Environment detection is working correctly
 
@@ -1214,14 +1244,112 @@ const { dialog } = createDiscreteApi(["dialog"], {
   },
 });
 
-// Create ANSI to HTML converter
-const ansiConverter = new AnsiToHtml({
-  fg: "#fff",
-  bg: "#000",
-  newline: true,
-  escapeXML: true,
-  stream: false,
-});
+// Create ANSI to HTML converter with theme-aware colors
+const createAnsiConverter = (isLight: boolean) =>
+  new AnsiToHtml({
+    fg: isLight ? "#000" : "#fff",
+    bg: isLight ? "#fff" : "#000",
+    newline: true,
+    escapeXML: true,
+    stream: false,
+  });
+
+// Initialize ANSI converter
+let ansiConverter = createAnsiConverter(effectiveTheme.value === "light");
+
+// Function to force theme on all floating components
+const forceThemeOnFloatingComponents = () => {
+  nextTick(() => {
+    const isLightTheme = effectiveTheme.value === "light";
+    const bgColor = isLightTheme ? "#ffffff" : "#000000";
+
+    // Apply theme to all existing dialogs
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    dialogs.forEach((dialog) => {
+      const dialogElement = dialog as HTMLElement;
+      dialogElement.style.setProperty("background-color", bgColor, "important");
+
+      const content = dialogElement.querySelector(
+        ".n-dialog__content"
+      ) as HTMLElement;
+      const body = dialogElement.querySelector(
+        ".n-dialog__body"
+      ) as HTMLElement;
+
+      if (content) {
+        content.style.setProperty("background-color", bgColor, "important");
+      }
+      if (body) {
+        body.style.setProperty("background-color", bgColor, "important");
+      }
+    });
+
+    // Apply theme to all dropdown menus
+    const dropdowns = document.querySelectorAll(".n-dropdown-menu");
+    dropdowns.forEach((dropdown) => {
+      const dropdownElement = dropdown as HTMLElement;
+      dropdownElement.style.setProperty(
+        "background-color",
+        bgColor,
+        "important"
+      );
+    });
+
+    // Apply theme to all popovers
+    const popovers = document.querySelectorAll(".n-popover");
+    popovers.forEach((popover) => {
+      const popoverElement = popover as HTMLElement;
+      popoverElement.style.setProperty(
+        "background-color",
+        bgColor,
+        "important"
+      );
+    });
+
+    // Apply theme to all tooltips
+    const tooltips = document.querySelectorAll(".n-tooltip");
+    tooltips.forEach((tooltip) => {
+      const tooltipElement = tooltip as HTMLElement;
+      tooltipElement.style.setProperty(
+        "background-color",
+        bgColor,
+        "important"
+      );
+    });
+
+    // Apply theme to console output containers
+    const consoleContainers = document.querySelectorAll(
+      ".console-output-container"
+    );
+    consoleContainers.forEach((container) => {
+      const containerElement = container as HTMLElement;
+      containerElement.style.setProperty(
+        "background-color",
+        bgColor,
+        "important"
+      );
+    });
+
+    // Apply theme to console output text
+    const consoleOutputs = document.querySelectorAll(".console-output");
+    consoleOutputs.forEach((output) => {
+      const outputElement = output as HTMLElement;
+      const textColor = isLightTheme ? "#000000" : "#ffffff";
+      outputElement.style.setProperty("color", textColor, "important");
+    });
+  });
+};
+
+// Watch theme changes and recreate ANSI converter
+watch(
+  effectiveTheme,
+  (newTheme) => {
+    ansiConverter = createAnsiConverter(newTheme === "light");
+    // Also force theme on floating components when theme changes
+    forceThemeOnFloatingComponents();
+  },
+  { immediate: false }
+);
 
 // State management
 const runConfigStore = useRunConfigStore();
@@ -1274,8 +1402,15 @@ const handleThemeSelect = (key: string) => {
         "n-config-provider--dark"
       );
 
+      // Determine the effective theme
+      let effectiveTheme = key;
+      if (key === "system") {
+        // When selecting system theme, use current system theme
+        effectiveTheme = systemTheme.value;
+      }
+
       // Add the correct theme class
-      if (key === "light") {
+      if (effectiveTheme === "light") {
         configProvider.classList.add("n-config-provider--light");
       } else {
         configProvider.classList.add("n-config-provider--dark");
@@ -1919,6 +2054,11 @@ const handleClearHistory = () => {
       await runConfigStore.clearHistory();
     },
   });
+
+  // Force dialog background color after a short delay
+  setTimeout(() => {
+    forceThemeOnFloatingComponents();
+  }, 100);
 };
 
 const handleOpenLogsFolder = async () => {
@@ -2010,6 +2150,9 @@ onMounted(async () => {
       });
     }
   });
+
+  // Force theme on floating components after initialization
+  forceThemeOnFloatingComponents();
 });
 
 // Clean up event listeners on unmount
@@ -2053,6 +2196,20 @@ onUnmounted(() => {
   /* Background color will be set by theme-specific rules below */
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   cursor: move;
+}
+
+/* Remove hover effects from titlebar */
+.custom-titlebar:hover {
+  /* No hover effects */
+}
+
+/* Text logo color control */
+.text-logo-light {
+  filter: invert(0); /* Keep original color for light theme */
+}
+
+.text-logo-dark {
+  filter: invert(1); /* Invert color for dark theme */
 }
 
 .titlebar-content {
@@ -2200,7 +2357,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  background-color: #000000;
+  background-color: #000000 !important;
   border-radius: 0px;
   margin-top: 8px;
   overflow: hidden;
@@ -2209,7 +2366,7 @@ onUnmounted(() => {
 
 /* Light theme console background */
 :global(.n-config-provider--light) .console-output-container {
-  background-color: #ffffff;
+  background-color: #ffffff !important;
 }
 
 .console-scrollbar {
@@ -2225,13 +2382,13 @@ onUnmounted(() => {
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
-  color: #ffffff;
+  color: #ffffff !important;
   background-color: transparent;
 }
 
 /* Light theme console text */
 :global(.n-config-provider--light) .console-output {
-  color: #000000;
+  color: #000000 !important;
 }
 
 /* ANSI color support */
@@ -2520,6 +2677,19 @@ body {
   color: #ffffff !important;
 }
 
+/* Secondary text brightness for dark theme */
+.n-config-provider:not(.n-config-provider--light)
+  .n-descriptions
+  .n-descriptions-item-label,
+.n-config-provider:not(.n-config-provider--light) .n-form-item-label,
+.n-config-provider:not(.n-config-provider--light) .n-input__placeholder,
+.n-config-provider:not(.n-config-provider--light) .n-form-item-feedback,
+.n-config-provider:not(.n-config-provider--light) .n-tag,
+.n-config-provider:not(.n-config-provider--light) .n-time-picker-input,
+.n-config-provider:not(.n-config-provider--light) .n-date-picker-input {
+  color: #cccccc !important; /* Slightly dimmed white for secondary text */
+}
+
 /* Pure white backgrounds for light theme - comprehensive coverage with higher specificity */
 .n-config-provider--light .custom-titlebar {
   background-color: #ffffff !important;
@@ -2561,6 +2731,17 @@ body {
 .n-config-provider--light span,
 .n-config-provider--light div {
   color: #000000 !important;
+}
+
+/* Secondary text brightness for light theme */
+.n-config-provider--light .n-descriptions .n-descriptions-item-label,
+.n-config-provider--light .n-form-item-label,
+.n-config-provider--light .n-input__placeholder,
+.n-config-provider--light .n-form-item-feedback,
+.n-config-provider--light .n-tag,
+.n-config-provider--light .n-time-picker-input,
+.n-config-provider--light .n-date-picker-input {
+  color: #666666 !important; /* Slightly dimmed black for secondary text */
 }
 
 /* Dialog background colors for dark theme */

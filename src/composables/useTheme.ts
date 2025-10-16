@@ -33,6 +33,39 @@ if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
   themeMode.value = savedTheme;
 }
 
+// Apply initial theme class to DOM
+const applyThemeClass = () => {
+  // Wait for DOM to be ready
+  if (typeof document !== 'undefined') {
+    const configProvider = document.querySelector('.n-config-provider');
+    if (configProvider) {
+      // Remove existing theme classes
+      configProvider.classList.remove(
+        'n-config-provider--light',
+        'n-config-provider--dark'
+      );
+
+      // Determine the effective theme
+      let effectiveTheme = themeMode.value;
+      if (themeMode.value === 'system') {
+        effectiveTheme = systemTheme.value;
+      }
+
+      // Add the correct theme class
+      if (effectiveTheme === 'light') {
+        configProvider.classList.add('n-config-provider--light');
+      } else {
+        configProvider.classList.add('n-config-provider--dark');
+      }
+    }
+  }
+};
+
+// Apply theme class on initialization with delay to ensure DOM is ready
+setTimeout(() => {
+  applyThemeClass();
+}, 0);
+
 // Detect system theme preference
 const detectSystemTheme = () => {
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
@@ -46,6 +79,10 @@ const detectSystemTheme = () => {
 const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
 const handleSystemThemeChange = (e: MediaQueryListEvent) => {
   systemTheme.value = e.matches ? 'light' : 'dark';
+  // Apply theme class if currently using system theme
+  if (themeMode.value === 'system') {
+    applyThemeClass();
+  }
 };
 
 // Initialize system theme detection
@@ -70,6 +107,8 @@ const themeName = computed(() => {
 const setThemeMode = (mode: ThemeMode) => {
   themeMode.value = mode;
   localStorage.setItem(STORAGE_KEY, mode);
+  // Apply theme class immediately
+  applyThemeClass();
 };
 
 // Toggle between light and dark (skip system for manual toggle)
