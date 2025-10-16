@@ -20,7 +20,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import { createPinia } from 'pinia';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
+// import 'highlight.js/styles/github-dark.css'; // Temporarily disabled to check background
 import i18n from './locales';
 
 // Naive UI

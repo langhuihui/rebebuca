@@ -242,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted, nextTick } from "vue";
 import { FormInst, useMessage, NSpace, NButton, NIcon } from "naive-ui";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { RunConfig } from "../stores/runConfig";
@@ -498,4 +498,47 @@ const handleSave = () => {
 const handleCancel = () => {
   show.value = false;
 };
+
+// Force dialog background color when component mounts or show changes
+const forceDialogBackground = () => {
+  nextTick(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    if (dialog) {
+      // Check if we're in light theme
+      const configProvider = document.querySelector(".n-config-provider");
+      const isLightTheme = configProvider?.classList.contains(
+        "n-config-provider--light"
+      );
+
+      // Set background color based on theme
+      const bgColor = isLightTheme ? "#ffffff" : "#000000";
+      dialog.style.setProperty("background-color", bgColor, "important");
+
+      // Also set content and body backgrounds
+      const content = dialog.querySelector(".n-dialog__content");
+      const body = dialog.querySelector(".n-dialog__body");
+
+      if (content) {
+        content.style.setProperty("background-color", bgColor, "important");
+      }
+      if (body) {
+        body.style.setProperty("background-color", bgColor, "important");
+      }
+    }
+  });
+};
+
+// Watch for show changes and force background
+watch(show, (newShow) => {
+  if (newShow) {
+    forceDialogBackground();
+  }
+});
+
+// Force background on mount
+onMounted(() => {
+  if (show.value) {
+    forceDialogBackground();
+  }
+});
 </script>

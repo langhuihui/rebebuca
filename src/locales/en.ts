@@ -21,6 +21,13 @@ export default {
     title: 'Rebebuca',
     subtitle: 'Manage your run configurations',
   },
+  titlebar: {
+    newConfig: 'New Config',
+    toggleView: 'Toggle View',
+    toggleSidebar: 'Toggle Sidebar',
+    toggleHistory: 'Toggle History',
+    toggleTheme: 'Toggle Theme',
+  },
   sidebar: {
     newConfig: 'New Configuration',
   },
@@ -106,6 +113,12 @@ export default {
   error: {
     title: 'Error',
     executeCommandFailed: 'Failed to execute command',
+  },
+  theme: {
+    light: 'Light',
+    dark: 'Dark',
+    system: 'Follow System',
+    current: 'Current Theme',
   },
 };
 

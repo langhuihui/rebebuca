@@ -21,6 +21,13 @@ export default {
     title: 'Rebebuca',
     subtitle: '管理你的运行配置',
   },
+  titlebar: {
+    newConfig: '新建配置',
+    toggleView: '切换视图',
+    toggleSidebar: '切换侧边栏',
+    toggleHistory: '切换历史记录',
+    toggleTheme: '切换主题',
+  },
   sidebar: {
     newConfig: '新建配置',
   },
@@ -106,6 +113,12 @@ export default {
   error: {
     title: '错误',
     executeCommandFailed: '执行命令失败',
+  },
+  theme: {
+    light: '浅色',
+    dark: '深色',
+    system: '跟随系统',
+    current: '当前主题',
   },
 };
 
