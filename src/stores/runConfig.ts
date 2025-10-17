@@ -108,6 +108,11 @@ export interface RunHistory {
   output?: string;
   duration?: number;
   logFilename?: string;
+  processId?: string;
+  startTime?: number;
+  cpuUsage?: string;
+  memoryUsage?: string;
+  pinned?: boolean;
 }
 
 export const useRunConfigStore = defineStore('runConfig', () => {
@@ -438,6 +443,17 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     }
   };
 
+  // Get process statistics
+  const getProcessStats = async (processId: string) => {
+    try {
+      const stats = await safeInvoke('get_process_stats', { processId });
+      return stats;
+    } catch (error) {
+      console.error('Failed to get process stats:', error);
+      return null;
+    }
+  };
+
   const updateHistory = async (historyId: string, updates: Partial<RunHistory>) => {
     const index = history.value.findIndex(h => h.id === historyId);
     if (index !== -1) {
@@ -571,5 +587,6 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     loadHistory,
     saveHistory,
     openLogsFolder,
+    getProcessStats,
   };
 });

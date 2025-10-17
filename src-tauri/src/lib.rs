@@ -28,6 +28,14 @@ pub struct ProcessInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessStats {
+    pub process_id: String,
+    pub cpu_usage: f64,
+    pub memory_usage: u64,
+    pub memory_usage_mb: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProcessStatus {
     Running,
@@ -56,13 +64,12 @@ fn get_logs_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
         .path()
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-    
+
     let logs_dir = app_data_dir.join("logs");
-    
+
     // Create logs directory if it doesn't exist
-    fs::create_dir_all(&logs_dir)
-        .map_err(|e| format!("Failed to create logs directory: {}", e))?;
-    
+    fs::create_dir_all(&logs_dir).map_err(|e| format!("Failed to create logs directory: {}", e))?;
+
     Ok(logs_dir)
 }
 
@@ -114,7 +121,7 @@ async fn execute_command(
     process_manager: tauri::State<'_, ProcessManager>,
 ) -> Result<String, String> {
     let process_id = Uuid::new_v4().to_string();
-    
+
     // Create log file
     let logs_dir = get_logs_dir(&app_handle)?;
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
@@ -129,11 +136,11 @@ async fn execute_command(
 
     // Use arguments directly from config.arguments, but handle quotes properly
     let mut cmd_args: Vec<String> = config.arguments.unwrap_or_default();
-    
+
     // Remove surrounding quotes from arguments that have them
     for arg in &mut cmd_args {
         if arg.starts_with('"') && arg.ends_with('"') && arg.len() > 1 {
-            *arg = arg[1..arg.len()-1].to_string();
+            *arg = arg[1..arg.len() - 1].to_string();
         }
     }
 
@@ -186,7 +193,9 @@ async fn execute_command(
     );
 
     // Spawn the process
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn process: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn process: {}", e))?;
 
     // Get the PID
     let pid = child.id();
@@ -227,12 +236,12 @@ async fn execute_command(
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     let content = buffer.clone();
-                    
+
                     // Write to log file
                     if let Some(ref mut file) = log_file {
                         let _ = file.write_all(content.as_bytes()).await;
                     }
-                    
+
                     let _ = app_handle_clone.emit(
                         "process-output",
                         OutputEvent {
@@ -268,12 +277,12 @@ async fn execute_command(
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     let content = format!("[ERROR] {}", buffer);
-                    
+
                     // Write to log file
                     if let Some(ref mut file) = log_file {
                         let _ = file.write_all(content.as_bytes()).await;
                     }
-                    
+
                     let _ = app_handle_clone.emit(
                         "process-output",
                         OutputEvent {
@@ -370,7 +379,8 @@ async fn execute_command(
     Ok(serde_json::json!({
         "process_id": process_id,
         "log_filename": log_filename
-    }).to_string())
+    })
+    .to_string())
 }
 
 #[tauri::command]
@@ -406,7 +416,7 @@ async fn kill_process(
 #[tauri::command]
 async fn open_logs_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
     let logs_dir = get_logs_dir(&app_handle)?;
-    
+
     // Open the logs directory in the system file manager
     #[cfg(target_os = "macos")]
     {
@@ -415,7 +425,7 @@ async fn open_logs_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to open logs folder: {}", e))?;
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
@@ -423,7 +433,7 @@ async fn open_logs_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to open logs folder: {}", e))?;
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
@@ -431,7 +441,7 @@ async fn open_logs_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to open logs folder: {}", e))?;
     }
-    
+
     Ok(())
 }
 
@@ -439,13 +449,41 @@ async fn open_logs_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
 async fn delete_log_file(app_handle: tauri::AppHandle, log_filename: String) -> Result<(), String> {
     let logs_dir = get_logs_dir(&app_handle)?;
     let log_path = logs_dir.join(&log_filename);
-    
+
     if log_path.exists() {
-        fs::remove_file(&log_path)
-            .map_err(|e| format!("Failed to delete log file: {}", e))?;
+        fs::remove_file(&log_path).map_err(|e| format!("Failed to delete log file: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_process_stats(process_id: String, process_manager: tauri::State<'_, ProcessManager>) -> Result<ProcessStats, String> {
+    let processes = process_manager.get_processes_arc();
+    let processes_guard = processes.lock().await;
+    
+    if let Some(child) = processes_guard.get(&process_id) {
+        if let Some(pid) = child.id() {
+            // Get process stats using sysinfo
+            let mut sys = sysinfo::System::new_all();
+            sys.refresh_processes();
+            
+            if let Some(process) = sys.process(sysinfo::Pid::from_u32(pid)) {
+                let cpu_usage = process.cpu_usage() as f64;
+                let memory_usage = process.memory();
+                let memory_usage_mb = format!("{:.1}MB", memory_usage as f64 / 1024.0 / 1024.0);
+                
+                return Ok(ProcessStats {
+                    process_id,
+                    cpu_usage,
+                    memory_usage,
+                    memory_usage_mb,
+                });
+            }
+        }
     }
     
-    Ok(())
+    Err("Process not found or no PID available".to_string())
 }
 
 #[tauri::command]
@@ -456,6 +494,7 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -466,7 +505,8 @@ pub fn run() {
             execute_command,
             kill_process,
             open_logs_folder,
-            delete_log_file
+            delete_log_file,
+            get_process_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,162 @@
+<!--
+ * Rebebuca
+ * Copyright (C) 2025 rebebuca contributors
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ -->
+
+<template>
+  <n-layout-sider
+    v-show="uiStore.sidebarVisible"
+    bordered
+    :width="280"
+    class="sidebar-layout"
+  >
+    <n-space vertical class="h-full p-6">
+      <!-- Logo and New Config Button -->
+      <div class="config-header-container">
+        <div class="config-header-content">
+          <!-- Logo and New Config Button in one row -->
+          <div class="header-row">
+            <!-- Logo -->
+            <img
+              :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
+              alt="Logo"
+              class="logo-image"
+            />
+            <!-- New Config Button -->
+            <n-button
+              type="default"
+              @click="handleNewConfigClick"
+              id="new-config-button"
+            >
+              {{ t("sidebar.newConfig") }}
+            </n-button>
+          </div>
+        </div>
+      </div>
+      <!-- Run configuration list -->
+      <n-scrollbar class="flex-1">
+        <n-list class="mt-6">
+          <n-list-item
+            v-for="config in runConfigs"
+            :key="config.id"
+            class="config-list-item"
+          >
+            <div class="config-item-content">
+              <!-- Icon and main content -->
+              <div class="config-main-row">
+                <!-- Program icon -->
+                <div class="config-icon">
+                  <div class="program-icon">
+                    {{ getProgramIcon(config.command) }}
+                  </div>
+                </div>
+
+                <!-- Config info -->
+                <div class="config-info">
+                  <div class="config-header">
+                    <span class="config-name">{{ config.name }}</span>
+                    <div class="config-actions">
+                      <n-button
+                        size="small"
+                        text
+                        @click="() => handleRunConfigClick(config)"
+                        class="action-button run-button"
+                      >
+                        <template #icon>
+                          <component :is="iconComponents.play" />
+                        </template>
+                      </n-button>
+                      <n-button
+                        size="small"
+                        text
+                        @click="() => handleEditConfigClick(config)"
+                        class="action-button edit-button"
+                      >
+                        <template #icon>
+                          <component :is="iconComponents.edit" />
+                        </template>
+                      </n-button>
+                    </div>
+                  </div>
+                  <n-text depth="3" class="config-command">{{
+                    config.command
+                  }}</n-text>
+                </div>
+              </div>
+            </div>
+          </n-list-item>
+        </n-list>
+      </n-scrollbar>
+    </n-space>
+  </n-layout-sider>
+</template>
+
+<script setup lang="ts">
+import { computed } from "vue";
+import {
+  NLayoutSider,
+  NSpace,
+  NButton,
+  NScrollbar,
+  NList,
+  NListItem,
+  NText,
+} from "naive-ui";
+import { useI18n } from "vue-i18n";
+import { useUIStore } from "../stores/ui";
+import { useRunConfigStore } from "../stores/runConfig";
+import { useTheme } from "../composables/useTheme";
+import { iconComponents } from "../utils/icons";
+import { getProgramIcon } from "../utils/programUtils";
+import {
+  handleNewConfig,
+  handleRunConfig,
+  handleEditConfig,
+} from "../utils/configUtils";
+import type { RunConfig } from "../stores/runConfig";
+
+const { t } = useI18n();
+const uiStore = useUIStore();
+const runConfigStore = useRunConfigStore();
+const { effectiveTheme } = useTheme();
+
+const runConfigs = computed(() => runConfigStore.configs);
+
+const handleNewConfigClick = () => {
+  handleNewConfig(
+    { value: uiStore.editingConfig },
+    { value: uiStore.configDialogVisible }
+  );
+};
+
+const handleRunConfigClick = (config: RunConfig) => {
+  handleRunConfig(
+    config,
+    runConfigStore,
+    (config: RunConfig, processId: string, historyId?: string) => {
+      // This will be handled by the parent component
+    }
+  );
+};
+
+const handleEditConfigClick = (config: RunConfig) => {
+  handleEditConfig(
+    config,
+    { value: uiStore.editingConfig },
+    { value: uiStore.configDialogVisible }
+  );
+};
+</script>

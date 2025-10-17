@@ -1,4 +1,4 @@
-@import "./console-area.scss";
+@use "./console-area.scss";
 
 html,body {
   background: none;
@@ -70,8 +70,15 @@ html,body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* Background color will be set by theme-specific rules below */
+  background-color: #1a1a1a;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+}
+
+/* Light theme titlebar */
+.n-config-provider--light .custom-titlebar {
+  background-color: #f5f5f5;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .title-logo {
@@ -231,6 +238,41 @@ html,body {
   display: none;
 }
 
+/* Windows style window controls */
+.window-controls.windows-style {
+  gap: 0;
+}
+
+.window-controls.windows-style .window-control-button {
+  width: 46px;
+  height: 30px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.window-controls.windows-style .window-control-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  transform: none;
+}
+
+.window-controls.windows-style .close-btn:hover {
+  background-color: #ff0040;
+}
+
+.window-controls.windows-style .window-control-button span {
+  display: block;
+}
+
+.window-controls.windows-style .window-control-button svg {
+  display: none;
+}
+
 .titlebar-content {
   width: 100%;
   display: flex;
@@ -281,6 +323,26 @@ html,body {
 .titlebar-right .n-button:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 8px rgba(0, 208, 132, 0.3);
   transform: scale(1.02);
+}
+
+.titlebar-button {
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+}
+
+.titlebar-button:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Light theme titlebar buttons */
+.n-config-provider--light .titlebar-button {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.n-config-provider--light .titlebar-button:hover {
+  color: #000000;
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 /* Main content layout */
@@ -398,6 +460,24 @@ html,body {
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   margin: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.history-list-item.selected {
+  border-color: rgba(0, 208, 132, 0.5);
+  background-color: rgba(0, 208, 132, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 208, 132, 0.3);
+}
+
+.history-list-item.pinned-item {
+  border-left: 3px solid #00d084;
+}
+
+.history-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  margin: 8px 16px;
 }
 
 .config-list-item::before {
@@ -478,6 +558,16 @@ html,body {
   display: flex;
   gap: 4px;
   margin-right: 10px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.history-actions.visible {
+  opacity: 1;
+}
+
+.history-list-item:hover .history-actions {
+  opacity: 1;
 }
 
 .action-button {
@@ -521,6 +611,55 @@ html,body {
   font-family: "Courier New", Courier, monospace;
   word-break: break-all;
   line-height: 1.4;
+}
+
+.history-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.process-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.stat-item {
+  background: rgba(0, 208, 132, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 208, 132, 0.2);
+}
+
+.history-tooltip {
+  max-width: 300px;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.tooltip-command {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  word-break: break-all;
+}
+
+.console-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.console-toolbar {
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .history-main-row {
