@@ -161,6 +161,28 @@ html,body {
   -ms-user-select: none;
 }
 
+.titlebar-content.windows-layout {
+  justify-content: flex-start;
+  padding-right: 0;
+  gap: 8px;
+}
+
+.titlebar-content.windows-layout .titlebar-left {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-right: 12px;
+}
+
+.titlebar-content.windows-layout .titlebar-right {
+  margin-left: auto;
+  padding-right: 0;
+}
+
+.titlebar-content.windows-layout .window-controls {
+  margin-right: 0;
+}
+
 .titlebar-center {
   display: flex;
   align-items: center;
@@ -241,18 +263,43 @@ html,body {
 /* Windows style window controls */
 .window-controls.windows-style {
   gap: 0;
+  margin-right: 0;
+  margin-left: 0;
+  height: 100%;
 }
 
 .window-controls.windows-style .window-control-button {
   width: 46px;
-  height: 30px;
+  height: 40px;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   color: #ffffff;
   font-size: 16px;
-  font-weight: bold;
+  line-height: 1;
   transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.window-controls.windows-style .minimize-btn span {
+  font-size: 18px;
+  font-weight: 300;
+  margin-top: -4px;
+}
+
+.window-controls.windows-style .maximize-btn span {
+  font-size: 16px;
+  font-weight: 300;
+  margin-top: 0;
+}
+
+.window-controls.windows-style .close-btn span {
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
 }
 
 .window-controls.windows-style .window-control-button:hover {
@@ -262,7 +309,8 @@ html,body {
 }
 
 .window-controls.windows-style .close-btn:hover {
-  background-color: #ff0040;
+  background-color: #e81123;
+  color: #ffffff;
 }
 
 .window-controls.windows-style .window-control-button span {
@@ -271,6 +319,20 @@ html,body {
 
 .window-controls.windows-style .window-control-button svg {
   display: none;
+}
+
+/* Light theme Windows button colors */
+.n-config-provider--light .window-controls.windows-style .window-control-button {
+  color: #000000;
+}
+
+.n-config-provider--light .window-controls.windows-style .window-control-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.n-config-provider--light .window-controls.windows-style .close-btn:hover {
+  background-color: #e81123;
+  color: #ffffff;
 }
 
 .titlebar-content {
@@ -562,6 +624,10 @@ html,body {
   transition: opacity 0.2s ease;
 }
 
+.config-list-item:hover .config-actions {
+  opacity: 1;
+}
+
 .history-actions.visible {
   opacity: 1;
 }
@@ -635,6 +701,10 @@ html,body {
 
 .history-tooltip {
   max-width: 300px;
+}
+
+.config-tooltip {
+  max-width: 320px;
 }
 
 .tooltip-title {

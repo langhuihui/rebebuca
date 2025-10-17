@@ -39,6 +39,7 @@
             <n-button
               type="default"
               @click="handleNewConfigClick"
+              @mousedown.stop
               id="new-config-button"
             >
               {{ t("sidebar.newConfig") }}
@@ -49,55 +50,70 @@
       <!-- Run configuration list -->
       <n-scrollbar class="flex-1">
         <n-list class="mt-6">
-          <n-list-item
+          <n-tooltip
             v-for="config in runConfigs"
             :key="config.id"
-            class="config-list-item"
+            placement="right"
+            trigger="hover"
           >
-            <div class="config-item-content">
-              <!-- Icon and main content -->
-              <div class="config-main-row">
-                <!-- Program icon -->
-                <div class="config-icon">
-                  <div class="program-icon">
-                    {{ getProgramIcon(config.command) }}
-                  </div>
-                </div>
+            <template #trigger>
+              <n-list-item
+                class="config-list-item"
+              >
+                <div class="config-item-content">
+                  <!-- Icon and main content -->
+                  <div class="config-main-row">
+                    <!-- Program icon -->
+                    <div class="config-icon">
+                      <div class="program-icon">
+                        {{ getProgramIcon(config.command) }}
+                      </div>
+                    </div>
 
-                <!-- Config info -->
-                <div class="config-info">
-                  <div class="config-header">
-                    <span class="config-name">{{ config.name }}</span>
-                    <div class="config-actions">
-                      <n-button
-                        size="small"
-                        text
-                        @click="() => handleRunConfigClick(config)"
-                        class="action-button run-button"
-                      >
-                        <template #icon>
-                          <component :is="iconComponents.play" />
-                        </template>
-                      </n-button>
-                      <n-button
-                        size="small"
-                        text
-                        @click="() => handleEditConfigClick(config)"
-                        class="action-button edit-button"
-                      >
-                        <template #icon>
-                          <component :is="iconComponents.edit" />
-                        </template>
-                      </n-button>
+                    <!-- Config info -->
+                    <div class="config-info">
+                      <div class="config-header">
+                        <span class="config-name">{{ config.name }}</span>
+                        <div class="config-actions">
+                          <n-button
+                            size="small"
+                            text
+                            @click.stop="() => handleRunConfigClick(config)"
+                            @mousedown.stop
+                            class="action-button run-button"
+                            title="启动"
+                          >
+                            <template #icon>
+                              <component :is="iconComponents.play" />
+                            </template>
+                          </n-button>
+                          <n-button
+                            size="small"
+                            text
+                            @click.stop="() => handleEditConfigClick(config)"
+                            @mousedown.stop
+                            class="action-button edit-button"
+                            title="修改"
+                          >
+                            <template #icon>
+                              <component :is="iconComponents.edit" />
+                            </template>
+                          </n-button>
+                        </div>
+                      </div>
+                      <n-text depth="3" class="config-command">{{
+                        config.command
+                      }}</n-text>
                     </div>
                   </div>
-                  <n-text depth="3" class="config-command">{{
-                    config.command
-                  }}</n-text>
                 </div>
-              </div>
+              </n-list-item>
+            </template>
+            <div class="config-tooltip">
+              <div class="tooltip-title">{{ config.name }}</div>
+              <div class="tooltip-command">{{ config.command }}</div>
             </div>
-          </n-list-item>
+          </n-tooltip>
         </n-list>
       </n-scrollbar>
     </n-space>
@@ -106,6 +122,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { storeToRefs } from "pinia";
 import {
   NLayoutSider,
   NSpace,
@@ -114,6 +131,7 @@ import {
   NList,
   NListItem,
   NText,
+  NTooltip,
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
@@ -132,14 +150,12 @@ const { t } = useI18n();
 const uiStore = useUIStore();
 const runConfigStore = useRunConfigStore();
 const { effectiveTheme } = useTheme();
+const { editingConfig, configDialogVisible } = storeToRefs(uiStore);
 
 const runConfigs = computed(() => runConfigStore.configs);
 
 const handleNewConfigClick = () => {
-  handleNewConfig(
-    { value: uiStore.editingConfig },
-    { value: uiStore.configDialogVisible }
-  );
+  handleNewConfig(editingConfig, configDialogVisible);
 };
 
 const handleRunConfigClick = (config: RunConfig) => {
@@ -153,10 +169,6 @@ const handleRunConfigClick = (config: RunConfig) => {
 };
 
 const handleEditConfigClick = (config: RunConfig) => {
-  handleEditConfig(
-    config,
-    { value: uiStore.editingConfig },
-    { value: uiStore.configDialogVisible }
-  );
+  handleEditConfig(config, editingConfig, configDialogVisible);
 };
 </script>
