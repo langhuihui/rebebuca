@@ -52,7 +52,7 @@
             <!-- Pinned items -->
             <template v-if="pinnedHistory.length > 0">
               <n-list-item
-                v-for="(item, index) in pinnedHistory"
+                v-for="item in pinnedHistory"
                 :key="`pinned-${item.id}`"
                 class="history-list-item pinned-item"
                 :class="{
@@ -65,7 +65,7 @@
                 <HistoryItem
                   :item="item"
                   :hovered="hoveredHistoryId === item.id"
-                  :selected="selectedHistoryItem?.id === item.id"
+                  :selected="uiStore.selectedHistoryItem?.id === item.id"
                   :get-program-icon="getProgramIcon"
                   :get-history-status-color="getHistoryStatusColor"
                   :get-history-command="getHistoryCommand"
@@ -87,7 +87,7 @@
 
             <!-- Regular items -->
             <n-list-item
-              v-for="(item, index) in regularHistory"
+              v-for="item in regularHistory"
               :key="`regular-${item.id}`"
               class="history-list-item"
               :class="{ selected: uiStore.selectedHistoryItem?.id === item.id }"
@@ -98,7 +98,7 @@
               <HistoryItem
                 :item="item"
                 :hovered="hoveredHistoryId === item.id"
-                :selected="selectedHistoryItem?.id === item.id"
+                :selected="uiStore.selectedHistoryItem?.id === item.id"
                 :get-program-icon="getProgramIcon"
                 :get-history-status-color="getHistoryStatusColor"
                 :get-history-command="getHistoryCommand"
@@ -212,7 +212,12 @@ const getHistoryCommand = (historyItem: RunHistory) => {
 
 // Actions
 const handleSelectHistory = (item: RunHistory) => {
-  uiStore.setSelectedHistoryItem(item);
+  // Toggle selection - if clicking the same item, deselect it
+  if (uiStore.selectedHistoryItem?.id === item.id) {
+    uiStore.setSelectedHistoryItem(null);
+  } else {
+    uiStore.setSelectedHistoryItem(item);
+  }
 };
 
 const handlePinHistory = (item: RunHistory) => {
@@ -253,7 +258,9 @@ const handleReRunHistory = async (history: RunHistory) => {
   }
 };
 
-const handleDeleteHistory = async (historyItem: RunHistory, index: number) => {
+const handleDeleteHistory = async (historyItem: RunHistory) => {
+  const index = runConfigStore.history.findIndex(h => h.id === historyItem.id);
+  
   // If process is running, stop it first
   if (historyItem.processId && historyItem.status === "running") {
     try {
@@ -264,7 +271,9 @@ const handleDeleteHistory = async (historyItem: RunHistory, index: number) => {
   }
 
   // Remove from history
-  removeHistoryItem(index, runConfigStore);
+  if (index !== -1) {
+    removeHistoryItem(index, runConfigStore);
+  }
 
   // Clear selection if this was the selected item
   if (uiStore.selectedHistoryItem?.id === historyItem.id) {

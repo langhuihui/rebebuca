@@ -31,6 +31,13 @@
         />
       </div>
 
+      <!-- Title center for Windows platform -->
+      <div class="titlebar-center" v-if="uiStore.isWindowsPlatform">
+        <span v-if="uiStore.selectedHistoryItem" class="history-title-display">
+          {{ uiStore.selectedHistoryItem.name }}
+        </span>
+      </div>
+
       <!-- Window controls - macOS style on the left -->
       <div
         v-if="!uiStore.isWindowsPlatform"
@@ -84,6 +91,7 @@
       <!-- Title only for non-Windows -->
       <div class="titlebar-center" v-if="!uiStore.isWindowsPlatform">
         <img
+          v-if="!uiStore.selectedHistoryItem"
           :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
           alt="Rebebuca"
           :class="
@@ -91,6 +99,9 @@
           "
           class="title-logo"
         />
+        <span v-else class="history-title-display">
+          {{ uiStore.selectedHistoryItem.name }}
+        </span>
       </div>
 
       <!-- Right buttons -->

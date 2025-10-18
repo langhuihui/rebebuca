@@ -91,7 +91,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { NSpace, NButton, NScrollbar, NText } from "naive-ui";
-import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
 import { useAppStore } from "../stores/app";
 import { useTheme } from "../composables/useTheme";
@@ -102,7 +101,6 @@ import { handleExportTab } from "../utils/tabOperations";
 import WelcomeScreen from "./WelcomeScreen.vue";
 import type { RunHistory } from "../stores/runConfig";
 
-const { t } = useI18n();
 const uiStore = useUIStore();
 const appStore = useAppStore();
 const { effectiveTheme } = useTheme();

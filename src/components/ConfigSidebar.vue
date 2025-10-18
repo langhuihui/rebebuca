@@ -162,7 +162,7 @@ const handleRunConfigClick = (config: RunConfig) => {
   handleRunConfig(
     config,
     runConfigStore,
-    (config: RunConfig, processId: string, historyId?: string) => {
+    () => {
       // This will be handled by the parent component
     }
   );

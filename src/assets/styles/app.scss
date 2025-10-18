@@ -285,20 +285,21 @@ html,body {
 }
 
 .window-controls.windows-style .minimize-btn span {
-  font-size: 18px;
-  font-weight: 300;
-  margin-top: -4px;
+  font-size: 22px;
 }
 
 .window-controls.windows-style .maximize-btn span {
-  font-size: 16px;
-  font-weight: 300;
+  font-size: 20px;
+  margin-top: -4px;
+}
+
+.window-controls.windows-style .maximize-btn.restore-btn span {
+  font-size: 22px;
   margin-top: 0;
 }
 
 .window-controls.windows-style .close-btn span {
-  font-size: 20px;
-  font-weight: 300;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -898,6 +899,21 @@ html,body {
 
 .n-config-provider--light .history-title {
   color: #000000;
+}
+
+/* History title display in titlebar */
+.history-title-display {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.n-config-provider--light .history-title-display {
+  color: rgba(0, 0, 0, 0.9);
 }
 
 .history-actions {

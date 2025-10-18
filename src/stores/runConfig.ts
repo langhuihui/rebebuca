@@ -491,6 +491,11 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     const newHistory = await addHistory(runRecord);
     setCurrentRun(newHistory);
 
+    // Auto-select the newly created history item
+    const { useUIStore } = await import('./ui');
+    const uiStore = useUIStore();
+    uiStore.setSelectedHistoryItem(newHistory);
+
     // Convert RunConfig to TauriRunConfig format
     const tauriConfig: TauriRunConfig = {
       name: config.name,

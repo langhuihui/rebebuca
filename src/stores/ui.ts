@@ -2,13 +2,14 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { iconComponents } from "../utils/icons";
+import type { RunHistory } from "./runConfig";
 
 export const useUIStore = defineStore("ui", () => {
   // UI state
   const sidebarVisible = ref(true);
   const historyPanelVisible = ref(true);
   const isWindowsPlatform = ref(false);
-  const selectedHistoryItem = ref<any>(null);
+  const selectedHistoryItem = ref<RunHistory | null>(null);
   const consoleScrollbarRef = ref<any>(null);
 
   // Dialog state
@@ -50,7 +51,7 @@ export const useUIStore = defineStore("ui", () => {
     isWindowsPlatform.value = value;
   };
 
-  const setSelectedHistoryItem = (item: any) => {
+  const setSelectedHistoryItem = (item: RunHistory | null) => {
     selectedHistoryItem.value = item;
   };
 
