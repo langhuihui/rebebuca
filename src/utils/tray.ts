@@ -34,6 +34,7 @@ const isTauriEnv = (): boolean => {
 let trayIconRef: any | null = null;
 let menuApi: any | null = null;
 let trayApi: any | null = null;
+let interactionsAttached = false;
 
 // Build tray menu based on current store state
 const buildMenu = async (
@@ -45,6 +46,40 @@ const buildMenu = async (
   const MenuItem = (menuApi as any).MenuItem;
   const Submenu = (menuApi as any).Submenu;
   const PredefinedMenuItem = (menuApi as any).PredefinedMenuItem;
+
+  const createSubmenu = (text: string, innerMenu: any): any | null => {
+    if (!Submenu) return null;
+    try {
+      return new Submenu({ text, children: innerMenu });
+    } catch (_) {
+      try {
+        return new Submenu({ text, items: innerMenu });
+      } catch (__) {
+        try {
+          return new Submenu(text, innerMenu);
+        } catch (___) {
+          return null;
+        }
+      }
+    }
+  };
+
+  const createSeparator = (): any | null => {
+    if (!PredefinedMenuItem) return null;
+    try {
+      return new PredefinedMenuItem('Separator');
+    } catch (_) {
+      try {
+        return new PredefinedMenuItem({ kind: 'Separator' });
+      } catch (__) {
+        try {
+          return (PredefinedMenuItem as any).separator ? (PredefinedMenuItem as any).separator() : null;
+        } catch (___) {
+          return null;
+        }
+      }
+    }
+  };
 
   // Fallback checks
   if (!Menu || !MenuItem) return null;
@@ -103,8 +138,13 @@ const buildMenu = async (
     // Prefer grouping actions under process name if Submenu exists
     if (Submenu) {
       const submenuMenu = new Menu({ items: [stopItem, restartItem] });
-      const submenu = new Submenu({ text: `进程: ${name}`, children: submenuMenu });
-      topLevelItems.push(submenu);
+      const submenu = createSubmenu(`进程: ${name}`, submenuMenu);
+      if (submenu) {
+        topLevelItems.push(submenu);
+      } else {
+        topLevelItems.push(stopItem);
+        if (topLevelItems.length < maxTopLevel) topLevelItems.push(restartItem);
+      }
     } else {
       // Fallback: push two flat items (counts towards the 10 limit)
       topLevelItems.push(stopItem);
@@ -114,12 +154,8 @@ const buildMenu = async (
 
   // Optional separator if space remains and we have configs
   if (PredefinedMenuItem && configsToShow.length > 0 && topLevelItems.length > 0 && topLevelItems.length < maxTopLevel) {
-    try {
-      const sep = new PredefinedMenuItem('Separator');
-      topLevelItems.push(sep);
-    } catch (_) {
-      // ignore if API differs
-    }
+    const sep = createSeparator();
+    if (sep) topLevelItems.push(sep);
   }
 
   // Config list section (Start only)
@@ -158,6 +194,67 @@ const buildMenu = async (
   }
 };
 
+// Show and focus main window
+const showMainWindow = async () => {
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const win = getCurrentWindow();
+    try {
+      if (typeof (win as any).isMinimized === 'function' && await (win as any).isMinimized()) {
+        if (typeof (win as any).unminimize === 'function') await (win as any).unminimize();
+      }
+    } catch (_) {}
+    try {
+      if (typeof (win as any).isVisible === 'function' && !(await (win as any).isVisible())) {
+        if (typeof (win as any).show === 'function') await (win as any).show();
+      }
+    } catch (_) {}
+    try {
+      if (typeof (win as any).setFocus === 'function') await (win as any).setFocus();
+    } catch (_) {}
+  } catch (e) {
+    console.error('Failed to show main window:', e);
+  }
+};
+
+// Attach tray interactions like click to show app window
+const attachTrayInteractions = async () => {
+  if (!trayIconRef || interactionsAttached) return;
+  try {
+    const clickHandler = async (event: any) => {
+      const btn = event?.button ?? event?.mouseButton ?? event?.buttonState;
+      const isLeft = btn === 'left' || btn === 0 || btn === 'Left';
+      if (isLeft) {
+        await showMainWindow();
+      }
+    };
+
+    if (typeof (trayIconRef as any).onClick === 'function') {
+      (trayIconRef as any).onClick(clickHandler);
+      interactionsAttached = true;
+    } else if (typeof (trayIconRef as any).setOnClick === 'function') {
+      await (trayIconRef as any).setOnClick(clickHandler);
+      interactionsAttached = true;
+    } else if (trayApi && typeof (trayApi as any).onClick === 'function') {
+      await (trayApi as any).onClick(clickHandler);
+      interactionsAttached = true;
+    }
+  } catch (e) {
+    console.warn('Failed to attach tray interactions:', e);
+  }
+};
+
+const updateTrayTooltip = async (store: any) => {
+  if (!trayIconRef) return;
+  const runningCount = (store.history || []).filter((h: any) => h.status === 'running' && h.processId).length;
+  const text = `Rebebuca - 正在运行: ${runningCount}`;
+  try {
+    if (typeof (trayIconRef as any).setTooltip === 'function') {
+      await (trayIconRef as any).setTooltip(text);
+    }
+  } catch (_) {}
+};
+
 // Create or update the tray icon with the latest menu
 const ensureTray = async (store: any) => {
   try {
@@ -185,6 +282,7 @@ const ensureTray = async (store: any) => {
             tooltip: 'Rebebuca',
           });
         }
+        await attachTrayInteractions();
       } catch (e) {
         console.error('Failed to create tray icon:', e);
         trayIconRef = null;
@@ -203,13 +301,19 @@ const ensureTray = async (store: any) => {
           // Recreate as a last resort
           trayIconRef = null;
           await ensureTray(store);
+          return;
         }
+        await attachTrayInteractions();
       } catch (e) {
         console.warn('Failed to update tray menu, recreating tray:', e);
         trayIconRef = null;
         await ensureTray(store);
+        return;
       }
     }
+
+    // Update tooltip with running count
+    await updateTrayTooltip(store);
   } catch (e) {
     console.error('ensureTray failed:', e);
   }
