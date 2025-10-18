@@ -18,19 +18,31 @@
 
 <template>
   <div class="custom-titlebar" @mousedown="startDrag">
-    <div class="titlebar-content">
-      <!-- Window controls -->
+    <div class="titlebar-content" :class="{ 'windows-layout': uiStore.isWindowsPlatform }">
+      <!-- Left side for Windows title logo -->
+      <div class="titlebar-left" v-if="uiStore.isWindowsPlatform">
+        <img
+          :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
+          alt="Rebebuca"
+          :class="
+            effectiveTheme === 'light' ? 'text-logo-light' : 'text-logo-dark'
+          "
+          class="title-logo"
+        />
+      </div>
+
+      <!-- Window controls - macOS style on the left -->
       <div
+        v-if="!uiStore.isWindowsPlatform"
         class="window-controls"
-        :class="{ 'windows-style': uiStore.isWindowsPlatform }"
       >
         <button
           class="window-control-button close-btn"
           @click="closeWindow"
+          @mousedown.stop
           title="关闭"
         >
-          <span v-if="uiStore.isWindowsPlatform">×</span>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10">
+          <svg width="10" height="10" viewBox="0 0 10 10">
             <path
               d="M1 1l8 8M9 1l-8 8"
               stroke="currentColor"
@@ -42,20 +54,20 @@
         <button
           class="window-control-button minimize-btn"
           @click="minimizeWindow"
+          @mousedown.stop
           title="最小化"
         >
-          <span v-if="uiStore.isWindowsPlatform">−</span>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10">
+          <svg width="10" height="10" viewBox="0 0 10 10">
             <rect x="1" y="4.5" width="8" height="1" fill="currentColor" />
           </svg>
         </button>
         <button
           class="window-control-button maximize-btn"
           @click="toggleMaximize"
+          @mousedown.stop
           title="最大化"
         >
-          <span v-if="uiStore.isWindowsPlatform">□</span>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10">
+          <svg width="10" height="10" viewBox="0 0 10 10">
             <rect
               x="1"
               y="1"
@@ -69,8 +81,8 @@
         </button>
       </div>
 
-      <!-- Title only -->
-      <div class="titlebar-center">
+      <!-- Title only for non-Windows -->
+      <div class="titlebar-center" v-if="!uiStore.isWindowsPlatform">
         <img
           :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
           alt="Rebebuca"
@@ -93,6 +105,7 @@
             size="small"
             class="titlebar-button"
             :title="t('titlebar.toggleTheme')"
+            @mousedown.stop
           >
             <template #icon>
               <component
@@ -111,6 +124,7 @@
           @click="toggleSidebar"
           class="titlebar-button"
           :title="t('titlebar.toggleSidebar')"
+          @mousedown.stop
         >
           <template #icon>
             <component :is="iconComponents.sidebar" />
@@ -122,11 +136,43 @@
           @click="toggleHistoryPanel"
           class="titlebar-button"
           :title="t('titlebar.toggleHistory')"
+          @mousedown.stop
         >
           <template #icon>
             <component :is="iconComponents.historyPanel" />
           </template>
         </n-button>
+      </div>
+
+      <!-- Window controls - Windows style on the right -->
+      <div
+        v-if="uiStore.isWindowsPlatform"
+        class="window-controls windows-style"
+      >
+        <button
+          class="window-control-button minimize-btn"
+          @click="minimizeWindow"
+          @mousedown.stop
+          title="最小化"
+        >
+          <span>−</span>
+        </button>
+        <button
+          class="window-control-button maximize-btn"
+          @click="toggleMaximize"
+          @mousedown.stop
+          title="最大化"
+        >
+          <span>□</span>
+        </button>
+        <button
+          class="window-control-button close-btn"
+          @click="closeWindow"
+          @mousedown.stop
+          title="关闭"
+        >
+          <span>×</span>
+        </button>
       </div>
     </div>
   </div>

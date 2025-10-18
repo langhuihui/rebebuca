@@ -79,7 +79,13 @@ export const startDrag = async (event: MouseEvent) => {
 
   // Don't start drag if clicking on buttons
   const target = event.target as HTMLElement;
-  if (target.closest(".n-button")) return;
+  if (
+    target.closest(".n-button") ||
+    target.closest(".window-control-button") ||
+    target.closest(".titlebar-button")
+  ) {
+    return;
+  }
 
   try {
     if (await safeGetCurrentWindow()) {

@@ -23,11 +23,7 @@
       <RunConfigDialog
         v-model:show="uiStore.configDialogVisible"
         :config="uiStore.editingConfig"
-        @saved="(configData: any) => { 
-          handleConfigSaved(configData, { value: uiStore.editingConfig }, runConfigStore, () => { 
-            uiStore.closeConfigDialog();
-          })
-        }"
+        @saved="onConfigSaved"
       />
       <n-layout class="h-screen app-window">
         <!-- Custom Title Bar -->
@@ -53,6 +49,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, inject } from "vue";
+import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
 import {
   NMessageProvider,
@@ -70,8 +67,8 @@ import ConsoleArea from "./components/ConsoleArea.vue";
 import HistorySidebar from "./components/HistorySidebar.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
-import { handleConfigSaved } from "./utils/configUtils";
 import { isWindows } from "./utils/platform";
+import { handleConfigSaved } from "./utils/configUtils";
 
 // Get hljs from main.ts
 const hljs = inject<any>("hljs");
@@ -86,6 +83,14 @@ const { currentTheme, effectiveTheme, themeMode } = useTheme();
 const runConfigStore = useRunConfigStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
+const { editingConfig } = storeToRefs(uiStore);
+
+// Config saved handler
+const onConfigSaved = async (configData: any) => {
+  await handleConfigSaved(configData, editingConfig, runConfigStore, () => {
+    uiStore.closeConfigDialog();
+  });
+};
 
 // Process stats interface
 interface ProcessStats {
