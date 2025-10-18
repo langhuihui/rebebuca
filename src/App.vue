@@ -69,6 +69,7 @@ import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
 import { handleConfigSaved } from "./utils/configUtils";
+import { setupSystemTrayMenu } from "./utils/tray";
 
 // Get hljs from main.ts
 const hljs = inject<any>("hljs");
@@ -312,6 +313,9 @@ onMounted(async () => {
 
   // Start process monitoring
   startProcessMonitoring();
+
+  // Initialize system tray context menu
+  setupSystemTrayMenu(runConfigStore);
 });
 
 // Clean up event listeners on unmount
