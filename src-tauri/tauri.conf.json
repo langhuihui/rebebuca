@@ -26,6 +26,68 @@
     },
     "macOSPrivateApi": true
   },
+  "plugins": {
+    "shell": {
+      "all": true,
+      "scope": [
+        {
+          "name": "cmd",
+          "cmd": "cmd"
+        },
+        {
+          "name": "dir",
+          "cmd": "dir"
+        },
+        {
+          "name": "ls",
+          "cmd": "ls"
+        },
+        {
+          "name": "powershell",
+          "cmd": "powershell"
+        },
+        {
+          "name": "bash",
+          "cmd": "bash"
+        },
+        {
+          "name": "sh",
+          "cmd": "sh"
+        },
+        {
+          "name": "python",
+          "cmd": "python"
+        },
+        {
+          "name": "node",
+          "cmd": "node"
+        },
+        {
+          "name": "npm",
+          "cmd": "npm"
+        },
+        {
+          "name": "pnpm",
+          "cmd": "pnpm"
+        },
+        {
+          "name": "yarn",
+          "cmd": "yarn"
+        },
+        {
+          "name": "git",
+          "cmd": "git"
+        },
+        {
+          "name": "ping",
+          "cmd": "ping"
+        }
+      ]
+    },
+    "tray-icon": {
+      "all": true
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

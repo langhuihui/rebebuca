@@ -132,6 +132,7 @@ import {
   NScrollbar,
   NList,
   NListItem,
+  useDialog,
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
@@ -150,6 +151,7 @@ import type { RunHistory } from "../stores/runConfig";
 const { t } = useI18n();
 const uiStore = useUIStore();
 const runConfigStore = useRunConfigStore();
+const dialog = useDialog();
 
 const hoveredHistoryId = ref<string | null>(null);
 
@@ -291,7 +293,7 @@ const handleOpenLogsFolder = async () => {
 
 const handleClearHistory = () => {
   showClearHistoryDialog(
-    null, // dialog will be created in the function
+    dialog,
     t,
     runConfigStore,
     forceThemeOnFloatingComponents,

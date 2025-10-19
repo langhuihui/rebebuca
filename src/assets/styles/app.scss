@@ -1,8 +1,10 @@
 @use "./console-area.scss";
 
-html,body {
+html,
+body {
   background: none;
 }
+
 /* Secondary text brightness for light theme */
 .n-config-provider--light .n-descriptions .n-descriptions-item-label,
 .n-config-provider--light .n-form-item-label,
@@ -11,7 +13,8 @@ html,body {
 .n-config-provider--light .n-tag,
 .n-config-provider--light .n-time-picker-input,
 .n-config-provider--light .n-date-picker-input {
-  color: #666666; /* Slightly dimmed black for secondary text */
+  color: #666666;
+  /* Slightly dimmed black for secondary text */
 }
 
 /* App window with rounded corners - only on outermost container */
@@ -94,17 +97,20 @@ html,body {
 
 /* Text logo color control */
 .text-logo-light {
-  filter: invert(0); /* Keep original color for light theme */
+  filter: invert(0);
+  /* Keep original color for light theme */
 }
 
 .text-logo-dark {
-  filter: invert(1); /* Invert color for dark theme */
+  filter: invert(1);
+  /* Invert color for dark theme */
 }
 
 @keyframes cyberpunk-title {
   0% {
     background-position: 0% 50%;
   }
+
   100% {
     background-position: 100% 50%;
   }
@@ -122,6 +128,7 @@ html,body {
     transform: scale(1);
     filter: drop-shadow(0 0 4px rgba(0, 208, 132, 0.6));
   }
+
   100% {
     opacity: 1;
     transform: scale(1.1);
@@ -144,8 +151,7 @@ html,body {
 }
 
 .n-config-provider:not(.n-config-provider--light) .welcome-logo:hover {
-  filter: drop-shadow(0 0 12px rgba(0, 208, 132, 0.5))
-    drop-shadow(0 0 18px rgba(0, 255, 136, 0.3));
+  filter: drop-shadow(0 0 12px rgba(0, 208, 132, 0.5)) drop-shadow(0 0 18px rgba(0, 255, 136, 0.3));
   transform: scale(1.05);
 }
 
@@ -370,12 +376,10 @@ html,body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 208, 132, 0.15),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(0, 208, 132, 0.15),
+      transparent);
   transition: left 0.2s ease;
 }
 
@@ -514,7 +518,8 @@ html,body {
 }
 
 /* Configuration list item styles */
-.config-list-item ,.history-list-item{
+.config-list-item,
+.history-list-item {
   padding: 16px;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -550,12 +555,10 @@ html,body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 208, 132, 0.05),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(0, 208, 132, 0.05),
+      transparent);
   transition: left 0.3s ease;
 }
 
@@ -606,7 +609,8 @@ html,body {
   align-items: center;
 }
 
-.config-name,.history-name {
+.config-name,
+.history-name {
   font-size: 14px;
   font-weight: 600;
   color: #ffffff;
@@ -617,12 +621,32 @@ html,body {
   margin-right: 12px;
 }
 
-.config-actions,.history-actions {
+.config-actions,
+.history-actions {
   display: flex;
   gap: 4px;
   margin-right: 10px;
   opacity: 0;
   transition: opacity 0.2s ease;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 5;
+}
+
+/* History header actions should always be visible */
+.history-header-container .history-actions {
+  opacity: 1;
+  position: static;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  margin-right: 0;
 }
 
 .config-list-item:hover .config-actions {
@@ -652,12 +676,10 @@ html,body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 208, 132, 0.1),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(0, 208, 132, 0.1),
+      transparent);
   transition: left 0.2s ease;
 }
 
@@ -672,7 +694,8 @@ html,body {
 
 /* Remove hover effects from action buttons */
 
-.config-command,.history-time {
+.config-command,
+.history-time {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.6);
   font-family: "Courier New", Courier, monospace;
@@ -827,9 +850,11 @@ html,body {
 .h-screen {
   height: 100vh;
 }
+
 .flex-1 {
   flex: 1;
 }
+
 .ml-2 {
   margin-left: 0.5rem;
 }
@@ -855,10 +880,11 @@ html,body {
   gap: 16px;
 }
 
-#new-config-button { 
+#new-config-button {
   height: 40px;
   flex: 1;
   background: none;
+
   // 渐变彩色文字效果
   .n-button__content {
     background: linear-gradient(-45deg, #00ffff, #ff00ff);

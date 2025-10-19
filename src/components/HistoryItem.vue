@@ -52,7 +52,7 @@
           </div>
           <div
             class="history-actions"
-            :class="{ visible: hovered }"
+            :class="{ visible: hovered || selected }"
             @click.stop
           >
             <n-button
@@ -111,6 +111,7 @@
             {{ formatTime(item.timestamp) }}
           </n-text>
           <div v-if="item.status === 'running'" class="process-stats">
+            <span class="stat-item">PID: {{ item.pid || "未知" }}</span>
             <span class="stat-item">CPU: {{ item.cpuUsage || "0%" }}</span>
             <span class="stat-item">内存: {{ item.memoryUsage || "0MB" }}</span>
             <span class="stat-item"

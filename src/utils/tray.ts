@@ -27,7 +27,7 @@ const isTauriEnv = (): boolean => {
       }
     }
     if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Tauri')) return true;
-  } catch (_) {}
+  } catch (_) { }
   return false;
 };
 
@@ -35,12 +35,38 @@ let trayIconRef: any | null = null;
 let menuApi: any | null = null;
 let trayApi: any | null = null;
 let interactionsAttached = false;
+let trayUpdateTimeout: NodeJS.Timeout | null = null;
 
 // Build tray menu based on current store state
 const buildMenu = async (
   store: any
 ): Promise<any | null> => {
-  if (!menuApi) return null;
+  // In Tauri v2, we need to check if tray functionality is available
+  if (!isTauriEnv()) return null;
+
+  try {
+    // Try to import the tray APIs
+    if (!menuApi) {
+      try {
+        menuApi = await import('@tauri-apps/api/menu');
+      } catch (e) {
+        console.warn('Tauri menu API not available:', e);
+        return null;
+      }
+    }
+
+    if (!trayApi) {
+      try {
+        trayApi = await import('@tauri-apps/api/tray');
+      } catch (e) {
+        console.warn('Tauri tray API not available:', e);
+        return null;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to import Tauri tray APIs:', e);
+    return null;
+  }
 
   const Menu = (menuApi as any).Menu;
   const MenuItem = (menuApi as any).MenuItem;
@@ -187,6 +213,8 @@ const buildMenu = async (
   // Build final menu
   try {
     const menu = new Menu({ items: topLevelItems });
+    // Note: Menu ID is read-only in Tauri v2, so we can't set it manually
+    // The menu will be recreated when needed instead of updated
     return menu;
   } catch (e) {
     console.error('Failed to create tray menu:', e);
@@ -196,6 +224,8 @@ const buildMenu = async (
 
 // Show and focus main window
 const showMainWindow = async () => {
+  if (!isTauriEnv()) return;
+
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     const win = getCurrentWindow();
@@ -203,15 +233,15 @@ const showMainWindow = async () => {
       if (typeof (win as any).isMinimized === 'function' && await (win as any).isMinimized()) {
         if (typeof (win as any).unminimize === 'function') await (win as any).unminimize();
       }
-    } catch (_) {}
+    } catch (_) { }
     try {
       if (typeof (win as any).isVisible === 'function' && !(await (win as any).isVisible())) {
         if (typeof (win as any).show === 'function') await (win as any).show();
       }
-    } catch (_) {}
+    } catch (_) { }
     try {
       if (typeof (win as any).setFocus === 'function') await (win as any).setFocus();
-    } catch (_) {}
+    } catch (_) { }
   } catch (e) {
     console.error('Failed to show main window:', e);
   }
@@ -252,13 +282,25 @@ const updateTrayTooltip = async (store: any) => {
     if (typeof (trayIconRef as any).setTooltip === 'function') {
       await (trayIconRef as any).setTooltip(text);
     }
-  } catch (_) {}
+  } catch (_) { }
 };
 
 // Create or update the tray icon with the latest menu
 const ensureTray = async (store: any) => {
+  // Check if we're in Tauri environment
+  if (!isTauriEnv()) return;
+
   try {
-    if (!trayApi || !menuApi) return;
+    // Make sure APIs are available
+    if (!trayApi || !menuApi) {
+      try {
+        menuApi = await import('@tauri-apps/api/menu');
+        trayApi = await import('@tauri-apps/api/tray');
+      } catch (e) {
+        console.warn('Tauri tray APIs not available:', e);
+        return;
+      }
+    }
 
     const newMenu = await buildMenu(store);
     if (!newMenu) return;
@@ -269,43 +311,58 @@ const ensureTray = async (store: any) => {
     if (!trayIconRef) {
       // Create new tray
       try {
-        // Some environments expose a static async constructor
-        if (typeof (TrayIcon as any).new === 'function') {
-          trayIconRef = await (TrayIcon as any).new({
-            menu: newMenu,
-            tooltip: 'Rebebuca',
-          });
+        // Try different API patterns for Tauri v2
+        if (typeof TrayIcon.new === 'function') {
+          // Try with correct parameters for Tauri v2
+          // The new API expects the menu as the first parameter
+          trayIconRef = await TrayIcon.new(newMenu);
+        } else if (typeof TrayIcon === 'function') {
+          // Try constructor form
+          trayIconRef = new TrayIcon(newMenu);
         } else {
-          // Fallback to constructor form
-          trayIconRef = new (TrayIcon as any)({
-            menu: newMenu,
-            tooltip: 'Rebebuca',
-          });
-        }
-        await attachTrayInteractions();
-      } catch (e) {
-        console.error('Failed to create tray icon:', e);
-        trayIconRef = null;
-      }
-    } else {
-      // Update existing tray menu if supported
-      try {
-        if (typeof trayIconRef.setMenu === 'function') {
-          await trayIconRef.setMenu(newMenu);
-        } else if (typeof trayIconRef.menu === 'function') {
-          // Some APIs expose a setter named `menu`
-          await trayIconRef.menu(newMenu);
-        } else if (typeof (TrayIcon as any).setMenu === 'function') {
-          await (TrayIcon as any).setMenu(newMenu);
-        } else {
-          // Recreate as a last resort
-          trayIconRef = null;
-          await ensureTray(store);
+          console.warn('TrayIcon API not available or not recognized');
           return;
         }
         await attachTrayInteractions();
       } catch (e) {
+        // Gracefully handle tray creation errors
+        console.error('Failed to create tray icon:', e);
+        trayIconRef = null;
+      }
+    } else {
+      // For Tauri v2, always recreate the tray icon instead of trying to update the menu
+      // This avoids the type mismatch issues with setMenu expecting u32 instead of menu object
+      console.log('Recreating tray icon for menu update');
+
+      try {
+        // Destroy the old tray icon
+        if (typeof trayIconRef.destroy === 'function') {
+          try {
+            await trayIconRef.destroy();
+          } catch (destroyError) {
+            console.warn('Failed to destroy old tray icon:', destroyError);
+          }
+        }
+
+        // Create new tray icon
+        trayIconRef = null;
+        if (typeof TrayIcon.new === 'function') {
+          trayIconRef = await TrayIcon.new(newMenu);
+        } else if (typeof TrayIcon === 'function') {
+          trayIconRef = new TrayIcon(newMenu);
+        }
+
+        await attachTrayInteractions();
+      } catch (e) {
         console.warn('Failed to update tray menu, recreating tray:', e);
+        // Destroy the old tray icon and recreate it
+        if (typeof trayIconRef.destroy === 'function') {
+          try {
+            await trayIconRef.destroy();
+          } catch (destroyError) {
+            console.warn('Failed to destroy old tray icon:', destroyError);
+          }
+        }
         trayIconRef = null;
         await ensureTray(store);
         return;
@@ -320,6 +377,7 @@ const ensureTray = async (store: any) => {
 };
 
 export const setupSystemTrayMenu = async (store: any) => {
+  // Only setup tray in Tauri environment
   if (!isTauriEnv()) return;
 
   try {
@@ -334,11 +392,20 @@ export const setupSystemTrayMenu = async (store: any) => {
   // Initial build
   await ensureTray(store);
 
-  // Watch for changes to update tray menu dynamically
+  // Watch for changes to update tray menu dynamically with debouncing
   watch(
     () => [store.history.map((h: any) => [h.id, h.status, h.processId, h.name]).join('|'), store.configs.map((c: any) => [c.id, c.name]).join('|')],
     async () => {
-      await ensureTray(store);
+      // Clear existing timeout
+      if (trayUpdateTimeout) {
+        clearTimeout(trayUpdateTimeout);
+      }
+
+      // Set new timeout to debounce updates
+      trayUpdateTimeout = setTimeout(async () => {
+        await ensureTray(store);
+        trayUpdateTimeout = null;
+      }, 500); // 500ms debounce
     },
     { deep: false }
   );

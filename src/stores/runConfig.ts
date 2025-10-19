@@ -108,7 +108,9 @@ export interface RunHistory {
   output?: string;
   duration?: number;
   logFilename?: string;
-  processId?: string;
+  processId?: string; // 系统PID，用于进程管理
+  pid?: string; // 显示的系统PID
+  internalId?: string; // 内部UUID，用于事件匹配
   startTime?: number;
   cpuUsage?: string;
   memoryUsage?: string;
@@ -444,13 +446,33 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   };
 
   // Get process statistics
-  const getProcessStats = async (processId: string) => {
+  const getProcessStats = async (systemPid: string) => {
     try {
-      const stats = await safeInvoke('get_process_stats', { processId });
+      const stats = await safeInvoke('get_process_stats', { systemPid });
       return stats;
     } catch (error) {
-      console.error('Failed to get process stats:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Don't log as error if process has finished - this is expected behavior
+      if (errorMessage.includes("not found") ||
+        errorMessage.includes("finished") ||
+        errorMessage.includes("Process not found - it has finished")) {
+        console.log(`Process ${systemPid} has finished, stats not available`);
+      } else {
+        console.error('Failed to get process stats:', error);
+      }
       return null;
+    }
+  };
+
+  // Read log file content for finished processes
+  const readLogFile = async (logFilename: string) => {
+    try {
+      const content = await safeInvoke('read_log_file', { logFilename });
+      return content as string;
+    } catch (error) {
+      console.error('Failed to read log file:', error);
+      return '';
     }
   };
 
@@ -511,21 +533,45 @@ export const useRunConfigStore = defineStore('runConfig', () => {
         config: tauriConfig
       });
 
-      // Parse the result to get process_id and log_filename
-      const { process_id, log_filename } = JSON.parse(result as string);
+      // Parse the result to get internal_uuid, system_pid, and log_filename
+      const { internal_uuid, system_pid, log_filename } = JSON.parse(result as string);
+      console.log(`[FRONTEND] executeCommand result - internal_uuid: ${internal_uuid}, system_pid: ${system_pid}, log_filename: ${log_filename}`);
 
-      // Update history with log filename
+      // Update history with log filename, system PID, and internal ID
       const index = history.value.findIndex(h => h.id === newHistory.id);
       if (index !== -1) {
+        console.log(`[FRONTEND] Before update - history item ${newHistory.id} processId: ${history.value[index].processId}`);
         history.value[index] = {
           ...history.value[index],
+          processId: internal_uuid, // 先使用UUID作为processId，让输出事件能找到
+          pid: system_pid ? system_pid.toString() : "未知", // 显示的系统PID
+          internalId: internal_uuid, // 存储内部UUID用于事件匹配
           logFilename: log_filename
         };
+        console.log(`[FRONTEND] After update - history item ${newHistory.id} processId: ${history.value[index].processId}, internalId: ${history.value[index].internalId}`);
         await saveHistory();
+      } else {
+        console.error(`[FRONTEND] History item ${newHistory.id} not found for update`);
+      }
+
+      // Send process-started event after history is updated
+      if (system_pid) {
+        try {
+          // Import Tauri emit function
+          const { emit } = await import('@tauri-apps/api/event');
+          await emit('process-started', {
+            internal_id: internal_uuid,
+            system_pid: system_pid,
+            config_name: config.name,
+            status: 'running'
+          });
+        } catch (error) {
+          console.error('Failed to emit process-started event:', error);
+        }
       }
 
       // Return both process ID and history ID
-      return { processId: process_id, historyId: newHistory.id };
+      return { processId: system_pid ? system_pid.toString() : internal_uuid, historyId: newHistory.id };
     } catch (error) {
       const errorMessage = `执行错误: ${error instanceof Error ? error.message : String(error)}\n`;
       appendConsoleOutput(errorMessage);
@@ -547,10 +593,18 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   };
 
   // Stop current run
-  const stopCurrentRun = async (processId: string) => {
+  const stopCurrentRun = async (systemPid: string) => {
     try {
-      await safeInvoke('kill_process', { processId });
+      await safeInvoke('kill_process', { systemPid });
       appendConsoleOutput('\n> 进程已停止\n');
+
+      // Update history status to success when manually stopped
+      const historyItem = history.value.find(h => h.processId === systemPid);
+      if (historyItem) {
+        await updateHistory(historyItem.id, {
+          status: 'success'
+        });
+      }
     } catch (error) {
       const errorMessage = `停止进程失败: ${error instanceof Error ? error.message : String(error)}\n`;
       appendConsoleOutput(errorMessage);
@@ -593,5 +647,6 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     saveHistory,
     openLogsFolder,
     getProcessStats,
+    readLogFile,
   };
 });
