@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::Mutex;
@@ -101,14 +101,19 @@ impl ProcessManager {
 
     pub async fn kill_process(&self, id: &str) -> Result<(), String> {
         let mut processes = self.processes.lock().await;
+        println!("[TAURI] kill_process called with id: {}", id);
+        println!("[TAURI] Available process keys: {:?}", processes.keys().collect::<Vec<_>>());
+        
         if let Some(child) = processes.get_mut(id) {
             child
                 .kill()
                 .await
                 .map_err(|e| format!("Failed to kill process: {}", e))?;
             processes.remove(id);
+            println!("[TAURI] Successfully killed and removed process: {}", id);
             Ok(())
         } else {
+            println!("[TAURI] Process not found with key: {}", id);
             Err("Process not found".to_string())
         }
     }
@@ -376,8 +381,15 @@ async fn execute_command(
 
     // Store the child process using consistent key
     let process_key = pid.map(|p| p.to_string()).unwrap_or_else(|| internal_uuid.clone());
-    println!("[TAURI] Storing process with key: {}", process_key);
+    println!("[TAURI] Storing process with key: {} (pid: {:?}, internal_uuid: {})", process_key, pid, internal_uuid);
     process_manager.add_process(process_key.clone(), child).await;
+    
+    // Verify the process was stored
+    {
+        let processes = process_manager.get_processes_arc();
+        let processes_guard = processes.lock().await;
+        println!("[TAURI] Process stored successfully. Available processes: {:?}", processes_guard.keys().collect::<Vec<_>>());
+    }
 
     // Send process-started event will be sent after execute_command returns
 
@@ -391,15 +403,35 @@ async fn execute_command(
     };
     tokio::time::sleep(sleep_duration).await;
 
-    // Spawn task to wait for process completion and ensure all output is captured
+    // Return the result first
+    let result = serde_json::json!({
+        "internal_uuid": internal_uuid, // 返回内部UUID，用于前端查找历史记录
+        "system_pid": pid, // 返回系统PID，用于进程管理
+        "log_filename": log_filename
+    })
+    .to_string();
+
+    // Spawn task to wait for process completion AFTER returning the result
+    // This ensures the process remains in the manager when the function returns
     let internal_uuid_clone = internal_uuid.clone();
     let app_handle_clone = app_handle.clone();
     let processes_arc = process_manager.get_processes_arc();
-    // Use the same key as storage
     let process_key = process_key.clone();
+    let stdout_handle_clone = stdout_handle;
+    let stderr_handle_clone = stderr_handle;
 
+    // Start the completion monitoring task in the background
+    // For long-running processes, we should not immediately remove them from the manager
     tokio::spawn(async move {
-        // Wait for the process to exit first
+        // Wait for stdout/stderr tasks to complete first
+        // This ensures all output from fast-executing commands is captured
+        if let Ok(_) = tokio::try_join!(stdout_handle_clone, stderr_handle_clone) {
+            println!("Both stdout and stderr tasks completed successfully");
+        } else {
+            println!("One or both output tasks failed to complete");
+        }
+        
+        // Now wait for the process to exit
         let status = {
             let mut processes = processes_arc.lock().await;
             println!("[TAURI] Process completion task - looking for process_key: {}", process_key);
@@ -413,14 +445,6 @@ async fn execute_command(
                 return;
             }
         };
-
-        // Wait for stdout/stderr tasks to complete
-        // This ensures all output from fast-executing commands is captured
-        if let Ok(_) = tokio::try_join!(stdout_handle, stderr_handle) {
-            println!("Both stdout and stderr tasks completed successfully");
-        } else {
-            println!("One or both output tasks failed to complete");
-        }
 
         // Process was already removed from manager when we started waiting for completion
 
@@ -480,13 +504,8 @@ async fn execute_command(
 
     // process-started event will be sent by frontend after execute_command completes
 
-    // Return internal_uuid, system_pid, and log_filename
-    Ok(serde_json::json!({
-        "internal_uuid": internal_uuid, // 返回内部UUID，用于前端查找历史记录
-        "system_pid": pid, // 返回系统PID，用于进程管理
-        "log_filename": log_filename
-    })
-    .to_string())
+    // Return the result
+    Ok(result)
 }
 
 #[tauri::command]
@@ -586,6 +605,7 @@ async fn get_process_stats(system_pid: String, process_manager: tauri::State<'_,
     
     println!("[TAURI] Current processes in manager: {:?}", processes_guard.keys().collect::<Vec<_>>());
     println!("[TAURI] Looking for process with key: {}", system_pid);
+    println!("[TAURI] Process manager state: {} processes total", processes_guard.len());
     
     // Check if process still exists in our manager
     if let Some(child) = processes_guard.get(&system_pid) {
@@ -626,6 +646,33 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[tauri::command]
+async fn get_running_processes(process_manager: tauri::State<'_, ProcessManager>) -> Result<Vec<String>, String> {
+    let processes = process_manager.get_processes_arc();
+    let processes_guard = processes.lock().await;
+    Ok(processes_guard.keys().cloned().collect())
+}
+
+#[tauri::command]
+async fn restart_process(
+    system_pid: String,
+    config: RunConfig,
+    process_manager: tauri::State<'_, ProcessManager>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    // First kill the existing process
+    if let Err(e) = process_manager.kill_process(&system_pid).await {
+        println!("Warning: Failed to kill existing process {}: {}", system_pid, e);
+    }
+
+    // Wait a bit for the process to be fully terminated
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Start the new process
+    execute_command(config, app_handle, process_manager).await
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -634,11 +681,68 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .setup(|app| {
+            // Create a simple static tray icon
+            // The frontend can create additional dynamic menus if needed
+            println!("[TRAY] Creating tray icon in Rust backend");
+            
+            // Create tray menu items
+            let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+            
+            // Create the menu
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            
+            // Get the default window icon
+            let tray_icon = app.default_window_icon()
+                .ok_or("No default window icon available")?
+                .clone();
+            
+            // Create tray icon - use a unique ID
+            let _tray = TrayIconBuilder::with_id("rust-tray")
+                .icon(tray_icon)
+                .menu(&menu)
+                .show_menu_on_left_click(false)  // macOS: right-click for menu
+                .on_menu_event(|app, event| {
+                    match event.id.as_ref() {
+                        "quit" => {
+                            println!("[TRAY] Quit menu item clicked");
+                            app.exit(0);
+                        }
+                        "show" => {
+                            println!("[TRAY] Show menu item clicked");
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    // Handle left-click to show window
+                    if let tauri::tray::TrayIconEvent::Click { button, .. } = event {
+                        if button == tauri::tray::MouseButton::Left {
+                            println!("[TRAY] Tray icon left-clicked");
+                            if let Some(app) = tray.app_handle().get_webview_window("main") {
+                                let _ = app.show();
+                                let _ = app.set_focus();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+            
+            println!("[TRAY] Tray icon created successfully");
+            Ok(())
+        })
         .manage(ProcessManager::new())
         .invoke_handler(tauri::generate_handler![
             greet,
             execute_command,
             kill_process,
+            restart_process,
+            get_running_processes,
             open_logs_folder,
             delete_log_file,
             read_log_file,

@@ -109,6 +109,12 @@
         <div class="history-meta">
           <n-text depth="3" class="history-time">
             {{ formatTime(item.timestamp) }}
+            <span
+              v-if="item.status !== 'running' && item.duration"
+              class="duration-text"
+            >
+              · {{ formatDuration(item.startTime, item.duration) }}
+            </span>
           </n-text>
           <div v-if="item.status === 'running'" class="process-stats">
             <span class="stat-item">PID: {{ item.pid || "未知" }}</span>
@@ -138,7 +144,7 @@ interface Props {
   getHistoryCommand: (item: RunHistory) => string;
   truncateText: (text: string, maxLength: number) => string;
   formatTime: (timestamp: Date) => string;
-  formatDuration: (startTime?: number) => string;
+  formatDuration: (startTime?: number, duration?: number) => string;
 }
 
 interface Emits {
@@ -169,3 +175,11 @@ const handleDelete = () => {
   emit("delete", props.item);
 };
 </script>
+
+<style scoped>
+.duration-text {
+  color: var(--text-color-3);
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+</style>

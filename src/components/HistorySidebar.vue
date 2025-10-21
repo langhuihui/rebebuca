@@ -181,10 +181,20 @@ const truncateText = (text: string, maxLength: number) => {
   return text.substring(0, maxLength) + "...";
 };
 
-const formatDuration = (startTime?: number) => {
-  if (!startTime) return "0s";
-  const duration = Date.now() - startTime;
-  const seconds = Math.floor(duration / 1000);
+const formatDuration = (startTime?: number, duration?: number) => {
+  // If duration is provided (for finished processes), use it
+  // Otherwise calculate from startTime (for running processes)
+  let actualDuration: number;
+
+  if (duration !== undefined) {
+    actualDuration = duration;
+  } else if (startTime) {
+    actualDuration = Date.now() - startTime;
+  } else {
+    return "0s";
+  }
+
+  const seconds = Math.floor(actualDuration / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
 
@@ -231,9 +241,9 @@ const handleUnpinHistory = (item: RunHistory) => {
 };
 
 const handleStopHistory = async (item: RunHistory) => {
-  if (item.processId) {
+  if (item.pid) {
     try {
-      await runConfigStore.stopCurrentRun(item.processId);
+      await runConfigStore.stopCurrentRun(item.pid);
       item.output += `\n> ${t("console.stopping")}\n`;
       item.status = "success";
 
@@ -261,12 +271,14 @@ const handleReRunHistory = async (history: RunHistory) => {
 };
 
 const handleDeleteHistory = async (historyItem: RunHistory) => {
-  const index = runConfigStore.history.findIndex(h => h.id === historyItem.id);
-  
+  const index = runConfigStore.history.findIndex(
+    (h) => h.id === historyItem.id
+  );
+
   // If process is running, stop it first
-  if (historyItem.processId && historyItem.status === "running") {
+  if (historyItem.pid && historyItem.status === "running") {
     try {
-      await runConfigStore.stopCurrentRun(historyItem.processId);
+      await runConfigStore.stopCurrentRun(historyItem.pid);
     } catch (error) {
       console.error("Failed to stop process:", error);
     }

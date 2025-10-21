@@ -26,24 +26,24 @@
           :config="uiStore.editingConfig"
           @saved="onConfigSaved"
         />
-      <n-layout class="h-screen app-window">
-        <!-- Custom Title Bar -->
-        <TitleBar :effective-theme="effectiveTheme" />
+        <n-layout class="h-screen app-window">
+          <!-- Custom Title Bar -->
+          <TitleBar :effective-theme="effectiveTheme" />
 
-        <n-layout has-sider class="main-layout">
-          <!-- Left sidebar - Run configurations -->
-          <ConfigSidebar />
+          <n-layout has-sider class="main-layout">
+            <!-- Left sidebar - Run configurations -->
+            <ConfigSidebar />
 
-          <!-- Main content -->
-          <n-layout-content class="main-content">
-            <!-- Console output area -->
-            <ConsoleArea />
-          </n-layout-content>
+            <!-- Main content -->
+            <n-layout-content class="main-content">
+              <!-- Console output area -->
+              <ConsoleArea />
+            </n-layout-content>
 
-          <!-- Right sidebar - Run history -->
-          <HistorySidebar />
+            <!-- Right sidebar - Run history -->
+            <HistorySidebar />
+          </n-layout>
         </n-layout>
-      </n-layout>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -72,7 +72,7 @@ import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
 import { handleConfigSaved } from "./utils/configUtils";
-import { setupSystemTrayMenu } from "./utils/tray";
+// import { setupSystemTrayMenu } from "./utils/tray";
 
 // Get hljs from main.ts
 const hljs = inject<any>("hljs");
@@ -123,20 +123,38 @@ let processStatsInterval: number | null = null;
 // Cache for finished processes to avoid repeated stats calls
 const finishedProcesses = new Set<string>();
 
+// Cache for processes that are currently being checked to avoid duplicate calls
+const checkingProcesses = new Set<string>();
+
+// Cache for processes that have failed stats checks (to implement retry logic)
+const failedStatsChecks = new Map<string, number>();
+
 // Find history item by process ID (supports both UUID and system PID)
 const findHistoryByProcessId = (processId: string) => {
   console.log(`[FRONTEND] findHistoryByProcessId called with: ${processId}`);
-  console.log(`[FRONTEND] Available history items:`, runConfigStore.history.map(h => ({ id: h.id, processId: h.processId, pid: h.pid, internalId: h.internalId })));
-  
-  // First try to find by processId (system PID)
-  let result = runConfigStore.history.find((item) => item.processId === processId);
-  
+  console.log(
+    `[FRONTEND] Available history items:`,
+    runConfigStore.history.map((h) => ({
+      id: h.id,
+      pid: h.pid,
+      internalId: h.internalId,
+    }))
+  );
+
+  // First try to find by pid (system PID)
+  let result = runConfigStore.history.find((item) => item.pid === processId);
+
   // If not found and processId looks like a UUID, try to find by internalId
-  if (!result && processId.includes('-')) {
-    result = runConfigStore.history.find((item) => item.internalId === processId);
+  if (!result && processId.includes("-")) {
+    result = runConfigStore.history.find(
+      (item) => item.internalId === processId
+    );
   }
-  
-  console.log(`[FRONTEND] findHistoryByProcessId result:`, result ? result.id : 'not found');
+
+  console.log(
+    `[FRONTEND] findHistoryByProcessId result:`,
+    result ? result.id : "not found"
+  );
   return result;
 };
 
@@ -148,10 +166,14 @@ const appendOutputToHistory = (
 ) => {
   const historyItem = findHistoryByProcessId(processId);
   if (historyItem) {
-    console.log(`[FRONTEND] Appending ${outputType} to history item ${historyItem.id}: ${content.substring(0, 50)}...`);
-    
+    console.log(
+      `[FRONTEND] Appending ${outputType} to history item ${
+        historyItem.id
+      }: ${content.substring(0, 50)}...`
+    );
+
     // Only update output for running processes
-    if (historyItem.status === 'running') {
+    if (historyItem.status === "running") {
       // Mark stderr output with special prefix
       let newContent = content;
       if (outputType === "stderr") {
@@ -159,7 +181,7 @@ const appendOutputToHistory = (
       }
 
       // Update the history item in store with new output
-      const updatedOutput = (historyItem.output || '') + newContent;
+      const updatedOutput = (historyItem.output || "") + newContent;
       runConfigStore.updateHistory(historyItem.id, {
         output: updatedOutput,
         status: historyItem.status,
@@ -173,7 +195,9 @@ const appendOutputToHistory = (
     }
   } else {
     // History item doesn't exist yet - buffer the output
-    console.log(`[FRONTEND] History item not found for PID ${processId}, buffering ${outputType} output`);
+    console.log(
+      `[FRONTEND] History item not found for PID ${processId}, buffering ${outputType} output`
+    );
     if (!outputBuffer.value[processId]) {
       outputBuffer.value[processId] = [];
     }
@@ -189,10 +213,25 @@ const updateHistoryStatus = (
   const historyItem = findHistoryByProcessId(processId);
   if (historyItem) {
     historyItem.status = status;
-    runConfigStore.updateHistory(historyItem.id, {
+
+    // Calculate final duration when process finishes
+    let updateData: any = {
       status: status,
       output: historyItem.output,
-    });
+    };
+
+    if (status !== "running" && historyItem.startTime) {
+      const endTime = Date.now();
+      const duration = endTime - historyItem.startTime;
+      updateData.duration = duration;
+      console.log(
+        `[FRONTEND] Process ${processId} finished, duration: ${duration}ms (${Math.floor(
+          duration / 1000
+        )}s)`
+      );
+    }
+
+    runConfigStore.updateHistory(historyItem.id, updateData);
   }
 };
 
@@ -201,8 +240,8 @@ const processBufferedOutput = (processId: string) => {
   const historyItem = findHistoryByProcessId(processId);
   if (historyItem && outputBuffer.value[processId]) {
     const bufferedOutputs = outputBuffer.value[processId];
-    let totalOutput = historyItem.output || '';
-    
+    let totalOutput = historyItem.output || "";
+
     for (const bufferedOutput of bufferedOutputs) {
       let content = bufferedOutput.content;
       if (bufferedOutput.outputType === "stderr") {
@@ -210,18 +249,18 @@ const processBufferedOutput = (processId: string) => {
       }
       totalOutput += content;
     }
-    
+
     // Update the history item with all buffered output
     runConfigStore.updateHistory(historyItem.id, {
       output: totalOutput,
       status: historyItem.status,
     });
-    
+
     // Force update the selected history item if it's the same
     if (uiStore.selectedHistoryItem?.id === historyItem.id) {
       uiStore.selectedHistoryItem.output = totalOutput;
     }
-    
+
     // Clear the buffer
     delete outputBuffer.value[processId];
   }
@@ -230,50 +269,147 @@ const processBufferedOutput = (processId: string) => {
 // Update process statistics for running processes
 const updateProcessStats = async () => {
   const runningProcesses = runConfigStore.history.filter(
-    (item) => item.status === "running" && item.processId && !finishedProcesses.has(item.processId)
+    (item) =>
+      item.status === "running" && item.pid && !finishedProcesses.has(item.pid)
   );
 
   if (runningProcesses.length > 0) {
-    console.log(`Updating stats for ${runningProcesses.length} running processes`);
+    console.log(
+      `[FRONTEND] Updating stats for ${runningProcesses.length} running processes:`,
+      runningProcesses.map((p) => ({ id: p.id, pid: p.pid, name: p.name }))
+    );
+  } else {
+    console.log(`[FRONTEND] No running processes to update stats for`);
+    console.log(
+      `[FRONTEND] All history items:`,
+      runConfigStore.history.map((h) => ({
+        id: h.id,
+        pid: h.pid,
+        status: h.status,
+        name: h.name,
+      }))
+    );
   }
 
   for (const item of runningProcesses) {
-    if (item.processId) {
+    if (item.pid && !checkingProcesses.has(item.pid)) {
+      // Check if this process has failed too many times
+      const failureCount = failedStatsChecks.get(item.pid) || 0;
+      if (failureCount >= 5) {
+        // Skip processes that have failed too many times
+        console.log(
+          `Skipping process ${item.pid} - too many failed stats checks (${failureCount})`
+        );
+        continue;
+      }
+
+      checkingProcesses.add(item.pid);
+
       try {
+        console.log(
+          `[FRONTEND] Attempting to get stats for process ${
+            item.pid
+          } (attempt ${failureCount + 1})`
+        );
         const stats = (await runConfigStore.getProcessStats(
-          item.processId
+          item.pid
         )) as ProcessStats | null;
+
+        console.log(`[FRONTEND] Stats result for process ${item.pid}:`, stats);
+
         if (stats) {
           item.cpuUsage = `${stats.cpu_usage.toFixed(1)}%`;
           item.memoryUsage = stats.memory_usage_mb;
+
+          console.log(
+            `[FRONTEND] Successfully updated stats for process ${item.pid}: CPU=${item.cpuUsage}, Memory=${item.memoryUsage}`
+          );
 
           // Update the history item in store
           runConfigStore.updateHistory(item.id, {
             cpuUsage: item.cpuUsage,
             memoryUsage: item.memoryUsage,
           });
+
+          // Clear failure count on success
+          failedStatsChecks.delete(item.pid);
+        } else {
+          // If stats is null, don't immediately mark as finished
+          // The process might still be starting up or temporarily unavailable
+          console.log(
+            `[FRONTEND] Process ${item.pid} stats returned null, but not marking as finished yet`
+          );
+          // Don't mark as finished immediately - let the process-stopped event handle it
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        // If process is not found or finished, mark it as finished to avoid further calls
-        if (errorMessage.includes("not found") || 
-            errorMessage.includes("finished") || 
-            errorMessage.includes("Process not found - it has finished")) {
-          console.log(`Process ${item.processId} has finished, marking as finished and updating status`);
-          finishedProcesses.add(item.processId);
-          
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        // Only mark as finished if we get a specific "finished" error
+        if (
+          errorMessage.includes("Process not found - it has finished") ||
+          errorMessage.includes("Process has finished")
+        ) {
+          console.log(
+            `Process ${item.pid} has finished, marking as finished and updating status`
+          );
+          finishedProcesses.add(item.pid);
+          failedStatsChecks.delete(item.pid);
+
           // Update the status to avoid further stats calls
           runConfigStore.updateHistory(item.id, {
-            status: "success"
+            status: "success",
           });
           // Don't log this as a warning since it's expected behavior
         } else {
-          // Only log as warning if it's an unexpected error
-          console.warn(`Failed to get stats for process ${item.processId}:`, errorMessage);
+          // For other errors, increment failure count
+          const newFailureCount = failureCount + 1;
+          failedStatsChecks.set(item.pid, newFailureCount);
+
+          console.log(
+            `Process ${item.pid} stats temporarily unavailable (attempt ${newFailureCount}/5): ${errorMessage}`
+          );
+          // Don't mark as finished - the process might still be running
         }
+      } finally {
+        // Always remove from checking set
+        checkingProcesses.delete(item.pid);
       }
     }
+  }
+};
+
+// Clean up finished processes cache periodically
+const cleanupFinishedProcesses = () => {
+  // Remove processes that are no longer in the history or have been marked as finished
+  const currentPids = new Set(
+    runConfigStore.history.map((h) => h.pid).filter(Boolean)
+  );
+  const toRemove = Array.from(finishedProcesses).filter(
+    (pid) => !currentPids.has(pid)
+  );
+  toRemove.forEach((pid) => finishedProcesses.delete(pid));
+
+  // Also clean up checking processes cache
+  const toRemoveChecking = Array.from(checkingProcesses).filter(
+    (pid) => !currentPids.has(pid)
+  );
+  toRemoveChecking.forEach((pid) => checkingProcesses.delete(pid));
+
+  // Clean up failed stats checks cache
+  const toRemoveFailed = Array.from(failedStatsChecks.keys()).filter(
+    (pid) => !currentPids.has(pid)
+  );
+  toRemoveFailed.forEach((pid) => failedStatsChecks.delete(pid));
+
+  if (
+    toRemove.length > 0 ||
+    toRemoveChecking.length > 0 ||
+    toRemoveFailed.length > 0
+  ) {
+    console.log(
+      `Cleaned up ${toRemove.length} finished processes, ${toRemoveChecking.length} checking processes, and ${toRemoveFailed.length} failed stats checks from cache`
+    );
   }
 };
 
@@ -283,7 +419,11 @@ const startProcessMonitoring = () => {
     clearInterval(processStatsInterval);
   }
 
-  processStatsInterval = setInterval(updateProcessStats, 2000); // Update every 2 seconds
+  // Update stats every 3 seconds for running processes (reduced frequency to avoid race conditions)
+  processStatsInterval = setInterval(updateProcessStats, 3000);
+
+  // Clean up finished processes cache every 30 seconds
+  setInterval(cleanupFinishedProcesses, 30000);
 };
 
 // Stop process monitoring
@@ -341,7 +481,12 @@ onMounted(async () => {
     "process-output",
     async (event) => {
       const { process_id, content, output_type } = event.payload;
-      console.log(`[FRONTEND] Received ${output_type} output - PID: ${process_id}, Content: ${content.substring(0, 100)}...`);
+      console.log(
+        `[FRONTEND] Received ${output_type} output - PID: ${process_id}, Content: ${content.substring(
+          0,
+          100
+        )}...`
+      );
       appendOutputToHistory(process_id, content, output_type);
 
       // Send system notification for stderr
@@ -366,26 +511,56 @@ onMounted(async () => {
     "process-started",
     (event: any) => {
       const { internal_id, system_pid } = event.payload;
-      console.log(`[FRONTEND] Process started - Internal UUID: ${internal_id}, System PID: ${system_pid}`);
-      
+      console.log(
+        `[FRONTEND] Process started - Internal UUID: ${internal_id}, System PID: ${system_pid}`
+      );
+
       // Find history item by the internal_id (UUID)
       const historyItem = findHistoryByProcessId(internal_id);
-      
-      if (historyItem && system_pid) {
-        const systemPidStr = system_pid.toString();
-        
-        // Update the history item with the system PID
-        runConfigStore.updateHistory(historyItem.id, {
-          processId: systemPidStr, // 使用系统PID作为processId
-          pid: systemPidStr // 显示的系统PID
+
+      if (historyItem) {
+        // Use system_pid if available, otherwise use internal_id
+        const processId = system_pid ? system_pid.toString() : internal_id;
+
+        console.log(
+          `[FRONTEND] Process started - updating history item ${historyItem.id} with process ID: ${processId} (system_pid: ${system_pid}, internal_id: ${internal_id})`
+        );
+        console.log(`[FRONTEND] History item before update:`, {
+          id: historyItem.id,
+          pid: historyItem.pid,
+          internalId: historyItem.internalId,
+          status: historyItem.status,
         });
-        
-        updateHistoryStatus(systemPidStr, "running");
-        
+
+        // Update the history item with the process ID (system PID or internal ID)
+        runConfigStore.updateHistory(historyItem.id, {
+          pid: processId, // 使用系统PID（如果存在）或内部ID作为pid
+        });
+
+        console.log(`[FRONTEND] History item after update:`, {
+          id: historyItem.id,
+          pid: historyItem.pid,
+          internalId: historyItem.internalId,
+          status: historyItem.status,
+        });
+
+        updateHistoryStatus(processId, "running");
+
         // Process any buffered output for this process
-        processBufferedOutput(systemPidStr);
+        processBufferedOutput(processId);
       } else {
-        console.warn(`[FRONTEND] History item not found for internal UUID ${internal_id} or no system PID available`);
+        console.warn(
+          `[FRONTEND] History item not found for internal UUID ${internal_id}`
+        );
+        console.warn(
+          `[FRONTEND] Available history items:`,
+          runConfigStore.history.map((h) => ({
+            id: h.id,
+            pid: h.pid,
+            internalId: h.internalId,
+            status: h.status,
+          }))
+        );
       }
     }
   );
@@ -395,17 +570,19 @@ onMounted(async () => {
     "process-stopped",
     async (event: any) => {
       const { internal_id, system_pid, status } = event.payload;
-      console.log(`[FRONTEND] Process stopped - Internal UUID: ${internal_id}, System PID: ${system_pid}, Status: ${status}`);
-      
+      console.log(
+        `[FRONTEND] Process stopped - Internal UUID: ${internal_id}, System PID: ${system_pid}, Status: ${status}`
+      );
+
       // For kill_process, internal_id is actually the system PID
       // We need to find the history item by system PID
       let processId = system_pid ? system_pid.toString() : internal_id;
-      
+
       // If internal_id is a number (system PID), use it directly
       if (!isNaN(Number(internal_id))) {
         processId = internal_id;
       }
-      
+
       // Map Tauri ProcessStatus to our history status
       let historyStatus: "running" | "success" | "error";
       if (status === "stopped") {
@@ -415,13 +592,30 @@ onMounted(async () => {
       } else {
         historyStatus = "success"; // Default to success for any other status
       }
-      
+
       // Mark process as finished to avoid further stats calls
       finishedProcesses.add(processId);
-      
+
+      // Also mark by internal_id if it's different from processId
+      if (internal_id && internal_id !== processId) {
+        finishedProcesses.add(internal_id);
+      }
+
+      // Remove from checking processes if it was being checked
+      checkingProcesses.delete(processId);
+      if (internal_id && internal_id !== processId) {
+        checkingProcesses.delete(internal_id);
+      }
+
+      // Remove from failed stats checks cache
+      failedStatsChecks.delete(processId);
+      if (internal_id && internal_id !== processId) {
+        failedStatsChecks.delete(internal_id);
+      }
+
       // Update history status immediately
       updateHistoryStatus(processId, historyStatus);
-      
+
       console.log(`Process ${processId} status updated to: ${historyStatus}`);
     }
   );
@@ -430,7 +624,9 @@ onMounted(async () => {
   startProcessMonitoring();
 
   // Initialize system tray context menu
-  setupSystemTrayMenu(runConfigStore);
+  // Note: Tray is now created in Rust backend for better stability on macOS
+  // Uncomment the line below if you want dynamic tray menus managed by frontend
+  // setupSystemTrayMenu(runConfigStore);
 });
 
 // Clean up event listeners on unmount

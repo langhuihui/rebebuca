@@ -110,16 +110,16 @@ const consoleScrollbarRef = ref<any>(null);
 
 // Get display output based on process status
 const getDisplayOutput = (historyItem: RunHistory | null) => {
-  if (!historyItem) return '';
-  
+  if (!historyItem) return "";
+
   // For running processes, use real-time output
-  if (historyItem.status === 'running') {
-    return historyItem.output || '';
+  if (historyItem.status === "running") {
+    return historyItem.output || "";
   }
-  
+
   // For finished processes, use stored output
   // Note: We could implement log file reading here if needed
-  return historyItem.output || '';
+  return historyItem.output || "";
 };
 
 const getHistoryCommand = (historyItem: RunHistory) => {
@@ -139,25 +139,27 @@ const getHistoryCommand = (historyItem: RunHistory) => {
 
 const handleRestartHistory = async () => {
   if (uiStore.selectedHistoryItem) {
-    const config = runConfigStore.getConfig(uiStore.selectedHistoryItem.configId);
+    const config = runConfigStore.getConfig(
+      uiStore.selectedHistoryItem.configId
+    );
     if (config) {
       try {
         // Execute the same configuration again
         await runConfigStore.executeCommand(config);
       } catch (error) {
-        console.error('Failed to restart command:', error);
+        console.error("Failed to restart command:", error);
       }
     }
   }
 };
 
 const handleStopHistory = async () => {
-  if (uiStore.selectedHistoryItem && uiStore.selectedHistoryItem.processId) {
+  if (uiStore.selectedHistoryItem && uiStore.selectedHistoryItem.pid) {
     try {
-      await runConfigStore.stopCurrentRun(uiStore.selectedHistoryItem.processId);
+      await runConfigStore.stopCurrentRun(uiStore.selectedHistoryItem.pid);
       // The status will be updated by the event listener in App.vue
     } catch (error) {
-      console.error('Failed to stop process:', error);
+      console.error("Failed to stop process:", error);
     }
   }
 };

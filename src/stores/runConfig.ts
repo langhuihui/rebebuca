@@ -52,6 +52,19 @@ const safeInvoke = async (command: string, args?: any) => {
     const { invoke } = await import('@tauri-apps/api/core');
     return await invoke(command, args);
   } catch (error) {
+    // For process stats commands, only log as error for unexpected issues
+    if (command === 'get_process_stats') {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("Process not found - it has finished") ||
+        errorMessage.includes("Process has finished")) {
+        // This is expected behavior, don't log as error
+        throw error;
+      } else {
+        // Log other errors but still throw them
+        console.warn(`Process stats temporarily unavailable: ${errorMessage}`);
+        throw error;
+      }
+    }
     console.error(`Failed to invoke '${command}':`, error);
     throw error;
   }
@@ -108,8 +121,7 @@ export interface RunHistory {
   output?: string;
   duration?: number;
   logFilename?: string;
-  processId?: string; // 系统PID，用于进程管理
-  pid?: string; // 显示的系统PID
+  pid?: string; // 系统PID，用于进程管理和显示
   internalId?: string; // 内部UUID，用于事件匹配
   startTime?: number;
   cpuUsage?: string;
@@ -447,21 +459,26 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
   // Get process statistics
   const getProcessStats = async (systemPid: string) => {
+    console.log(`[STORE] getProcessStats called with systemPid: ${systemPid}`);
     try {
       const stats = await safeInvoke('get_process_stats', { systemPid });
+      console.log(`[STORE] getProcessStats success for ${systemPid}:`, stats);
       return stats;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`[STORE] getProcessStats error for ${systemPid}: ${errorMessage}`);
 
-      // Don't log as error if process has finished - this is expected behavior
-      if (errorMessage.includes("not found") ||
-        errorMessage.includes("finished") ||
-        errorMessage.includes("Process not found - it has finished")) {
-        console.log(`Process ${systemPid} has finished, stats not available`);
+      // Only return null for specific "finished" errors
+      if (errorMessage.includes("Process not found - it has finished") ||
+        errorMessage.includes("Process has finished")) {
+        // Process has definitely finished
+        console.log(`[STORE] Process ${systemPid} has finished, returning null`);
+        return null;
       } else {
-        console.error('Failed to get process stats:', error);
+        // For other errors (including "not found"), re-throw to let caller handle
+        console.log(`[STORE] Re-throwing error for process ${systemPid}: ${errorMessage}`);
+        throw error;
       }
-      return null;
     }
   };
 
@@ -502,12 +519,14 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   // Execute command using Tauri
   const executeCommand = async (config: RunConfig): Promise<{ processId: string; historyId: string; }> => {
     // Create run record
+    const startTime = Date.now();
     const runRecord: Omit<RunHistory, 'id'> = {
       configId: config.id,
       name: config.name,
       command: config.command,
       status: 'running',
-      timestamp: new Date()
+      timestamp: new Date(),
+      startTime: startTime
     };
 
     const newHistory = await addHistory(runRecord);
@@ -540,18 +559,30 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       // Update history with log filename, system PID, and internal ID
       const index = history.value.findIndex(h => h.id === newHistory.id);
       if (index !== -1) {
-        console.log(`[FRONTEND] Before update - history item ${newHistory.id} processId: ${history.value[index].processId}`);
+        console.log(`[STORE] Before update - history item ${newHistory.id}:`, {
+          pid: history.value[index].pid,
+          internalId: history.value[index].internalId,
+          status: history.value[index].status
+        });
+
+        // Use system_pid if available, otherwise use internal_uuid
+        const newPid = system_pid ? system_pid.toString() : internal_uuid;
         history.value[index] = {
           ...history.value[index],
-          processId: internal_uuid, // 先使用UUID作为processId，让输出事件能找到
-          pid: system_pid ? system_pid.toString() : "未知", // 显示的系统PID
+          pid: newPid, // 系统PID（如果存在）或内部UUID，用于进程管理和显示
           internalId: internal_uuid, // 存储内部UUID用于事件匹配
           logFilename: log_filename
         };
-        console.log(`[FRONTEND] After update - history item ${newHistory.id} processId: ${history.value[index].processId}, internalId: ${history.value[index].internalId}`);
+
+        console.log(`[STORE] After update - history item ${newHistory.id}:`, {
+          pid: history.value[index].pid,
+          internalId: history.value[index].internalId,
+          status: history.value[index].status,
+          logFilename: history.value[index].logFilename
+        });
         await saveHistory();
       } else {
-        console.error(`[FRONTEND] History item ${newHistory.id} not found for update`);
+        console.error(`[STORE] History item ${newHistory.id} not found for update`);
       }
 
       // Send process-started event after history is updated
@@ -571,7 +602,8 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       }
 
       // Return both process ID and history ID
-      return { processId: system_pid ? system_pid.toString() : internal_uuid, historyId: newHistory.id };
+      const processId = system_pid ? system_pid.toString() : internal_uuid;
+      return { processId, historyId: newHistory.id };
     } catch (error) {
       const errorMessage = `执行错误: ${error instanceof Error ? error.message : String(error)}\n`;
       appendConsoleOutput(errorMessage);
@@ -594,19 +626,127 @@ export const useRunConfigStore = defineStore('runConfig', () => {
 
   // Stop current run
   const stopCurrentRun = async (systemPid: string) => {
+    console.log(`[STORE] stopCurrentRun called with systemPid: ${systemPid}`);
+    console.log(`[STORE] Available history items:`, history.value.map(h => ({
+      id: h.id,
+      pid: h.pid,
+      status: h.status,
+      name: h.name
+    })));
+
     try {
+      console.log(`[STORE] Attempting to kill process with PID: ${systemPid}`);
       await safeInvoke('kill_process', { systemPid });
+      console.log(`[STORE] Successfully killed process ${systemPid}`);
       appendConsoleOutput('\n> 进程已停止\n');
 
       // Update history status to success when manually stopped
-      const historyItem = history.value.find(h => h.processId === systemPid);
+      const historyItem = history.value.find(h => h.pid === systemPid);
       if (historyItem) {
-        await updateHistory(historyItem.id, {
+        console.log(`[STORE] Found history item for stopped process: ${historyItem.id}`);
+
+        // Calculate final duration when manually stopped
+        let updateData: any = {
           status: 'success'
-        });
+        };
+
+        if (historyItem.startTime) {
+          const endTime = Date.now();
+          const duration = endTime - historyItem.startTime;
+          updateData.duration = duration;
+          console.log(`[STORE] Process ${systemPid} manually stopped, duration: ${duration}ms (${Math.floor(duration / 1000)}s)`);
+        }
+
+        await updateHistory(historyItem.id, updateData);
+      } else {
+        console.warn(`[STORE] No history item found for stopped process PID: ${systemPid}`);
       }
     } catch (error) {
       const errorMessage = `停止进程失败: ${error instanceof Error ? error.message : String(error)}\n`;
+      console.error(`[STORE] Failed to stop process ${systemPid}:`, error);
+      appendConsoleOutput(errorMessage);
+      throw error;
+    }
+  };
+
+  // Restart process
+  const restartProcess = async (systemPid: string): Promise<{ processId: string; historyId: string; }> => {
+    console.log(`[STORE] restartProcess called with systemPid: ${systemPid}`);
+
+    // Find the history item for the process to restart
+    const historyItem = history.value.find(h => h.pid === systemPid);
+    if (!historyItem) {
+      throw new Error(`No history item found for process PID: ${systemPid}`);
+    }
+
+    // Find the config for this process
+    const config = getConfig(historyItem.configId);
+    if (!config) {
+      throw new Error(`No config found for process: ${historyItem.configId}`);
+    }
+
+    try {
+      // Convert RunConfig to TauriRunConfig format
+      const tauriConfig: TauriRunConfig = {
+        name: config.name,
+        command: config.command,
+        working_directory: config.workingDirectory,
+        environment: config.environment,
+        arguments: config.arguments
+      };
+
+      console.log(`[STORE] Restarting process ${systemPid} with config:`, config.name);
+
+      // Call Tauri command to restart the process
+      const result = await safeInvoke('restart_process', {
+        systemPid,
+        config: tauriConfig
+      });
+
+      // Parse the result to get internal_uuid, system_pid, and log_filename
+      const { internal_uuid, system_pid, log_filename } = JSON.parse(result as string);
+      console.log(`[FRONTEND] restartProcess result - internal_uuid: ${internal_uuid}, system_pid: ${system_pid}, log_filename: ${log_filename}`);
+
+      // Create new history record for the restarted process
+      const startTime = Date.now();
+      const runRecord: Omit<RunHistory, 'id'> = {
+        configId: config.id,
+        name: config.name,
+        command: config.command,
+        status: 'running',
+        timestamp: new Date(),
+        startTime: startTime
+      };
+
+      const newHistory = await addHistory(runRecord);
+      setCurrentRun(newHistory);
+
+      // Update history with log filename, system PID, and internal ID
+      const index = history.value.findIndex(h => h.id === newHistory.id);
+      if (index !== -1) {
+        const newPid = system_pid ? system_pid.toString() : internal_uuid;
+        history.value[index] = {
+          ...history.value[index],
+          pid: newPid,
+          internalId: internal_uuid,
+          logFilename: log_filename
+        };
+        await saveHistory();
+      }
+
+      // Auto-select the newly created history item
+      const { useUIStore } = await import('./ui');
+      const uiStore = useUIStore();
+      uiStore.setSelectedHistoryItem(newHistory);
+
+      appendConsoleOutput(`\n> 进程已重启: ${config.name}\n`);
+
+      // Return both process ID and history ID
+      const processId = system_pid ? system_pid.toString() : internal_uuid;
+      return { processId, historyId: newHistory.id };
+    } catch (error) {
+      const errorMessage = `重启进程失败: ${error instanceof Error ? error.message : String(error)}\n`;
+      console.error(`[STORE] Failed to restart process ${systemPid}:`, error);
       appendConsoleOutput(errorMessage);
       throw error;
     }
@@ -641,6 +781,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     setCurrentRun,
     executeCommand,
     stopCurrentRun,
+    restartProcess,
     loadConfigs,
     saveConfigs,
     loadHistory,
