@@ -1,0 +1,18 @@
+[package]
+name = "rebebuca-app"
+version = "0.1.0"
+edition = "2021"
+authors = ["rebebuca contributors"]
+description = "Main application entry point for Rebebuca"
+
+[[bin]]
+name = "rebebuca"
+path = "src/main.rs"
+
+[dependencies]
+rebebuca-core = { path = "../rebebuca-core" }
+rebebuca-ui = { path = "../rebebuca-ui" }
+gpui = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }

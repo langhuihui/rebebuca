@@ -1,0 +1,15 @@
+[package]
+name = "rebebuca-ui"
+version = "0.1.0"
+edition = "2021"
+authors = ["rebebuca contributors"]
+description = "GPUI UI components for Rebebuca"
+
+[dependencies]
+rebebuca-core = { path = "../rebebuca-core" }
+gpui = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }

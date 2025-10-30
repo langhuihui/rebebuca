@@ -1,19 +1,18 @@
 # Rebebuca
 
 <div align="center">
-  <img src="public/logo-dark.svg" alt="Rebebuca Logo" width="120" height="120">
+  <img src="assets/icons/logo.svg" alt="Rebebuca Logo" width="120" height="120">
   
   <h3>强大的运行配置管理工具</h3>
   
   <p>一个现代化的桌面应用，帮助开发者快速管理和执行各种命令与脚本</p>
 
   [![Build Status](https://img.shields.io/github/actions/workflow/status/langhuihui/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/langhuihui/rebebuca/actions)
-  [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
-  [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+  [![GPUI](https://img.shields.io/badge/GPUI-0.2.2-FF6B6B?style=flat-square&logo=rust)](https://github.com/zed-industries/zed)
+  [![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584?style=flat-square&logo=rust)](https://www.rust-lang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-  中文 | [English](README_EN.md)
+  中文 | [English](README.md)
 </div>
 
 ---
@@ -24,9 +23,10 @@
 - ⚡ **实时输出** - 实时查看命令执行结果，支持多标签页同时运行
 - 📝 **配置管理** - 支持工作目录、环境变量等高级配置选项
 - 🕒 **历史记录** - 自动保存运行历史，方便重复执行
-- 🎨 **现代化 UI** - 基于 Naive UI 的精美暗色主题界面
+- 🎨 **现代化 UI** - 基于 GPUI 的精美原生界面
 - 💾 **持久化存储** - 配置和历史数据自动保存，重启不丢失
 - 🖥️ **跨平台** - 支持 Windows、macOS 和 Linux
+- ⚡ **高性能** - 纯 Rust 实现，原生性能
 
 ## 📸 预览
 
@@ -36,24 +36,23 @@
 
 ## 🛠️ 技术栈
 
-### 前端
-- **Vue 3** - 渐进式 JavaScript 框架
-- **TypeScript** - 类型安全的 JavaScript 超集
-- **Naive UI** - 现代化的 Vue 3 组件库
-- **Pinia** - Vue 的轻量级状态管理库
-- **Vite** - 下一代前端构建工具
-
-### 后端
-- **Tauri** - 基于 Rust 的轻量级桌面应用框架
+### 应用
+- **GPUI** - 现代化的 Rust GUI 框架，用于原生桌面应用
 - **Rust** - 系统级编程语言，保证性能和安全
+- **Tokio** - Rust 异步运行时
+- **Serde** - 数据序列化框架
+
+### 架构
+- **纯 Rust** - 无 Web 技术，无 JavaScript，无 HTML/CSS
+- **原生性能** - 通过 GPUI 直接操作系统集成
+- **小体积** - ~12MB vs Web 方案的 ~20MB+
 
 ## 📦 安装
 
 ### 前置要求
 
-- **Node.js** >= 18.0.0
-- **pnpm** >= 8.0.0
-- **Rust** >= 1.70.0 (用于构建 Tauri 应用)
+- **Rust** >= 1.70.0
+- **Cargo** (随 Rust 一起安装)
 
 ### 开发环境安装
 
@@ -63,14 +62,14 @@ git clone https://github.com/yourusername/rebebuca.git
 cd rebebuca
 ```
 
-2. **安装依赖**
+2. **构建应用**
 ```bash
-pnpm install
+cargo build
 ```
 
-3. **启动开发服务器**
+3. **运行应用**
 ```bash
-pnpm tauri:dev
+cargo run
 ```
 
 ## 🚀 使用指南
@@ -109,74 +108,83 @@ pnpm tauri:dev
 
 ```
 rebebuca/
-├── src/                      # Vue 前端代码
-│   ├── App.vue              # 主应用组件
-│   ├── main.ts              # 应用入口
-│   ├── components/          # Vue 组件
-│   │   └── RunConfigDialog.vue
-│   └── stores/              # Pinia 状态管理
-│       └── runConfig.ts
-├── src-tauri/               # Tauri 后端代码
-│   ├── src/
-│   │   ├── main.rs         # Rust 主程序
-│   │   └── lib.rs          # 库代码
-│   ├── tauri.conf.json     # Tauri 配置
-│   └── Cargo.toml          # Rust 依赖配置
-├── public/                  # 静态资源
-├── index.html              # HTML 模板
-├── vite.config.ts          # Vite 配置
-├── tsconfig.json           # TypeScript 配置
-└── package.json            # 项目依赖
+├── Cargo.toml                   # 工作空间配置
+├── crates/
+│   ├── rebebuca-core/          # 核心业务逻辑
+│   │   ├── src/
+│   │   │   ├── lib.rs         # 主库文件
+│   │   │   ├── models.rs      # 数据模型
+│   │   │   ├── process.rs     # 进程管理
+│   │   │   └── storage.rs     # 数据持久化
+│   │   └── Cargo.toml
+│   ├── rebebuca-ui/            # GPUI UI 组件
+│   │   ├── src/
+│   │   │   ├── lib.rs         # UI 库
+│   │   │   ├── app.rs         # 主应用视图
+│   │   │   ├── theme.rs       # 主题系统
+│   │   │   ├── ansi.rs        # ANSI 颜色支持
+│   │   │   └── components/    # UI 组件
+│   │   └── Cargo.toml
+│   └── rebebuca-app/           # 主应用入口
+│       ├── src/
+│       │   └── main.rs        # 应用入口点
+│       └── Cargo.toml
+├── assets/                      # 应用资源
+│   ├── icons/                  # 应用图标
+│   └── themes/                 # 主题文件
+└── README.md
 ```
 
 ## 🔨 构建
 
 ### 开发模式
 ```bash
-# 启动开发服务器（热重载）
-pnpm tauri:dev
+# 构建并运行开发模式
+cargo run
 ```
 
-### 本地生产构建
+### 发布构建
 ```bash
-# 构建生产版本
-pnpm tauri build
+# 构建优化版本
+cargo build --release
 ```
 
-构建产物位于 `src-tauri/target/release/bundle/` 目录下。
+可执行文件位于 `target/release/rebebuca`。
 
-### GitHub Actions 自动构建
+### macOS 应用打包（带图标）
 
-项目配置了 GitHub Actions 自动构建工作流，支持以下平台：
-
-- **macOS**: Universal Binary（同时支持 Intel 和 Apple Silicon）
-  - 生成 `.app` 和 `.dmg` 文件
-- **Windows**: x64 可执行文件
-  - 生成 `.exe` (NSIS安装器) 和 `.msi` 安装程序
-
-#### 触发自动构建
-
-1. **推送到 main 分支**: 自动构建所有平台
-2. **创建版本标签**: 创建 `v*` 格式的标签（如 `v0.1.0`）时，会自动构建并创建 GitHub Release
+在 macOS 上，要显示自定义 Dock 图标，需要将应用打包成 `.app` bundle：
 
 ```bash
-# 发布新版本
-git tag v0.1.0
-git push origin main
-git push origin v0.1.0
+# 构建 macOS 应用 bundle（包含图标配置）
+./build-macos-app.sh
 ```
 
-3. **手动触发**: 在 GitHub Actions 页面手动运行构建
+这会创建 `Rebebuca.app`，包含：
+- 配置好的 `Info.plist`
+- 应用图标 (`icon.icns`)
+- 正确的 bundle 结构
 
-构建完成后，可以在 Actions 页面下载构建产物，或在 Releases 页面下载发布的版本。
+然后可以通过以下方式运行：
+```bash
+open Rebebuca.app
+```
 
-详细说明请查看 [.github/workflows/README.md](.github/workflows/README.md)。
+**注意**：直接运行 `cargo run` 时，应用不会以 bundle 形式运行，因此 Dock 图标可能显示为系统默认图标。使用打包脚本创建 `.app` bundle 后即可显示自定义图标。
 
-### 平台特定构建
+### 跨平台构建
 
-- **macOS**: 生成 `.app` 和 `.dmg` 文件
-- **Windows**: 生成 `.exe` 和 `.msi` 安装程序
-- **Linux**: 生成 `.AppImage` 和 `.deb` 包（需本地构建）
+应用可以构建为不同平台：
+
+```bash
+# 构建当前平台
+cargo build --release
+
+# 构建特定目标（需要安装目标）
+cargo build --release --target x86_64-unknown-linux-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+cargo build --release --target aarch64-apple-darwin
+```
 
 ## 🤝 贡献
 
@@ -194,17 +202,16 @@ git push origin v0.1.0
 
 - [VS Code](https://code.visualstudio.com/) 
 - 扩展插件:
-  - [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
-  - [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
   - [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-  - [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin)
+  - [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) (用于调试)
 
 ### 代码规范
 
-- 使用 TypeScript 严格模式
-- 遵循 Vue 3 Composition API 最佳实践
-- 使用 `<script setup>` 语法糖
-- 保持代码简洁和可维护性
+- 使用 Rust 标准格式化 (`cargo fmt`)
+- 遵循 Rust 命名约定
+- 使用 `cargo clippy` 进行代码检查
+- 编写全面的文档
+- 为新功能添加测试
 
 ## 🐛 问题反馈
 
@@ -216,14 +223,14 @@ git push origin v0.1.0
 
 ## 🙏 致谢
 
-- [Tauri](https://tauri.app/) - 优秀的桌面应用框架
-- [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
-- [Naive UI](https://www.naiveui.com/) - 精美的 Vue 3 组件库
-- [Vite](https://vitejs.dev/) - 快速的前端构建工具
+- [GPUI](https://github.com/zed-industries/zed) - 现代化 Rust GUI 框架
+- [Rust](https://www.rust-lang.org/) - 系统级编程语言
+- [Tokio](https://tokio.rs/) - Rust 异步运行时
+- [Serde](https://serde.rs/) - 序列化框架
 
 ---
 
 <div align="center">
-  <p>用 ❤️ 制作</p>
+  <p>用 ❤️ 和 Rust 制作</p>
   <p>如果这个项目对你有帮助，请给它一个 ⭐️</p>
 </div>

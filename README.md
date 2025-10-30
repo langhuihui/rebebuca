@@ -1,19 +1,18 @@
 # Rebebuca
 
 <div align="center">
-  <img src="public/logo-dark.svg" alt="Rebebuca Logo" width="120" height="120">
+  <img src="assets/icons/logo.svg" alt="Rebebuca Logo" width="120" height="120">
   
   <h3>Powerful Run Configuration Management Tool</h3>
   
   <p>A modern desktop application that helps developers quickly manage and execute various commands and scripts</p>
 
   [![Build Status](https://img.shields.io/github/actions/workflow/status/langhuihui/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/langhuihui/rebebuca/actions)
-  [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
-  [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+  [![GPUI](https://img.shields.io/badge/GPUI-0.2.2-FF6B6B?style=flat-square&logo=rust)](https://github.com/zed-industries/zed)
+  [![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584?style=flat-square&logo=rust)](https://www.rust-lang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-  [中文文档](README.md) | English
+  [中文文档](README_CN.md) | English
 </div>
 
 ---
@@ -24,9 +23,10 @@
 - ⚡ **Real-time Output** - View command execution results in real-time with multi-tab support
 - 📝 **Configuration Management** - Support for advanced options like working directory and environment variables
 - 🕒 **History Tracking** - Automatically save run history for easy re-execution
-- 🎨 **Modern UI** - Beautiful dark theme interface built with Naive UI
+- 🎨 **Modern UI** - Beautiful native interface built with GPUI
 - 💾 **Persistent Storage** - Configurations and history data are automatically saved and persist across restarts
 - 🖥️ **Cross-platform** - Supports Windows, macOS, and Linux
+- ⚡ **High Performance** - Pure Rust implementation with native performance
 
 ## 📸 Preview
 
@@ -36,24 +36,23 @@
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **Vue 3** - Progressive JavaScript framework
-- **TypeScript** - Type-safe JavaScript superset
-- **Naive UI** - Modern Vue 3 component library
-- **Pinia** - Lightweight state management library for Vue
-- **Vite** - Next generation frontend build tool
-
-### Backend
-- **Tauri** - Lightweight desktop application framework based on Rust
+### Application
+- **GPUI** - Modern Rust GUI framework for native desktop applications
 - **Rust** - Systems programming language ensuring performance and safety
+- **Tokio** - Async runtime for Rust
+- **Serde** - Serialization framework for data persistence
+
+### Architecture
+- **Pure Rust** - No web technologies, no JavaScript, no HTML/CSS
+- **Native Performance** - Direct OS integration via GPUI
+- **Small Binary Size** - ~12MB vs ~20MB+ for web-based solutions
 
 ## 📦 Installation
 
 ### Prerequisites
 
-- **Node.js** >= 18.0.0
-- **pnpm** >= 8.0.0
-- **Rust** >= 1.70.0 (for building Tauri applications)
+- **Rust** >= 1.70.0
+- **Cargo** (comes with Rust)
 
 ### Development Setup
 
@@ -63,14 +62,14 @@ git clone https://github.com/yourusername/rebebuca.git
 cd rebebuca
 ```
 
-2. **Install dependencies**
+2. **Build the application**
 ```bash
-pnpm install
+cargo build
 ```
 
-3. **Start development server**
+3. **Run the application**
 ```bash
-pnpm tauri:dev
+cargo run
 ```
 
 ## 🚀 Usage Guide
@@ -109,74 +108,83 @@ pnpm tauri:dev
 
 ```
 rebebuca/
-├── src/                      # Vue frontend code
-│   ├── App.vue              # Main application component
-│   ├── main.ts              # Application entry point
-│   ├── components/          # Vue components
-│   │   └── RunConfigDialog.vue
-│   └── stores/              # Pinia state management
-│       └── runConfig.ts
-├── src-tauri/               # Tauri backend code
-│   ├── src/
-│   │   ├── main.rs         # Rust main program
-│   │   └── lib.rs          # Library code
-│   ├── tauri.conf.json     # Tauri configuration
-│   └── Cargo.toml          # Rust dependency configuration
-├── public/                  # Static assets
-├── index.html              # HTML template
-├── vite.config.ts          # Vite configuration
-├── tsconfig.json           # TypeScript configuration
-└── package.json            # Project dependencies
+├── Cargo.toml                   # Workspace configuration
+├── crates/
+│   ├── rebebuca-core/          # Core business logic
+│   │   ├── src/
+│   │   │   ├── lib.rs         # Main library
+│   │   │   ├── models.rs      # Data models
+│   │   │   ├── process.rs     # Process management
+│   │   │   └── storage.rs     # Data persistence
+│   │   └── Cargo.toml
+│   ├── rebebuca-ui/            # GPUI UI components
+│   │   ├── src/
+│   │   │   ├── lib.rs         # UI library
+│   │   │   ├── app.rs         # Main application view
+│   │   │   ├── theme.rs       # Theme system
+│   │   │   ├── ansi.rs        # ANSI color support
+│   │   │   └── components/    # UI components
+│   │   └── Cargo.toml
+│   └── rebebuca-app/           # Main application entry
+│       ├── src/
+│       │   └── main.rs        # Application entry point
+│       └── Cargo.toml
+├── assets/                      # Application assets
+│   ├── icons/                  # Application icons
+│   └── themes/                 # Theme files
+└── README.md
 ```
 
 ## 🔨 Building
 
 ### Development Mode
 ```bash
-# Start development server (with hot reload)
-pnpm tauri:dev
+# Build and run in development mode
+cargo run
 ```
 
-### Local Production Build
+### Release Build
 ```bash
-# Build production version
-pnpm tauri build
+# Build optimized release version
+cargo build --release
 ```
 
-Build artifacts are located in the `src-tauri/target/release/bundle/` directory.
+The executable will be located at `target/release/rebebuca`.
 
-### GitHub Actions Automated Builds
+### macOS App Bundle (with Icon)
 
-The project is configured with GitHub Actions workflows that automatically build for the following platforms:
-
-- **macOS**: Universal Binary (supports both Intel and Apple Silicon)
-  - Generates `.app` and `.dmg` files
-- **Windows**: x64 executables
-  - Generates `.exe` (NSIS installer) and `.msi` installer
-
-#### Triggering Builds
-
-1. **Push to main branch**: Automatically builds all platforms
-2. **Create version tag**: Creating a tag in `v*` format (e.g., `v0.1.0`) will automatically build and create a GitHub Release
+On macOS, to display a custom Dock icon, you need to package the app as a `.app` bundle:
 
 ```bash
-# Release a new version
-git tag v0.1.0
-git push origin main
-git push origin v0.1.0
+# Build macOS app bundle (includes icon configuration)
+./build-macos-app.sh
 ```
 
-3. **Manual trigger**: Run builds manually from the GitHub Actions page
+This creates `Rebebuca.app` with:
+- Configured `Info.plist`
+- Application icon (`icon.icns`)
+- Proper bundle structure
 
-After the build completes, you can download artifacts from the Actions page or from the Releases page for published versions.
+Then run it with:
+```bash
+open Rebebuca.app
+```
 
-For detailed information, see [.github/workflows/README.md](.github/workflows/README.md).
+**Note**: When running directly with `cargo run`, the app doesn't run as a bundle, so the Dock icon may show as the system default. Use the build script to create the `.app` bundle to display the custom icon.
 
-### Platform-specific Builds
+### Cross-platform Building
 
-- **macOS**: Generates `.app` and `.dmg` files
-- **Windows**: Generates `.exe` and `.msi` installer
-- **Linux**: Generates `.AppImage` and `.deb` packages (requires local build)
+The application can be built for different platforms:
+
+```bash
+# Build for current platform
+cargo build --release
+
+# Build for specific target (requires target to be installed)
+cargo build --release --target x86_64-unknown-linux-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+cargo build --release --target aarch64-apple-darwin
+```
 
 ## 🤝 Contributing
 
@@ -194,17 +202,16 @@ Contributions are welcome! Please follow these steps:
 
 - [VS Code](https://code.visualstudio.com/) 
 - Extensions:
-  - [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
-  - [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
   - [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-  - [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin)
+  - [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) (for debugging)
 
 ### Code Standards
 
-- Use TypeScript strict mode
-- Follow Vue 3 Composition API best practices
-- Use `<script setup>` syntax sugar
-- Keep code clean and maintainable
+- Use Rust standard formatting (`cargo fmt`)
+- Follow Rust naming conventions
+- Use `cargo clippy` for linting
+- Write comprehensive documentation
+- Add tests for new functionality
 
 ## 🐛 Issue Reporting
 
@@ -216,15 +223,14 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## 🙏 Acknowledgments
 
-- [Tauri](https://tauri.app/) - Excellent desktop application framework
-- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
-- [Naive UI](https://www.naiveui.com/) - Beautiful Vue 3 component library
-- [Vite](https://vitejs.dev/) - Fast frontend build tool
+- [GPUI](https://github.com/zed-industries/zed) - Modern Rust GUI framework
+- [Rust](https://www.rust-lang.org/) - Systems programming language
+- [Tokio](https://tokio.rs/) - Async runtime for Rust
+- [Serde](https://serde.rs/) - Serialization framework
 
 ---
 
 <div align="center">
-  <p>Made with ❤️</p>
+  <p>Made with ❤️ and Rust</p>
   <p>If this project helps you, please give it a ⭐️</p>
 </div>
-

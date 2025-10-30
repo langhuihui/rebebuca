@@ -26,3 +26,9 @@ dist-ssr
 .history
 .playwright-mcp
 .vscode
+
+# Rust/Cargo
+target/
+
+# macOS app build output
+Rebebuca.app/
