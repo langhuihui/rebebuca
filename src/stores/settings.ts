@@ -44,10 +44,10 @@ export interface AppSettings {
   // Behavior settings
   confirmBeforeClose: boolean;
   autoExpandFolders: boolean;
+  closeButtonBehavior: 'hide' | 'exit';  // 'hide' = minimize to tray, 'exit' = quit app
   
   // UI settings
   showTaskIcons: boolean;
-  compactMode: boolean;
   
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
@@ -59,8 +59,8 @@ const defaultSettings: AppSettings = {
   maxLogFiles: 100,
   confirmBeforeClose: true,
   autoExpandFolders: true,
+  closeButtonBehavior: 'exit',
   showTaskIcons: true,
-  compactMode: false,
   commandIcons: {},
 };
 

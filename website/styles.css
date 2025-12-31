@@ -695,6 +695,109 @@ body {
   margin: 0 auto;
 }
 
+.screenshot-container {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: var(--bg-card);
+}
+
+.screenshot-img {
+  width: 100%;
+  height: auto;
+  display: none;
+  border-radius: 16px;
+}
+
+/* Show correct screenshot based on language and theme */
+.screenshot-img[data-lang="en"][data-theme="light"] {
+  display: block;
+}
+
+.screenshot-img[data-lang="en"][data-theme="dark"],
+.screenshot-img[data-lang="zh"][data-theme="light"],
+.screenshot-img[data-lang="zh"][data-theme="dark"] {
+  display: none;
+}
+
+/* Theme-based screenshot visibility */
+[data-theme="dark"] .screenshot-img[data-lang="en"][data-theme="light"] {
+  display: none;
+}
+
+[data-theme="dark"] .screenshot-img[data-lang="en"][data-theme="dark"] {
+  display: block;
+}
+
+/* These will be controlled by JS for language switching */
+html[lang="zh"] .screenshot-img[data-lang="en"] {
+  display: none !important;
+}
+
+html[lang="zh"] .screenshot-img[data-lang="zh"][data-theme="light"] {
+  display: block;
+}
+
+html[lang="zh"][data-theme="dark"] .screenshot-img[data-lang="zh"][data-theme="light"] {
+  display: none;
+}
+
+html[lang="zh"][data-theme="dark"] .screenshot-img[data-lang="zh"][data-theme="dark"] {
+  display: block;
+}
+
+/* Video Section */
+.video-section {
+  padding: 120px 0;
+  background-color: var(--bg-secondary);
+}
+
+.video-desc {
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+  font-size: 1.125rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.video-wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.video-container {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: var(--bg-terminal);
+}
+
+.demo-video {
+  width: 100%;
+  height: auto;
+  display: none;
+  border-radius: 16px;
+}
+
+/* Show correct video based on language */
+.demo-video[data-lang="en"] {
+  display: block;
+}
+
+.demo-video[data-lang="zh"] {
+  display: none;
+}
+
+html[lang="zh"] .demo-video[data-lang="en"] {
+  display: none;
+}
+
+html[lang="zh"] .demo-video[data-lang="zh"] {
+  display: block;
+}
+
 .screenshot-placeholder {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -1015,6 +1118,7 @@ body {
 
   .features,
   .screenshot-section,
+  .video-section,
   .tech-stack,
   .download {
     padding: 80px 0;

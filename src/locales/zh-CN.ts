@@ -235,10 +235,13 @@ export default {
     maxLogFiles: '最大日志数',
     behavior: '行为设置',
     confirmBeforeClose: '关闭前确认',
+    closeButtonBehavior: '关闭按钮行为',
+    closeButtonHide: '隐藏窗口',
+    closeButtonExit: '退出应用',
     autoExpandFolders: '自动展开文件夹',
     ui: '界面设置',
+    language: '界面语言',
     showTaskIcons: '显示任务图标',
-    compactMode: '紧凑模式',
     commandIcons: '命令图标',
     searchIcons: '搜索图标...',
     commandPlaceholder: '输入命令 (如 npm, cargo)',
@@ -258,6 +261,11 @@ export default {
     downloading: '下载中',
     // Dev log settings
     devLog: '开发日志',
+    // Release notes
+    releaseNotes: '更新日志',
+    loadReleaseNotes: '加载更新日志',
+    noReleaseNotes: '暂无更新日志',
+    whatsNew: '新版本特性',
   },
   devLog: {
     consoleLogs: '前端控制台',
@@ -276,6 +284,12 @@ export default {
     cancel: '取消',
     confirm: '确定',
     add: '添加',
+  },
+  about: {
+    title: '关于 Rebebuca',
+    description: '现代化、跨平台的任务运行器和命令管理工具。',
+    website: '访问官网',
+    copyright: '© 2025 Rebebuca 贡献者。基于 GPL-3.0 协议开源。',
   },
   statusBar: {
     noActiveTask: '无活动任务',

@@ -999,3 +999,194 @@ body {
   justify-content: center;
   gap: 12px;
 }
+
+/* ============================================
+   Light Theme Comprehensive Styles
+   ============================================ */
+
+/* Light theme - Sidebar */
+.n-config-provider--light .sidebar-layout {
+  background-color: #fafafa;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Light theme - Tree nodes hover */
+.n-config-provider--light .tree-node:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Light theme - Task actions float background */
+.n-config-provider--light .task-actions-float {
+  --action-bg: rgba(250, 250, 250, 0.95);
+}
+
+/* Light theme - Action buttons */
+.n-config-provider--light .action-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Light theme - Config/History actions background */
+.n-config-provider--light .config-actions,
+.n-config-provider--light .history-actions {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Light theme - Console area */
+.n-config-provider--light .console-area {
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Light theme - Console toolbar */
+.n-config-provider--light .console-toolbar {
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Light theme - Console output container */
+.n-config-provider--light .console-output-container {
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.02), 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Light theme - Console output text */
+.n-config-provider--light .console-output {
+  color: #333333;
+  text-shadow: none;
+}
+
+/* Light theme - Process stats */
+.n-config-provider--light .process-stats {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.n-config-provider--light .stat-item {
+  background: rgba(24, 160, 88, 0.08);
+  border: 1px solid rgba(24, 160, 88, 0.15);
+}
+
+/* Light theme - Tooltip styles (global) */
+.n-config-provider--light .n-tooltip {
+  --n-color: #ffffff !important;
+  --n-text-color: #333333 !important;
+}
+
+/* Light theme - History divider */
+.n-config-provider--light .history-divider {
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
+}
+
+/* Light theme - Selected history item */
+.n-config-provider--light .history-list-item.selected {
+  border-color: rgba(24, 160, 88, 0.4);
+  background-color: rgba(24, 160, 88, 0.06);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08), 0 0 12px rgba(24, 160, 88, 0.15);
+}
+
+/* Light theme - Pinned item */
+.n-config-provider--light .history-list-item.pinned-item {
+  border-left: 3px solid #18a058;
+}
+
+/* Light theme - Titlebar hover effects */
+.n-config-provider--light .titlebar-right .n-button:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.n-config-provider--light .titlebar-right .n-button::before {
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(24, 160, 88, 0.08),
+      transparent);
+}
+
+/* Light theme - Running task indicator */
+.n-config-provider--light .task-running {
+  background-color: rgba(24, 160, 88, 0.08);
+}
+
+/* Light theme - Group drag over */
+.n-config-provider--light .group-node.drag-over {
+  background-color: rgba(24, 160, 88, 0.12);
+  border: 1px dashed #18a058;
+}
+
+/* Light theme - Favorite drag indicators */
+.n-config-provider--light .favorite-task-node.drag-over-top {
+  border-top: 2px solid #18a058;
+}
+
+.n-config-provider--light .favorite-task-node.drag-over-bottom {
+  border-bottom: 2px solid #18a058;
+}
+
+/* Light theme - Empty state */
+.n-config-provider--light .empty-state {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* Light theme - Welcome logo */
+.n-config-provider--light .welcome-logo {
+  filter: none;
+}
+
+.n-config-provider--light .welcome-logo:hover {
+  filter: drop-shadow(0 0 8px rgba(24, 160, 88, 0.3));
+  transform: scale(1.05);
+}
+
+/* Light theme - macOS window controls - softer colors */
+.n-config-provider--light .window-controls:not(.windows-style) .close-btn {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+  box-shadow: 0 0 6px rgba(255, 107, 107, 0.4);
+}
+
+.n-config-provider--light .window-controls:not(.windows-style) .minimize-btn {
+  background: linear-gradient(135deg, #ffd43b 0%, #ffe066 100%);
+  box-shadow: 0 0 6px rgba(255, 212, 59, 0.4);
+}
+
+.n-config-provider--light .window-controls:not(.windows-style) .maximize-btn {
+  background: linear-gradient(135deg, #51cf66 0%, #69db7c 100%);
+  box-shadow: 0 0 6px rgba(81, 207, 102, 0.4);
+}
+
+/* Light theme - Import task selection */
+.n-config-provider--light .import-task-item.selected {
+  background: rgba(24, 160, 88, 0.08);
+}
+
+.n-config-provider--light .import-task-item.duplicate {
+  border-left: 3px solid #fab005;
+}
+
+/* Light theme - AI dialog */
+.n-config-provider--light .generated-task {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Light theme - Status bar */
+.n-config-provider--light .status-bar {
+  background-color: #f0f0f0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Light theme - App window background */
+.n-config-provider--light .app-window {
+  background-color: #ffffff;
+}
+
+/* Light theme - Main layout */
+.n-config-provider--light .n-layout {
+  background-color: #fafafa;
+}
+
+.n-config-provider--light .n-layout-sider {
+  background-color: #fafafa;
+}
+
+.n-config-provider--light .n-layout-content {
+  background-color: #ffffff;
+}

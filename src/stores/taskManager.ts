@@ -88,8 +88,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   // All tasks (flat list) - from folders only
   const allTasks = ref<Task[]>([]);
   
-  // Favorite task IDs
-  const favoriteTaskIds = ref<Set<string>>(new Set());
+  // Favorite task IDs (ordered array for drag-and-drop reordering)
+  const favoriteTaskIds = ref<string[]>([]);
   
   // Loading state
   const isScanning = ref(false);
@@ -124,15 +124,19 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     ...allUserTasks.value
   ]);
   
-  // Favorite tasks
-  const favoriteTasks = computed(() => 
-    combinedTasks.value.filter(t => favoriteTaskIds.value.has(t.id))
-  );
+  // Favorite tasks (ordered by favoriteTaskIds order)
+  const favoriteTasks = computed(() => {
+    const taskMap = new Map(combinedTasks.value.map(t => [t.id, t]));
+    return favoriteTaskIds.value
+      .map(id => taskMap.get(id))
+      .filter((t): t is Task => t !== undefined);
+  });
   
   // Non-favorite tasks
-  const regularTasks = computed(() => 
-    combinedTasks.value.filter(t => !favoriteTaskIds.value.has(t.id))
-  );
+  const regularTasks = computed(() => {
+    const favoriteSet = new Set(favoriteTaskIds.value);
+    return combinedTasks.value.filter(t => !favoriteSet.has(t.id));
+  });
   
   // Check if a task is running
   const isTaskRunning = (taskId: string): boolean => {
@@ -347,10 +351,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     try {
       const storeInstance = await initStore();
       if (storeInstance) {
-        const ids = Array.from(favoriteTaskIds.value);
-        await storeInstance.set('favoriteTasks', ids);
+        await storeInstance.set('favoriteTasks', favoriteTaskIds.value);
         await storeInstance.save();
-        console.log('[TaskManager] Saved favorites:', ids);
+        console.log('[TaskManager] Saved favorites:', favoriteTaskIds.value);
       }
     } catch (error) {
       console.error('[TaskManager] Failed to save favorites:', error);
@@ -366,7 +369,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       if (storeInstance) {
         const ids = await storeInstance.get('favoriteTasks');
         if (ids && Array.isArray(ids)) {
-          favoriteTaskIds.value = new Set(ids);
+          favoriteTaskIds.value = ids;
           console.log('[TaskManager] Loaded favorites:', ids);
         }
       }
@@ -379,13 +382,14 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * Toggle task favorite status
    */
   async function toggleFavorite(taskId: string): Promise<void> {
-    if (favoriteTaskIds.value.has(taskId)) {
-      favoriteTaskIds.value.delete(taskId);
+    const index = favoriteTaskIds.value.indexOf(taskId);
+    if (index !== -1) {
+      favoriteTaskIds.value.splice(index, 1);
     } else {
-      favoriteTaskIds.value.add(taskId);
+      favoriteTaskIds.value.push(taskId);
     }
     // Trigger reactivity
-    favoriteTaskIds.value = new Set(favoriteTaskIds.value);
+    favoriteTaskIds.value = [...favoriteTaskIds.value];
     await saveFavorites();
   }
   
@@ -393,7 +397,25 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * Check if a task is favorite
    */
   function isFavorite(taskId: string): boolean {
-    return favoriteTaskIds.value.has(taskId);
+    return favoriteTaskIds.value.includes(taskId);
+  }
+  
+  /**
+   * Reorder favorite tasks
+   */
+  async function reorderFavorites(fromIndex: number, toIndex: number): Promise<void> {
+    if (fromIndex < 0 || fromIndex >= favoriteTaskIds.value.length) return;
+    if (toIndex < 0 || toIndex > favoriteTaskIds.value.length) return; // Allow toIndex == length for inserting at end
+    if (fromIndex === toIndex) return;
+    
+    const ids = [...favoriteTaskIds.value];
+    const [removed] = ids.splice(fromIndex, 1);
+    // After removing, the valid range for insert is 0 to ids.length
+    const insertIndex = Math.min(toIndex, ids.length);
+    ids.splice(insertIndex, 0, removed);
+    favoriteTaskIds.value = ids;
+    await saveFavorites();
+    console.log('[TaskManager] Reordered favorites:', fromIndex, '->', toIndex, 'result:', ids);
   }
   
   /**
@@ -1145,6 +1167,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     deleteTask,
     toggleFavorite,
     isFavorite,
+    reorderFavorites,
     // User group methods
     createUserGroup,
     renameUserGroup,

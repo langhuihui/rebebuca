@@ -23,6 +23,8 @@ class ThemeManager {
 
   applyTheme() {
     document.documentElement.setAttribute('data-theme', this.theme);
+    // Update media visibility after theme change
+    this.updateMediaVisibility();
   }
 
   setTheme(theme) {
@@ -34,6 +36,30 @@ class ThemeManager {
   toggleTheme() {
     const newTheme = this.theme === 'light' ? 'dark' : 'light';
     this.setTheme(newTheme);
+  }
+
+  updateMediaVisibility() {
+    // Get current language
+    const currentLang = document.documentElement.lang || 'en';
+    const currentTheme = this.theme;
+
+    // Update screenshots
+    document.querySelectorAll('.screenshot-img').forEach(img => {
+      const imgLang = img.dataset.lang;
+      const imgTheme = img.dataset.theme;
+      img.style.display = (imgLang === currentLang && imgTheme === currentTheme) ? 'block' : 'none';
+    });
+
+    // Update videos
+    document.querySelectorAll('.demo-video').forEach(video => {
+      const videoLang = video.dataset.lang;
+      const shouldShow = videoLang === currentLang;
+      video.style.display = shouldShow ? 'block' : 'none';
+      // Pause hidden videos
+      if (!shouldShow && !video.paused) {
+        video.pause();
+      }
+    });
   }
 
   bindEvents() {
@@ -53,6 +79,14 @@ class ThemeManager {
 
 // Initialize theme manager
 const themeManager = new ThemeManager();
+
+// Expose themeManager globally for i18n to use
+window.themeManager = themeManager;
+
+// Initialize media visibility after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  themeManager.updateMediaVisibility();
+});
 
 // Language toggle
 const langToggle = document.getElementById('lang-toggle');

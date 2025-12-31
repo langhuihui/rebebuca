@@ -235,10 +235,13 @@ export default {
     maxLogFiles: 'Max Log Files',
     behavior: 'Behavior Settings',
     confirmBeforeClose: 'Confirm Before Close',
+    closeButtonBehavior: 'Close Button Behavior',
+    closeButtonHide: 'Hide Window',
+    closeButtonExit: 'Quit Application',
     autoExpandFolders: 'Auto Expand Folders',
     ui: 'UI Settings',
+    language: 'Language',
     showTaskIcons: 'Show Task Icons',
-    compactMode: 'Compact Mode',
     commandIcons: 'Command Icons',
     searchIcons: 'Search icons...',
     commandPlaceholder: 'Enter command (e.g., npm, cargo)',
@@ -258,6 +261,11 @@ export default {
     downloading: 'Downloading',
     // Dev log settings
     devLog: 'Dev Logs',
+    // Release notes
+    releaseNotes: 'Release Notes',
+    loadReleaseNotes: 'Load Release Notes',
+    noReleaseNotes: 'No release notes available',
+    whatsNew: "What's New",
   },
   devLog: {
     consoleLogs: 'Frontend Console',
@@ -276,6 +284,12 @@ export default {
     cancel: 'Cancel',
     confirm: 'Confirm',
     add: 'Add',
+  },
+  about: {
+    title: 'About Rebebuca',
+    description: 'A modern, cross-platform task runner and command management tool.',
+    website: 'Visit Website',
+    copyright: '© 2025 Rebebuca Contributors. Licensed under GPL-3.0.',
   },
   statusBar: {
     noActiveTask: 'No active task',

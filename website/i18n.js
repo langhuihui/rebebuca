@@ -32,6 +32,10 @@ const translations = {
     'screenshot.title': 'Application Preview',
     'screenshot.placeholder': 'Application Screenshot Placeholder',
     
+    // Video
+    'video.title': 'Video Demo',
+    'video.desc': 'Watch how Rebebuca works in action',
+    
     // Tech Stack
     'tech.title': 'Tech Stack',
     'tech.frontend': 'Frontend',
@@ -88,6 +92,10 @@ const translations = {
     // Screenshot
     'screenshot.title': '应用预览',
     'screenshot.placeholder': '应用截图占位符',
+    
+    // Video
+    'video.title': '演示视频',
+    'video.desc': '观看 Rebebuca 的实际操作演示',
     
     // Tech Stack
     'tech.title': '技术栈',
@@ -167,6 +175,11 @@ class I18n {
       ? 'Rebebuca - 运行配置管理工具' 
       : 'Rebebuca - Run Configuration Management Tool';
     document.title = titleKey;
+
+    // Update media visibility (screenshots and videos)
+    if (window.themeManager) {
+      window.themeManager.updateMediaVisibility();
+    }
   }
 
   updateLangButton() {

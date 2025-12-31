@@ -17,21 +17,48 @@
  */
 
 import { useI18n } from 'vue-i18n';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+
+// Detect system language
+function getSystemLocale(): string {
+  const browserLang = navigator.language || (navigator as any).userLanguage;
+  const lang = browserLang.toLowerCase();
+  if (lang.startsWith('zh')) {
+    return 'zh-CN';
+  }
+  return 'en';
+}
 
 export function useLocale() {
   const { locale } = useI18n();
 
+  // Store the locale mode ('system' | 'en' | 'zh-CN')
+  const localeMode = ref<string>(localStorage.getItem('app-locale-mode') || 'system');
+
   const currentLocale = computed(() => locale.value);
 
   const availableLocales = [
-    { label: 'English', value: 'en' },
-    { label: '简体中文', value: 'zh-CN' },
+    { label: 'Follow System', value: 'system', labelZh: '跟随系统' },
+    { label: 'English', value: 'en', labelZh: 'English' },
+    { label: '简体中文', value: 'zh-CN', labelZh: '简体中文' },
   ];
 
-  const setLocale = (newLocale: string) => {
-    locale.value = newLocale as any;
-    localStorage.setItem('app-locale', newLocale);
+  // Get display label based on current locale
+  const getLocalizedOptions = () => {
+    return availableLocales.map(l => ({
+      label: locale.value === 'zh-CN' ? l.labelZh : l.label,
+      value: l.value,
+    }));
+  };
+
+  const setLocale = (mode: string) => {
+    localeMode.value = mode;
+    localStorage.setItem('app-locale-mode', mode);
+    
+    // Determine actual locale
+    const actualLocale = mode === 'system' ? getSystemLocale() : mode;
+    locale.value = actualLocale as any;
+    localStorage.setItem('app-locale', actualLocale);
   };
 
   const toggleLocale = () => {
@@ -39,11 +66,23 @@ export function useLocale() {
     setLocale(newLocale);
   };
 
+  // Initialize locale based on mode
+  const initLocale = () => {
+    const mode = localStorage.getItem('app-locale-mode') || 'system';
+    localeMode.value = mode;
+    const actualLocale = mode === 'system' ? getSystemLocale() : mode;
+    locale.value = actualLocale as any;
+  };
+
   return {
     currentLocale,
+    localeMode,
     availableLocales,
+    getLocalizedOptions,
     setLocale,
     toggleLocale,
+    initLocale,
+    getSystemLocale,
   };
 }
 

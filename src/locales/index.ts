@@ -37,8 +37,18 @@ function getSystemLocale(): string {
 }
 
 // Get stored language preference or use system language
+const storedMode = localStorage.getItem('app-locale-mode') || 'system';
 const storedLocale = localStorage.getItem('app-locale');
-const defaultLocale = storedLocale || getSystemLocale();
+
+// Determine actual locale
+let defaultLocale: string;
+if (storedMode === 'system') {
+  defaultLocale = getSystemLocale();
+} else if (storedLocale) {
+  defaultLocale = storedLocale;
+} else {
+  defaultLocale = getSystemLocale();
+}
 
 const i18n = createI18n({
   legacy: false,

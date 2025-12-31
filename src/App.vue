@@ -26,6 +26,58 @@
           :config="uiStore.editingConfig"
           @saved="onConfigSaved"
         />
+        
+        <!-- What's New dialog -->
+        <n-modal
+          v-model:show="updaterStore.showWhatsNew"
+          preset="dialog"
+          :title="t('settings.whatsNew')"
+          :positive-text="t('common.confirm')"
+          style="width: 600px; max-height: 80vh;"
+          @positive-click="updaterStore.dismissWhatsNew"
+          @close="updaterStore.dismissWhatsNew"
+        >
+          <div class="whats-new-content">
+            <div class="version-badge">v{{ updaterStore.currentVersion }}</div>
+            <n-scrollbar style="max-height: 400px;">
+              <div v-for="release in updaterStore.whatsNewReleaseNotes" :key="release.tag" class="release-note-item">
+                <div class="release-note-header">
+                  <span class="release-note-tag">{{ release.tag }}</span>
+                  <span class="release-note-date">{{ release.date }}</span>
+                </div>
+                <div class="release-note-body" v-html="formatReleaseBody(release.body)"></div>
+              </div>
+            </n-scrollbar>
+          </div>
+        </n-modal>
+        
+        <!-- About dialog -->
+        <n-modal
+          v-model:show="showAboutDialog"
+          preset="card"
+          :title="t('about.title')"
+          style="width: 400px;"
+          class="about-modal"
+        >
+          <div class="about-content">
+            <img src="/logo.svg" alt="Rebebuca" class="about-logo" />
+            <h2 class="about-name">Rebebuca</h2>
+            <div class="about-version">v{{ currentVersion }}</div>
+            <p class="about-description">{{ t('about.description') }}</p>
+            <div class="about-links">
+              <n-button text tag="a" href="https://rebebuca.com" target="_blank" type="primary">
+                {{ t('about.website') }}
+              </n-button>
+              <n-button text tag="a" href="https://github.com/langhuihui/rebebuca" target="_blank">
+                GitHub
+              </n-button>
+            </div>
+            <div class="about-copyright">
+              {{ t('about.copyright') }}
+            </div>
+          </div>
+        </n-modal>
+        
         <n-layout class="h-screen app-window">
           <!-- Custom Title Bar -->
           <TitleBar :effective-theme="effectiveTheme" />
@@ -59,10 +111,14 @@ import {
   NDialogProvider,
   NLayout,
   NLayoutContent,
+  NModal,
+  NScrollbar,
+  NButton,
 } from "naive-ui";
 import { useRunConfigStore } from "./stores/runConfig";
 import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
+import { useUpdaterStore } from "./stores/updater";
 import RunConfigDialog from "./components/RunConfigDialog.vue";
 import TitleBar from "./components/TitleBar.vue";
 import TaskSidebar from "./components/TaskSidebar.vue";
@@ -87,7 +143,31 @@ const { currentTheme, effectiveTheme, themeMode } = useTheme();
 const runConfigStore = useRunConfigStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
+const updaterStore = useUpdaterStore();
 const { editingConfig } = storeToRefs(uiStore);
+
+// About dialog state
+const showAboutDialog = ref(false);
+const currentVersion = ref('');
+
+// Format release body (convert markdown to HTML)
+const formatReleaseBody = (body: string): string => {
+  if (!body) return '';
+  // Simple markdown conversion
+  return body
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p>')
+    .replace(/$/, '</p>');
+};
 
 // Config saved handler
 const onConfigSaved = async (configData: any) => {
@@ -468,6 +548,17 @@ onMounted(async () => {
 
   // Add global error handler for ResizeObserver
   window.addEventListener("error", resizeObserverErrorHandler);
+  
+  // Get current version
+  currentVersion.value = await updaterStore.getCurrentVersion();
+  
+  // Listen for show-about-dialog event from Rust menu
+  await appStore.safeListen("show-about-dialog", () => {
+    showAboutDialog.value = true;
+  });
+  
+  // Check for what's new dialog (after update)
+  await updaterStore.checkWhatsNew();
 
   // Listen for process output
   unlistenOutput = await appStore.safeListen(
@@ -682,3 +773,151 @@ onUnmounted(() => {
   stopProcessMonitoring();
 });
 </script>
+
+<style scoped>
+/* What's New Dialog */
+.whats-new-content {
+  padding: 8px 0;
+}
+
+.version-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #18a058 0%, #36ad6a 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.release-note-item {
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--n-color-embedded);
+  border-radius: 8px;
+  border: 1px solid var(--n-border-color);
+}
+
+.release-note-item:last-child {
+  margin-bottom: 0;
+}
+
+.release-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.release-note-tag {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--n-text-color-1);
+}
+
+.release-note-date {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.release-note-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--n-text-color-2);
+}
+
+.release-note-body :deep(h2),
+.release-note-body :deep(h3),
+.release-note-body :deep(h4) {
+  margin: 12px 0 8px;
+  font-weight: 600;
+  color: var(--n-text-color-1);
+}
+
+.release-note-body :deep(h2) {
+  font-size: 16px;
+}
+
+.release-note-body :deep(h3) {
+  font-size: 15px;
+}
+
+.release-note-body :deep(h4) {
+  font-size: 14px;
+}
+
+.release-note-body :deep(ul) {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.release-note-body :deep(li) {
+  margin: 4px 0;
+}
+
+.release-note-body :deep(code) {
+  background: rgba(128, 128, 128, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.release-note-body :deep(p) {
+  margin: 8px 0;
+}
+
+/* About Dialog */
+.about-modal :deep(.n-card-header) {
+  padding: 12px 20px;
+}
+
+.about-modal :deep(.n-card__content) {
+  padding: 20px;
+}
+
+.about-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.about-logo {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 12px;
+}
+
+.about-name {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: var(--n-text-color-1);
+}
+
+.about-version {
+  font-size: 13px;
+  color: var(--n-text-color-3);
+  margin-bottom: 12px;
+}
+
+.about-description {
+  font-size: 13px;
+  color: var(--n-text-color-2);
+  margin: 0 0 16px 0;
+  line-height: 1.6;
+}
+
+.about-links {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.about-copyright {
+  font-size: 11px;
+  color: var(--n-text-color-3);
+}
+</style>

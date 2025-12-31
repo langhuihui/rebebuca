@@ -28,12 +28,25 @@
       <div class="task-header-container">
         <div class="task-header-content">
           <div class="header-row">
-            <!-- Logo -->
-            <img
-              :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
-              alt="Logo"
-              class="logo-image"
-            />
+            <!-- Logo with version -->
+            <div class="logo-version">
+              <img
+                :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
+                alt="Logo"
+                class="logo-image"
+              />
+              <span class="version-text">v{{ currentVersion }}</span>
+              <n-tooltip v-if="updaterStore.updateAvailable" trigger="hover">
+                <template #trigger>
+                  <span class="update-indicator" @click="handleShowUpdateDialog">
+                    <n-icon size="14">
+                      <component :is="svgIcons.refresh" />
+                    </n-icon>
+                  </span>
+                </template>
+                {{ t('settings.updateAvailable') }}: v{{ updaterStore.updateInfo?.version }}
+              </n-tooltip>
+            </div>
             <!-- Action buttons -->
             <n-space :size="4">
               <!-- Add folder button (open or import) -->
@@ -127,12 +140,19 @@
               </div>
               
               <template v-if="isExpanded('favorites')">
-                <div 
-                  v-for="task in taskManager.favoriteTasks" 
+                <div
+                  v-for="(task, index) in taskManager.favoriteTasks" 
                   :key="`fav-${task.id}`"
                   class="tree-node task-node favorite-task-node"
-                  :class="{ 'task-running': taskManager.isTaskRunning(task.id) }"
+                  :class="{ 
+                    'task-running': taskManager.isTaskRunning(task.id),
+                    'drag-over-top': favoriteDragOverIndex === index && favoriteDragPosition === 'top',
+                    'drag-over-bottom': favoriteDragOverIndex === index && favoriteDragPosition === 'bottom',
+                    'is-dragging': isDraggingFavorite && favoriteDraggedIndex === index
+                  }"
+                  :title="getFullCommand(task)"
                   @click="handleTaskClick(task)"
+                  @mousedown="handleFavoriteMouseDown($event, task, index)"
                 >
                   <n-icon size="14" class="tree-icon task-type-icon">
                     <component :is="getTaskIcon(task)" />
@@ -259,99 +279,111 @@
               
               <!-- Group tasks -->
               <template v-if="isExpanded(`group:${group.id}`)">
-                <div 
+                <n-tooltip
                   v-for="task in group.tasks" 
                   :key="task.id"
-                  class="tree-node task-node group-task-node"
-                  :class="{ 'task-running': taskManager.isTaskRunning(task.id) }"
-                  draggable="true"
-                  @click="handleTaskClick(task)"
-                  @dragstart="handleDragStart($event, task)"
-                  @dragend="handleDragEnd"
+                  trigger="hover"
+                  placement="right"
+                  :delay="500"
                 >
-                  <n-icon size="14" class="tree-icon task-type-icon">
-                    <component :is="getTaskIcon(task)" />
-                  </n-icon>
-                  <span class="tree-label task-label">{{ task.name }}</span>
-                  <!-- Floating action buttons -->
-                  <div class="task-actions-float">
-                    <n-button
-                      v-if="!taskManager.isTaskRunning(task.id)"
-                      size="tiny"
-                      quaternary
-                      class="action-btn"
-                      @click.stop="handleTaskRun(task)"
+                  <template #trigger>
+                    <div 
+                      class="tree-node task-node group-task-node"
+                      :class="{ 'task-running': taskManager.isTaskRunning(task.id) }"
+                      draggable="true"
+                      @click="handleTaskClick(task)"
+                      @dragstart="handleDragStart($event, task)"
+                      @dragend="handleDragEnd"
                     >
-                      <template #icon>
-                        <n-icon size="12">
-                          <component :is="svgIcons.play" />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      v-if="taskManager.isTaskRunning(task.id)"
-                      size="tiny"
-                      quaternary
-                      class="action-btn stop-btn"
-                      @click.stop="handleTaskStop(task)"
-                    >
-                      <template #icon>
-                        <n-icon size="12">
-                          <component :is="svgIcons.stop" />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      v-if="taskManager.isTaskRunning(task.id)"
-                      size="tiny"
-                      quaternary
-                      class="action-btn restart-btn"
-                      @click.stop="handleTaskRun(task)"
-                    >
-                      <template #icon>
-                        <n-icon size="12">
-                          <component :is="svgIcons.refresh" />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      size="tiny"
-                      quaternary
-                      :class="['action-btn', 'favorite-btn', { active: taskManager.isFavorite(task.id) }]"
-                      @click.stop="handleToggleFavorite(task)"
-                    >
-                      <template #icon>
-                        <n-icon size="12">
-                          <component :is="taskManager.isFavorite(task.id) ? svgIcons.starFilled : svgIcons.star" />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      size="tiny"
-                      quaternary
-                      class="action-btn"
-                      @click.stop="handleTaskEditVisual(task)"
-                    >
-                      <template #icon>
-                        <n-icon size="12">
-                          <component :is="svgIcons.edit" />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                    <n-button
-                      size="tiny"
-                      quaternary
-                      class="action-btn delete-btn"
-                      @click.stop="handleDeleteUserTask(task.id)"
-                    >
-                      <template #icon>
-                        <n-icon size="12">
-                          <component :is="svgIcons.close" />
-                        </n-icon>
-                      </template>
-                    </n-button>
+                      <n-icon size="14" class="tree-icon task-type-icon">
+                        <component :is="getTaskIcon(task)" />
+                      </n-icon>
+                      <span class="tree-label task-label">{{ task.name }}</span>
+                      <!-- Floating action buttons -->
+                      <div class="task-actions-float">
+                        <n-button
+                          v-if="!taskManager.isTaskRunning(task.id)"
+                          size="tiny"
+                          quaternary
+                          class="action-btn"
+                          @click.stop="handleTaskRun(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.play" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          v-if="taskManager.isTaskRunning(task.id)"
+                          size="tiny"
+                          quaternary
+                          class="action-btn stop-btn"
+                          @click.stop="handleTaskStop(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.stop" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          v-if="taskManager.isTaskRunning(task.id)"
+                          size="tiny"
+                          quaternary
+                          class="action-btn restart-btn"
+                          @click.stop="handleTaskRun(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.refresh" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="tiny"
+                          quaternary
+                          :class="['action-btn', 'favorite-btn', { active: taskManager.isFavorite(task.id) }]"
+                          @click.stop="handleToggleFavorite(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="taskManager.isFavorite(task.id) ? svgIcons.starFilled : svgIcons.star" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="tiny"
+                          quaternary
+                          class="action-btn"
+                          @click.stop="handleTaskEditVisual(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.edit" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="tiny"
+                          quaternary
+                          class="action-btn delete-btn"
+                          @click.stop="handleDeleteUserTask(task.id)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.close" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                      </div>
+                    </div>
+                  </template>
+                  <div class="task-tooltip">
+                    <div class="tooltip-command">{{ getFullCommand(task) }}</div>
+                    <div v-if="task.cwd" class="tooltip-cwd">{{ task.cwd }}</div>
                   </div>
-                </div>
+                </n-tooltip>
               </template>
             </template>
             
@@ -479,84 +511,96 @@
                   
                   <!-- Task nodes -->
                   <template v-if="isExpanded(source.id)">
-                    <div 
+                    <n-tooltip
                       v-for="taskItem in source.children" 
                       :key="taskItem.id"
-                      class="tree-node task-node"
-                      :class="{ 'task-running': taskManager.isTaskRunning(taskItem.task!.id) }"
-                      @click="handleTaskClick(taskItem.task!)"
+                      trigger="hover"
+                      placement="right"
+                      :delay="500"
                     >
-                      <n-icon size="14" class="tree-icon task-type-icon">
-                        <component :is="getTaskIcon(taskItem.task!)" />
-                      </n-icon>
-                      <span class="tree-label task-label">{{ taskItem.label }}</span>
-                      <!-- Floating action buttons -->
-                      <div class="task-actions-float">
-                        <n-button
-                          v-if="!taskManager.isTaskRunning(taskItem.task!.id)"
-                          size="tiny"
-                          quaternary
-                          class="action-btn"
-                          @click.stop="handleTaskRun(taskItem.task!)"
+                      <template #trigger>
+                        <div 
+                          class="tree-node task-node"
+                          :class="{ 'task-running': taskManager.isTaskRunning(taskItem.task!.id) }"
+                          @click="handleTaskClick(taskItem.task!)"
                         >
-                          <template #icon>
-                            <n-icon size="12">
-                              <component :is="svgIcons.play" />
-                            </n-icon>
-                          </template>
-                        </n-button>
-                        <n-button
-                          v-if="taskManager.isTaskRunning(taskItem.task!.id)"
-                          size="tiny"
-                          quaternary
-                          class="action-btn stop-btn"
-                          @click.stop="handleTaskStop(taskItem.task!)"
-                        >
-                          <template #icon>
-                            <n-icon size="12">
-                              <component :is="svgIcons.stop" />
-                            </n-icon>
-                          </template>
-                        </n-button>
-                        <n-button
-                          v-if="taskManager.isTaskRunning(taskItem.task!.id)"
-                          size="tiny"
-                          quaternary
-                          class="action-btn restart-btn"
-                          @click.stop="handleTaskRun(taskItem.task!)"
-                        >
-                          <template #icon>
-                            <n-icon size="12">
-                              <component :is="svgIcons.refresh" />
-                            </n-icon>
-                          </template>
-                        </n-button>
-                        <n-button
-                          size="tiny"
-                          quaternary
-                          :class="['action-btn', 'favorite-btn', { active: taskManager.isFavorite(taskItem.task!.id) }]"
-                          @click.stop="handleToggleFavorite(taskItem.task!)"
-                        >
-                          <template #icon>
-                            <n-icon size="12">
-                              <component :is="taskManager.isFavorite(taskItem.task!.id) ? svgIcons.starFilled : svgIcons.star" />
-                            </n-icon>
-                          </template>
-                        </n-button>
-                        <n-button
-                          size="tiny"
-                          quaternary
-                          class="action-btn"
-                          @click.stop="handleTaskEditVisual(taskItem.task!)"
-                        >
-                          <template #icon>
-                            <n-icon size="12">
-                              <component :is="svgIcons.edit" />
-                            </n-icon>
-                          </template>
-                        </n-button>
+                          <n-icon size="14" class="tree-icon task-type-icon">
+                            <component :is="getTaskIcon(taskItem.task!)" />
+                          </n-icon>
+                          <span class="tree-label task-label">{{ taskItem.label }}</span>
+                          <!-- Floating action buttons -->
+                          <div class="task-actions-float">
+                            <n-button
+                              v-if="!taskManager.isTaskRunning(taskItem.task!.id)"
+                              size="tiny"
+                              quaternary
+                              class="action-btn"
+                              @click.stop="handleTaskRun(taskItem.task!)"
+                            >
+                              <template #icon>
+                                <n-icon size="12">
+                                  <component :is="svgIcons.play" />
+                                </n-icon>
+                              </template>
+                            </n-button>
+                            <n-button
+                              v-if="taskManager.isTaskRunning(taskItem.task!.id)"
+                              size="tiny"
+                              quaternary
+                              class="action-btn stop-btn"
+                              @click.stop="handleTaskStop(taskItem.task!)"
+                            >
+                              <template #icon>
+                                <n-icon size="12">
+                                  <component :is="svgIcons.stop" />
+                                </n-icon>
+                              </template>
+                            </n-button>
+                            <n-button
+                              v-if="taskManager.isTaskRunning(taskItem.task!.id)"
+                              size="tiny"
+                              quaternary
+                              class="action-btn restart-btn"
+                              @click.stop="handleTaskRun(taskItem.task!)"
+                            >
+                              <template #icon>
+                                <n-icon size="12">
+                                  <component :is="svgIcons.refresh" />
+                                </n-icon>
+                              </template>
+                            </n-button>
+                            <n-button
+                              size="tiny"
+                              quaternary
+                              :class="['action-btn', 'favorite-btn', { active: taskManager.isFavorite(taskItem.task!.id) }]"
+                              @click.stop="handleToggleFavorite(taskItem.task!)"
+                            >
+                              <template #icon>
+                                <n-icon size="12">
+                                  <component :is="taskManager.isFavorite(taskItem.task!.id) ? svgIcons.starFilled : svgIcons.star" />
+                                </n-icon>
+                              </template>
+                            </n-button>
+                            <n-button
+                              size="tiny"
+                              quaternary
+                              class="action-btn"
+                              @click.stop="handleTaskEditVisual(taskItem.task!)"
+                            >
+                              <template #icon>
+                                <n-icon size="12">
+                                  <component :is="svgIcons.edit" />
+                                </n-icon>
+                              </template>
+                            </n-button>
+                          </div>
+                        </div>
+                      </template>
+                      <div class="task-tooltip">
+                        <div class="tooltip-command">{{ getFullCommand(taskItem.task!) }}</div>
+                        <div v-if="taskItem.task!.cwd" class="tooltip-cwd">{{ taskItem.task!.cwd }}</div>
                       </div>
-                    </div>
+                    </n-tooltip>
                   </template>
                 </template>
               </template>
@@ -870,6 +914,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useUIStore } from '../stores/ui';
 import { useTaskManagerStore } from '../stores/taskManager';
 import { useSettingsStore } from '../stores/settings';
+import { useUpdaterStore } from '../stores/updater';
 import { useTheme } from '../composables/useTheme';
 import { svgIcons, getCommandIconName } from '../utils/icons';
 import type { Task, TaskGroup } from '../providers/types';
@@ -878,7 +923,11 @@ const { t } = useI18n();
 const uiStore = useUIStore();
 const taskManager = useTaskManagerStore();
 const settingsStore = useSettingsStore();
+const updaterStore = useUpdaterStore();
 const { effectiveTheme } = useTheme();
+
+// Current version
+const currentVersion = ref('');
 
 // Expanded nodes state
 const expandedNodes = ref<Set<string>>(new Set());
@@ -965,6 +1014,13 @@ const newGroupNameInEdit = ref('');
 // Drag and drop state
 const draggedTask = ref<Task | null>(null);
 const dragOverGroupId = ref<string | null>(null);
+
+// Favorite drag and drop state (using mouse events for better compatibility)
+const favoriteDraggedTask = ref<Task | null>(null);
+const favoriteDraggedIndex = ref<number>(-1);
+const favoriteDragOverIndex = ref<number>(-1);
+const favoriteDragPosition = ref<'top' | 'bottom' | null>(null);
+const isDraggingFavorite = ref(false);
 
 // Computed for task selection
 const isAllTasksSelected = computed(() => 
@@ -1083,6 +1139,15 @@ const getTaskIcon = (task: Task) => {
     default:
       return svgIcons.task;
   }
+};
+
+// Get full command string for tooltip
+const getFullCommand = (task: Task): string => {
+  let cmd = task.command;
+  if (task.args && task.args.length > 0) {
+    cmd += ' ' + task.args.join(' ');
+  }
+  return cmd;
 };
 
 // Handle add folder - opens dialog to choose open or import mode
@@ -1313,6 +1378,102 @@ const handleDrop = async (event: DragEvent, targetGroupId: string) => {
     expandedNodes.value.add(`group:${targetGroupId}`);
   }
   draggedTask.value = null;
+};
+
+// Favorite reorder using mouse events (more compatible with Tauri webview)
+const handleFavoriteMouseDown = (event: MouseEvent, task: Task, index: number) => {
+  // Only handle left mouse button
+  if (event.button !== 0) return;
+  
+  // Don't start drag if clicking on action buttons
+  const target = event.target as HTMLElement;
+  if (target.closest('.task-actions-float')) return;
+  
+  console.log('[TaskSidebar] Favorite mouse down:', { task: task.name, index });
+  
+  favoriteDraggedTask.value = task;
+  favoriteDraggedIndex.value = index;
+  isDraggingFavorite.value = false;
+  
+  // Add global mouse event listeners
+  document.addEventListener('mousemove', handleFavoriteMouseMove);
+  document.addEventListener('mouseup', handleFavoriteMouseUp);
+};
+
+const handleFavoriteMouseMove = (event: MouseEvent) => {
+  if (favoriteDraggedIndex.value === -1) return;
+  
+  // Start dragging after a small movement threshold
+  if (!isDraggingFavorite.value) {
+    isDraggingFavorite.value = true;
+    console.log('[TaskSidebar] Favorite drag started');
+  }
+  
+  // Find which favorite item we're over
+  const favoriteNodes = document.querySelectorAll('.favorite-task-node');
+  let foundIndex = -1;
+  let position: 'top' | 'bottom' | null = null;
+  
+  favoriteNodes.forEach((node, idx) => {
+    const rect = node.getBoundingClientRect();
+    if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
+      foundIndex = idx;
+      const midY = rect.top + rect.height / 2;
+      position = event.clientY < midY ? 'top' : 'bottom';
+    }
+  });
+  
+  if (foundIndex !== -1 && (favoriteDragOverIndex.value !== foundIndex || favoriteDragPosition.value !== position)) {
+    console.log('[TaskSidebar] Favorite drag over:', { index: foundIndex, position });
+  }
+  
+  favoriteDragOverIndex.value = foundIndex;
+  favoriteDragPosition.value = position;
+};
+
+const handleFavoriteMouseUp = async () => {
+  // Remove global listeners
+  document.removeEventListener('mousemove', handleFavoriteMouseMove);
+  document.removeEventListener('mouseup', handleFavoriteMouseUp);
+  
+  if (!isDraggingFavorite.value || favoriteDraggedIndex.value === -1) {
+    // Reset state without reordering (was just a click)
+    favoriteDraggedTask.value = null;
+    favoriteDraggedIndex.value = -1;
+    favoriteDragOverIndex.value = -1;
+    favoriteDragPosition.value = null;
+    isDraggingFavorite.value = false;
+    return;
+  }
+  
+  const fromIndex = favoriteDraggedIndex.value;
+  const targetIndex = favoriteDragOverIndex.value;
+  
+  if (fromIndex !== -1 && targetIndex !== -1) {
+    let toIndex = targetIndex;
+    // Adjust index based on drop position
+    if (favoriteDragPosition.value === 'bottom') {
+      toIndex = targetIndex + 1;
+    }
+    // If dragging from above the target, adjust the target index
+    if (fromIndex < toIndex) {
+      toIndex -= 1;
+    }
+    
+    console.log('[TaskSidebar] Favorite drop:', { fromIndex, targetIndex, position: favoriteDragPosition.value, finalToIndex: toIndex });
+    
+    // Only reorder if actually moving to a different position
+    if (fromIndex !== toIndex) {
+      await taskManager.reorderFavorites(fromIndex, toIndex);
+    }
+  }
+  
+  // Reset state
+  favoriteDraggedTask.value = null;
+  favoriteDraggedIndex.value = -1;
+  favoriteDragOverIndex.value = -1;
+  favoriteDragPosition.value = null;
+  isDraggingFavorite.value = false;
 };
 
 // Handle delete user task
@@ -1656,8 +1817,20 @@ const handleToggleFavorite = async (task: Task) => {
   await taskManager.toggleFavorite(task.id);
 };
 
+// Handle show update dialog (emit event to open settings)
+const handleShowUpdateDialog = () => {
+  // Emit a custom event that TitleBar can listen to
+  window.dispatchEvent(new CustomEvent('open-settings-update'));
+};
+
 // Initialize
 onMounted(async () => {
+  // Get current version
+  currentVersion.value = await updaterStore.getCurrentVersion();
+  
+  // Auto check for updates on startup
+  await updaterStore.autoCheckForUpdates();
+  
   // Initialize listeners for task manager
   taskManager.scanRecursively = true;
   
@@ -1714,11 +1887,62 @@ watch(() => taskManager.folders.length, () => {
   flex-shrink: 0;
 }
 
+.logo-version {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.version-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.n-config-provider--light .version-text {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.update-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #18a058;
+  color: white;
+  cursor: pointer;
+  animation: pulse 2s infinite;
+}
+
+.update-indicator:hover {
+  background: #36ad6a;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(24, 160, 88, 0);
+  }
+}
+
 .task-tree-container {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   margin-top: 8px;
+}
+
+/* Scrollbar positioning - move scrollbar to the right edge */
+.task-tree-container :deep(.n-scrollbar-content) {
+  padding-right: 14px;
+}
+
+.task-tree-container :deep(.n-scrollbar-rail) {
+  right: 0 !important;
 }
 
 .empty-state {
@@ -1753,6 +1977,8 @@ watch(() => taskManager.folders.length, () => {
   transition: background-color 0.2s;
   gap: 6px;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tree-node:hover {
@@ -1791,10 +2017,12 @@ watch(() => taskManager.folders.length, () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+  user-select: none;
 }
 
 .task-label {
   font-family: monospace;
+  user-select: none;
 }
 
 .folder-hint {
@@ -1915,6 +2143,28 @@ watch(() => taskManager.folders.length, () => {
 /* Favorite task node */
 .favorite-task-node {
   padding-left: 32px;
+  cursor: grab;
+  user-select: none;
+}
+
+.favorite-task-node:active {
+  cursor: grabbing;
+}
+
+.favorite-task-node.is-dragging {
+  opacity: 0.5;
+  background-color: rgba(24, 160, 88, 0.1);
+}
+
+/* Favorite drag indicators */
+.favorite-task-node.drag-over-top {
+  border-top: 2px solid #18a058;
+  margin-top: -2px;
+}
+
+.favorite-task-node.drag-over-bottom {
+  border-bottom: 2px solid #18a058;
+  margin-bottom: -2px;
 }
 
 /* Favorite button */
@@ -2170,5 +2420,28 @@ watch(() => taskManager.folders.length, () => {
 
 .n-config-provider--light .mode-desc {
   color: rgba(0, 0, 0, 0.45);
+}
+
+/* Task tooltip */
+.task-tooltip {
+  max-width: 400px;
+}
+
+.tooltip-command {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.tooltip-cwd {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.n-config-provider--light .tooltip-cwd {
+  color: rgba(0, 0, 0, 0.5);
 }
 </style>

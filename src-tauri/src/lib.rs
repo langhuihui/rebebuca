@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use tauri::{Emitter, Manager, menu::{Menu, MenuItem}, tray::TrayIconBuilder};
+use tauri::{Emitter, Manager, menu::{Menu, MenuItem, Submenu}, tray::TrayIconBuilder};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::Mutex;
@@ -978,6 +978,44 @@ pub fn run() {
             
             // Create the menu
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            
+            // Create application menu with Help submenu
+            let about_item = MenuItem::with_id(app, "about", "关于 Rebebuca", true, None::<&str>)?;
+            let website_item = MenuItem::with_id(app, "website", "访问官网", true, None::<&str>)?;
+            let help_submenu = Submenu::with_items(app, "帮助", true, &[&about_item, &website_item])?;
+            let app_menu = Menu::with_items(app, &[&help_submenu])?;
+            app.set_menu(app_menu)?;
+            
+            // Handle application menu events
+            app.on_menu_event(|app_handle, event| {
+                match event.id.as_ref() {
+                    "about" => {
+                        info!("[MENU] About menu item clicked");
+                        // Emit event to frontend to show about dialog
+                        let _ = app_handle.emit("show-about-dialog", ());
+                    }
+                    "website" => {
+                        info!("[MENU] Website menu item clicked");
+                        // Open the website in default browser
+                        let _ = std::process::Command::new("open")
+                            .arg("https://rebebuca.com")
+                            .spawn();
+                        #[cfg(target_os = "windows")]
+                        {
+                            let _ = std::process::Command::new("cmd")
+                                .args(["/c", "start", "https://rebebuca.com"])
+                                .spawn();
+                        }
+                        #[cfg(target_os = "linux")]
+                        {
+                            let _ = std::process::Command::new("xdg-open")
+                                .arg("https://rebebuca.com")
+                                .spawn();
+                        }
+                    }
+                    _ => {}
+                }
+            });
             
             // Get the default window icon
             let tray_icon = app.default_window_icon()

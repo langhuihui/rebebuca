@@ -106,11 +106,9 @@ import { NTabs, NTabPane, NSpace, NButton, NInput, NScrollbar, NCheckboxGroup, N
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { 
-  getLogEntries, 
   getFilteredLogs, 
   clearLogs, 
   exportLogsAsText,
-  type LogEntry,
   type LogLevel 
 } from '../utils/devLogger';
 
@@ -118,7 +116,7 @@ const { t } = useI18n();
 
 // State
 const activeTab = ref('console');
-const consoleLogs = ref<LogEntry[]>([]);
+const logVersion = ref(0); // Used to trigger re-computation
 const selectedLevels = ref<LogLevel[]>(['info', 'warn', 'error']);
 const searchText = ref('');
 
@@ -131,6 +129,8 @@ const loadingLogContent = ref(false);
 
 // Computed
 const filteredConsoleLogs = computed(() => {
+  // logVersion is used to trigger re-computation when logs are cleared
+  void logVersion.value;
   return getFilteredLogs({
     level: selectedLevels.value.length > 0 ? selectedLevels.value : undefined,
     search: searchText.value || undefined,
@@ -158,12 +158,12 @@ function formatFileSize(bytes: number): string {
 }
 
 function refreshConsoleLogs() {
-  consoleLogs.value = getLogEntries();
+  logVersion.value++;
 }
 
 function clearConsoleLogs() {
   clearLogs();
-  consoleLogs.value = [];
+  logVersion.value++;
 }
 
 function exportConsoleLogs() {
