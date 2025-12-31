@@ -12,6 +12,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::Mutex;
 use uuid::Uuid;
+use log::info;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunConfig {
@@ -741,6 +742,132 @@ async fn read_log_file(app_handle: tauri::AppHandle, log_filename: String) -> Re
     Ok(content)
 }
 
+/// Get the application log directory path
+#[tauri::command]
+async fn get_app_log_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let app_log_dir = app_handle
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("Failed to get app log directory: {}", e))?;
+    
+    Ok(app_log_dir.to_string_lossy().to_string())
+}
+
+/// Open the application log directory in system file manager
+#[tauri::command]
+async fn open_app_log_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let app_log_dir = app_handle
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("Failed to get app log directory: {}", e))?;
+    
+    // Create log directory if it doesn't exist
+    fs::create_dir_all(&app_log_dir)
+        .map_err(|e| format!("Failed to create log directory: {}", e))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&app_log_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open log folder: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&app_log_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open log folder: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&app_log_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open log folder: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// List all log files in the application log directory
+#[tauri::command]
+async fn list_app_log_files(app_handle: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let app_log_dir = app_handle
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("Failed to get app log directory: {}", e))?;
+    
+    if !app_log_dir.exists() {
+        return Ok(vec![]);
+    }
+    
+    let mut files = Vec::new();
+    
+    let entries = fs::read_dir(&app_log_dir)
+        .map_err(|e| format!("Failed to read log directory: {}", e))?;
+    
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(filename) = path.file_name() {
+                    let filename = filename.to_string_lossy().to_string();
+                    if filename.ends_with(".log") {
+                        let metadata = fs::metadata(&path).ok();
+                        let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+                        let modified = metadata
+                            .and_then(|m| m.modified().ok())
+                            .map(|t| {
+                                let datetime: chrono::DateTime<chrono::Local> = t.into();
+                                datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                            })
+                            .unwrap_or_default();
+                        
+                        files.push(serde_json::json!({
+                            "name": filename,
+                            "path": path.to_string_lossy().to_string(),
+                            "size": size,
+                            "modified": modified
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort by modified time (newest first)
+    files.sort_by(|a, b| {
+        let a_modified = a.get("modified").and_then(|v| v.as_str()).unwrap_or("");
+        let b_modified = b.get("modified").and_then(|v| v.as_str()).unwrap_or("");
+        b_modified.cmp(a_modified)
+    });
+    
+    Ok(files)
+}
+
+/// Read application log file content
+#[tauri::command]
+async fn read_app_log_file(app_handle: tauri::AppHandle, filename: String) -> Result<String, String> {
+    let app_log_dir = app_handle
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("Failed to get app log directory: {}", e))?;
+    
+    let log_path = app_log_dir.join(&filename);
+    
+    if !log_path.exists() {
+        return Err("Log file does not exist".to_string());
+    }
+    
+    let content = fs::read_to_string(&log_path)
+        .map_err(|e| format!("Failed to read log file: {}", e))?;
+    
+    Ok(content)
+}
+
 #[tauri::command]
 async fn get_process_stats(system_pid: String, process_manager: tauri::State<'_, ProcessManager>) -> Result<ProcessStats, String> {
     println!("[TAURI] get_process_stats called for system_pid: {}", system_pid);
@@ -826,10 +953,23 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::LogDir { file_name: Some("app".into()) },
+                ))
+                .max_file_size(5_000_000) // 5MB per file
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .level(log::LevelFilter::Info)
+                .build()
+        )
         .setup(|app| {
+            info!("[APP] Rebebuca starting up...");
+            
             // Create a simple static tray icon
             // The frontend can create additional dynamic menus if needed
-            println!("[TRAY] Creating tray icon in Rust backend");
+            info!("[TRAY] Creating tray icon in Rust backend");
             
             // Create tray menu items
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
@@ -851,11 +991,11 @@ pub fn run() {
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
                         "quit" => {
-                            println!("[TRAY] Quit menu item clicked");
+                            info!("[TRAY] Quit menu item clicked");
                             app.exit(0);
                         }
                         "show" => {
-                            println!("[TRAY] Show menu item clicked");
+                            info!("[TRAY] Show menu item clicked");
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
                                 let _ = window.set_focus();
@@ -868,7 +1008,7 @@ pub fn run() {
                     // Handle left-click to show window
                     if let tauri::tray::TrayIconEvent::Click { button, .. } = event {
                         if button == tauri::tray::MouseButton::Left {
-                            println!("[TRAY] Tray icon left-clicked");
+                            info!("[TRAY] Tray icon left-clicked");
                             if let Some(app) = tray.app_handle().get_webview_window("main") {
                                 let _ = app.show();
                                 let _ = app.set_focus();
@@ -878,7 +1018,7 @@ pub fn run() {
                 })
                 .build(app)?;
             
-            println!("[TRAY] Tray icon created successfully");
+            info!("[TRAY] Tray icon created successfully");
             Ok(())
         })
         .manage(ProcessManager::new())
@@ -902,7 +1042,11 @@ pub fn run() {
             close_pty,
             execute_task,
             kill_task,
-            get_pty_process_stats
+            get_pty_process_stats,
+            get_app_log_dir,
+            open_app_log_folder,
+            list_app_log_files,
+            read_app_log_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

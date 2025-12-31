@@ -845,8 +845,51 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     const hasArgs = task.args && task.args.length > 0;
     const commandHasSpaces = task.command.includes(' ');
     
-    if (task.type === 'shell' && commandHasSpaces && !hasArgs) {
-      // Execute via shell for full command strings
+    // Helper function to check if command needs shell execution
+    // Commands with shell operators (&&, ||, |, ;, >, <, sudo, etc.) need shell
+    const needsShellExecution = (cmdLine: string): boolean => {
+      // Shell operators that require shell execution
+      const shellOperators = ['&&', '||', '|', ';', '>', '<', '>>', '<<', '2>', '2>>', '&>', '`', '$('];
+      
+      // Check for shell operators (outside of quotes)
+      let inSingleQuote = false;
+      let inDoubleQuote = false;
+      
+      for (let i = 0; i < cmdLine.length; i++) {
+        const char = cmdLine[i];
+        
+        if (char === "'" && !inDoubleQuote) {
+          inSingleQuote = !inSingleQuote;
+          continue;
+        }
+        
+        if (char === '"' && !inSingleQuote) {
+          inDoubleQuote = !inDoubleQuote;
+          continue;
+        }
+        
+        if (!inSingleQuote && !inDoubleQuote) {
+          // Check for shell operators at current position
+          for (const op of shellOperators) {
+            if (cmdLine.slice(i, i + op.length) === op) {
+              return true;
+            }
+          }
+        }
+      }
+      
+      // Check if command starts with sudo or other commands that need shell
+      const shellCommands = ['sudo', 'nohup', 'time', 'nice', 'env'];
+      const firstToken = cmdLine.trim().split(/\s+/)[0];
+      if (shellCommands.includes(firstToken)) {
+        return true;
+      }
+      
+      return false;
+    };
+    
+    if (task.type === 'shell' && commandHasSpaces && !hasArgs && needsShellExecution(task.command)) {
+      // Execute via shell for commands with shell operators or sudo
       // On macOS/Linux use sh -c, on Windows use cmd /c
       const isWindows = navigator.platform.toLowerCase().includes('win');
       if (isWindows) {

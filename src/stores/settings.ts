@@ -48,6 +48,10 @@ export interface AppSettings {
   // UI settings
   showTaskIcons: boolean;
   compactMode: boolean;
+  
+  // Command icon customization
+  // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
+  commandIcons: Record<string, string>;
 }
 
 const defaultSettings: AppSettings = {
@@ -57,6 +61,7 @@ const defaultSettings: AppSettings = {
   autoExpandFolders: true,
   showTaskIcons: true,
   compactMode: false,
+  commandIcons: {},
 };
 
 export const useSettingsStore = defineStore('settings', () => {

@@ -207,43 +207,99 @@
     :title="t('task.settings')"
     :positive-text="t('common.save')"
     :negative-text="t('common.cancel')"
-    style="width: 450px;"
+    style="width: 680px;"
     @positive-click="handleSaveSettings"
   >
-    <n-form label-placement="left" label-width="140px">
-      <n-divider title-placement="left">{{ t('settings.logs') }}</n-divider>
-      <n-form-item :label="t('settings.saveLogs')">
-        <n-switch v-model:value="tempSettings.saveLogs" />
-      </n-form-item>
-      <n-form-item :label="t('settings.maxLogFiles')">
-        <n-input-number v-model:value="tempSettings.maxLogFiles" :min="10" :max="1000" />
-      </n-form-item>
-      
-      <n-divider title-placement="left">{{ t('settings.behavior') }}</n-divider>
-      <n-form-item :label="t('settings.confirmBeforeClose')">
-        <n-switch v-model:value="tempSettings.confirmBeforeClose" />
-      </n-form-item>
-      <n-form-item :label="t('settings.autoExpandFolders')">
-        <n-switch v-model:value="tempSettings.autoExpandFolders" />
-      </n-form-item>
-      
-      <n-divider title-placement="left">{{ t('settings.ui') }}</n-divider>
-      <n-form-item :label="t('settings.showTaskIcons')">
-        <n-switch v-model:value="tempSettings.showTaskIcons" />
-      </n-form-item>
-      <n-form-item :label="t('settings.compactMode')">
-        <n-switch v-model:value="tempSettings.compactMode" />
-      </n-form-item>
-    </n-form>
+    <n-tabs type="line" animated>
+      <n-tab-pane name="general" :tab="t('settings.general')">
+        <n-form label-placement="left" label-width="140px" style="padding-top: 12px;">
+          <n-divider title-placement="left">{{ t('settings.logs') }}</n-divider>
+          <n-form-item :label="t('settings.saveLogs')">
+            <n-switch v-model:value="tempSettings.saveLogs" />
+          </n-form-item>
+          <n-form-item :label="t('settings.maxLogFiles')">
+            <n-input-number v-model:value="tempSettings.maxLogFiles" :min="10" :max="1000" />
+          </n-form-item>
+          
+          <n-divider title-placement="left">{{ t('settings.behavior') }}</n-divider>
+          <n-form-item :label="t('settings.confirmBeforeClose')">
+            <n-switch v-model:value="tempSettings.confirmBeforeClose" />
+          </n-form-item>
+          <n-form-item :label="t('settings.autoExpandFolders')">
+            <n-switch v-model:value="tempSettings.autoExpandFolders" />
+          </n-form-item>
+          
+          <n-divider title-placement="left">{{ t('settings.ui') }}</n-divider>
+          <n-form-item :label="t('settings.showTaskIcons')">
+            <n-switch v-model:value="tempSettings.showTaskIcons" />
+          </n-form-item>
+          <n-form-item :label="t('settings.compactMode')">
+            <n-switch v-model:value="tempSettings.compactMode" />
+          </n-form-item>
+        </n-form>
+      </n-tab-pane>
+      <n-tab-pane name="icons" :tab="t('settings.commandIcons')">
+        <CommandIconSettings v-model="tempSettings.commandIcons" />
+      </n-tab-pane>
+      <n-tab-pane name="update" :tab="t('settings.update')">
+        <div class="update-section">
+          <n-space vertical>
+            <n-space align="center">
+              <span>{{ t('settings.currentVersion') }}: {{ currentVersion || '...' }}</span>
+              <n-button 
+                size="small" 
+                :loading="updaterStore.checking"
+                @click="checkForUpdates"
+              >
+                {{ t('settings.checkUpdate') }}
+              </n-button>
+            </n-space>
+            
+            <n-alert v-if="updaterStore.updateAvailable && updaterStore.updateInfo" type="success">
+              <template #header>
+                {{ t('settings.updateAvailable') }}: v{{ updaterStore.updateInfo.version }}
+              </template>
+              <div v-if="updaterStore.updateInfo.body" class="update-notes">
+                {{ updaterStore.updateInfo.body }}
+              </div>
+              <n-space style="margin-top: 12px;">
+                <n-button 
+                  type="primary" 
+                  size="small"
+                  :loading="updaterStore.downloading"
+                  @click="downloadUpdate"
+                >
+                  {{ updaterStore.downloading ? `${t('settings.downloading')} ${updaterStore.downloadProgress}%` : t('settings.downloadAndInstall') }}
+                </n-button>
+              </n-space>
+            </n-alert>
+            
+            <n-alert v-else-if="updateChecked && !updaterStore.updateAvailable" type="info">
+              {{ t('settings.noUpdate') }}
+            </n-alert>
+            
+            <n-alert v-if="updaterStore.error" type="error">
+              {{ updaterStore.error }}
+            </n-alert>
+          </n-space>
+        </div>
+      </n-tab-pane>
+      <n-tab-pane name="devlog" :tab="t('settings.devLog')">
+        <DevLogViewer />
+      </n-tab-pane>
+    </n-tabs>
   </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from "vue";
-import { NButton, NDropdown, NModal, NForm, NFormItem, NSwitch, NInputNumber, NDivider } from "naive-ui";
+import { NButton, NDropdown, NModal, NForm, NFormItem, NSwitch, NInputNumber, NDivider, NTabs, NTabPane, NSpace, NAlert } from "naive-ui";
+import CommandIconSettings from "./CommandIconSettings.vue";
+import DevLogViewer from "./DevLogViewer.vue";
 import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
 import { useRunConfigStore } from "../stores/runConfig";
+import { useUpdaterStore } from "../stores/updater";
 import { useTheme } from "../composables/useTheme";
 import { useSettingsStore, type AppSettings } from "../stores/settings";
 import { iconComponents, svgIcons } from "../utils/icons";
@@ -264,6 +320,7 @@ const { t } = useI18n();
 const uiStore = useUIStore();
 const runConfigStore = useRunConfigStore();
 const settingsStore = useSettingsStore();
+const updaterStore = useUpdaterStore();
 const { setThemeMode } = useTheme();
 
 // Settings dialog state
@@ -275,12 +332,18 @@ const tempSettings = reactive<AppSettings>({
   autoExpandFolders: true,
   showTaskIcons: true,
   compactMode: false,
+  commandIcons: {},
 });
+
+// Update state
+const currentVersion = ref('');
+const updateChecked = ref(false);
 
 // Initialize settings
 onMounted(async () => {
   await settingsStore.initialize();
   Object.assign(tempSettings, settingsStore.settings);
+  currentVersion.value = await updaterStore.getCurrentVersion();
 });
 
 // Watch settings dialog open
@@ -313,4 +376,32 @@ const handleSaveSettings = async () => {
   await settingsStore.saveSettings();
   return true;
 };
+
+// Check for updates
+const checkForUpdates = async () => {
+  updateChecked.value = true;
+  await updaterStore.checkForUpdates();
+};
+
+// Download and install update
+const downloadUpdate = async () => {
+  try {
+    await updaterStore.downloadAndInstall();
+  } catch (error) {
+    console.error('Update failed:', error);
+  }
+};
 </script>
+
+<style scoped lang="scss">
+.update-section {
+  padding: 12px 0;
+  
+  .update-notes {
+    margin-top: 8px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    color: var(--n-text-color-2);
+  }
+}
+</style>

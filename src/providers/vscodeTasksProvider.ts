@@ -233,11 +233,18 @@ export class VSCodeTasksProvider implements TaskProvider {
         command = rawCommand;
         args = rawArgs;
       } else if (rawCommand.includes(' ')) {
-        // Parse command string that contains spaces
-        // Handle quoted arguments properly
-        const parsed = this.parseCommandLine(rawCommand);
-        command = parsed.command;
-        args = parsed.args;
+        // Check if command needs shell execution (has shell operators like &&, ||, |, sudo, etc.)
+        if (this.needsShellExecution(rawCommand)) {
+          // Keep command as-is, it will be executed via shell (sh -c) in taskManager
+          command = rawCommand;
+          args = [];
+        } else {
+          // Parse command string that contains spaces
+          // Handle quoted arguments properly
+          const parsed = this.parseCommandLine(rawCommand);
+          command = parsed.command;
+          args = parsed.args;
+        }
       } else {
         command = rawCommand;
         args = [];
@@ -314,6 +321,51 @@ export class VSCodeTasksProvider implements TaskProvider {
       default:
         return 'none';
     }
+  }
+  
+  /**
+   * Check if a command requires shell execution
+   * Commands with shell operators (&&, ||, |, ;, >, <) or sudo need shell
+   */
+  private needsShellExecution(cmdLine: string): boolean {
+    // Shell operators that require shell execution
+    const shellOperators = ['&&', '||', '|', ';', '>', '<', '>>', '<<', '2>', '2>>', '&>', '`', '$(' ];
+    
+    // Check for shell operators (outside of quotes)
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    
+    for (let i = 0; i < cmdLine.length; i++) {
+      const char = cmdLine[i];
+      
+      if (char === "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+        continue;
+      }
+      
+      if (char === '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+        continue;
+      }
+      
+      if (!inSingleQuote && !inDoubleQuote) {
+        // Check for shell operators at current position
+        for (const op of shellOperators) {
+          if (cmdLine.slice(i, i + op.length) === op) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    // Check if command starts with sudo or other commands that need shell
+    const shellCommands = ['sudo', 'nohup', 'time', 'nice', 'env'];
+    const firstToken = cmdLine.trim().split(/\s+/)[0];
+    if (shellCommands.includes(firstToken)) {
+      return true;
+    }
+    
+    return false;
   }
   
   /**

@@ -2,89 +2,72 @@ import { h } from 'vue';
 import { NIcon } from 'naive-ui';
 
 /**
+ * 默认的命令图标映射
+ * 键是命令前缀，值是图标名称
+ */
+export const defaultCommandIcons: Record<string, string> = {
+  'npm': 'npm',
+  'pnpm': 'pnpm',
+  'yarn': 'yarn',
+  'go': 'go',
+  'cargo': 'cargo',
+  'rustc': 'cargo',
+  'python': 'python',
+  'python3': 'python',
+  'pip': 'python',
+  'pip3': 'python',
+  'docker': 'docker',
+  'docker-compose': 'docker',
+  'git': 'git',
+  'make': 'make',
+  'gradle': 'gradle',
+  './gradlew': 'gradle',
+  'mvn': 'maven',
+  './mvnw': 'maven',
+  'sh': 'shell',
+  'bash': 'shell',
+  'zsh': 'shell',
+  'ffmpeg': 'ffmpeg',
+  'ffplay': 'ffmpeg',
+  'ffprobe': 'ffmpeg',
+  'node': 'nodejs',
+  'nodejs': 'nodejs',
+  'java': 'java',
+  'javac': 'java',
+  'ruby': 'ruby',
+  'gem': 'ruby',
+  'bundle': 'ruby',
+  'php': 'php',
+  'composer': 'php',
+  'swift': 'swift',
+  'swiftc': 'swift',
+  'kotlin': 'kotlin',
+  'kotlinc': 'kotlin',
+  'gcc': 'cpp',
+  'g++': 'cpp',
+  'clang': 'cpp',
+  'clang++': 'cpp',
+  'cmake': 'cpp',
+};
+
+/**
  * 根据命令获取对应的图标名称
  */
-export const getCommandIconName = (command: string): string => {
+export const getCommandIconName = (command: string, customIcons?: Record<string, string>): string => {
   const cmd = command.toLowerCase().trim();
   
-  // npm 相关
-  if (cmd === 'npm' || cmd.startsWith('npm ')) return 'npm';
+  // 合并自定义图标配置（优先级更高）
+  const allIcons = { ...defaultCommandIcons, ...customIcons };
   
-  // pnpm 相关
-  if (cmd === 'pnpm' || cmd.startsWith('pnpm ')) return 'pnpm';
+  // 按命令长度降序排序，确保更具体的匹配优先
+  const sortedPatterns = Object.keys(allIcons).sort((a, b) => b.length - a.length);
   
-  // yarn 相关
-  if (cmd === 'yarn' || cmd.startsWith('yarn ')) return 'yarn';
-  
-  // Go 相关
-  if (cmd === 'go' || cmd.startsWith('go ')) return 'go';
-  
-  // Rust/Cargo 相关
-  if (cmd === 'cargo' || cmd.startsWith('cargo ') || cmd === 'rustc' || cmd.startsWith('rustc ')) return 'cargo';
-  
-  // Python 相关
-  if (cmd === 'python' || cmd === 'python3' || cmd === 'pip' || cmd === 'pip3' || 
-      cmd.startsWith('python ') || cmd.startsWith('python3 ') ||
-      cmd.startsWith('pip ') || cmd.startsWith('pip3 ')) return 'python';
-  
-  // Docker 相关
-  if (cmd === 'docker' || cmd.startsWith('docker ') || 
-      cmd === 'docker-compose' || cmd.startsWith('docker-compose ')) return 'docker';
-  
-  // Git 相关
-  if (cmd === 'git' || cmd.startsWith('git ')) return 'git';
-  
-  // Make 相关
-  if (cmd === 'make' || cmd.startsWith('make ')) return 'make';
-  
-  // Gradle 相关
-  if (cmd === 'gradle' || cmd.startsWith('gradle ') || 
-      cmd === './gradlew' || cmd.startsWith('./gradlew ')) return 'gradle';
-  
-  // Maven 相关
-  if (cmd === 'mvn' || cmd.startsWith('mvn ') ||
-      cmd === './mvnw' || cmd.startsWith('./mvnw ')) return 'maven';
-  
-  // Shell 相关
-  if (cmd === 'sh' || cmd === 'bash' || cmd === 'zsh' ||
-      cmd.startsWith('sh ') || cmd.startsWith('bash ') || cmd.startsWith('zsh ')) return 'shell';
-  
-  // FFmpeg 相关
-  if (cmd === 'ffmpeg' || cmd.startsWith('ffmpeg ') ||
-      cmd === 'ffplay' || cmd.startsWith('ffplay ') ||
-      cmd === 'ffprobe' || cmd.startsWith('ffprobe ')) return 'ffmpeg';
-  
-  // Node.js 相关
-  if (cmd === 'node' || cmd.startsWith('node ') ||
-      cmd === 'nodejs' || cmd.startsWith('nodejs ')) return 'nodejs';
-  
-  // Java 相关
-  if (cmd === 'java' || cmd.startsWith('java ') ||
-      cmd === 'javac' || cmd.startsWith('javac ')) return 'java';
-  
-  // Ruby 相关
-  if (cmd === 'ruby' || cmd.startsWith('ruby ') ||
-      cmd === 'gem' || cmd.startsWith('gem ') ||
-      cmd === 'bundle' || cmd.startsWith('bundle ')) return 'ruby';
-  
-  // PHP 相关
-  if (cmd === 'php' || cmd.startsWith('php ') ||
-      cmd === 'composer' || cmd.startsWith('composer ')) return 'php';
-  
-  // Swift 相关
-  if (cmd === 'swift' || cmd.startsWith('swift ') ||
-      cmd === 'swiftc' || cmd.startsWith('swiftc ')) return 'swift';
-  
-  // Kotlin 相关
-  if (cmd === 'kotlin' || cmd.startsWith('kotlin ') ||
-      cmd === 'kotlinc' || cmd.startsWith('kotlinc ')) return 'kotlin';
-  
-  // C/C++ 相关
-  if (cmd === 'gcc' || cmd.startsWith('gcc ') ||
-      cmd === 'g++' || cmd.startsWith('g++ ') ||
-      cmd === 'clang' || cmd.startsWith('clang ') ||
-      cmd === 'clang++' || cmd.startsWith('clang++ ') ||
-      cmd === 'cmake' || cmd.startsWith('cmake ')) return 'cpp';
+  for (const pattern of sortedPatterns) {
+    const lowerPattern = pattern.toLowerCase();
+    if (cmd === lowerPattern || cmd.startsWith(lowerPattern + ' ')) {
+      return allIcons[pattern];
+    }
+  }
   
   // 默认返回 task 图标
   return 'task';

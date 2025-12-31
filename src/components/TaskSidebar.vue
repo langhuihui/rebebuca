@@ -869,6 +869,7 @@ import { useI18n } from 'vue-i18n';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useUIStore } from '../stores/ui';
 import { useTaskManagerStore } from '../stores/taskManager';
+import { useSettingsStore } from '../stores/settings';
 import { useTheme } from '../composables/useTheme';
 import { svgIcons, getCommandIconName } from '../utils/icons';
 import type { Task, TaskGroup } from '../providers/types';
@@ -876,6 +877,7 @@ import type { Task, TaskGroup } from '../providers/types';
 const { t } = useI18n();
 const uiStore = useUIStore();
 const taskManager = useTaskManagerStore();
+const settingsStore = useSettingsStore();
 const { effectiveTheme } = useTheme();
 
 // Expanded nodes state
@@ -1063,8 +1065,9 @@ const getFavoriteFolderLabel = (task: Task): string | null => {
 
 // Get task icon component based on command or group
 const getTaskIcon = (task: Task) => {
-  // First try to get icon by command
-  const iconName = getCommandIconName(task.command);
+  // Get icon by command (includes both default and user custom icons)
+  const customIcons = settingsStore.settings.commandIcons || {};
+  const iconName = getCommandIconName(task.command, customIcons);
   if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {
     return svgIcons[iconName as keyof typeof svgIcons];
   }

@@ -23,6 +23,10 @@ import hljs from 'highlight.js';
 // import 'highlight.js/styles/github-dark.css'; // Temporarily disabled to check background
 import i18n from './locales';
 import './assets/styles/app.scss';
+import { initDevLogger } from './utils/devLogger';
+
+// Initialize dev logger to capture console output
+initDevLogger();
 
 // Naive UI
 import {

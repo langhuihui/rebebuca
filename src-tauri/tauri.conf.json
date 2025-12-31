@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Rebebuca",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "identifier": "com.rebebuca.runner",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -89,6 +89,12 @@
     },
     "tray-icon": {
       "all": true
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwRDU1MEU5NUJCRkI0REUKUldUZXRMOWI2VkRWY094dUVLRnRBdU1kTmxBdGd1Z0FOc1hKVXUrcys5TmpYSjBVYXBESEZxMVMK",
+      "endpoints": [
+        "https://github.com/langhuihui/rebebuca/releases/latest/download/latest.json"
+      ]
     }
   },
   "bundle": {
@@ -115,6 +121,7 @@
       "deb": {
         "depends": []
       }
-    }
+    },
+    "createUpdaterArtifacts": true
   }
 }
