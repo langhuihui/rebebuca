@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "release": "./scripts/release.sh"
+    "release": "./scripts/release.sh",
+    "republish": "./scripts/republish.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
