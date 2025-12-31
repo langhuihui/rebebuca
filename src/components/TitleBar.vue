@@ -144,13 +144,25 @@
         <n-button
           text
           size="small"
-          @click="toggleHistoryPanel"
+          @click="openLogsFolder"
           class="titlebar-button"
-          :title="t('titlebar.toggleHistory')"
+          :title="t('history.openLogsFolder')"
           @mousedown.stop
         >
           <template #icon>
-            <component :is="iconComponents.historyPanel" />
+            <component :is="svgIcons.folderOpen" />
+          </template>
+        </n-button>
+        <n-button
+          text
+          size="small"
+          @click="showSettingsDialog = true"
+          class="titlebar-button"
+          :title="t('task.settings')"
+          @mousedown.stop
+        >
+          <template #icon>
+            <component :is="svgIcons.settings" />
           </template>
         </n-button>
       </div>
@@ -187,14 +199,54 @@
       </div>
     </div>
   </div>
+  
+  <!-- Settings Dialog -->
+  <n-modal 
+    v-model:show="showSettingsDialog"
+    preset="dialog"
+    :title="t('task.settings')"
+    :positive-text="t('common.save')"
+    :negative-text="t('common.cancel')"
+    style="width: 450px;"
+    @positive-click="handleSaveSettings"
+  >
+    <n-form label-placement="left" label-width="140px">
+      <n-divider title-placement="left">{{ t('settings.logs') }}</n-divider>
+      <n-form-item :label="t('settings.saveLogs')">
+        <n-switch v-model:value="tempSettings.saveLogs" />
+      </n-form-item>
+      <n-form-item :label="t('settings.maxLogFiles')">
+        <n-input-number v-model:value="tempSettings.maxLogFiles" :min="10" :max="1000" />
+      </n-form-item>
+      
+      <n-divider title-placement="left">{{ t('settings.behavior') }}</n-divider>
+      <n-form-item :label="t('settings.confirmBeforeClose')">
+        <n-switch v-model:value="tempSettings.confirmBeforeClose" />
+      </n-form-item>
+      <n-form-item :label="t('settings.autoExpandFolders')">
+        <n-switch v-model:value="tempSettings.autoExpandFolders" />
+      </n-form-item>
+      
+      <n-divider title-placement="left">{{ t('settings.ui') }}</n-divider>
+      <n-form-item :label="t('settings.showTaskIcons')">
+        <n-switch v-model:value="tempSettings.showTaskIcons" />
+      </n-form-item>
+      <n-form-item :label="t('settings.compactMode')">
+        <n-switch v-model:value="tempSettings.compactMode" />
+      </n-form-item>
+    </n-form>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
-import { NButton, NDropdown } from "naive-ui";
+import { ref, reactive, watch, onMounted } from "vue";
+import { NButton, NDropdown, NModal, NForm, NFormItem, NSwitch, NInputNumber, NDivider } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
+import { useRunConfigStore } from "../stores/runConfig";
 import { useTheme } from "../composables/useTheme";
-import { iconComponents } from "../utils/icons";
+import { useSettingsStore, type AppSettings } from "../stores/settings";
+import { iconComponents, svgIcons } from "../utils/icons";
 import {
   minimizeWindow,
   toggleMaximize,
@@ -210,7 +262,33 @@ defineProps<Props>();
 
 const { t } = useI18n();
 const uiStore = useUIStore();
+const runConfigStore = useRunConfigStore();
+const settingsStore = useSettingsStore();
 const { setThemeMode } = useTheme();
+
+// Settings dialog state
+const showSettingsDialog = ref(false);
+const tempSettings = reactive<AppSettings>({
+  saveLogs: true,
+  maxLogFiles: 100,
+  confirmBeforeClose: true,
+  autoExpandFolders: true,
+  showTaskIcons: true,
+  compactMode: false,
+});
+
+// Initialize settings
+onMounted(async () => {
+  await settingsStore.initialize();
+  Object.assign(tempSettings, settingsStore.settings);
+});
+
+// Watch settings dialog open
+watch(showSettingsDialog, (newVal) => {
+  if (newVal) {
+    Object.assign(tempSettings, settingsStore.settings);
+  }
+});
 
 const handleThemeSelect = (key: string) => {
   setThemeMode(key as "light" | "dark" | "system");
@@ -220,7 +298,19 @@ const toggleSidebar = () => {
   uiStore.toggleSidebar();
 };
 
-const toggleHistoryPanel = () => {
-  uiStore.toggleHistoryPanel();
+// Open logs folder
+const openLogsFolder = async () => {
+  try {
+    await runConfigStore.openLogsFolder();
+  } catch (error) {
+    console.error('Failed to open logs folder:', error);
+  }
+};
+
+// Handle save settings
+const handleSaveSettings = async () => {
+  Object.assign(settingsStore.settings, tempSettings);
+  await settingsStore.saveSettings();
+  return true;
 };
 </script>

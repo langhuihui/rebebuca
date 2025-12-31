@@ -14,3 +14,18 @@ export const createAnsiConverter = (isLight: boolean) =>
 export const convertAnsiToHtml = (text: string, converter: any) => {
   return converter.toHtml(text);
 };
+
+// 默认转换器（深色主题）
+const defaultConverter = new AnsiToHtml({
+  fg: "#d4d4d4",
+  bg: "#1e1e1e",
+  newline: true,
+  escapeXML: true,
+  stream: false,
+});
+
+// 简单的 ANSI 转 HTML 函数
+export const ansiToHtml = (text: string): string => {
+  if (!text) return '';
+  return defaultConverter.toHtml(text);
+};

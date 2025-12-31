@@ -31,18 +31,18 @@
           <TitleBar :effective-theme="effectiveTheme" />
 
           <n-layout has-sider class="main-layout">
-            <!-- Left sidebar - Run configurations -->
-            <ConfigSidebar />
+            <!-- Left sidebar - Task Explorer -->
+            <TaskSidebar />
 
             <!-- Main content -->
             <n-layout-content class="main-content">
               <!-- Console output area -->
               <ConsoleArea />
             </n-layout-content>
-
-            <!-- Right sidebar - Run history -->
-            <HistorySidebar />
           </n-layout>
+
+          <!-- Status Bar -->
+          <StatusBar />
         </n-layout>
       </n-dialog-provider>
     </n-message-provider>
@@ -65,9 +65,9 @@ import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
 import RunConfigDialog from "./components/RunConfigDialog.vue";
 import TitleBar from "./components/TitleBar.vue";
-import ConfigSidebar from "./components/ConfigSidebar.vue";
+import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
-import HistorySidebar from "./components/HistorySidebar.vue";
+import StatusBar from "./components/StatusBar.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
@@ -116,6 +116,7 @@ const outputBuffer = ref<
 let unlistenOutput: UnlistenFn | null = null;
 let unlistenStarted: UnlistenFn | null = null;
 let unlistenStopped: UnlistenFn | null = null;
+let unlistenPtyExit: UnlistenFn | null = null;
 
 // Process monitoring
 let processStatsInterval: number | null = null;
@@ -174,14 +175,9 @@ const appendOutputToHistory = (
 
     // Only update output for running processes
     if (historyItem.status === "running") {
-      // Mark stderr output with special prefix
-      let newContent = content;
-      if (outputType === "stderr") {
-        newContent = `[ERROR] ${content}`;
-      }
-
+      // Note: [ERROR] prefix is already added by Rust backend for stderr
       // Update the history item in store with new output
-      const updatedOutput = (historyItem.output || "") + newContent;
+      const updatedOutput = (historyItem.output || "") + content;
       runConfigStore.updateHistory(historyItem.id, {
         output: updatedOutput,
         status: historyItem.status,
@@ -243,11 +239,8 @@ const processBufferedOutput = (processId: string) => {
     let totalOutput = historyItem.output || "";
 
     for (const bufferedOutput of bufferedOutputs) {
-      let content = bufferedOutput.content;
-      if (bufferedOutput.outputType === "stderr") {
-        content = `[ERROR] ${content}`;
-      }
-      totalOutput += content;
+      // Note: [ERROR] prefix is already added by Rust backend for stderr
+      totalOutput += bufferedOutput.content;
     }
 
     // Update the history item with all buffered output
@@ -620,6 +613,52 @@ onMounted(async () => {
     }
   );
 
+  // Listen for PTY exit events (for terminal-based task execution)
+  unlistenPtyExit = await appStore.safeListen(
+    "pty-exit",
+    async (event: any) => {
+      const { pty_id, exit_code } = event.payload;
+      console.log(
+        `[FRONTEND] PTY exit event - PTY ID: ${pty_id}, Exit Code: ${exit_code}`
+      );
+
+      // Find history item by ptyId
+      const historyItem = runConfigStore.history.find(
+        (item) => item.ptyId === pty_id
+      );
+
+      if (historyItem) {
+        // Determine status based on exit code
+        const historyStatus: "running" | "success" | "error" =
+          exit_code === 0 || exit_code === null ? "success" : "error";
+
+        // Calculate duration
+        const endTime = Date.now();
+        const duration = historyItem.startTime
+          ? endTime - historyItem.startTime
+          : 0;
+
+        console.log(
+          `[FRONTEND] PTY ${pty_id} finished, duration: ${duration}ms, status: ${historyStatus}`
+        );
+
+        // Update history
+        runConfigStore.updateHistory(historyItem.id, {
+          status: historyStatus,
+          duration: duration,
+        });
+
+        // Update selected history item if it's the same
+        if (uiStore.selectedHistoryItem?.id === historyItem.id) {
+          uiStore.selectedHistoryItem.status = historyStatus;
+          uiStore.selectedHistoryItem.duration = duration;
+        }
+      } else {
+        console.log(`[FRONTEND] No history item found for PTY ${pty_id}`);
+      }
+    }
+  );
+
   // Start process monitoring
   startProcessMonitoring();
 
@@ -637,6 +676,7 @@ onUnmounted(() => {
   if (unlistenOutput) unlistenOutput();
   if (unlistenStarted) unlistenStarted();
   if (unlistenStopped) unlistenStopped();
+  if (unlistenPtyExit) unlistenPtyExit();
 
   // Stop process monitoring
   stopProcessMonitoring();

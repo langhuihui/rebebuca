@@ -1,0 +1,640 @@
+use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write, BufWriter};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Mutex;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PtyOptions {
+    pub rows: u16,
+    pub cols: u16,
+    pub cwd: Option<String>,
+    pub env: Option<HashMap<String, String>>,
+    pub shell: Option<String>,
+}
+
+impl Default for PtyOptions {
+    fn default() -> Self {
+        Self {
+            rows: 24,
+            cols: 80,
+            cwd: None,
+            env: None,
+            shell: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PtyOutputEvent {
+    pub pty_id: String,
+    pub data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PtyExitEvent {
+    pub pty_id: String,
+    pub exit_code: Option<i32>,
+}
+
+/// Options for executing a task in PTY
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskExecuteOptions {
+    pub rows: Option<u16>,
+    pub cols: Option<u16>,
+    pub cwd: Option<String>,
+    pub env: Option<HashMap<String, String>>,
+    pub log_path: Option<String>,
+}
+
+impl Default for TaskExecuteOptions {
+    fn default() -> Self {
+        Self {
+            rows: Some(24),
+            cols: Some(80),
+            cwd: None,
+            env: None,
+            log_path: None,
+        }
+    }
+}
+
+/// Strip ANSI escape codes from a string for clean log output
+fn strip_ansi_codes(s: &str) -> String {
+    // Simple regex-free ANSI stripping for performance
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip escape sequence
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                // Skip until we find a letter (end of CSI sequence)
+                while let Some(&nc) = chars.peek() {
+                    chars.next();
+                    if nc.is_ascii_alphabetic() || nc == '~' {
+                        break;
+                    }
+                }
+            } else if chars.peek() == Some(&']') {
+                // OSC sequence - skip until ST (bell or ESC \)
+                chars.next(); // consume ']'
+                while let Some(&nc) = chars.peek() {
+                    chars.next();
+                    if nc == '\x07' {
+                        break;
+                    }
+                    if nc == '\x1b' {
+                        if chars.peek() == Some(&'\\') {
+                            chars.next();
+                            break;
+                        }
+                    }
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    
+    result
+}
+
+struct PtyInstance {
+    pair: PtyPair,
+    writer: Box<dyn Write + Send>,
+    #[allow(dead_code)]
+    child: Box<dyn portable_pty::Child + Send + Sync>,
+}
+
+/// Task instance for task execution
+struct TaskInstance {
+    child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
+    #[allow(dead_code)]
+    pty_id: String,
+}
+
+pub struct PtyManager {
+    instances: Arc<Mutex<HashMap<String, Arc<Mutex<PtyInstance>>>>>,
+    task_instances: Arc<Mutex<HashMap<String, TaskInstance>>>,
+}
+
+impl PtyManager {
+    pub fn new() -> Self {
+        Self {
+            instances: Arc::new(Mutex::new(HashMap::new())),
+            task_instances: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Get the default shell for the current platform
+    fn get_default_shell() -> String {
+        #[cfg(target_os = "windows")]
+        {
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+        }
+    }
+
+    /// Create a new PTY instance
+    pub async fn create_pty(
+        &self,
+        pty_id: String,
+        options: PtyOptions,
+        app_handle: AppHandle,
+    ) -> Result<String, String> {
+        let pty_system = native_pty_system();
+
+        let size = PtySize {
+            rows: options.rows,
+            cols: options.cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        };
+
+        let pair = pty_system
+            .openpty(size)
+            .map_err(|e| format!("Failed to open PTY: {}", e))?;
+
+        let shell = options.shell.unwrap_or_else(Self::get_default_shell);
+
+        let mut cmd = CommandBuilder::new(&shell);
+
+        // Set working directory
+        if let Some(cwd) = options.cwd {
+            cmd.cwd(cwd);
+        }
+
+        // Set environment variables
+        if let Some(env) = options.env {
+            for (key, value) in env {
+                cmd.env(key, value);
+            }
+        }
+
+        // Set TERM environment variable for proper terminal emulation
+        cmd.env("TERM", "xterm-256color");
+
+        // Spawn the shell process
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| format!("Failed to spawn shell: {}", e))?;
+
+        // Get reader and writer
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| format!("Failed to clone reader: {}", e))?;
+
+        let writer = pair
+            .master
+            .take_writer()
+            .map_err(|e| format!("Failed to take writer: {}", e))?;
+
+        let instance = PtyInstance {
+            pair,
+            writer,
+            child,
+        };
+
+        let pty_id_clone = pty_id.clone();
+        let instances_arc = Arc::clone(&self.instances);
+
+        // Store the instance
+        {
+            let mut instances = self.instances.lock().await;
+            instances.insert(pty_id.clone(), Arc::new(Mutex::new(instance)));
+        }
+
+        // Spawn a thread to read PTY output
+        let app_handle_clone = app_handle.clone();
+        let pty_id_for_thread = pty_id.clone();
+
+        thread::spawn(move || {
+            let mut buffer = [0u8; 4096];
+
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => {
+                        // EOF - PTY closed
+                        println!("[PTY] EOF reached for PTY: {}", pty_id_for_thread);
+                        break;
+                    }
+                    Ok(n) => {
+                        // Convert to string, handling potential encoding issues
+                        let data = String::from_utf8_lossy(&buffer[..n]).to_string();
+
+                        // Emit output event
+                        let _ = app_handle_clone.emit(
+                            "pty-output",
+                            PtyOutputEvent {
+                                pty_id: pty_id_for_thread.clone(),
+                                data,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        println!("[PTY] Read error for PTY {}: {}", pty_id_for_thread, e);
+                        break;
+                    }
+                }
+            }
+
+            // Emit exit event
+            let _ = app_handle_clone.emit(
+                "pty-exit",
+                PtyExitEvent {
+                    pty_id: pty_id_for_thread.clone(),
+                    exit_code: None,
+                },
+            );
+
+            // Clean up instance
+            let instances_arc_clone = instances_arc.clone();
+            let pty_id_cleanup = pty_id_for_thread.clone();
+            tokio::spawn(async move {
+                let mut instances = instances_arc_clone.lock().await;
+                instances.remove(&pty_id_cleanup);
+                println!("[PTY] Cleaned up PTY: {}", pty_id_cleanup);
+            });
+        });
+
+        println!("[PTY] Created PTY: {} with shell: {}", pty_id_clone, shell);
+        Ok(pty_id_clone)
+    }
+
+    /// Write data to a PTY
+    pub async fn write_to_pty(&self, pty_id: &str, data: &str) -> Result<(), String> {
+        let instances = self.instances.lock().await;
+
+        if let Some(instance_arc) = instances.get(pty_id) {
+            let mut instance = instance_arc.lock().await;
+            instance
+                .writer
+                .write_all(data.as_bytes())
+                .map_err(|e| format!("Failed to write to PTY: {}", e))?;
+            instance
+                .writer
+                .flush()
+                .map_err(|e| format!("Failed to flush PTY: {}", e))?;
+            Ok(())
+        } else {
+            Err(format!("PTY not found: {}", pty_id))
+        }
+    }
+
+    /// Resize a PTY
+    pub async fn resize_pty(&self, pty_id: &str, rows: u16, cols: u16) -> Result<(), String> {
+        let instances = self.instances.lock().await;
+
+        if let Some(instance_arc) = instances.get(pty_id) {
+            let instance = instance_arc.lock().await;
+            instance
+                .pair
+                .master
+                .resize(PtySize {
+                    rows,
+                    cols,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|e| format!("Failed to resize PTY: {}", e))?;
+            println!("[PTY] Resized PTY {} to {}x{}", pty_id, cols, rows);
+            Ok(())
+        } else {
+            Err(format!("PTY not found: {}", pty_id))
+        }
+    }
+
+    /// Close a PTY
+    pub async fn close_pty(&self, pty_id: &str) -> Result<(), String> {
+        let mut instances = self.instances.lock().await;
+
+        if instances.remove(pty_id).is_some() {
+            println!("[PTY] Closed PTY: {}", pty_id);
+            Ok(())
+        } else {
+            Err(format!("PTY not found: {}", pty_id))
+        }
+    }
+
+    /// Check if a PTY exists
+    #[allow(dead_code)]
+    pub async fn has_pty(&self, pty_id: &str) -> bool {
+        let instances = self.instances.lock().await;
+        instances.contains_key(pty_id)
+    }
+
+    /// Execute a command in a new PTY (for task execution)
+    /// Unlike create_pty which spawns a shell, this executes a specific command
+    /// Note: Task PTYs don't support write_to_pty since they run a specific command
+    pub async fn execute_task(
+        &self,
+        pty_id: String,
+        command: String,
+        args: Vec<String>,
+        options: TaskExecuteOptions,
+        app_handle: AppHandle,
+    ) -> Result<String, String> {
+        let pty_system = native_pty_system();
+
+        let size = PtySize {
+            rows: options.rows.unwrap_or(24),
+            cols: options.cols.unwrap_or(80),
+            pixel_width: 0,
+            pixel_height: 0,
+        };
+
+        let pair = pty_system
+            .openpty(size)
+            .map_err(|e| format!("Failed to open PTY: {}", e))?;
+
+        // Build command with arguments
+        let mut cmd = CommandBuilder::new(&command);
+        for arg in &args {
+            cmd.arg(arg);
+        }
+
+        // Set working directory
+        if let Some(cwd) = &options.cwd {
+            cmd.cwd(cwd);
+        }
+
+        // Set environment variables
+        if let Some(env) = &options.env {
+            for (key, value) in env {
+                cmd.env(key, value);
+            }
+        }
+
+        // Set TERM environment variable for proper terminal emulation
+        cmd.env("TERM", "xterm-256color");
+
+        // Spawn the command process
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| format!("Failed to spawn command: {}", e))?;
+
+        // Get reader
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| format!("Failed to clone reader: {}", e))?;
+
+        // Store the child process for later termination
+        let child_arc = Arc::new(Mutex::new(child));
+        
+        let task_instance = TaskInstance {
+            child: child_arc,
+            pty_id: pty_id.clone(),
+        };
+        
+        {
+            let mut task_instances = self.task_instances.lock().await;
+            task_instances.insert(pty_id.clone(), task_instance);
+        }
+        
+        let pty_id_clone = pty_id.clone();
+        let task_instances_arc = Arc::clone(&self.task_instances);
+
+        // Spawn a thread to read PTY output and wait for process exit
+        let app_handle_clone = app_handle.clone();
+        let pty_id_for_thread = pty_id.clone();
+        let command_display = if args.is_empty() {
+            command.clone()
+        } else {
+            format!("{} {}", command, args.join(" "))
+        };
+        
+        // Create log file if path is provided
+        let log_path = options.log_path.clone();
+
+        thread::spawn(move || {
+            // Keep pair alive in thread scope
+            let _pair = pair;
+            let mut buffer = [0u8; 4096];
+            
+            // Open log file for writing if path is provided
+            let mut log_writer: Option<BufWriter<File>> = log_path.as_ref().and_then(|path| {
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(PathBuf::from(path))
+                    .ok()
+                    .map(|f| BufWriter::new(f))
+            });
+            
+            if log_writer.is_some() {
+                println!("[PTY] Log file opened for task PTY: {}", pty_id_for_thread);
+            }
+
+            // Read output in a loop
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => {
+                        // EOF - process finished
+                        println!("[PTY] EOF reached for task PTY: {}", pty_id_for_thread);
+                        break;
+                    }
+                    Ok(n) => {
+                        // Convert to string, handling potential encoding issues
+                        let data = String::from_utf8_lossy(&buffer[..n]).to_string();
+                        
+                        // Write to log file if available
+                        if let Some(ref mut writer) = log_writer {
+                            // Strip ANSI escape codes for log file
+                            let clean_data = strip_ansi_codes(&data);
+                            let _ = writer.write_all(clean_data.as_bytes());
+                            let _ = writer.flush();
+                        }
+
+                        // Emit output event
+                        let _ = app_handle_clone.emit(
+                            "pty-output",
+                            PtyOutputEvent {
+                                pty_id: pty_id_for_thread.clone(),
+                                data,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        println!("[PTY] Read error for task PTY {}: {}", pty_id_for_thread, e);
+                        break;
+                    }
+                }
+            }
+            
+            // Flush and close log file
+            if let Some(ref mut writer) = log_writer {
+                let _ = writer.flush();
+                println!("[PTY] Log file closed for task PTY: {}", pty_id_for_thread);
+            }
+
+            // Wait for child process and get exit code
+            // Note: We can't easily get the exit code from the shared child in the thread
+            // The process should have already exited when we reach EOF
+            let exit_code: Option<i32> = None;
+
+            // Emit exit event with exit code
+            let _ = app_handle_clone.emit(
+                "pty-exit",
+                PtyExitEvent {
+                    pty_id: pty_id_for_thread.clone(),
+                    exit_code,
+                },
+            );
+
+            // Clean up task instance
+            let pty_id_cleanup = pty_id_for_thread.clone();
+            tokio::spawn(async move {
+                let mut task_instances = task_instances_arc.lock().await;
+                task_instances.remove(&pty_id_cleanup);
+                println!("[PTY] Cleaned up task PTY: {}", pty_id_cleanup);
+            });
+        });
+
+        println!("[PTY] Created task PTY: {} for command: {}", pty_id_clone, command_display);
+        Ok(pty_id_clone)
+    }
+    
+    /// Kill a task process
+    pub async fn kill_task(&self, pty_id: &str) -> Result<(), String> {
+        let mut task_instances = self.task_instances.lock().await;
+        
+        if let Some(task_instance) = task_instances.remove(pty_id) {
+            let mut child = task_instance.child.lock().await;
+            child.kill().map_err(|e| format!("Failed to kill task: {}", e))?;
+            println!("[PTY] Killed task PTY: {}", pty_id);
+            Ok(())
+        } else {
+            // Also check regular PTY instances
+            drop(task_instances);
+            self.close_pty(pty_id).await
+        }
+    }
+}
+
+// Tauri commands
+
+#[tauri::command]
+pub async fn create_pty(
+    pty_id: String,
+    options: Option<PtyOptions>,
+    pty_manager: tauri::State<'_, PtyManager>,
+    app_handle: AppHandle,
+) -> Result<String, String> {
+    let opts = options.unwrap_or_default();
+    pty_manager.create_pty(pty_id, opts, app_handle).await
+}
+
+#[tauri::command]
+pub async fn write_pty(
+    pty_id: String,
+    data: String,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<(), String> {
+    pty_manager.write_to_pty(&pty_id, &data).await
+}
+
+#[tauri::command]
+pub async fn resize_pty(
+    pty_id: String,
+    rows: u16,
+    cols: u16,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<(), String> {
+    pty_manager.resize_pty(&pty_id, rows, cols).await
+}
+
+#[tauri::command]
+pub async fn close_pty(
+    pty_id: String,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<(), String> {
+    pty_manager.close_pty(&pty_id).await
+}
+
+/// Execute a task command in a PTY
+/// Unlike create_pty which spawns a shell, this executes a specific command
+#[tauri::command]
+pub async fn execute_task(
+    pty_id: String,
+    command: String,
+    args: Vec<String>,
+    options: Option<TaskExecuteOptions>,
+    pty_manager: tauri::State<'_, PtyManager>,
+    app_handle: AppHandle,
+) -> Result<String, String> {
+    let opts = options.unwrap_or_default();
+    pty_manager.execute_task(pty_id, command, args, opts, app_handle).await
+}
+
+/// Kill a task process
+#[tauri::command]
+pub async fn kill_task(
+    pty_id: String,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<(), String> {
+    pty_manager.kill_task(&pty_id).await
+}
+
+/// Process stats structure
+#[derive(serde::Serialize)]
+pub struct PtyProcessStats {
+    pub pty_id: String,
+    pub pid: u32,
+    pub cpu_usage: f64,
+    pub memory_usage: u64,
+    pub memory_usage_mb: String,
+}
+
+/// Get process stats for a PTY task
+#[tauri::command]
+pub async fn get_pty_process_stats(
+    pty_id: String,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<PtyProcessStats, String> {
+    let task_instances = pty_manager.task_instances.lock().await;
+    
+    if let Some(task) = task_instances.get(&pty_id) {
+        let child = task.child.lock().await;
+        
+        if let Some(pid) = child.process_id() {
+            // Get process stats using sysinfo
+            let mut sys = sysinfo::System::new_all();
+            sys.refresh_processes();
+            
+            if let Some(process) = sys.process(sysinfo::Pid::from_u32(pid)) {
+                let cpu_usage = process.cpu_usage() as f64;
+                let memory_usage = process.memory();
+                let memory_usage_mb = format!("{:.1}MB", memory_usage as f64 / 1024.0 / 1024.0);
+                
+                return Ok(PtyProcessStats {
+                    pty_id,
+                    pid,
+                    cpu_usage,
+                    memory_usage,
+                    memory_usage_mb,
+                });
+            } else {
+                return Err("Process not found in system".to_string());
+            }
+        } else {
+            return Err("Process has no PID".to_string());
+        }
+    }
+    
+    Err("PTY task not found".to_string())
+}

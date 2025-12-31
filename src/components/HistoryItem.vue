@@ -20,13 +20,21 @@
   <div class="history-item-content">
     <!-- Icon and main content -->
     <div class="history-main-row">
-      <!-- Program icon with status dot -->
+      <!-- Program icon with status indicator -->
       <div class="history-icon">
         <div class="program-icon">
           {{ getProgramIcon(item.command) }}
         </div>
-        <!-- Status dot in top-right corner -->
+        <!-- Status indicator - animated spinner for running, dot for others -->
+        <div v-if="item.status === 'running'" class="status-spinner">
+          <svg viewBox="0 0 24 24" class="spinner-svg">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="#00d084" stroke-width="2" stroke-dasharray="31.4 31.4" stroke-linecap="round">
+              <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
         <div
+          v-else
           class="status-dot"
           :style="{
             backgroundColor: getHistoryStatusColor(item),
@@ -52,7 +60,7 @@
           </div>
           <div
             class="history-actions"
-            :class="{ visible: hovered || selected }"
+            :class="{ visible: hovered || selected || item.status === 'running' }"
             @click.stop
           >
             <n-button
@@ -74,6 +82,18 @@
               v-if="item.status === 'running'"
               size="small"
               text
+              @click="handleRestart"
+              class="action-button restart-button"
+              title="重启"
+            >
+              <template #icon>
+                <component :is="iconComponents.replay" />
+              </template>
+            </n-button>
+            <n-button
+              v-if="item.status === 'running'"
+              size="small"
+              text
               @click="handleStop"
               class="action-button stop-button"
               title="停止"
@@ -83,6 +103,7 @@
               </template>
             </n-button>
             <n-button
+              v-if="item.status !== 'running'"
               size="small"
               text
               @click="handleRerun"
@@ -117,9 +138,10 @@
             </span>
           </n-text>
           <div v-if="item.status === 'running'" class="process-stats">
-            <span class="stat-item">PID: {{ item.pid || "未知" }}</span>
-            <span class="stat-item">CPU: {{ item.cpuUsage || "0%" }}</span>
-            <span class="stat-item">内存: {{ item.memoryUsage || "0MB" }}</span>
+            <span class="stat-item running-indicator">
+              <span class="running-dot"></span>
+              运行中
+            </span>
             <span class="stat-item"
               >时长: {{ formatDuration(item.startTime) }}</span
             >
@@ -151,6 +173,7 @@ interface Emits {
   (e: "pin", item: RunHistory): void;
   (e: "stop", item: RunHistory): void;
   (e: "rerun", item: RunHistory): void;
+  (e: "restart", item: RunHistory): void;
   (e: "delete", item: RunHistory): void;
 }
 
@@ -171,6 +194,10 @@ const handleRerun = () => {
   emit("rerun", props.item);
 };
 
+const handleRestart = () => {
+  emit("restart", props.item);
+};
+
 const handleDelete = () => {
   emit("delete", props.item);
 };
@@ -181,5 +208,52 @@ const handleDelete = () => {
   color: var(--text-color-3);
   font-size: 0.9em;
   margin-left: 4px;
+}
+
+.status-spinner {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+}
+
+.spinner-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.running-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #00d084;
+}
+
+.running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #00d084;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+.restart-button {
+  color: #00d084;
+}
+
+.restart-button:hover {
+  color: #00b871;
 }
 </style>

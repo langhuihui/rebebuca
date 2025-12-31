@@ -23,7 +23,7 @@
     :width="280"
     class="sidebar-layout"
   >
-    <n-space vertical class="h-full p-6">
+    <div class="sidebar-container">
       <!-- Logo and New Config Button -->
       <div class="config-header-container">
         <div class="config-header-content">
@@ -36,20 +36,52 @@
               class="logo-image"
             />
             <!-- New Config Button -->
-            <n-button
-              type="default"
-              @click="handleNewConfigClick"
-              @mousedown.stop
-              id="new-config-button"
-            >
-              {{ t("sidebar.newConfig") }}
-            </n-button>
+            <n-space :size="8">
+              <n-button
+                type="default"
+                @click="handleNewConfigClick"
+                @mousedown.stop
+                id="new-config-button"
+              >
+                {{ t("sidebar.newConfig") }}
+              </n-button>
+              <!-- Import Button -->
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <n-button
+                    type="default"
+                    @click="showImportDialog = true"
+                    @mousedown.stop
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('import.importButton') }}
+              </n-tooltip>
+            </n-space>
           </div>
         </div>
       </div>
       <!-- Run configuration list -->
-      <n-scrollbar class="flex-1">
-        <n-list class="mt-6">
+      <div class="config-list-container">
+        <n-scrollbar>
+          <n-list class="config-list">
           <n-tooltip
             v-for="config in runConfigs"
             :key="config.id"
@@ -115,13 +147,20 @@
             </div>
           </n-tooltip>
         </n-list>
-      </n-scrollbar>
-    </n-space>
+        </n-scrollbar>
+      </div>
+    </div>
   </n-layout-sider>
+
+  <!-- Import Tasks Dialog -->
+  <ImportTasksDialog
+    v-model:show="showImportDialog"
+    @import="handleImportTasks"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import {
   NLayoutSider,
@@ -132,7 +171,9 @@ import {
   NListItem,
   NText,
   NTooltip,
+  NIcon,
 } from "naive-ui";
+import ImportTasksDialog from "./ImportTasksDialog.vue";
 import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
 import { useRunConfigStore } from "../stores/runConfig";
@@ -154,6 +195,9 @@ const { editingConfig, configDialogVisible } = storeToRefs(uiStore);
 
 const runConfigs = computed(() => runConfigStore.configs);
 
+// Import dialog state
+const showImportDialog = ref(false);
+
 const handleNewConfigClick = () => {
   handleNewConfig(editingConfig, configDialogVisible);
 };
@@ -170,5 +214,13 @@ const handleRunConfigClick = (config: RunConfig) => {
 
 const handleEditConfigClick = (config: RunConfig) => {
   handleEditConfig(config, editingConfig, configDialogVisible);
+};
+
+const handleImportTasks = async (configs: any[]) => {
+  try {
+    await runConfigStore.importConfigs(configs);
+  } catch (error) {
+    console.error('Failed to import configs:', error);
+  }
 };
 </script>

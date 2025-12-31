@@ -1,3 +1,6 @@
+mod pty;
+
+use pty::{create_pty, write_pty, resize_pty, close_pty, execute_task, kill_task, get_pty_process_stats, PtyManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -571,6 +574,131 @@ async fn open_logs_folder(app_handle: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn open_file_with_default_app(path: String) -> Result<(), String> {
+    // Open the file with the system default application
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_in_system_terminal(command: String, cwd: Option<String>) -> Result<(), String> {
+    // Open a new system terminal window and execute the command
+    #[cfg(target_os = "macos")]
+    {
+        // Use AppleScript to open Terminal.app and execute the command
+        let script = if let Some(ref dir) = cwd {
+            format!(
+                r#"tell application "Terminal"
+                    activate
+                    do script "cd '{}' && {}"
+                end tell"#,
+                dir.replace("'", "'\\''"),
+                command.replace("\"", "\\\"")
+            )
+        } else {
+            format!(
+                r#"tell application "Terminal"
+                    activate
+                    do script "{}"
+                end tell"#,
+                command.replace("\"", "\\\"")
+            )
+        };
+        
+        std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .spawn()
+            .map_err(|e| format!("Failed to open system terminal: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Use cmd to open a new command prompt window
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/c", "start", "cmd", "/k"]);
+        
+        if let Some(ref dir) = cwd {
+            cmd.args(["cd", "/d", dir, "&&"]);
+        }
+        
+        cmd.arg(&command);
+        
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open system terminal: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try common terminal emulators
+        let terminals = ["gnome-terminal", "konsole", "xfce4-terminal", "xterm"];
+        let mut success = false;
+        
+        for terminal in terminals {
+            let result = if terminal == "gnome-terminal" {
+                let mut cmd = std::process::Command::new(terminal);
+                cmd.arg("--");
+                if let Some(ref dir) = cwd {
+                    cmd.args(["bash", "-c", &format!("cd '{}' && {} ; exec bash", dir, command)]);
+                } else {
+                    cmd.args(["bash", "-c", &format!("{} ; exec bash", command)]);
+                }
+                cmd.spawn()
+            } else if terminal == "konsole" {
+                let mut cmd = std::process::Command::new(terminal);
+                if let Some(ref dir) = cwd {
+                    cmd.args(["--workdir", dir]);
+                }
+                cmd.args(["-e", "bash", "-c", &format!("{} ; exec bash", command)]);
+                cmd.spawn()
+            } else {
+                let mut cmd = std::process::Command::new(terminal);
+                cmd.args(["-e", "bash", "-c"]);
+                if let Some(ref dir) = cwd {
+                    cmd.arg(&format!("cd '{}' && {} ; exec bash", dir, command));
+                } else {
+                    cmd.arg(&format!("{} ; exec bash", command));
+                }
+                cmd.spawn()
+            };
+            
+            if result.is_ok() {
+                success = true;
+                break;
+            }
+        }
+        
+        if !success {
+            return Err("No supported terminal emulator found. Please install gnome-terminal, konsole, xfce4-terminal, or xterm.".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn delete_log_file(app_handle: tauri::AppHandle, log_filename: String) -> Result<(), String> {
     let logs_dir = get_logs_dir(&app_handle)?;
     let log_path = logs_dir.join(&log_filename);
@@ -580,6 +708,22 @@ async fn delete_log_file(app_handle: tauri::AppHandle, log_filename: String) -> 
     }
 
     Ok(())
+}
+
+/// Generate a log file path for a task execution
+/// Returns { log_filename: String, log_path: String }
+#[tauri::command]
+async fn generate_log_path(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let logs_dir = get_logs_dir(&app_handle)?;
+    let uuid = Uuid::new_v4().to_string();
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let log_filename = format!("{}_{}.log", timestamp, &uuid[0..8]);
+    let log_path = logs_dir.join(&log_filename);
+    
+    Ok(serde_json::json!({
+        "log_filename": log_filename,
+        "log_path": log_path.to_string_lossy().to_string()
+    }))
 }
 
 #[tauri::command]
@@ -681,6 +825,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             // Create a simple static tray icon
             // The frontend can create additional dynamic menus if needed
@@ -737,6 +882,7 @@ pub fn run() {
             Ok(())
         })
         .manage(ProcessManager::new())
+        .manage(PtyManager::new())
         .invoke_handler(tauri::generate_handler![
             greet,
             execute_command,
@@ -744,9 +890,19 @@ pub fn run() {
             restart_process,
             get_running_processes,
             open_logs_folder,
+            open_file_with_default_app,
+            open_in_system_terminal,
             delete_log_file,
+            generate_log_path,
             read_log_file,
-            get_process_stats
+            get_process_stats,
+            create_pty,
+            write_pty,
+            resize_pty,
+            close_pty,
+            execute_task,
+            kill_task,
+            get_pty_process_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

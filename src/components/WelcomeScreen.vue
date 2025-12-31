@@ -66,6 +66,11 @@
           </p>
         </div>
       </div>
+      
+      <!-- Actions slot for additional buttons -->
+      <div v-if="$slots.actions" class="welcome-actions">
+        <slot name="actions"></slot>
+      </div>
     </div>
   </div>
 </template>

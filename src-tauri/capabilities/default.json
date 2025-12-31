@@ -14,6 +14,28 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$HOME" },
+        { "path": "$HOME/**" },
+        { "path": "$DOCUMENT" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOWNLOAD" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DATA" },
+        { "path": "$DATA/**" }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://**" },
+        { "url": "http://**" }
+      ]
+    },
     "store:default",
     "store:allow-get",
     "store:allow-set",
@@ -47,6 +69,16 @@
     "notification:allow-delete-channel",
     "notification:allow-create-channel",
     "notification:allow-permission-state",
-    "os:default"
+    "os:default",
+    "fs:default",
+    "fs:read-all",
+    "fs:write-all",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME" },
+        { "path": "$HOME/**" }
+      ]
+    }
   ]
 }

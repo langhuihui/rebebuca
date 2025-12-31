@@ -75,6 +75,7 @@
                   @pin="handleUnpinHistory"
                   @stop="handleStopHistory"
                   @rerun="handleReRunHistory"
+                  @restart="handleRestartHistory"
                   @delete="handleDeleteHistory"
                 />
               </n-list-item>
@@ -108,6 +109,7 @@
                 @pin="handlePinHistory"
                 @stop="handleStopHistory"
                 @rerun="handleReRunHistory"
+                @restart="handleRestartHistory"
                 @delete="handleDeleteHistory"
               />
             </n-list-item>
@@ -241,18 +243,36 @@ const handleUnpinHistory = (item: RunHistory) => {
 };
 
 const handleStopHistory = async (item: RunHistory) => {
-  if (item.pid) {
+  // Support both legacy pid and new ptyId
+  const processId = item.ptyId || item.pid;
+  if (processId) {
     try {
-      await runConfigStore.stopCurrentRun(item.pid);
-      item.output += `\n> ${t("console.stopping")}\n`;
+      // For PTY-based tasks, use kill_task command
+      if (item.ptyId) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('kill_task', { ptyId: item.ptyId });
+        
+        // Also update the terminal tab status
+        const { useTerminalStore } = await import('../stores/terminal');
+        const terminalStore = useTerminalStore();
+        if (item.terminalTabId) {
+          terminalStore.updateTabStatus(item.terminalTabId, 'error');
+        }
+      } else {
+        // Legacy process-based execution
+        await runConfigStore.stopCurrentRun(processId);
+      }
+      
+      item.output = (item.output || '') + `\n> ${t("console.stopping")}\n`;
       item.status = "success";
 
       runConfigStore.updateHistory(item.id, {
         status: "success",
         output: item.output,
+        duration: item.startTime ? Date.now() - item.startTime : undefined,
       });
     } catch (error) {
-      item.output += `\n> ${t("console.stopFailed")}: ${error}\n`;
+      item.output = (item.output || '') + `\n> ${t("console.stopFailed")}: ${error}\n`;
       item.status = "error";
 
       runConfigStore.updateHistory(item.id, {
@@ -268,6 +288,18 @@ const handleReRunHistory = async (history: RunHistory) => {
   if (config) {
     // Handle re-run logic here
   }
+};
+
+// Handle restart - stop the running task and start it again
+const handleRestartHistory = async (history: RunHistory) => {
+  // First stop the current process
+  await handleStopHistory(history);
+  
+  // Wait a bit for the process to fully stop
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Then re-run it
+  await handleReRunHistory(history);
 };
 
 const handleDeleteHistory = async (historyItem: RunHistory) => {

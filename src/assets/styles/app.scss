@@ -413,9 +413,44 @@ body {
 }
 
 /* Main content layout */
-.main-content {
-  height: calc(100vh - 40px);
+.main-layout {
+  height: calc(100vh - 40px - 24px); /* Title bar (40px) + Status bar (24px) */
   overflow: hidden;
+}
+
+.main-content {
+  height: calc(100vh - 40px - 24px); /* Title bar (40px) + Status bar (24px) */
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Sidebar layout */
+.sidebar-layout {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 禁用 n-layout-sider 内部的滚动 */
+.sidebar-layout .n-layout-sider-scroll-container {
+  overflow: hidden !important;
+}
+
+.sidebar-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.config-list-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+.config-list {
   padding: 0;
 }
 
@@ -694,7 +729,17 @@ body {
 
 /* Remove hover effects from action buttons */
 
-.config-command,
+.config-command {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: "Courier New", Courier, monospace;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .history-time {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.6);
@@ -945,4 +990,12 @@ body {
 .history-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Welcome screen actions */
+.welcome-actions {
+  margin-top: 32px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }
