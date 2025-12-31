@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rebebuca - Run Configuration Management Tool</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="apple-touch-icon" href="logo256.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Background decorations -->
+  <div class="bg-grid"></div>
+  <div class="floating-nodes">
+    <div class="node"></div>
+    <div class="node"></div>
+    <div class="node"></div>
+    <div class="node"></div>
+    <div class="node"></div>
+    <div class="node"></div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="#" class="nav-logo">
+        <img src="text.svg" alt="Rebebuca" class="logo-text-img">
+      </a>
+      <div class="nav-links">
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#tech" data-i18n="nav.tech">Tech Stack</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
+        <a href="https://github.com/langhuihui/rebebuca" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="nav-actions">
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle theme">
+          <svg class="icon sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button id="lang-toggle" class="lang-btn">
+          <span class="lang-text">中文</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-logo">
+        <img src="logo-dark.svg" alt="Rebebuca" class="hero-logo-img logo-light">
+        <img src="logo.svg" alt="Rebebuca" class="hero-logo-img logo-dark">
+      </div>
+      <h1 class="hero-title" data-i18n="hero.title">Powerful Run Configuration Management Tool</h1>
+      <p class="hero-subtitle" data-i18n="hero.subtitle">A modern desktop application that helps developers quickly manage and execute various commands and scripts</p>
+      <div class="hero-buttons">
+        <a href="#download" class="btn btn-primary" data-i18n="hero.download">Download Now</a>
+        <a href="https://github.com/langhuihui/rebebuca" target="_blank" rel="noopener" class="btn btn-secondary" data-i18n="hero.viewGithub">View on GitHub</a>
+      </div>
+      <div class="hero-badges">
+        <img src="https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri" alt="Tauri">
+        <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js" alt="Vue">
+        <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript" alt="TypeScript">
+        <img src="https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square" alt="License">
+      </div>
+    </div>
+    <!-- Terminal Demo -->
+    <div class="hero-terminal">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-btn red"></div>
+          <div class="terminal-btn yellow"></div>
+          <div class="terminal-btn green"></div>
+          <div class="terminal-title">Rebebuca</div>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-command">rebebuca start dev-server</span>
+          </div>
+          <div class="terminal-output success">✓ Process started [PID: 12847]</div>
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-command">rebebuca start build-watch</span>
+          </div>
+          <div class="terminal-output success">✓ Process started [PID: 12848]</div>
+          <div class="process-list">
+            <div class="process-item">
+              <div class="process-status running"></div>
+              <span class="process-name">dev-server</span>
+              <span class="process-pid">PID: 12847</span>
+              <button class="process-action stop">Stop</button>
+            </div>
+            <div class="process-item">
+              <div class="process-status running"></div>
+              <span class="process-name">build-watch</span>
+              <span class="process-pid">PID: 12848</span>
+              <button class="process-action stop">Stop</button>
+            </div>
+            <div class="process-item">
+              <div class="process-status stopped"></div>
+              <span class="process-name">test-runner</span>
+              <span class="process-pid">PID: --</span>
+              <button class="process-action start">Start</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="features">
+    <div class="container">
+      <h2 class="section-title" data-i18n="features.title">Features</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🚀</div>
+          <h3 data-i18n="features.quickLaunch.title">Quick Launch</h3>
+          <p data-i18n="features.quickLaunch.desc">Create and run configurations with one click, no need to memorize complex commands</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3 data-i18n="features.realtime.title">Real-time Output</h3>
+          <p data-i18n="features.realtime.desc">View command execution results in real-time with multi-tab support</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📝</div>
+          <h3 data-i18n="features.config.title">Configuration Management</h3>
+          <p data-i18n="features.config.desc">Support for advanced options like working directory and environment variables</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🕒</div>
+          <h3 data-i18n="features.history.title">History Tracking</h3>
+          <p data-i18n="features.history.desc">Automatically save run history for easy re-execution</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎨</div>
+          <h3 data-i18n="features.ui.title">Modern UI</h3>
+          <p data-i18n="features.ui.desc">Beautiful interface built with Naive UI, supporting dark and light themes</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🖥️</div>
+          <h3 data-i18n="features.crossPlatform.title">Cross-platform</h3>
+          <p data-i18n="features.crossPlatform.desc">Supports Windows, macOS, and Linux</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshot Section -->
+  <section class="screenshot-section">
+    <div class="container">
+      <h2 class="section-title" data-i18n="screenshot.title">Application Preview</h2>
+      <div class="screenshot-wrapper">
+        <div class="screenshot-placeholder large" data-i18n="screenshot.placeholder">
+          Application Screenshot Placeholder
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack Section -->
+  <section id="tech" class="tech-stack">
+    <div class="container">
+      <h2 class="section-title" data-i18n="tech.title">Tech Stack</h2>
+      <div class="tech-grid">
+        <div class="tech-category">
+          <h3 data-i18n="tech.frontend">Frontend</h3>
+          <ul>
+            <li><strong>Vue 3</strong> - <span data-i18n="tech.vue">Progressive JavaScript framework</span></li>
+            <li><strong>TypeScript</strong> - <span data-i18n="tech.typescript">Type-safe JavaScript superset</span></li>
+            <li><strong>Naive UI</strong> - <span data-i18n="tech.naiveui">Modern Vue 3 component library</span></li>
+            <li><strong>Pinia</strong> - <span data-i18n="tech.pinia">Lightweight state management</span></li>
+            <li><strong>Vite</strong> - <span data-i18n="tech.vite">Next generation build tool</span></li>
+          </ul>
+        </div>
+        <div class="tech-category">
+          <h3 data-i18n="tech.backend">Backend</h3>
+          <ul>
+            <li><strong>Tauri</strong> - <span data-i18n="tech.tauri">Lightweight desktop app framework</span></li>
+            <li><strong>Rust</strong> - <span data-i18n="tech.rust">Systems programming language</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section id="download" class="download">
+    <div class="container">
+      <h2 class="section-title" data-i18n="download.title">Download</h2>
+      <p class="download-desc" data-i18n="download.desc">Choose the version for your operating system</p>
+      <div class="download-grid">
+        <a href="https://github.com/langhuihui/rebebuca/releases" target="_blank" rel="noopener" class="download-card">
+          <div class="download-icon">🍎</div>
+          <h3>macOS</h3>
+          <p data-i18n="download.macos">.dmg / .app</p>
+        </a>
+        <a href="https://github.com/langhuihui/rebebuca/releases" target="_blank" rel="noopener" class="download-card">
+          <div class="download-icon">🪟</div>
+          <h3>Windows</h3>
+          <p data-i18n="download.windows">.exe / .msi</p>
+        </a>
+        <a href="https://github.com/langhuihui/rebebuca/releases" target="_blank" rel="noopener" class="download-card">
+          <div class="download-icon">🐧</div>
+          <h3>Linux</h3>
+          <p data-i18n="download.linux">.AppImage / .deb</p>
+        </a>
+      </div>
+      <p class="download-note" data-i18n="download.note">All releases are available on GitHub Releases</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <img src="logo-dark.svg" alt="Rebebuca" class="logo-img logo-light">
+          <img src="logo.svg" alt="Rebebuca" class="logo-img logo-dark">
+          <img src="text.svg" alt="Rebebuca" class="logo-text-img">
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/langhuihui/rebebuca" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/langhuihui/rebebuca/issues" target="_blank" rel="noopener" data-i18n="footer.issues">Issues</a>
+          <a href="https://github.com/langhuihui/rebebuca/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">License</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p data-i18n="footer.copyright">Released under GPL-3.0 License</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
