@@ -125,7 +125,9 @@
 }
 
 /* Light theme adjustments */
-.n-config-provider--light .console-area {
+.n-config-provider--light .console-area,
+.console-area.light-theme,
+.welcome-screen-container.light-theme {
   .welcome-title {
     color: #000000;
   }

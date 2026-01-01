@@ -495,6 +495,45 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     }
   };
 
+  // Clean up old log files if exceeding maxLogFiles limit
+  const cleanupOldLogs = async () => {
+    try {
+      const { useSettingsStore } = await import('./settings');
+      const settingsStore = useSettingsStore();
+      const maxLogFiles = settingsStore.settings.maxLogFiles || 100;
+      
+      // Get list of all log files
+      const logFiles = await safeInvoke<Array<{ name: string; path: string; size: number; modified: string }>>('list_app_log_files');
+      
+      if (!logFiles || logFiles.length <= maxLogFiles) {
+        return; // No cleanup needed
+      }
+      
+      // Sort by modified date (oldest first) - format is "YYYY-MM-DD HH:MM:SS"
+      const sortedFiles = [...logFiles].sort((a, b) => {
+        return a.modified.localeCompare(b.modified);
+      });
+      
+      // Calculate how many files to delete
+      const filesToDelete = sortedFiles.length - maxLogFiles;
+      const oldFiles = sortedFiles.slice(0, filesToDelete);
+      
+      console.log(`[RunConfig] Cleaning up ${filesToDelete} old log files (max: ${maxLogFiles}, current: ${sortedFiles.length})`);
+      
+      // Delete old files
+      for (const file of oldFiles) {
+        try {
+          await safeInvoke('delete_log_file', { logFilename: file.name });
+          console.log(`[RunConfig] Deleted old log file: ${file.name}`);
+        } catch (error) {
+          console.error(`[RunConfig] Failed to delete log file ${file.name}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('[RunConfig] Failed to cleanup old logs:', error);
+    }
+  };
+
   // Get process statistics
   const getProcessStats = async (systemPid: string) => {
     console.log(`[STORE] getProcessStats called with systemPid: ${systemPid}`);
@@ -597,6 +636,9 @@ export const useRunConfigStore = defineStore('runConfig', () => {
             logFilename = logInfo.log_filename;
             console.log('[FRONTEND] Generated log path:', logPath);
           }
+          
+          // Cleanup old log files in the background (don't await)
+          cleanupOldLogs().catch(err => console.warn('[FRONTEND] Log cleanup failed:', err));
         } catch (error) {
           console.error('[FRONTEND] Failed to generate log path:', error);
         }
@@ -788,6 +830,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     loadHistory,
     saveHistory,
     openLogsFolder,
+    cleanupOldLogs,
     getProcessStats,
     readLogFile,
   };

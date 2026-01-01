@@ -247,6 +247,7 @@ import { FormInst, useMessage, NSpace, NButton, NIcon } from "naive-ui";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { RunConfig } from "../stores/runConfig";
 import { useI18n } from "vue-i18n";
+import { useTheme } from "../composables/useTheme";
 
 interface Props {
   show: boolean;
@@ -264,6 +265,7 @@ const emit = defineEmits<Emits>();
 const message = useMessage();
 const formRef = ref<FormInst | null>(null);
 const { t } = useI18n();
+const { effectiveTheme } = useTheme();
 
 // Form data
 const formValue = ref({
@@ -504,11 +506,8 @@ const forceDialogBackground = () => {
   nextTick(() => {
     const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
     if (dialog) {
-      // Check if we're in light theme
-      const configProvider = document.querySelector(".n-config-provider");
-      const isLightTheme = configProvider?.classList.contains(
-        "n-config-provider--light"
-      );
+      // Check if we're in light theme using effectiveTheme
+      const isLightTheme = effectiveTheme.value === 'light';
 
       // Set background color based on theme
       const bgColor = isLightTheme ? "#ffffff" : "#000000";
@@ -531,10 +530,7 @@ const forceDialogBackground = () => {
 // Force theme on all floating components (similar to App.vue)
 const forceThemeOnFloatingComponents = () => {
   nextTick(() => {
-    const configProvider = document.querySelector(".n-config-provider");
-    const isLightTheme = configProvider?.classList.contains(
-      "n-config-provider--light"
-    );
+    const isLightTheme = effectiveTheme.value === 'light';
     const bgColor = isLightTheme ? "#ffffff" : "#000000";
 
     // Apply theme to all existing dialogs

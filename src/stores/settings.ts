@@ -48,6 +48,7 @@ export interface AppSettings {
   
   // UI settings
   showTaskIcons: boolean;
+  recentTasksCount: number;  // Number of recent tasks to show (0 to disable)
   
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
@@ -61,6 +62,7 @@ const defaultSettings: AppSettings = {
   autoExpandFolders: true,
   closeButtonBehavior: 'exit',
   showTaskIcons: true,
+  recentTasksCount: 5,
   commandIcons: {},
 };
 

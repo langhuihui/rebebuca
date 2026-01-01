@@ -116,6 +116,7 @@ struct PtyInstance {
 /// Task instance for task execution
 struct TaskInstance {
     child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     #[allow(dead_code)]
     pty_id: String,
 }
@@ -162,9 +163,28 @@ impl PtyManager {
             pixel_height: 0,
         };
 
-        let pair = pty_system
-            .openpty(size)
-            .map_err(|e| format!("Failed to open PTY: {}", e))?;
+        // Retry openpty up to 3 times with delay
+        let mut pair = None;
+        let mut last_error = None;
+        for attempt in 0..3 {
+            match pty_system.openpty(size) {
+                Ok(p) => {
+                    pair = Some(p);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < 2 {
+                        println!("[PTY] openpty attempt {} failed, retrying in 100ms...", attempt + 1);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    }
+                }
+            }
+        }
+        
+        let pair = pair.ok_or_else(|| {
+            format!("Failed to open PTY after retries: {:?}", last_error)
+        }).map_err(|e| format!("Failed to open PTY: {}", e))?;
 
         let shell = options.shell.unwrap_or_else(Self::get_default_shell);
 
@@ -274,24 +294,41 @@ impl PtyManager {
         Ok(pty_id_clone)
     }
 
-    /// Write data to a PTY
+    /// Write data to a PTY (shell or task)
     pub async fn write_to_pty(&self, pty_id: &str, data: &str) -> Result<(), String> {
-        let instances = self.instances.lock().await;
-
-        if let Some(instance_arc) = instances.get(pty_id) {
-            let mut instance = instance_arc.lock().await;
-            instance
-                .writer
-                .write_all(data.as_bytes())
-                .map_err(|e| format!("Failed to write to PTY: {}", e))?;
-            instance
-                .writer
-                .flush()
-                .map_err(|e| format!("Failed to flush PTY: {}", e))?;
-            Ok(())
-        } else {
-            Err(format!("PTY not found: {}", pty_id))
+        // First try shell PTY instances
+        {
+            let instances = self.instances.lock().await;
+            if let Some(instance_arc) = instances.get(pty_id) {
+                let mut instance = instance_arc.lock().await;
+                instance
+                    .writer
+                    .write_all(data.as_bytes())
+                    .map_err(|e| format!("Failed to write to PTY: {}", e))?;
+                instance
+                    .writer
+                    .flush()
+                    .map_err(|e| format!("Failed to flush PTY: {}", e))?;
+                return Ok(());
+            }
         }
+        
+        // Then try task PTY instances
+        {
+            let task_instances = self.task_instances.lock().await;
+            if let Some(task_instance) = task_instances.get(pty_id) {
+                let mut writer = task_instance.writer.lock().await;
+                writer
+                    .write_all(data.as_bytes())
+                    .map_err(|e| format!("Failed to write to task PTY: {}", e))?;
+                writer
+                    .flush()
+                    .map_err(|e| format!("Failed to flush task PTY: {}", e))?;
+                return Ok(());
+            }
+        }
+        
+        Err(format!("PTY not found: {}", pty_id))
     }
 
     /// Resize a PTY
@@ -320,7 +357,7 @@ impl PtyManager {
     /// Close a PTY
     pub async fn close_pty(&self, pty_id: &str) -> Result<(), String> {
         let mut instances = self.instances.lock().await;
-
+        
         if instances.remove(pty_id).is_some() {
             println!("[PTY] Closed PTY: {}", pty_id);
             Ok(())
@@ -356,9 +393,28 @@ impl PtyManager {
             pixel_height: 0,
         };
 
-        let pair = pty_system
-            .openpty(size)
-            .map_err(|e| format!("Failed to open PTY: {}", e))?;
+        // Retry openpty up to 3 times with delay
+        let mut pair = None;
+        let mut last_error = None;
+        for attempt in 0..3 {
+            match pty_system.openpty(size) {
+                Ok(p) => {
+                    pair = Some(p);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < 2 {
+                        println!("[PTY] execute_task openpty attempt {} failed, retrying in 100ms...", attempt + 1);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    }
+                }
+            }
+        }
+        
+        let pair = pair.ok_or_else(|| {
+            format!("Failed to open PTY after retries: {:?}", last_error)
+        }).map_err(|e| format!("Failed to open PTY: {}", e))?;
 
         // Build command with arguments
         let mut cmd = CommandBuilder::new(&command);
@@ -393,11 +449,19 @@ impl PtyManager {
             .try_clone_reader()
             .map_err(|e| format!("Failed to clone reader: {}", e))?;
 
-        // Store the child process for later termination
+        // Get writer for keyboard input
+        let writer = pair
+            .master
+            .take_writer()
+            .map_err(|e| format!("Failed to take writer: {}", e))?;
+
+        // Store the child process and writer for later use
         let child_arc = Arc::new(Mutex::new(child));
+        let writer_arc = Arc::new(Mutex::new(writer));
         
         let task_instance = TaskInstance {
             child: child_arc,
+            writer: writer_arc,
             pty_id: pty_id.clone(),
         };
         
@@ -511,6 +575,7 @@ impl PtyManager {
     
     /// Kill a task process
     pub async fn kill_task(&self, pty_id: &str) -> Result<(), String> {
+        // First, kill the task process
         let mut task_instances = self.task_instances.lock().await;
         
         if let Some(task_instance) = task_instances.remove(pty_id) {
@@ -519,9 +584,11 @@ impl PtyManager {
             println!("[PTY] Killed task PTY: {}", pty_id);
             Ok(())
         } else {
-            // Also check regular PTY instances
+            // Also check regular PTY instances and close them
             drop(task_instances);
-            self.close_pty(pty_id).await
+            // Note: We don't close shell PTY here since it might be reused
+            // The close_pty will be called separately if needed
+            Err(format!("Task PTY not found: {}", pty_id))
         }
     }
 }

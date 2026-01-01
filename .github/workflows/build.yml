@@ -18,12 +18,13 @@ jobs:
           - platform: 'windows-latest'
             args: ''
             name: 'Windows'
-
     runs-on: ${{ matrix.platform }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -50,6 +51,34 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Generate Release Notes
+        id: release_notes
+        shell: bash
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          # Generate release notes from git log
+          if [ -n "$PREV_TAG" ]; then
+            NOTES="## Changes since ${PREV_TAG}
+          
+          $(git log ${PREV_TAG}..HEAD --pretty=format:'- %s' | head -20)"
+          else
+            NOTES="## Initial Release
+          
+          $(git log --pretty=format:'- %s' --reverse | head -20)"
+          fi
+          
+          # Use random delimiter to avoid conflicts
+          DELIM="RELEASE_NOTES_$(date +%s)"
+          echo "RELEASE_NOTES<<${DELIM}" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "${DELIM}" >> $GITHUB_OUTPUT
+          
+          # Debug output
+          echo "Generated release notes:"
+          echo "$NOTES"
+
       - name: Build Tauri app and create release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -59,7 +88,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Rebebuca ${{ github.ref_name }}'
-          releaseBody: 'See the assets to download and install this version.'
+          releaseBody: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

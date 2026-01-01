@@ -21,7 +21,7 @@ import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-export type TerminalStatus = 'running' | 'success' | 'error' | 'closed';
+export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
 export type TerminalType = 'task' | 'shell';
 
 export interface TaskExecutionParams {
@@ -29,6 +29,7 @@ export interface TaskExecutionParams {
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
+  logPath?: string;
 }
 
 export interface TerminalTab {
@@ -154,6 +155,7 @@ export const useTerminalStore = defineStore('terminal', () => {
   };
   
   // Execute a task in a new terminal
+  // This creates a pending tab - call startTask() after terminal is ready
   const executeTask = async (options: {
     command: string;
     args?: string[];
@@ -174,7 +176,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       ptyId,
       taskId: options.taskId,
       historyId: options.historyId,
-      status: 'running',
+      status: 'pending',  // Start as pending, wait for terminal ready
       startTime: Date.now(),
       command: options.args?.length 
         ? `${options.command} ${options.args.join(' ')}`
@@ -184,29 +186,44 @@ export const useTerminalStore = defineStore('terminal', () => {
         args: options.args,
         cwd: options.cwd,
         env: options.env,
+        logPath: options.logPath,
       },
     };
     
     tabs.value.push(tab);
     activeTabId.value = id;
     
+    console.log('[Terminal Store] Task tab created (pending):', ptyId);
+    return tab;
+  };
+  
+  // Start a pending task - call this after terminal is ready
+  const startTask = async (tabId: string): Promise<void> => {
+    const tab = tabs.value.find(t => t.id === tabId);
+    if (!tab || tab.status !== 'pending' || !tab.execParams) {
+      console.warn('[Terminal Store] Cannot start task - invalid state:', tabId, tab?.status);
+      return;
+    }
+    
+    const { command, args, cwd, env, logPath } = tab.execParams;
+    
     try {
-      // Call backend to execute task
+      tab.status = 'running';
+      
       await invoke('execute_task', {
-        ptyId,
-        command: options.command,
-        args: options.args || [],
+        ptyId: tab.ptyId,
+        command,
+        args: args || [],
         options: {
-          cwd: options.cwd,
-          env: options.env,
+          cwd,
+          env,
           rows: 24,
           cols: 80,
-          log_path: options.logPath,
+          log_path: logPath,
         },
       });
       
-      console.log('[Terminal Store] Task started:', ptyId, options.command);
-      return tab;
+      console.log('[Terminal Store] Task started:', tab.ptyId, command);
     } catch (error) {
       console.error('[Terminal Store] Failed to execute task:', error);
       tab.status = 'error';
@@ -274,6 +291,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       args: tab.execParams.args,
       cwd: tab.execParams.cwd,
       env: tab.execParams.env,
+      logPath: tab.execParams.logPath,
       taskId: tab.taskId,
       label: tab.label,
     });
@@ -363,6 +381,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     cleanupListeners,
     createShellTerminal,
     executeTask,
+    startTask,
     closeTab,
     stopTask,
     restartTask,

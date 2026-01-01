@@ -22,6 +22,7 @@
     bordered
     :width="280"
     class="sidebar-layout"
+    :class="{ 'light-theme': effectiveTheme === 'light' }"
   >
     <div class="sidebar-container">
       <!-- Header -->
@@ -102,6 +103,24 @@
                 </template>
                 {{ t('task.aiGenerate') }}
               </n-tooltip>
+              
+              <!-- Port Management button -->
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="showPortDialog = true"
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.network" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('task.portManagement') }}
+              </n-tooltip>
             </n-space>
           </div>
         </div>
@@ -110,8 +129,14 @@
       <!-- Task tree -->
       <div class="task-tree-container">
         <n-scrollbar>
+          <!-- Loading state -->
+          <div v-if="!taskManager.initialized || taskManager.isScanning" class="loading-state">
+            <n-spin size="small" />
+            <span class="loading-text">{{ t('task.loading') }}</span>
+          </div>
+          
           <!-- Empty state -->
-          <div v-if="taskManager.combinedTasks.length === 0 && !taskManager.isScanning" class="empty-state">
+          <div v-else-if="taskManager.combinedTasks.length === 0" class="empty-state">
             <n-icon size="48" :depth="3">
               <component :is="svgIcons.task" />
             </n-icon>
@@ -123,6 +148,139 @@
           
           <!-- Task tree -->
           <div v-else class="task-tree">
+            <!-- Recent tasks section -->
+            <template v-if="taskManager.recentTasks.length > 0">
+              <div 
+                class="tree-node section-node"
+                @click="toggleNode('recent')"
+              >
+                <n-icon size="14" class="tree-icon expand-icon">
+                  <component :is="isExpanded('recent') ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                </n-icon>
+                <n-icon size="16" class="tree-icon recent-icon">
+                  <component :is="taskManager.recentSortMode === 'time' ? svgIcons.clock : svgIcons.chart" />
+                </n-icon>
+                <span class="tree-label section-label">{{ taskManager.recentSortMode === 'time' ? t('task.recent') : t('task.frequent') }}</span>
+                <span class="tree-badge">{{ taskManager.recentTasks.length }}</span>
+                <!-- Sort mode toggle button -->
+                <n-tooltip trigger="hover" placement="top">
+                  <template #trigger>
+                    <n-button
+                      size="tiny"
+                      quaternary
+                      class="sort-toggle-btn"
+                      @click.stop="taskManager.toggleRecentSortMode()"
+                    >
+                      <template #icon>
+                        <n-icon size="12">
+                          <component :is="svgIcons.refresh" />
+                        </n-icon>
+                      </template>
+                    </n-button>
+                  </template>
+                  {{ taskManager.recentSortMode === 'time' ? t('task.switchToFrequency') : t('task.switchToTime') }}
+                </n-tooltip>
+              </div>
+              
+              <template v-if="isExpanded('recent')">
+                <n-tooltip
+                  v-for="task in taskManager.recentTasks" 
+                  :key="`recent-${task.id}`"
+                  trigger="hover"
+                  placement="right"
+                  :delay="500"
+                >
+                  <template #trigger>
+                    <div
+                      class="tree-node task-node recent-task-node"
+                      :class="{ 'task-running': taskManager.isTaskRunning(task.id) }"
+                      :title="getFullCommand(task)"
+                      @click="handleTaskClick(task)"
+                    >
+                      <n-icon v-if="settingsStore.settings.showTaskIcons" size="14" class="tree-icon task-type-icon">
+                        <component :is="getTaskIcon(task)" />
+                      </n-icon>
+                      <span class="tree-label task-label">
+                        {{ task.name }}<span v-if="getFavoriteFolderLabel(task)" class="folder-hint">({{ getFavoriteFolderLabel(task) }})</span>
+                      </span>
+                      <!-- Floating action buttons -->
+                      <div class="task-actions-float">
+                        <n-button
+                          v-if="!taskManager.isTaskRunning(task.id)"
+                          size="tiny"
+                          quaternary
+                          class="action-btn"
+                          @click.stop="handleTaskRun(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.play" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          v-if="taskManager.isTaskRunning(task.id)"
+                          size="tiny"
+                          quaternary
+                          class="action-btn stop-btn"
+                          @click.stop="handleTaskStop(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.stop" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          v-if="taskManager.isTaskRunning(task.id)"
+                          size="tiny"
+                          quaternary
+                          class="action-btn restart-btn"
+                          @click.stop="handleTaskRun(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.refresh" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="tiny"
+                          quaternary
+                          :class="['action-btn', 'favorite-btn', { active: taskManager.isFavorite(task.id) }]"
+                          @click.stop="handleToggleFavorite(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="taskManager.isFavorite(task.id) ? svgIcons.starFilled : svgIcons.star" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="tiny"
+                          quaternary
+                          class="action-btn"
+                          @click.stop="handleTaskEditVisual(task)"
+                        >
+                          <template #icon>
+                            <n-icon size="12">
+                              <component :is="svgIcons.edit" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                      </div>
+                    </div>
+                  </template>
+                  <div class="task-tooltip">
+                    <div class="tooltip-command">{{ getFullCommand(task) }}</div>
+                    <div v-if="task.cwd" class="tooltip-cwd">{{ task.cwd }}</div>
+                  </div>
+                </n-tooltip>
+              </template>
+              
+              <div class="section-divider"></div>
+            </template>
+            
             <!-- Favorites section -->
             <template v-if="taskManager.favoriteTasks.length > 0">
               <div 
@@ -154,7 +312,7 @@
                   @click="handleTaskClick(task)"
                   @mousedown="handleFavoriteMouseDown($event, task, index)"
                 >
-                  <n-icon size="14" class="tree-icon task-type-icon">
+                  <n-icon v-if="settingsStore.settings.showTaskIcons" size="14" class="tree-icon task-type-icon">
                     <component :is="getTaskIcon(task)" />
                   </n-icon>
                   <span class="tree-label task-label">
@@ -295,7 +453,7 @@
                       @dragstart="handleDragStart($event, task)"
                       @dragend="handleDragEnd"
                     >
-                      <n-icon size="14" class="tree-icon task-type-icon">
+                      <n-icon v-if="settingsStore.settings.showTaskIcons" size="14" class="tree-icon task-type-icon">
                         <component :is="getTaskIcon(task)" />
                       </n-icon>
                       <span class="tree-label task-label">{{ task.name }}</span>
@@ -524,7 +682,7 @@
                           :class="{ 'task-running': taskManager.isTaskRunning(taskItem.task!.id) }"
                           @click="handleTaskClick(taskItem.task!)"
                         >
-                          <n-icon size="14" class="tree-icon task-type-icon">
+                          <n-icon v-if="settingsStore.settings.showTaskIcons" size="14" class="tree-icon task-type-icon">
                             <component :is="getTaskIcon(taskItem.task!)" />
                           </n-icon>
                           <span class="tree-label task-label">{{ taskItem.label }}</span>
@@ -696,7 +854,11 @@
       <!-- Folder selection -->
       <n-form-item :label="t('task.selectFolder')">
         <n-input-group>
-          <n-input v-model:value="addFolderData.sourceFolder" readonly :placeholder="t('task.selectSourceFolder')" />
+          <n-input 
+            v-model:value="addFolderData.sourceFolder" 
+            :placeholder="t('task.selectSourceFolder')"
+            clearable
+          />
           <n-button @click="handleSelectAddFolder">{{ t('task.browse') }}</n-button>
         </n-input-group>
       </n-form-item>
@@ -884,6 +1046,90 @@
       </n-alert>
     </div>
   </n-modal>
+  
+  <!-- Port Management Dialog -->
+  <n-modal 
+    v-model:show="showPortDialog"
+    preset="dialog"
+    :title="t('task.portManagement')"
+    style="width: 700px;"
+    :show-icon="false"
+  >
+    <div class="port-dialog-content">
+      <!-- Filter Input -->
+      <div class="port-filter">
+        <n-input
+          v-model:value="portFilter"
+          :placeholder="t('task.portFilter')"
+          clearable
+          @update:value="filterPorts"
+        >
+          <template #prefix>
+            <n-icon size="16">
+              <component :is="svgIcons.search" />
+            </n-icon>
+          </template>
+        </n-input>
+        <n-button
+          type="primary"
+          :loading="portLoading"
+          @click="loadPortProcesses"
+        >
+          <template #icon>
+            <n-icon size="16">
+              <component :is="svgIcons.refresh" />
+            </n-icon>
+          </template>
+          {{ t('task.refreshPorts') }}
+        </n-button>
+      </div>
+      
+      <!-- Port List -->
+      <div v-if="filteredGroupedProcesses.length > 0" class="port-list">
+        <div class="port-header">
+          <span class="name-col">{{ t('task.processName') }}</span>
+          <span class="pid-col">{{ t('task.pid') }}</span>
+          <span class="port-col">{{ t('task.port') }}</span>
+          <span class="action-col"></span>
+        </div>
+        <div 
+          v-for="proc in filteredGroupedProcesses" 
+          :key="proc.pid"
+          class="port-item"
+        >
+          <span class="name-col" :title="proc.command || proc.name">{{ proc.name }}</span>
+          <span class="pid-col">{{ proc.pid }}</span>
+          <span class="port-col port-numbers">
+            <n-tag 
+              v-for="port in proc.ports" 
+              :key="port" 
+              size="small" 
+              type="info"
+              class="port-tag"
+            >
+              {{ port }}
+            </n-tag>
+          </span>
+          <span class="action-col">
+            <n-button
+              size="small"
+              type="error"
+              quaternary
+              @click="handleKillProcess(proc.pid)"
+            >
+              {{ t('task.killProcess') }}
+            </n-button>
+          </span>
+        </div>
+      </div>
+      <div v-else class="no-ports">
+        <n-icon size="48" :depth="3">
+          <component :is="svgIcons.network" />
+        </n-icon>
+        <p>{{ t('task.noPortsFound') }}</p>
+      </div>
+    </div>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
@@ -907,6 +1153,8 @@ import {
   NAlert,
   NRadio,
   NRadioGroup,
+  NTag,
+  NSpin,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -952,6 +1200,61 @@ const editingTask = ref({
 
 // AI dialog state
 const showAIDialog = ref(false);
+
+// Port management dialog state
+const showPortDialog = ref(false);
+const portFilter = ref('');
+const portLoading = ref(false);
+interface PortProcess {
+  port: number;
+  pid: number;
+  name: string;
+  command: string;
+}
+interface GroupedProcess {
+  pid: number;
+  name: string;
+  command: string;
+  ports: number[];
+}
+const portProcesses = ref<PortProcess[]>([]);
+
+// Group ports by process (pid)
+const groupedProcesses = computed(() => {
+  const grouped = new Map<number, GroupedProcess>();
+  
+  for (const proc of portProcesses.value) {
+    if (grouped.has(proc.pid)) {
+      grouped.get(proc.pid)!.ports.push(proc.port);
+    } else {
+      grouped.set(proc.pid, {
+        pid: proc.pid,
+        name: proc.name,
+        command: proc.command,
+        ports: [proc.port],
+      });
+    }
+  }
+  
+  // Sort ports within each process
+  for (const proc of grouped.values()) {
+    proc.ports.sort((a, b) => a - b);
+  }
+  
+  // Convert to array and sort by first port
+  return Array.from(grouped.values()).sort((a, b) => a.ports[0] - b.ports[0]);
+});
+
+const filteredGroupedProcesses = computed(() => {
+  if (!portFilter.value) return groupedProcesses.value;
+  const filter = portFilter.value.trim().toLowerCase();
+  return groupedProcesses.value.filter(p => 
+    p.ports.some(port => String(port).includes(filter)) ||
+    p.name.toLowerCase().includes(filter) ||
+    String(p.pid).includes(filter)
+  );
+});
+
 interface AIGeneratedTask {
   name: string;
   command: string;
@@ -1675,6 +1978,42 @@ const handleAddAIResult = async () => {
   }
 };
 
+// Port management functions
+const loadPortProcesses = async () => {
+  portLoading.value = true;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const processes = await invoke<PortProcess[]>('get_port_processes');
+    portProcesses.value = processes;
+  } catch (error) {
+    console.error('[TaskSidebar] Failed to load port processes:', error);
+  } finally {
+    portLoading.value = false;
+  }
+};
+
+const filterPorts = () => {
+  // Computed property handles filtering automatically
+};
+
+const handleKillProcess = async (pid: number) => {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('kill_process_by_pid', { pid });
+    // Refresh the list
+    await loadPortProcesses();
+  } catch (error) {
+    console.error('[TaskSidebar] Failed to kill process:', pid, error);
+  }
+};
+
+// Load ports when dialog opens
+watch(showPortDialog, async (show) => {
+  if (show) {
+    await loadPortProcesses();
+  }
+});
+
 // Handle edit AI result before adding
 const handleEditAIResult = () => {
   if (!aiConfig.result) return;
@@ -1837,24 +2176,36 @@ onMounted(async () => {
   // Load saved folders
   await taskManager.initialize();
   
-  // Auto-expand favorites section
+  // Debug: Watch recentTasks
+  watch(() => taskManager.recentTasks, (newVal) => {
+    console.log('[TaskSidebar] recentTasks changed:', newVal.map(t => ({ id: t.id, name: t.name })));
+  }, { immediate: true });
+  
+  // Auto-expand favorites section (always expanded)
   expandedNodes.value.add('favorites');
   
-  // Auto-expand loaded folders
-  for (const folder of taskManager.treeItems) {
-    expandedNodes.value.add(folder.id);
-    for (const source of folder.children || []) {
-      expandedNodes.value.add(source.id);
+  // Auto-expand recent section (always expanded)
+  expandedNodes.value.add('recent');
+  
+  // Auto-expand loaded folders if autoExpandFolders is enabled
+  if (settingsStore.settings.autoExpandFolders) {
+    for (const folder of taskManager.treeItems) {
+      expandedNodes.value.add(folder.id);
+      for (const source of folder.children || []) {
+        expandedNodes.value.add(source.id);
+      }
     }
   }
 });
 
-// Auto-expand new folders
+// Auto-expand new folders if autoExpandFolders is enabled
 watch(() => taskManager.folders.length, () => {
-  for (const folder of taskManager.treeItems) {
-    expandedNodes.value.add(folder.id);
-    for (const source of folder.children || []) {
-      expandedNodes.value.add(source.id);
+  if (settingsStore.settings.autoExpandFolders) {
+    for (const folder of taskManager.treeItems) {
+      expandedNodes.value.add(folder.id);
+      for (const source of folder.children || []) {
+        expandedNodes.value.add(source.id);
+      }
     }
   }
 });
@@ -1870,7 +2221,8 @@ watch(() => taskManager.folders.length, () => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.n-config-provider--light .task-header-content {
+.n-config-provider--light .task-header-content,
+.sidebar-layout.light-theme .task-header-content {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
@@ -1899,7 +2251,8 @@ watch(() => taskManager.folders.length, () => {
   font-weight: 500;
 }
 
-.n-config-provider--light .version-text {
+.n-config-provider--light .version-text,
+.sidebar-layout.light-theme .version-text {
   color: rgba(0, 0, 0, 0.45);
 }
 
@@ -1945,6 +2298,26 @@ watch(() => taskManager.folders.length, () => {
   right: 0 !important;
 }
 
+/* Loading state */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  text-align: center;
+  gap: 12px;
+}
+
+.loading-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
+
+.sidebar-layout.light-theme .loading-text {
+  color: rgba(0, 0, 0, 0.5);
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -1960,7 +2333,8 @@ watch(() => taskManager.folders.length, () => {
   margin: 0;
 }
 
-.n-config-provider--light .empty-text {
+.n-config-provider--light .empty-text,
+.sidebar-layout.light-theme .empty-text {
   color: rgba(0, 0, 0, 0.5);
 }
 
@@ -1985,7 +2359,8 @@ watch(() => taskManager.folders.length, () => {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-.n-config-provider--light .tree-node:hover {
+.n-config-provider--light .tree-node:hover,
+.sidebar-layout.light-theme .tree-node:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
@@ -2032,7 +2407,8 @@ watch(() => taskManager.folders.length, () => {
   font-family: sans-serif;
 }
 
-.n-config-provider--light .folder-hint {
+.n-config-provider--light .folder-hint,
+.sidebar-layout.light-theme .folder-hint {
   color: rgba(0, 0, 0, 0.4);
 }
 
@@ -2044,7 +2420,8 @@ watch(() => taskManager.folders.length, () => {
   color: rgba(255, 255, 255, 0.6);
 }
 
-.n-config-provider--light .tree-badge {
+.n-config-provider--light .tree-badge,
+.sidebar-layout.light-theme .tree-badge {
   background: rgba(0, 0, 0, 0.08);
   color: rgba(0, 0, 0, 0.6);
 }
@@ -2072,7 +2449,8 @@ watch(() => taskManager.folders.length, () => {
   --action-bg: rgba(36, 36, 36, 0.95);
 }
 
-.n-config-provider--light .task-actions-float {
+.n-config-provider--light .task-actions-float,
+.sidebar-layout.light-theme .task-actions-float {
   --action-bg: rgba(255, 255, 255, 0.95);
 }
 
@@ -2086,7 +2464,8 @@ watch(() => taskManager.folders.length, () => {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.n-config-provider--light .action-btn:hover {
+.n-config-provider--light .action-btn:hover,
+.sidebar-layout.light-theme .action-btn:hover {
   background: rgba(0, 0, 0, 0.08);
 }
 
@@ -2121,12 +2500,33 @@ watch(() => taskManager.folders.length, () => {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.n-config-provider--light .section-label {
+.n-config-provider--light .section-label,
+.sidebar-layout.light-theme .section-label {
   color: rgba(0, 0, 0, 0.85);
 }
 
 .star-icon {
   color: #f5a623;
+}
+
+.recent-icon {
+  color: #36cfc9;
+}
+
+/* Sort toggle button */
+.sort-toggle-btn {
+  margin-left: auto;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.sort-toggle-btn:hover {
+  opacity: 1;
+}
+
+/* Recent task node */
+.recent-task-node {
+  padding-left: 32px;
 }
 
 /* Section divider */
@@ -2136,7 +2536,8 @@ watch(() => taskManager.folders.length, () => {
   margin: 8px 12px;
 }
 
-.n-config-provider--light .section-divider {
+.n-config-provider--light .section-divider,
+.sidebar-layout.light-theme .section-divider {
   background: rgba(0, 0, 0, 0.08);
 }
 
@@ -2268,7 +2669,8 @@ watch(() => taskManager.folders.length, () => {
   margin-bottom: 8px;
 }
 
-.n-config-provider--light .selection-header {
+.n-config-provider--light .selection-header,
+.sidebar-layout.light-theme .selection-header {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
@@ -2278,7 +2680,8 @@ watch(() => taskManager.folders.length, () => {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.n-config-provider--light .no-tasks-found {
+.n-config-provider--light .no-tasks-found,
+.sidebar-layout.light-theme .no-tasks-found {
   color: rgba(0, 0, 0, 0.5);
 }
 
@@ -2293,7 +2696,8 @@ watch(() => taskManager.folders.length, () => {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.n-config-provider--light .import-task-item:hover {
+.n-config-provider--light .import-task-item:hover,
+.sidebar-layout.light-theme .import-task-item:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
@@ -2322,7 +2726,8 @@ watch(() => taskManager.folders.length, () => {
   word-break: break-all;
 }
 
-.n-config-provider--light .task-command {
+.n-config-provider--light .task-command,
+.sidebar-layout.light-theme .task-command {
   color: rgba(0, 0, 0, 0.5);
 }
 
@@ -2360,7 +2765,8 @@ watch(() => taskManager.folders.length, () => {
   padding: 12px;
 }
 
-.n-config-provider--light .generated-task {
+.n-config-provider--light .generated-task,
+.sidebar-layout.light-theme .generated-task {
   background: rgba(0, 0, 0, 0.03);
 }
 
@@ -2380,7 +2786,8 @@ watch(() => taskManager.folders.length, () => {
   font-size: 13px;
 }
 
-.n-config-provider--light .result-label {
+.n-config-provider--light .result-label,
+.sidebar-layout.light-theme .result-label {
   color: rgba(0, 0, 0, 0.5);
 }
 
@@ -2418,7 +2825,8 @@ watch(() => taskManager.folders.length, () => {
   line-height: 1.4;
 }
 
-.n-config-provider--light .mode-desc {
+.n-config-provider--light .mode-desc,
+.sidebar-layout.light-theme .mode-desc {
   color: rgba(0, 0, 0, 0.45);
 }
 
@@ -2441,7 +2849,143 @@ watch(() => taskManager.folders.length, () => {
   word-break: break-all;
 }
 
-.n-config-provider--light .tooltip-cwd {
+.n-config-provider--light .tooltip-cwd,
+.sidebar-layout.light-theme .tooltip-cwd {
   color: rgba(0, 0, 0, 0.5);
+}
+
+/* Port Management Dialog */
+.port-dialog-content {
+  min-height: 300px;
+}
+
+.port-filter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.port-filter .n-input {
+  flex: 1;
+}
+
+.port-list {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.n-config-provider--light .port-list,
+.sidebar-layout.light-theme .port-list {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.port-header {
+  display: flex;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.n-config-provider--light .port-header,
+.sidebar-layout.light-theme .port-header {
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.5);
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.port-item {
+  display: flex;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: center;
+}
+
+.port-item:last-child {
+  border-bottom: none;
+}
+
+.port-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.n-config-provider--light .port-item,
+.sidebar-layout.light-theme .port-item {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+.n-config-provider--light .port-item:hover,
+.sidebar-layout.light-theme .port-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.port-col {
+  width: 150px;
+  flex-shrink: 0;
+}
+
+.port-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.port-tag {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+}
+
+.port-number {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  color: #00d084;
+}
+
+.pid-col {
+  width: 80px;
+  flex-shrink: 0;
+  font-family: 'Courier New', Courier, monospace;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.n-config-provider--light .pid-col,
+.sidebar-layout.light-theme .pid-col {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.name-col {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-col {
+  width: 100px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.no-ports {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.no-ports p {
+  margin-top: 16px;
+}
+
+.n-config-provider--light .no-ports,
+.sidebar-layout.light-theme .no-ports {
+  color: rgba(0, 0, 0, 0.3);
 }
 </style>

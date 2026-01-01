@@ -79,7 +79,8 @@ body {
 }
 
 /* Light theme titlebar */
-.n-config-provider--light .custom-titlebar {
+.n-config-provider--light .custom-titlebar,
+.custom-titlebar.light-theme {
   background-color: #f5f5f5;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
@@ -329,15 +330,18 @@ body {
 }
 
 /* Light theme Windows button colors */
-.n-config-provider--light .window-controls.windows-style .window-control-button {
+.n-config-provider--light .window-controls.windows-style .window-control-button,
+.custom-titlebar.light-theme .window-controls.windows-style .window-control-button {
   color: #000000;
 }
 
-.n-config-provider--light .window-controls.windows-style .window-control-button:hover {
+.n-config-provider--light .window-controls.windows-style .window-control-button:hover,
+.custom-titlebar.light-theme .window-controls.windows-style .window-control-button:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-.n-config-provider--light .window-controls.windows-style .close-btn:hover {
+.n-config-provider--light .window-controls.windows-style .close-btn:hover,
+.custom-titlebar.light-theme .window-controls.windows-style .close-btn:hover {
   background-color: #e81123;
   color: #ffffff;
 }
@@ -403,11 +407,13 @@ body {
 }
 
 /* Light theme titlebar buttons */
-.n-config-provider--light .titlebar-button {
+.n-config-provider--light .titlebar-button,
+.custom-titlebar.light-theme .titlebar-button {
   color: rgba(0, 0, 0, 0.7);
 }
 
-.n-config-provider--light .titlebar-button:hover {
+.n-config-provider--light .titlebar-button:hover,
+.custom-titlebar.light-theme .titlebar-button:hover {
   color: #000000;
   background-color: rgba(0, 0, 0, 0.05);
 }
@@ -983,7 +989,8 @@ body {
   max-width: 300px;
 }
 
-.n-config-provider--light .history-title-display {
+.n-config-provider--light .history-title-display,
+.custom-titlebar.light-theme .history-title-display {
   color: rgba(0, 0, 0, 0.9);
 }
 
@@ -1091,11 +1098,13 @@ body {
 }
 
 /* Light theme - Titlebar hover effects */
-.n-config-provider--light .titlebar-right .n-button:hover {
+.n-config-provider--light .titlebar-right .n-button:hover,
+.custom-titlebar.light-theme .titlebar-right .n-button:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-.n-config-provider--light .titlebar-right .n-button::before {
+.n-config-provider--light .titlebar-right .n-button::before,
+.custom-titlebar.light-theme .titlebar-right .n-button::before {
   background: linear-gradient(90deg,
       transparent,
       rgba(24, 160, 88, 0.08),
@@ -1138,17 +1147,20 @@ body {
 }
 
 /* Light theme - macOS window controls - softer colors */
-.n-config-provider--light .window-controls:not(.windows-style) .close-btn {
+.n-config-provider--light .window-controls:not(.windows-style) .close-btn,
+.custom-titlebar.light-theme .window-controls:not(.windows-style) .close-btn {
   background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
   box-shadow: 0 0 6px rgba(255, 107, 107, 0.4);
 }
 
-.n-config-provider--light .window-controls:not(.windows-style) .minimize-btn {
+.n-config-provider--light .window-controls:not(.windows-style) .minimize-btn,
+.custom-titlebar.light-theme .window-controls:not(.windows-style) .minimize-btn {
   background: linear-gradient(135deg, #ffd43b 0%, #ffe066 100%);
   box-shadow: 0 0 6px rgba(255, 212, 59, 0.4);
 }
 
-.n-config-provider--light .window-controls:not(.windows-style) .maximize-btn {
+.n-config-provider--light .window-controls:not(.windows-style) .maximize-btn,
+.custom-titlebar.light-theme .window-controls:not(.windows-style) .maximize-btn {
   background: linear-gradient(135deg, #51cf66 0%, #69db7c 100%);
   box-shadow: 0 0 6px rgba(81, 207, 102, 0.4);
 }

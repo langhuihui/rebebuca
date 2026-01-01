@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use tauri::{Emitter, Manager, menu::{Menu, MenuItem, Submenu}, tray::TrayIconBuilder};
+use tauri::{Emitter, Manager, menu::{Menu, MenuItem, Submenu, PredefinedMenuItem}, tray::TrayIconBuilder};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::Mutex;
@@ -943,12 +943,526 @@ async fn restart_process(
     execute_command(config, app_handle, process_manager).await
 }
 
+/// Port process info
+#[derive(serde::Serialize)]
+pub struct PortProcess {
+    pub port: u16,
+    pub pid: u32,
+    pub name: String,
+    pub command: String,
+}
+
+/// Get processes listening on ports
+#[tauri::command]
+async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
+    use std::process::Command;
+    
+    let mut result = Vec::new();
+    
+    #[cfg(target_os = "macos")]
+    {
+        // Use lsof to get listening ports on macOS
+        let output = Command::new("lsof")
+            .args(["-iTCP", "-sTCP:LISTEN", "-P", "-n"])
+            .output()
+            .map_err(|e| format!("Failed to run lsof: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        for line in stdout.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 9 {
+                let name = parts[0].to_string();
+                let pid: u32 = parts[1].parse().unwrap_or(0);
+                let addr = parts[8];
+                
+                // Extract port from address like "*:3000" or "127.0.0.1:3000"
+                if let Some(port_str) = addr.split(':').last() {
+                    if let Ok(port) = port_str.parse::<u16>() {
+                        // Get full command
+                        let cmd_output = Command::new("ps")
+                            .args(["-p", &pid.to_string(), "-o", "command="])
+                            .output()
+                            .ok();
+                        
+                        let command = cmd_output
+                            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                            .unwrap_or_default();
+                        
+                        result.push(PortProcess {
+                            port,
+                            pid,
+                            name,
+                            command,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        // Use netstat on Windows
+        let output = Command::new("netstat")
+            .args(["-ano", "-p", "TCP"])
+            .output()
+            .map_err(|e| format!("Failed to run netstat: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        for line in stdout.lines() {
+            if line.contains("LISTENING") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 5 {
+                    let local_addr = parts[1];
+                    let pid: u32 = parts[4].parse().unwrap_or(0);
+                    
+                    if let Some(port_str) = local_addr.split(':').last() {
+                        if let Ok(port) = port_str.parse::<u16>() {
+                            // Get process name using tasklist
+                            let name_output = Command::new("tasklist")
+                                .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
+                                .output()
+                                .ok();
+                            
+                            let name = name_output
+                                .map(|o| {
+                                    let s = String::from_utf8_lossy(&o.stdout);
+                                    s.split(',').next().unwrap_or("").trim_matches('"').to_string()
+                                })
+                                .unwrap_or_default();
+                            
+                            result.push(PortProcess {
+                                port,
+                                pid,
+                                name,
+                                command: String::new(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        // Use ss or netstat on Linux
+        let output = Command::new("ss")
+            .args(["-tlnp"])
+            .output()
+            .or_else(|_| {
+                Command::new("netstat")
+                    .args(["-tlnp"])
+                    .output()
+            })
+            .map_err(|e| format!("Failed to run ss/netstat: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        for line in stdout.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 6 {
+                let local_addr = parts[3];
+                
+                if let Some(port_str) = local_addr.rsplit(':').next() {
+                    if let Ok(port) = port_str.parse::<u16>() {
+                        // Parse pid from "users:(("name",pid=123,fd=4))"
+                        let pid_info = parts.get(6).unwrap_or(&"");
+                        let pid = pid_info
+                            .split("pid=")
+                            .nth(1)
+                            .and_then(|s| s.split(',').next())
+                            .and_then(|s| s.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        
+                        let name = pid_info
+                            .split("((\"")
+                            .nth(1)
+                            .and_then(|s| s.split('"').next())
+                            .unwrap_or("")
+                            .to_string();
+                        
+                        result.push(PortProcess {
+                            port,
+                            pid,
+                            name,
+                            command: String::new(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort by port
+    result.sort_by_key(|p| p.port);
+    
+    // Remove duplicates
+    result.dedup_by_key(|p| (p.port, p.pid));
+    
+    Ok(result)
+}
+
+/// Kill process by port
+#[tauri::command]
+async fn kill_process_by_port(port: u16) -> Result<(), String> {
+    use std::process::Command;
+    
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("lsof")
+            .args(["-ti", &format!(":{}", port)])
+            .output()
+            .map_err(|e| format!("Failed to run lsof: {}", e))?;
+        
+        let pids = String::from_utf8_lossy(&output.stdout);
+        for pid in pids.lines() {
+            if !pid.is_empty() {
+                let _ = Command::new("kill")
+                    .args(["-9", pid])
+                    .output();
+            }
+        }
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        // First get PID from netstat
+        let output = Command::new("netstat")
+            .args(["-ano"])
+            .output()
+            .map_err(|e| format!("Failed to run netstat: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if line.contains(&format!(":{}", port)) && line.contains("LISTENING") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if let Some(pid) = parts.last() {
+                    let _ = Command::new("taskkill")
+                        .args(["/F", "/PID", pid])
+                        .output();
+                }
+            }
+        }
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        let _ = Command::new("fuser")
+            .args(["-k", &format!("{}/tcp", port)])
+            .output();
+    }
+    
+    Ok(())
+}
+
+/// Kill process by PID
+#[tauri::command]
+async fn kill_process_by_pid(pid: u32) -> Result<(), String> {
+    use std::process::Command;
+    
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Failed to kill process {}: {}", pid, stderr));
+        }
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Failed to kill process {}: {}", pid, stderr));
+        }
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        let output = Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Failed to kill process {}: {}", pid, stderr));
+        }
+    }
+    
+    Ok(())
+}
+
+/// Execute command result
+#[derive(serde::Serialize)]
+pub struct AdminExecResult {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+}
+
+/// Execute a command with administrator privileges
+/// - macOS: Uses osascript with "administrator privileges"
+/// - Windows: Uses PowerShell Start-Process -Verb RunAs
+/// - Linux: Uses pkexec (PolicyKit)
+#[tauri::command]
+async fn execute_with_admin(command: String, args: Option<Vec<String>>) -> Result<AdminExecResult, String> {
+    use std::process::Command;
+    
+    let args = args.unwrap_or_default();
+    
+    #[cfg(target_os = "macos")]
+    {
+        // Build full command string
+        let full_command = if args.is_empty() {
+            command.clone()
+        } else {
+            format!("{} {}", command, args.join(" "))
+        };
+        
+        // Escape for AppleScript
+        let escaped_command = full_command
+            .replace("\\", "\\\\\\\\")
+            .replace("\"", "\\\"")
+            .replace("'", "'\\''");
+        
+        let script = format!(
+            r#"do shell script "{}" with administrator privileges"#,
+            escaped_command
+        );
+        
+        println!("[Admin] Executing with admin privileges: {}", full_command);
+        
+        let output = Command::new("osascript")
+            .args(["-e", &script])
+            .output()
+            .map_err(|e| format!("Failed to execute osascript: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        
+        // Check if user cancelled
+        if stderr.contains("User canceled") || stderr.contains("user canceled") {
+            return Err("User cancelled the operation".to_string());
+        }
+        
+        Ok(AdminExecResult {
+            success: output.status.success(),
+            stdout,
+            stderr,
+            exit_code: output.status.code(),
+        })
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        // Build full command string for cmd.exe
+        let full_command = if args.is_empty() {
+            command.clone()
+        } else {
+            format!("{} {}", command, args.join(" "))
+        };
+        
+        // Escape for PowerShell
+        let escaped_command = full_command.replace("\"", "`\"");
+        
+        // Create a temp script to capture output
+        let temp_dir = std::env::temp_dir();
+        let stdout_file = temp_dir.join(format!("rebebuca_admin_stdout_{}.txt", std::process::id()));
+        let stderr_file = temp_dir.join(format!("rebebuca_admin_stderr_{}.txt", std::process::id()));
+        
+        // PowerShell script to run as admin and capture output
+        let ps_script = format!(
+            r#"
+            $process = Start-Process -FilePath "cmd.exe" -ArgumentList '/c {} > "{}" 2> "{}"' -Verb RunAs -Wait -PassThru
+            exit $process.ExitCode
+            "#,
+            escaped_command,
+            stdout_file.display(),
+            stderr_file.display()
+        );
+        
+        println!("[Admin] Executing with admin privileges: {}", full_command);
+        
+        let output = Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_script])
+            .output()
+            .map_err(|e| format!("Failed to execute PowerShell: {}", e))?;
+        
+        // Read output files
+        let stdout = std::fs::read_to_string(&stdout_file).unwrap_or_default();
+        let stderr = std::fs::read_to_string(&stderr_file).unwrap_or_default();
+        
+        // Cleanup temp files
+        let _ = std::fs::remove_file(&stdout_file);
+        let _ = std::fs::remove_file(&stderr_file);
+        
+        // Check if user cancelled (UAC denied)
+        if stderr.contains("Operation was canceled") || !output.status.success() && stdout.is_empty() && stderr.is_empty() {
+            return Err("User cancelled the operation or UAC was denied".to_string());
+        }
+        
+        Ok(AdminExecResult {
+            success: output.status.success(),
+            stdout,
+            stderr,
+            exit_code: output.status.code(),
+        })
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        // Use pkexec (PolicyKit) for Linux
+        println!("[Admin] Executing with pkexec: {} {:?}", command, args);
+        
+        let output = Command::new("pkexec")
+            .arg(&command)
+            .args(&args)
+            .output()
+            .map_err(|e| format!("Failed to execute pkexec: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        
+        // Check if user cancelled
+        if stderr.contains("dismissed") || stderr.contains("Not authorized") {
+            return Err("User cancelled the operation or not authorized".to_string());
+        }
+        
+        Ok(AdminExecResult {
+            success: output.status.success(),
+            stdout,
+            stderr,
+            exit_code: output.status.code(),
+        })
+    }
+}
+
+/// Request file system access permission on macOS
+/// This triggers the system permission dialog for accessing protected directories
+#[tauri::command]
+async fn request_folder_access(path: String) -> Result<bool, String> {
+    use std::process::Command;
+    
+    #[cfg(target_os = "macos")]
+    {
+        // Try to list directory contents to trigger permission dialog
+        let output = Command::new("ls")
+            .arg(&path)
+            .output();
+        
+        match output {
+            Ok(o) => {
+                if o.status.success() {
+                    Ok(true)
+                } else {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    if stderr.contains("Operation not permitted") {
+                        // macOS will show permission dialog automatically when app tries to access
+                        // We need to use NSOpenPanel or similar to trigger proper permission request
+                        // For now, return false and let user grant permission in System Preferences
+                        Err("Permission denied. Please grant access in System Preferences > Security & Privacy > Privacy > Files and Folders".to_string())
+                    } else {
+                        Err(stderr.to_string())
+                    }
+                }
+            }
+            Err(e) => Err(format!("Failed to access path: {}", e))
+        }
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        // On Windows/Linux, just check if path exists and is accessible
+        use std::path::Path;
+        let path = Path::new(&path);
+        if path.exists() {
+            match std::fs::read_dir(path) {
+                Ok(_) => Ok(true),
+                Err(e) => Err(format!("Cannot access folder: {}", e))
+            }
+        } else {
+            Err("Path does not exist".to_string())
+        }
+    }
+}
+
+/// Check if a command requires admin privileges
+#[tauri::command]
+fn check_needs_admin(command: String) -> bool {
+    let cmd_lower = command.to_lowercase();
+    let cmd_trimmed = cmd_lower.trim();
+    
+    // Commands that typically need admin
+    let admin_commands = [
+        "sudo ",
+        "su ",
+        "doas ",
+        "pkexec ",
+        // Windows admin commands
+        "runas ",
+        "net user",
+        "net localgroup",
+        "netsh ",
+        "bcdedit",
+        "diskpart",
+        "sfc ",
+        "dism ",
+        "chkdsk ",
+        // System modification commands
+        "chmod ",
+        "chown ",
+        "mount ",
+        "umount ",
+        "fdisk ",
+        "mkfs ",
+        "systemctl ",
+        "service ",
+        "launchctl ",
+        // Package managers that may need admin
+        "apt ",
+        "apt-get ",
+        "yum ",
+        "dnf ",
+        "pacman ",
+        "brew services",
+    ];
+    
+    // Check if command starts with any admin command
+    for admin_cmd in admin_commands {
+        if cmd_trimmed.starts_with(admin_cmd) {
+            return true;
+        }
+    }
+    
+    // Check for sudo in piped commands
+    if cmd_lower.contains("| sudo ") || cmd_lower.contains("&& sudo ") || cmd_lower.contains("; sudo ") {
+        return true;
+    }
+    
+    false
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -979,11 +1493,24 @@ pub fn run() {
             // Create the menu
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
             
-            // Create application menu with Help submenu
+            // Create application menu with Edit submenu (for copy/paste shortcuts) and Help submenu
+            // Edit menu - required for keyboard shortcuts on macOS
+            let edit_submenu = Submenu::with_items(app, "Edit", true, &[
+                &PredefinedMenuItem::undo(app, Some("Undo"))?,
+                &PredefinedMenuItem::redo(app, Some("Redo"))?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::cut(app, Some("Cut"))?,
+                &PredefinedMenuItem::copy(app, Some("Copy"))?,
+                &PredefinedMenuItem::paste(app, Some("Paste"))?,
+                &PredefinedMenuItem::select_all(app, Some("Select All"))?,
+            ])?;
+            
+            // Help menu
             let about_item = MenuItem::with_id(app, "about", "关于 Rebebuca", true, None::<&str>)?;
             let website_item = MenuItem::with_id(app, "website", "访问官网", true, None::<&str>)?;
             let help_submenu = Submenu::with_items(app, "帮助", true, &[&about_item, &website_item])?;
-            let app_menu = Menu::with_items(app, &[&help_submenu])?;
+            
+            let app_menu = Menu::with_items(app, &[&edit_submenu, &help_submenu])?;
             app.set_menu(app_menu)?;
             
             // Handle application menu events
@@ -1085,7 +1612,13 @@ pub fn run() {
             get_app_log_dir,
             open_app_log_folder,
             list_app_log_files,
-            read_app_log_file
+            read_app_log_file,
+            get_port_processes,
+            kill_process_by_port,
+            kill_process_by_pid,
+            execute_with_admin,
+            request_folder_access,
+            check_needs_admin
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

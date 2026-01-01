@@ -17,7 +17,14 @@
  -->
 
 <template>
-  <div class="terminal-container" ref="terminalContainer"></div>
+  <div 
+    class="terminal-container" 
+    ref="terminalContainer"
+    @dragover.prevent="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop.prevent="handleDrop"
+    :class="{ 'drag-over': isDragOver }"
+  ></div>
 </template>
 
 <script setup lang="ts">
@@ -26,7 +33,8 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen, TauriEvent, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import '@xterm/xterm/css/xterm.css';
 
 interface Props {
@@ -50,11 +58,13 @@ const emit = defineEmits<{
 }>();
 
 const terminalContainer = ref<HTMLDivElement | null>(null);
+const isDragOver = ref(false);
 
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
 let unlistenOutput: UnlistenFn | null = null;
 let unlistenExit: UnlistenFn | null = null;
+let unlistenDragDrop: UnlistenFn | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let isInitialized = false;
 
@@ -130,14 +140,18 @@ const initTerminal = async () => {
 
   // Open terminal in container
   terminal.open(terminalContainer.value);
-
+  
   // Fit terminal to container
   await nextTick();
   fitAddon.fit();
-
-  // Get terminal dimensions
-  const { cols, rows } = terminal;
-
+  
+  // Get terminal dimensions (with fallback defaults)
+  const cols = terminal.cols || 80;
+  const rows = terminal.rows || 24;
+  
+  // Focus terminal after opening
+  terminal.focus();
+  
   try {
     // Only create PTY if not in attach-only mode
     if (!props.attachOnly) {
@@ -159,8 +173,13 @@ const initTerminal = async () => {
           cols,
         });
       } catch (e) {
-        // Ignore resize errors for already-exited tasks
-        console.warn('Failed to resize PTY (may have exited):', e);
+        // Ignore resize errors for already-exited tasks (e.g., quick commands like 'ls')
+        const errStr = String(e);
+        if (errStr.includes('PTY not found') || errStr.includes('not found')) {
+          console.debug('PTY already exited during init, resize skipped');
+        } else {
+          console.warn('Failed to resize PTY (may have exited):', e);
+        }
       }
     }
 
@@ -195,7 +214,13 @@ const initTerminal = async () => {
         rows,
         cols,
       }).catch((err) => {
-        console.error('Failed to resize PTY:', err);
+        // Ignore "PTY not found" errors - this happens when process exits quickly
+        const errStr = String(err);
+        if (errStr.includes('PTY not found') || errStr.includes('not found')) {
+          console.debug('PTY already exited, resize skipped');
+        } else {
+          console.error('Failed to resize PTY:', err);
+        }
       });
     });
 
@@ -278,6 +303,121 @@ const writeln = (data: string) => {
   terminal?.writeln(data);
 };
 
+// Escape path for shell (handle spaces and special characters)
+const escapePathForShell = (path: string): string => {
+  // If path contains spaces or special characters, quote it
+  if (/[\s'"\\$`!]/.test(path)) {
+    // Use single quotes and escape any single quotes in the path
+    return `'${path.replace(/'/g, "'\\''")}'`;
+  }
+  return path;
+};
+
+// Drag and drop handlers
+const handleDragOver = (event: DragEvent) => {
+  isDragOver.value = true;
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+};
+
+const handleDragLeave = () => {
+  isDragOver.value = false;
+};
+
+const handleDrop = async (event: DragEvent) => {
+  // Browser drop events don't contain file paths in Tauri
+  // We use Tauri's drag-drop events instead (setupDragDropListener)
+  event.preventDefault();
+};
+
+// Write file paths to PTY
+const writePathsToPty = async (paths: string[]) => {
+  if (paths.length === 0) return;
+  
+  const escapedPaths = paths.map(escapePathForShell).join(' ');
+  
+  try {
+    await invoke('write_pty', {
+      ptyId: props.ptyId,
+      data: escapedPaths,
+    });
+    
+    // Focus terminal after drop
+    terminal?.focus();
+  } catch (err) {
+    console.error('Failed to write dropped paths to PTY:', err);
+  }
+};
+
+// Setup Tauri drag-drop event listener
+const setupDragDropListener = async () => {
+  const appWindow = getCurrentWindow();
+  
+  // Listen for drag enter
+  const unlistenEnter = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
+    TauriEvent.DRAG_ENTER,
+    (event) => {
+      // Check if drop is over this terminal container
+      if (terminalContainer.value && isDropOverElement(event.payload.position)) {
+        isDragOver.value = true;
+      }
+    }
+  );
+  
+  // Listen for drag over (to update position)
+  const unlistenOver = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
+    TauriEvent.DRAG_OVER,
+    (event) => {
+      if (terminalContainer.value) {
+        isDragOver.value = isDropOverElement(event.payload.position);
+      }
+    }
+  );
+  
+  // Listen for drag leave
+  const unlistenLeave = await appWindow.listen(
+    TauriEvent.DRAG_LEAVE,
+    () => {
+      isDragOver.value = false;
+    }
+  );
+  
+  // Listen for actual drop
+  const unlistenDrop = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
+    TauriEvent.DRAG_DROP,
+    async (event) => {
+      isDragOver.value = false;
+      
+      // Only process if drop is over this terminal
+      if (terminalContainer.value && isDropOverElement(event.payload.position)) {
+        await writePathsToPty(event.payload.paths);
+      }
+    }
+  );
+  
+  // Store cleanup function
+  unlistenDragDrop = () => {
+    unlistenEnter();
+    unlistenOver();
+    unlistenLeave();
+    unlistenDrop();
+  };
+};
+
+// Check if the drop position is over this terminal element
+const isDropOverElement = (position: { x: number; y: number }): boolean => {
+  if (!terminalContainer.value) return false;
+  
+  const rect = terminalContainer.value.getBoundingClientRect();
+  return (
+    position.x >= rect.left &&
+    position.x <= rect.right &&
+    position.y >= rect.top &&
+    position.y <= rect.bottom
+  );
+};
+
 defineExpose({
   focus,
   fit,
@@ -288,9 +428,14 @@ defineExpose({
 
 onMounted(() => {
   initTerminal();
+  setupDragDropListener();
 });
 
 onUnmounted(() => {
+  if (unlistenDragDrop) {
+    unlistenDragDrop();
+    unlistenDragDrop = null;
+  }
   dispose();
 });
 </script>
@@ -303,6 +448,14 @@ onUnmounted(() => {
   box-sizing: border-box;
   background-color: v-bind('props.theme === "dark" ? "#1a1a1a" : "#ffffff"');
   border-radius: 6px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  border: 2px solid transparent;
+}
+
+/* Drag over visual feedback */
+.terminal-container.drag-over {
+  border-color: #00d084;
+  box-shadow: inset 0 0 20px rgba(0, 208, 132, 0.2);
 }
 
 .terminal-container :deep(.xterm) {

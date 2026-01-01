@@ -17,7 +17,7 @@
  -->
 
 <template>
-  <div class="custom-titlebar" @mousedown="startDrag">
+  <div class="custom-titlebar" :class="{ 'light-theme': effectiveTheme === 'light' }" @mousedown="startDrag">
     <div class="titlebar-content" :class="{ 'windows-layout': uiStore.isWindowsPlatform }">
       <!-- Left side for Windows title logo -->
       <div class="titlebar-left" v-if="uiStore.isWindowsPlatform">
@@ -241,6 +241,15 @@
           <n-form-item :label="t('settings.showTaskIcons')">
             <n-switch v-model:value="settingsStore.settings.showTaskIcons" />
           </n-form-item>
+          <n-form-item :label="t('settings.recentTasksCount')">
+            <n-input-number 
+              v-model:value="settingsStore.settings.recentTasksCount" 
+              :min="0" 
+              :max="20" 
+              style="width: 120px;"
+            />
+            <span class="setting-hint">{{ t('settings.recentTasksCountHint') }}</span>
+          </n-form-item>
         </n-form>
       </n-tab-pane>
       <n-tab-pane name="icons" :tab="t('settings.commandIcons')">
@@ -319,13 +328,14 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed, onUnmounted } from "vue";
-import { NButton, NDropdown, NModal, NForm, NFormItem, NSwitch, NInputNumber, NTabs, NTabPane, NSpace, NAlert, NSpin, NSelect, NDivider, NRadio, NRadioGroup } from "naive-ui";
+import { NButton, NDropdown, NModal, NForm, NFormItem, NSwitch, NInputNumber, NTabs, NTabPane, NSpace, NAlert, NSpin, NSelect, NDivider, NRadio, NRadioGroup, useDialog } from "naive-ui";
 import CommandIconSettings from "./CommandIconSettings.vue";
 import DevLogViewer from "./DevLogViewer.vue";
 import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
 import { useRunConfigStore } from "../stores/runConfig";
 import { useUpdaterStore } from "../stores/updater";
+import { useTerminalStore } from "../stores/terminal";
 import { useTheme } from "../composables/useTheme";
 import { useLocale } from "../composables/useLocale";
 import { useSettingsStore } from "../stores/settings";
@@ -348,6 +358,8 @@ const uiStore = useUIStore();
 const runConfigStore = useRunConfigStore();
 const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
+const terminalStore = useTerminalStore();
+const dialog = useDialog();
 const { setThemeMode } = useTheme();
 const { localeMode, getLocalizedOptions, setLocale } = useLocale();
 
@@ -418,7 +430,27 @@ const toggleSidebar = () => {
 // Handle close window with setting check
 const handleCloseWindow = async () => {
   const behavior = settingsStore.settings.closeButtonBehavior || 'exit';
+  const confirmBeforeClose = settingsStore.settings.confirmBeforeClose;
   
+  // Check if there are running tasks and confirmBeforeClose is enabled
+  if (confirmBeforeClose && terminalStore.runningTabs.length > 0) {
+    dialog.warning({
+      title: t('settings.confirmCloseTitle'),
+      content: t('settings.confirmCloseContent', { count: terminalStore.runningTabs.length }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        await performClose(behavior);
+      },
+    });
+    return;
+  }
+  
+  await performClose(behavior);
+};
+
+// Perform the actual close action
+const performClose = async (behavior: 'hide' | 'exit') => {
   if (behavior === 'hide') {
     // Hide window (minimize to tray)
     try {
@@ -572,5 +604,14 @@ const fetchReleaseNotes = async () => {
     align-items: center;
     min-height: 80px;
   }
+}
+.setting-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 8px;
+}
+
+.n-config-provider--light .setting-hint {
+  color: rgba(0, 0, 0, 0.45);
 }
 </style>

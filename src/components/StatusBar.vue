@@ -17,7 +17,7 @@
  -->
 
 <template>
-  <div class="status-bar">
+  <div class="status-bar" :class="{ 'light-theme': effectiveTheme === 'light' }">
     <!-- Left section: Command info -->
     <div class="status-section status-left">
       <template v-if="terminalStore.activeTab">
@@ -31,6 +31,12 @@
         <span v-else-if="terminalStore.activeTab.status === 'error'" class="status-indicator error">
           <component :is="iconComponents.close" />
         </span>
+
+        <!-- Task location (group or folder) -->
+        <span v-if="taskLocation" class="status-location" :title="taskLocation">
+          {{ taskLocation }}
+        </span>
+        <span v-if="taskLocation" class="status-separator">/</span>
 
         <!-- Command -->
         <span class="status-command" :title="terminalStore.activeTab.command || terminalStore.activeTab.label">
@@ -79,13 +85,47 @@
 </template>
 
 <script setup lang="ts">
+import { computed, h } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTerminalStore } from '../stores/terminal';
+import { useTaskManagerStore } from '../stores/taskManager';
+import { useTheme } from '../composables/useTheme';
 import { iconComponents, createSvgIcon } from '../utils/icons';
-import { h } from 'vue';
 
 const { t } = useI18n();
 const terminalStore = useTerminalStore();
+const taskManager = useTaskManagerStore();
+const { effectiveTheme } = useTheme();
+
+// Get task location (group name or folder name)
+const taskLocation = computed(() => {
+  const activeTab = terminalStore.activeTab;
+  if (!activeTab || activeTab.type === 'shell') return null;
+  
+  const taskId = activeTab.taskId;
+  if (!taskId) return null;
+  
+  // Check if task is in a user group
+  for (const group of taskManager.userGroups) {
+    if (group.tasks.some(t => t.id === taskId)) {
+      return group.name;
+    }
+  }
+  
+  // Check if task is from a folder
+  const task = taskManager.combinedTasks.find(t => t.id === taskId);
+  if (task?.sourceFile || task?.cwd) {
+    const path = task.sourceFile || task.cwd || '';
+    // Extract folder name from path
+    const parts = path.split(/[/\\]/).filter(p => p && p !== '.vscode' && !p.endsWith('.json'));
+    if (parts.length > 0) {
+      // Return the last meaningful folder name
+      return parts[parts.length - 1];
+    }
+  }
+  
+  return null;
+});
 
 // Custom SVG icons for status bar
 const svgIcons = {
@@ -179,6 +219,20 @@ const svgIcons = {
   font-size: 12px;
 }
 
+.status-location {
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.status-separator {
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
 .status-command {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -239,30 +293,46 @@ const svgIcons = {
 }
 
 /* Light theme */
-:global(.n-config-provider--light) .status-bar {
+:global(.n-config-provider--light) .status-bar,
+.status-bar.light-theme {
   background: rgba(0, 0, 0, 0.05);
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   color: rgba(0, 0, 0, 0.65);
 }
 
-:global(.n-config-provider--light) .status-placeholder {
+:global(.n-config-provider--light) .status-placeholder,
+.status-bar.light-theme .status-placeholder {
   color: rgba(0, 0, 0, 0.35);
 }
 
-:global(.n-config-provider--light) .status-item {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-:global(.n-config-provider--light) .status-item.pid {
+:global(.n-config-provider--light) .status-location,
+.status-bar.light-theme .status-location {
   color: rgba(0, 0, 0, 0.45);
 }
 
-:global(.n-config-provider--light) .status-item.tab-type {
+:global(.n-config-provider--light) .status-separator,
+.status-bar.light-theme .status-separator {
+  color: rgba(0, 0, 0, 0.25);
+}
+
+:global(.n-config-provider--light) .status-item,
+.status-bar.light-theme .status-item {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:global(.n-config-provider--light) .status-item.pid,
+.status-bar.light-theme .status-item.pid {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+:global(.n-config-provider--light) .status-item.tab-type,
+.status-bar.light-theme .status-item.tab-type {
   color: rgba(0, 0, 0, 0.4);
   background: rgba(0, 0, 0, 0.04);
 }
 
-:global(.n-config-provider--light) .status-indicator.running .pulse-dot {
+:global(.n-config-provider--light) .status-indicator.running .pulse-dot,
+.status-bar.light-theme .status-indicator.running .pulse-dot {
   background-color: #18a058;
 }
 </style>

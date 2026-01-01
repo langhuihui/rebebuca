@@ -32,6 +32,7 @@ import { npmScriptsProvider } from '../providers/npmScriptsProvider';
 import { useTerminalStore } from './terminal';
 import { useRunConfigStore } from './runConfig';
 import { useSettingsStore } from './settings';
+import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
 
 // Store instance for persistence
 let store: any = null;
@@ -55,6 +56,13 @@ export interface UserTaskGroup {
   id: string;
   name: string;
   tasks: Task[];
+}
+
+// Task run statistics interface
+export interface TaskRunStats {
+  taskId: string;
+  runCount: number;       // Total run count
+  lastRunTime: number;    // Last run timestamp
 }
 
 // Default group ID
@@ -109,6 +117,13 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   // Running tasks: Map<taskId, tabId>
   const runningTasks = ref<Map<string, string>>(new Map());
   
+  // Task run statistics: Map<taskId, TaskRunStats>
+  // Using shallowRef for better reactivity with Map
+  const taskRunStats = shallowRef<Map<string, TaskRunStats>>(new Map());
+  
+  // Recent tasks sort mode: 'time' (most recent first) or 'frequency' (most frequent first)
+  const recentSortMode = ref<'time' | 'frequency'>('time');
+  
   // ============================================
   // Computed
   // ============================================
@@ -136,6 +151,45 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   const regularTasks = computed(() => {
     const favoriteSet = new Set(favoriteTaskIds.value);
     return combinedTasks.value.filter(t => !favoriteSet.has(t.id));
+  });
+  
+  // Recent tasks (sorted by last run time or frequency based on recentSortMode)
+  const recentTasks = computed(() => {
+    const settingsStore = useSettingsStore();
+    const count = settingsStore.settings.recentTasksCount ?? 5;
+    
+    // Force dependency on taskRunStats by accessing its size
+    const statsSize = taskRunStats.value.size;
+    
+    console.log('[TaskManager] recentTasks computed:', {
+      count,
+      taskRunStatsSize: statsSize,
+      sortMode: recentSortMode.value,
+    });
+    
+    if (count === 0) return [];
+    if (statsSize === 0) return [];
+    
+    // Filter tasks that have run stats (include favorites - they can appear in both sections)
+    const matchingTasks = combinedTasks.value.filter(t => taskRunStats.value.has(t.id));
+    
+    const tasksWithStats = matchingTasks
+      .map(task => {
+        const stats = taskRunStats.value.get(task.id)!;
+        return { task, lastRunTime: stats.lastRunTime, runCount: stats.runCount };
+      })
+      .sort((a, b) => {
+        // Sort based on mode
+        if (recentSortMode.value === 'frequency') {
+          return b.runCount - a.runCount; // Most frequent first
+        }
+        return b.lastRunTime - a.lastRunTime; // Most recent first
+      })
+      .slice(0, count)
+      .map(item => item.task);
+    
+    console.log('[TaskManager] recentTasks result:', tasksWithStats.length, tasksWithStats.map(t => t.name));
+    return tasksWithStats;
   });
   
   // Check if a task is running
@@ -376,6 +430,96 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     } catch (error) {
       console.error('[TaskManager] Failed to load favorites:', error);
     }
+  }
+  
+  /**
+   * Save task run statistics to persistent storage
+   */
+  async function saveTaskRunStats(): Promise<void> {
+    try {
+      const storeInstance = await initStore();
+      if (storeInstance) {
+        // Convert Map to array for storage
+        const statsArray = Array.from(taskRunStats.value.values());
+        await storeInstance.set('taskRunStats', statsArray);
+        await storeInstance.save();
+        console.log('[TaskManager] Saved task run stats:', statsArray.length, 'entries');
+      }
+    } catch (error) {
+      console.error('[TaskManager] Failed to save task run stats:', error);
+    }
+  }
+  
+  /**
+   * Load task run statistics from persistent storage
+   */
+  async function loadTaskRunStats(): Promise<void> {
+    try {
+      const storeInstance = await initStore();
+      if (storeInstance) {
+        const statsArray = await storeInstance.get('taskRunStats');
+        if (statsArray && Array.isArray(statsArray)) {
+          taskRunStats.value = new Map(statsArray.map((s: TaskRunStats) => [s.taskId, s]));
+          console.log('[TaskManager] Loaded task run stats:', statsArray.length, 'entries');
+        }
+        
+        // Load recent sort mode
+        const sortMode = await storeInstance.get('recentSortMode');
+        if (sortMode === 'time' || sortMode === 'frequency') {
+          recentSortMode.value = sortMode;
+          console.log('[TaskManager] Loaded recent sort mode:', sortMode);
+        }
+      }
+    } catch (error) {
+      console.error('[TaskManager] Failed to load task run stats:', error);
+    }
+  }
+  
+  /**
+   * Toggle recent tasks sort mode between 'time' and 'frequency'
+   */
+  async function toggleRecentSortMode(): Promise<void> {
+    recentSortMode.value = recentSortMode.value === 'time' ? 'frequency' : 'time';
+    
+    // Save the preference
+    try {
+      const storeInstance = await initStore();
+      if (storeInstance) {
+        await storeInstance.set('recentSortMode', recentSortMode.value);
+        await storeInstance.save();
+        console.log('[TaskManager] Saved recent sort mode:', recentSortMode.value);
+      }
+    } catch (error) {
+      console.error('[TaskManager] Failed to save recent sort mode:', error);
+    }
+  }
+  
+  /**
+   * Update task run statistics when a task is executed
+   */
+  async function updateTaskRunStats(taskId: string): Promise<void> {
+    console.log('[TaskManager] updateTaskRunStats called for:', taskId);
+    const existing = taskRunStats.value.get(taskId);
+    const now = Date.now();
+    
+    if (existing) {
+      existing.runCount += 1;
+      existing.lastRunTime = now;
+      console.log('[TaskManager] Updated existing stats:', existing);
+    } else {
+      const newStats = {
+        taskId,
+        runCount: 1,
+        lastRunTime: now,
+      };
+      taskRunStats.value.set(taskId, newStats);
+      console.log('[TaskManager] Created new stats:', newStats);
+    }
+    
+    // Trigger reactivity
+    taskRunStats.value = new Map(taskRunStats.value);
+    console.log('[TaskManager] taskRunStats size after update:', taskRunStats.value.size);
+    await saveTaskRunStats();
   }
   
   /**
@@ -679,6 +823,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     // Load favorites first
     await loadFavorites();
     
+    // Load task run statistics
+    await loadTaskRunStats();
+    
     // Load user groups
     await loadUserGroups();
     
@@ -836,7 +983,10 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     // Check if task should be executed in system terminal
     if (task.useSystemTerminal) {
+      console.log('[TaskManager] Task configured to use system terminal:', task.name);
       await executeInSystemTerminal(task, cwd);
+      // Update task run statistics for system terminal tasks
+      await updateTaskRunStats(task.id);
       return;
     }
     
@@ -929,6 +1079,83 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     // Build the full command string for display
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
     
+    // Check if command needs admin privileges
+    const needsAdmin = await checkNeedsAdmin(fullCommand);
+    
+    if (needsAdmin) {
+      console.log('[TaskManager] Command requires admin privileges:', fullCommand);
+      
+      // For admin commands, we execute differently:
+      // 1. Strip sudo prefix if present (admin execution handles elevation)
+      // 2. Execute via system admin dialog
+      // 3. Show result in a terminal-like output
+      
+      const strippedCmd = stripSudoPrefix(command, args);
+      const adminFullCommand = buildFullCommand(strippedCmd.command, strippedCmd.args);
+      
+      // Create history record
+      const historyRecord = await runConfigStore.addHistory({
+        configId: task.id,
+        name: task.name,
+        command: `[ADMIN] ${fullCommand}`,
+        status: 'running',
+        timestamp: new Date(),
+        startTime: Date.now(),
+      });
+      
+      try {
+        console.log('[TaskManager] Executing with admin privileges:', adminFullCommand);
+        
+        const result = await executeWithAdmin(strippedCmd.command, strippedCmd.args);
+        
+        // Update history with result
+        const status = result.success ? 'success' : 'error';
+        const output = result.stdout + (result.stderr ? `\n[STDERR] ${result.stderr}` : '');
+        const duration = Date.now() - (historyRecord.startTime || Date.now());
+        
+        await runConfigStore.updateHistory(historyRecord.id, {
+          status,
+          output,
+          duration,
+        });
+        
+        // Update task run statistics
+        await updateTaskRunStats(task.id);
+        
+        console.log(`[TaskManager] Admin task completed: ${task.name}, success: ${result.success}`);
+        
+        // If there's output, we could optionally show it in a terminal tab
+        // For now, just log it
+        if (result.stdout) {
+          console.log('[TaskManager] Admin command stdout:', result.stdout);
+        }
+        if (result.stderr) {
+          console.warn('[TaskManager] Admin command stderr:', result.stderr);
+        }
+        
+        return;
+      } catch (error) {
+        // User cancelled or execution failed
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        await runConfigStore.updateHistory(historyRecord.id, {
+          status: 'error',
+          output: `Admin execution failed: ${errorMessage}`,
+          duration: Date.now() - (historyRecord.startTime || Date.now()),
+        });
+        
+        // Don't throw - user cancellation is not an error to propagate
+        if (errorMessage.includes('cancel') || errorMessage.includes('Cancel')) {
+          console.log('[TaskManager] User cancelled admin execution');
+          return;
+        }
+        
+        throw error;
+      }
+    }
+    
+    // Normal (non-admin) execution continues below
+    
     // Create history record first
     const historyRecord = await runConfigStore.addHistory({
       configId: task.id,
@@ -969,6 +1196,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       
       // Track this task as running
       runningTasks.value.set(task.id, tab.id);
+      
+      // Update task run statistics
+      await updateTaskRunStats(task.id);
       
       // Update history with PTY ID, terminal tab ID, and log filename
       await runConfigStore.updateHistory(historyRecord.id, {
@@ -1131,6 +1361,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     initialized,
     favoriteTaskIds,
     runningTasks,
+    recentSortMode,
     
     // Computed
     tasksBySource,
@@ -1140,6 +1371,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     treeItems,
     userGroupTreeItems,
     favoriteTasks,
+    recentTasks,
     regularTasks,
     allUserTasks,
     combinedTasks,
@@ -1168,6 +1400,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     toggleFavorite,
     isFavorite,
     reorderFavorites,
+    toggleRecentSortMode,
     // User group methods
     createUserGroup,
     renameUserGroup,

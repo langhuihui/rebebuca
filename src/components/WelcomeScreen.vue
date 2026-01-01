@@ -17,7 +17,7 @@
  -->
 
 <template>
-  <div class="welcome-screen-container">
+  <div class="welcome-screen-container" :class="{ 'light-theme': effectiveTheme === 'light' }">
     <div class="welcome-screen">
       <div class="welcome-logo-container">
         <img

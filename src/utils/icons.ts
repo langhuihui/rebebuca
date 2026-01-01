@@ -176,12 +176,6 @@ export const iconComponents = {
     h('path', { d: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' })
   ]),
 
-  // 重播历史图标
-  replayHistory: createIconComponent([
-    h('path', { d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' }),
-    h('path', { d: 'M3 3v5h5' })
-  ]),
-
   // 删除图标
   delete: createIconComponent([
     h('path', { d: 'M3 6h18' }),
@@ -219,13 +213,6 @@ export const iconComponents = {
     h('rect', { x: '2', y: '3', width: '20', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }),
     h('rect', { x: '2', y: '3', width: '10', height: '18', rx: '2', ry: '2', fill: 'rgba(255,255,255,0.3)' }),
     h('rect', { x: '2', y: '3', width: '10', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' })
-  ]),
-
-  // 历史面板图标
-  historyPanel: createIconComponent([
-    h('rect', { x: '2', y: '3', width: '20', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('rect', { x: '12', y: '3', width: '10', height: '18', rx: '2', ry: '2', fill: 'rgba(255,255,255,0.3)' }),
-    h('rect', { x: '12', y: '3', width: '10', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' })
   ]),
 
   // 新建配置图标
@@ -529,10 +516,14 @@ export const svgIcons = {
     h('path', { d: 'M3 6l9 4 9-4M12 22V10', fill: 'none', stroke: '#C71A36', 'stroke-width': '2' }),
   ]),
   
-  // AI/Magic 图标
+  // AI/Magic 图标 (sparkles/闪光)
   ai: createSvgIcon([
-    h('path', { d: 'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z', fill: 'none', stroke: '#8B5CF6', 'stroke-width': '1.5' }),
-    h('circle', { cx: '12', cy: '12', r: '3', fill: '#8B5CF6' }),
+    // 大星星
+    h('path', { d: 'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z', fill: '#8B5CF6', stroke: '#8B5CF6', 'stroke-width': '1' }),
+    // 小星星右上
+    h('path', { d: 'M19 2l.75 2.25L22 5l-2.25.75L19 8l-.75-2.25L16 5l2.25-.75L19 2z', fill: '#A78BFA', stroke: 'none' }),
+    // 小星星左下
+    h('path', { d: 'M6 14l.75 2.25L9 17l-2.25.75L6 20l-.75-2.25L3 17l2.25-.75L6 14z', fill: '#A78BFA', stroke: 'none' }),
   ]),
   
   // FFmpeg 图标 (视频/音频处理)
@@ -594,5 +585,33 @@ export const svgIcons = {
     h('path', { d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }),
     h('polyline', { points: '15 3 21 3 21 9' }),
     h('line', { x1: '10', y1: '14', x2: '21', y2: '3' })
+  ]),
+  
+  // 网络/端口图标
+  network: createSvgIcon([
+    h('rect', { x: '16', y: '16', width: '6', height: '6', rx: '1' }),
+    h('rect', { x: '2', y: '16', width: '6', height: '6', rx: '1' }),
+    h('rect', { x: '9', y: '2', width: '6', height: '6', rx: '1' }),
+    h('path', { d: 'M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3' }),
+    h('line', { x1: '12', y1: '12', x2: '12', y2: '8' })
+  ]),
+  
+  // 搜索图标
+  search: createSvgIcon([
+    h('circle', { cx: '11', cy: '11', r: '8' }),
+    h('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' })
+  ]),
+  
+  // 时钟图标（按时间排序）
+  clock: createSvgIcon([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('polyline', { points: '12 6 12 12 16 14' })
+  ]),
+  
+  // 图表图标（按频率排序）
+  chart: createSvgIcon([
+    h('line', { x1: '18', y1: '20', x2: '18', y2: '10' }),
+    h('line', { x1: '12', y1: '20', x2: '12', y2: '4' }),
+    h('line', { x1: '6', y1: '20', x2: '6', y2: '14' })
   ]),
 };

@@ -34,7 +34,7 @@ if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
 }
 
 // Apply initial theme class to DOM
-const applyThemeClass = () => {
+const applyThemeClass = (theme?: 'light' | 'dark') => {
   // Wait for DOM to be ready
   if (typeof document !== 'undefined') {
     const configProvider = document.querySelector('.n-config-provider');
@@ -46,13 +46,13 @@ const applyThemeClass = () => {
       );
 
       // Determine the effective theme
-      let effectiveTheme = themeMode.value;
-      if (themeMode.value === 'system') {
-        effectiveTheme = systemTheme.value;
+      let effectiveThemeValue = theme;
+      if (!effectiveThemeValue) {
+        effectiveThemeValue = themeMode.value === 'system' ? systemTheme.value : themeMode.value;
       }
 
       // Add the correct theme class
-      if (effectiveTheme === 'light') {
+      if (effectiveThemeValue === 'light') {
         configProvider.classList.add('n-config-provider--light');
       } else {
         configProvider.classList.add('n-config-provider--dark');
@@ -107,8 +107,9 @@ const themeName = computed(() => {
 const setThemeMode = (mode: ThemeMode) => {
   themeMode.value = mode;
   localStorage.setItem(STORAGE_KEY, mode);
-  // Apply theme class immediately
-  applyThemeClass();
+  // Calculate the effective theme and apply it immediately
+  const effectiveThemeValue = mode === 'system' ? systemTheme.value : mode;
+  applyThemeClass(effectiveThemeValue);
 };
 
 // Toggle between light and dark (skip system for manual toggle)

@@ -7,7 +7,6 @@ import type { RunHistory } from "./runConfig";
 export const useUIStore = defineStore("ui", () => {
   // UI state
   const sidebarVisible = ref(true);
-  const historyPanelVisible = ref(true);
   const isWindowsPlatform = ref(false);
   const selectedHistoryItem = ref<RunHistory | null>(null);
   const consoleScrollbarRef = ref<any>(null);
@@ -43,10 +42,6 @@ export const useUIStore = defineStore("ui", () => {
     sidebarVisible.value = !sidebarVisible.value;
   };
 
-  const toggleHistoryPanel = () => {
-    historyPanelVisible.value = !historyPanelVisible.value;
-  };
-
   const setWindowsPlatform = (value: boolean) => {
     isWindowsPlatform.value = value;
   };
@@ -72,7 +67,6 @@ export const useUIStore = defineStore("ui", () => {
   return {
     // State
     sidebarVisible,
-    historyPanelVisible,
     isWindowsPlatform,
     selectedHistoryItem,
     consoleScrollbarRef,
@@ -84,7 +78,6 @@ export const useUIStore = defineStore("ui", () => {
 
     // Actions
     toggleSidebar,
-    toggleHistoryPanel,
     setWindowsPlatform,
     setSelectedHistoryItem,
     setConsoleScrollbarRef,

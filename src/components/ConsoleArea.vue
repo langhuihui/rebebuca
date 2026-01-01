@@ -17,7 +17,7 @@
  -->
 
 <template>
-  <div class="console-area">
+  <div class="console-area" :class="{ 'light-theme': effectiveTheme === 'light' }">
     <!-- Welcome screen when no tabs and no history selected -->
     <WelcomeScreen
       v-if="terminalStore.tabs.length === 0 && !uiStore.selectedHistoryItem"
@@ -185,7 +185,8 @@ import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
 import { useTerminalStore, type TerminalTab } from "../stores/terminal";
-import { iconComponents } from "../utils/icons";
+import { useSettingsStore } from "../stores/settings";
+import { iconComponents, svgIcons, getCommandIconName } from "../utils/icons";
 import { ansiToHtml } from "../utils/ansiUtils";
 import WelcomeScreen from "./WelcomeScreen.vue";
 import TerminalView from "./TerminalView.vue";
@@ -367,18 +368,27 @@ watch(
   { deep: true }
 );
 
-// Get icon for tab based on type and status
+// Get icon for tab based on type, command, and status
 const getTabIcon = (tab: TerminalTab) => {
-  if (tab.status === 'running') {
-    return iconComponents.running;
+  // For task tabs, use command-based icon
+  if (tab.type === 'task' && tab.execParams?.command) {
+    const settingsStore = useSettingsStore();
+    const customIcons = settingsStore.settings.commandIcons || {};
+    const iconName = getCommandIconName(tab.execParams.command, customIcons);
+    if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {
+      return svgIcons[iconName as keyof typeof svgIcons];
+    }
+    return iconComponents.task;
   }
+  
+  // For shell tabs
   if (tab.status === 'success') {
     return iconComponents.success;
   }
   if (tab.status === 'error') {
     return iconComponents.error;
   }
-  return tab.type === 'shell' ? iconComponents.terminal : iconComponents.task;
+  return iconComponents.terminal;
 };
 
 // Get working directory for a tab
@@ -439,8 +449,19 @@ const handleClearTerminal = () => {
 };
 
 // Terminal event handlers
-const onTerminalReady = (tabId: string) => {
+const onTerminalReady = async (tabId: string) => {
   console.log('[Terminal] Ready:', tabId);
+  
+  // Start pending task if this is a task tab
+  const tab = terminalStore.tabs.find(t => t.id === tabId);
+  if (tab && tab.type === 'task' && tab.status === 'pending') {
+    try {
+      await terminalStore.startTask(tabId);
+    } catch (error) {
+      console.error('[Terminal] Failed to start task:', error);
+    }
+  }
+  
   // Focus only if this is the active tab
   if (terminalStore.activeTabId === tabId) {
     const ref = terminalRefs.value.get(tabId);
@@ -507,16 +528,6 @@ const onTerminalError = (error: string) => {
 
 .terminal-tab.running .tab-icon {
   color: #00d084;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .terminal-tab.success .tab-icon {
@@ -593,29 +604,35 @@ const onTerminalError = (error: string) => {
 }
 
 /* Light theme adjustments */
-:global(.n-config-provider--light) .terminal-tabs {
+:global(.n-config-provider--light) .terminal-tabs,
+.console-area.light-theme .terminal-tabs {
   background: rgba(0, 0, 0, 0.03);
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-:global(.n-config-provider--light) .terminal-tab {
+:global(.n-config-provider--light) .terminal-tab,
+.console-area.light-theme .terminal-tab {
   color: rgba(0, 0, 0, 0.65);
 }
 
-:global(.n-config-provider--light) .terminal-tab:hover {
+:global(.n-config-provider--light) .terminal-tab:hover,
+.console-area.light-theme .terminal-tab:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
-:global(.n-config-provider--light) .terminal-tab.active {
+:global(.n-config-provider--light) .terminal-tab.active,
+.console-area.light-theme .terminal-tab.active {
   background: rgba(0, 0, 0, 0.08);
   color: #000000;
 }
 
-:global(.n-config-provider--light) .add-tab-button {
+:global(.n-config-provider--light) .add-tab-button,
+.console-area.light-theme .add-tab-button {
   color: rgba(0, 0, 0, 0.45);
 }
 
-:global(.n-config-provider--light) .add-tab-button:hover {
+:global(.n-config-provider--light) .add-tab-button:hover,
+.console-area.light-theme .add-tab-button:hover {
   background: rgba(0, 0, 0, 0.05);
   color: rgba(0, 0, 0, 0.65);
 }
@@ -653,15 +670,18 @@ const onTerminalError = (error: string) => {
   font-size: 12px;
 }
 
-:global(.n-config-provider--light) .history-output-wrapper {
+:global(.n-config-provider--light) .history-output-wrapper,
+.console-area.light-theme .history-output-wrapper {
   background: #f5f5f5;
 }
 
-:global(.n-config-provider--light) .history-output {
+:global(.n-config-provider--light) .history-output,
+.console-area.light-theme .history-output {
   color: #333333;
 }
 
-:global(.n-config-provider--light) .history-loading {
+:global(.n-config-provider--light) .history-loading,
+.console-area.light-theme .history-loading {
   color: #666;
 }
 </style>
