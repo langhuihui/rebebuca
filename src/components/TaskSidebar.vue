@@ -1317,8 +1317,8 @@ const scannedTasks = ref<Task[]>([]);
 const selectedImportTasks = ref<string[]>([]);
 const addFolderData = reactive({
   sourceFolder: '',
-  isImportMode: false, // false = open folder, true = import tasks
-  isQuickScanMode: false, // true = quick scan (auto-scan common directories)
+  isImportMode: false,
+  isQuickScanMode: false,
   targetGroupId: 'default',
   newGroupName: '',
 });
