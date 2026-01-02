@@ -210,3 +210,36 @@ if (heroLogo) {
     }
   });
 }
+
+// Fetch latest version info from R2
+async function updateDownloadLinks() {
+  try {
+    const response = await fetch('https://download.m7s.live/rb/latest.json');
+    const data = await response.json();
+    const version = data.version;
+    const versionTag = `v${version}`;
+    
+    // Update version display
+    const versionEl = document.getElementById('current-version');
+    if (versionEl) {
+      versionEl.textContent = versionTag;
+    }
+    
+    // Update macOS download link
+    const macosLink = document.getElementById('download-macos');
+    if (macosLink) {
+      macosLink.href = `https://download.m7s.live/rb/${versionTag}/macos/Rebebuca.dmg`;
+    }
+    
+    // Update Windows download link
+    const windowsLink = document.getElementById('download-windows');
+    if (windowsLink) {
+      windowsLink.href = `https://download.m7s.live/rb/${versionTag}/nsis/Rebebuca_${version}_x64-setup.exe`;
+    }
+  } catch (error) {
+    console.error('Failed to fetch latest version info:', error);
+  }
+}
+
+// Fetch latest version on page load
+updateDownloadLinks();
