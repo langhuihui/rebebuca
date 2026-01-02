@@ -146,6 +146,8 @@ export default {
     scan: '扫描任务',
     openFolder: '打开文件夹',
     openInExplorer: '在文件管理器中打开',
+    quickScan: '快速扫描',
+    quickScanGroupName: '快速扫描结果',
     addFolder: '添加文件夹',
     addFolderMode: '添加方式',
     modeOpen: '打开',

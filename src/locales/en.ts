@@ -146,6 +146,8 @@ export default {
     scan: 'Scan for Tasks',
     openFolder: 'Open Folder',
     openInExplorer: 'Open in Explorer',
+    quickScan: 'Quick Scan',
+    quickScanGroupName: 'Quick Scan Results',
     addFolder: 'Add Folder',
     addFolderMode: 'Add Mode',
     modeOpen: 'Open',
