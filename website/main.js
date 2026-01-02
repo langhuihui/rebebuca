@@ -43,13 +43,6 @@ class ThemeManager {
     const currentLang = document.documentElement.lang || 'en';
     const currentTheme = this.theme;
 
-    // Update screenshots
-    document.querySelectorAll('.screenshot-img').forEach(img => {
-      const imgLang = img.dataset.lang;
-      const imgTheme = img.dataset.theme;
-      img.style.display = (imgLang === currentLang && imgTheme === currentTheme) ? 'block' : 'none';
-    });
-
     // Update videos
     document.querySelectorAll('.demo-video').forEach(video => {
       const videoLang = video.dataset.lang;
