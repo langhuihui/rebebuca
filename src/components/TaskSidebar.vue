@@ -50,14 +50,32 @@
             </div>
             <!-- Action buttons -->
             <n-space :size="4">
-              <!-- Add folder button (open or import) -->
-              <n-tooltip trigger="hover">
+              <!-- Add folder/Quick Scan button -->
+              <n-tooltip v-if="taskManager.folders.length === 0" trigger="hover">
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="handleQuickScan"
+                    >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.search" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('task.quickScan') }}
+              </n-tooltip>
+              
+              <!-- Add folder/Open/Import button -->
+              <n-tooltip v-else trigger="hover">
                 <template #trigger>
                   <n-button
                     size="small"
                     quaternary
                     @click="handleAddFolder"
-                  >
+                    >
                     <template #icon>
                       <n-icon size="16">
                         <component :is="svgIcons.folderPlus" />
@@ -1300,6 +1318,7 @@ const selectedImportTasks = ref<string[]>([]);
 const addFolderData = reactive({
   sourceFolder: '',
   isImportMode: false, // false = open folder, true = import tasks
+  isQuickScanMode: false, // true = quick scan (auto-scan common directories)
   targetGroupId: 'default',
   newGroupName: '',
 });
@@ -1453,13 +1472,64 @@ const getFullCommand = (task: Task): string => {
   return cmd;
 };
 
-// Handle add folder - opens dialog to choose open or import mode
+// Handle add folder - supports quick scan mode when no folders exist
 const handleAddFolder = () => {
+  // If no folders exist, default to quick scan mode
+  if (taskManager.folders.length === 0) {
+    addFolderData.isQuickScanMode = true;
+    addFolderData.isImportMode = false;
+  } else {
+    addFolderData.isQuickScanMode = false;
+    addFolderData.isImportMode = false;
+  }
+  
   addFolderData.sourceFolder = '';
-  addFolderData.isImportMode = false;
   addFolderData.targetGroupId = 'default';
   addFolderData.newGroupName = '';
   showAddFolderDialog.value = true;
+};
+
+// Handle quick scan
+const handleQuickScan = async () => {
+  try {
+    const commonDirs = [
+      'Documents',
+      'Desktop',
+    ];
+    
+    // Try to scan each common directory
+    const allTasks: Task[] = [];
+    let scannedAny = false;
+    
+    for (const dir of commonDirs) {
+      try {
+        const tasks = await taskManager.scanFolderForTasks(dir);
+        if (tasks.length > 0) {
+          allTasks.push(...tasks);
+          scannedAny = true;
+        }
+      } catch (error) {
+        console.warn(`[TaskSidebar] Failed to scan ${dir}:`, error);
+      }
+    }
+    
+    if (scannedAny && allTasks.length > 0) {
+      // Auto-import all scanned tasks to a new group
+      try {
+        const newGroupName = t('task.quickScanGroupName');
+        const groupId = await taskManager.createUserGroup(newGroupName);
+        
+        // Import all tasks to the new group
+        const tasksToImport = allTasks;
+        const importedCount = await taskManager.importTasksToGroupWithOverwrite(groupId, tasksToImport);
+        console.log(`[TaskSidebar] Quick scan completed: imported ${importedCount} tasks from ${allTasks.length} directories`);
+      } catch (error) {
+        console.error('[TaskSidebar] Quick scan failed:', error);
+      }
+    }
+  } catch (error) {
+    console.error('[TaskSidebar] Quick scan failed:', error);
+  }
 };
 
 // Handle select folder in add folder dialog
