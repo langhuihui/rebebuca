@@ -1517,11 +1517,11 @@ const handleQuickScan = async () => {
       // Auto-import all scanned tasks to a new group
       try {
         const newGroupName = t('task.quickScanGroupName');
-        const groupId = await taskManager.createUserGroup(newGroupName);
+        const newGroup = await taskManager.createUserGroup(newGroupName);
         
         // Import all tasks to the new group
         const tasksToImport = allTasks;
-        const importedCount = await taskManager.importTasksToGroupWithOverwrite(groupId, tasksToImport);
+        const importedCount = await taskManager.importTasksToGroupWithOverwrite(newGroup.id, tasksToImport);
         console.log(`[TaskSidebar] Quick scan completed: imported ${importedCount} tasks from ${allTasks.length} directories`);
       } catch (error) {
         console.error('[TaskSidebar] Quick scan failed:', error);
