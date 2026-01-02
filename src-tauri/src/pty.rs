@@ -478,10 +478,26 @@ impl PtyManager {
         }).map_err(|e| format!("Failed to open PTY: {}", e))?;
 
         // Build command with arguments
-        let mut cmd = CommandBuilder::new(&command);
-        for arg in &args {
-            cmd.arg(arg);
-        }
+        // On Windows, we need to use cmd.exe /c to run batch scripts like npm.cmd
+        #[cfg(target_os = "windows")]
+        let mut cmd = {
+            let mut c = CommandBuilder::new("cmd.exe");
+            c.arg("/c");
+            c.arg(&command);
+            for arg in &args {
+                c.arg(arg);
+            }
+            c
+        };
+        
+        #[cfg(not(target_os = "windows"))]
+        let mut cmd = {
+            let mut c = CommandBuilder::new(&command);
+            for arg in &args {
+                c.arg(arg);
+            }
+            c
+        };
 
         // Set working directory
         if let Some(cwd) = &options.cwd {
