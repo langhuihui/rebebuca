@@ -81,6 +81,7 @@ jobs:
 
       - name: Build Tauri app and create release
         uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -92,3 +93,142 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload artifacts to R2
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.R2_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET }}
+          aws_bucket: monibuca
+          source_dir: src-tauri/target/release/bundle
+          destination_dir: rb/${{ github.ref_name }}
+        env:
+          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+
+      - name: Generate and upload latest.json to R2
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION_NUM=${VERSION#v}
+          
+          # Find signature files
+          MAC_SIG=$(cat src-tauri/target/universal-apple-darwin/release/bundle/macos/Rebebuca.app.tar.gz.sig 2>/dev/null || echo "")
+          
+          # Create latest.json for updater
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION_NUM}",
+            "notes": "See release notes on GitHub",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MAC_SIG}",
+                "url": "https://download.m7s.live/rb/${VERSION}/macos/Rebebuca.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${MAC_SIG}",
+                "url": "https://download.m7s.live/rb/${VERSION}/macos/Rebebuca.app.tar.gz"
+              }
+            }
+          }
+          EOF
+          
+          echo "Generated latest.json:"
+          cat latest.json
+
+      - name: Generate and upload latest.json to R2 (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION_NUM=${VERSION#v}
+          
+          # Find signature files
+          WIN_SIG=$(cat src-tauri/target/release/bundle/nsis/Rebebuca_${VERSION_NUM}_x64-setup.nsis.zip.sig 2>/dev/null || echo "")
+          
+          # Create windows-latest.json
+          cat > windows-latest.json << EOF
+          {
+            "version": "${VERSION_NUM}",
+            "notes": "See release notes on GitHub",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "${WIN_SIG}",
+                "url": "https://download.m7s.live/rb/${VERSION}/nsis/Rebebuca_${VERSION_NUM}_x64-setup.nsis.zip"
+              }
+            }
+          }
+          EOF
+          
+          echo "Generated windows-latest.json:"
+          cat windows-latest.json
+
+      - name: Upload latest.json to R2
+        if: matrix.platform == 'macos-latest'
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.R2_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET }}
+          aws_bucket: monibuca
+          source_dir: ./
+          destination_dir: rb
+        env:
+          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          SOURCE_FILES: latest.json
+
+      - name: Upload windows-latest.json to R2
+        if: matrix.platform == 'windows-latest'
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.R2_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET }}
+          aws_bucket: monibuca
+          source_dir: ./
+          destination_dir: rb
+        env:
+          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          SOURCE_FILES: windows-latest.json
+
+  merge-latest-json:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download latest.json files from R2
+        run: |
+          curl -o mac-latest.json "https://download.m7s.live/rb/latest.json" || echo '{}' > mac-latest.json
+          curl -o win-latest.json "https://download.m7s.live/rb/windows-latest.json" || echo '{}' > win-latest.json
+          
+          echo "Mac latest.json:"
+          cat mac-latest.json
+          echo "Windows latest.json:"
+          cat win-latest.json
+
+      - name: Merge latest.json
+        run: |
+          # Install jq
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # Merge the two JSON files
+          jq -s '{
+            version: .[0].version,
+            notes: .[0].notes,
+            pub_date: .[0].pub_date,
+            platforms: (.[0].platforms + .[1].platforms)
+          }' mac-latest.json win-latest.json > latest.json
+          
+          echo "Merged latest.json:"
+          cat latest.json
+
+      - name: Upload merged latest.json to R2
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.R2_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET }}
+          aws_bucket: monibuca
+          source_dir: ./
+          destination_dir: rb
+        env:
+          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          SOURCE_FILES: latest.json
