@@ -640,16 +640,16 @@ async fn open_in_system_terminal(command: String, cwd: Option<String>) -> Result
     #[cfg(target_os = "windows")]
     {
         // Use cmd to open a new command prompt window
-        let mut cmd = std::process::Command::new("cmd");
-        cmd.args(["/c", "start", "cmd", "/k"]);
+        // The command needs to be properly formatted for start cmd /k
+        let full_command = if let Some(ref dir) = cwd {
+            format!("cd /d \"{}\" && {}", dir, command)
+        } else {
+            command.clone()
+        };
         
-        if let Some(ref dir) = cwd {
-            cmd.args(["cd", "/d", dir, "&&"]);
-        }
-        
-        cmd.arg(&command);
-        
-        cmd.spawn()
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "cmd", "/k", &full_command])
+            .spawn()
             .map_err(|e| format!("Failed to open system terminal: {}", e))?;
     }
 
