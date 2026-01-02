@@ -47,9 +47,12 @@
             <n-button size="small" type="error" @click="clearConsoleLogs">
               {{ t('devLog.clear') }}
             </n-button>
+            <n-button size="small" :type="autoScroll ? 'primary' : 'default'" @click="toggleAutoScroll">
+              {{ autoScroll ? t('devLog.autoScrollOn') : t('devLog.autoScrollOff') }}
+            </n-button>
           </n-space>
         </div>
-        <n-scrollbar style="max-height: 400px">
+        <n-scrollbar ref="consoleScrollbarRef" style="max-height: 400px">
           <div class="log-entries">
             <div
               v-for="(entry, index) in filteredConsoleLogs"
@@ -101,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { NTabs, NTabPane, NSpace, NButton, NInput, NScrollbar, NCheckboxGroup, NCheckbox, NSelect, NSpin } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
@@ -119,6 +122,8 @@ const activeTab = ref('console');
 const logVersion = ref(0); // Used to trigger re-computation
 const selectedLevels = ref<LogLevel[]>(['info', 'warn', 'error']);
 const searchText = ref('');
+const consoleScrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null);
+const autoScroll = ref(true);
 
 // Tauri logs state
 const logFiles = ref<any[]>([]);
@@ -220,10 +225,35 @@ watch(selectedLogFile, (newFile) => {
   }
 });
 
+// Auto-scroll to bottom when new logs arrive
+function scrollToBottom() {
+  if (autoScroll.value && consoleScrollbarRef.value) {
+    nextTick(() => {
+      consoleScrollbarRef.value?.scrollTo({ top: 999999, behavior: 'smooth' });
+    });
+  }
+}
+
+function toggleAutoScroll() {
+  autoScroll.value = !autoScroll.value;
+  if (autoScroll.value) {
+    scrollToBottom();
+  }
+}
+
+// Watch for new logs and auto-scroll
+watch(filteredConsoleLogs, () => {
+  scrollToBottom();
+}, { deep: true });
+
 // Initialize
 onMounted(() => {
   refreshConsoleLogs();
   refreshLogFiles();
+  // Initial scroll to bottom
+  nextTick(() => {
+    scrollToBottom();
+  });
 });
 </script>
 

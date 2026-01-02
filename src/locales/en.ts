@@ -291,6 +291,8 @@ export default {
     selectLogFile: 'Select log file',
     openFolder: 'Open Folder',
     selectFileToView: 'Select a log file to view content',
+    autoScrollOn: 'Auto Scroll: On',
+    autoScrollOff: 'Auto Scroll: Off',
   },
   common: {
     save: 'Save',

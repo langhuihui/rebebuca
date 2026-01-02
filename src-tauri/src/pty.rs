@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write, BufWriter};
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::thread;
 use tauri::{AppHandle, Emitter};
@@ -147,6 +148,57 @@ impl PtyManager {
         }
     }
 
+    /// Get shell environment variables by running a login shell
+    /// This is crucial for macOS GUI apps which don't inherit shell PATH
+    #[cfg(not(target_os = "windows"))]
+    fn get_shell_env() -> HashMap<String, String> {
+        let shell = Self::get_default_shell();
+        let mut env_map = HashMap::new();
+        
+        // Try to get environment from a login shell
+        // Use -l for login shell and -c to run a command
+        let result = Command::new(&shell)
+            .args(["-l", "-c", "env"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output();
+        
+        if let Ok(output) = result {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    if let Some((key, value)) = line.split_once('=') {
+                        env_map.insert(key.to_string(), value.to_string());
+                    }
+                }
+                println!("[PTY] Loaded {} environment variables from login shell", env_map.len());
+            }
+        }
+        
+        // If we couldn't get env from shell, at least set common paths
+        if env_map.is_empty() || !env_map.contains_key("PATH") {
+            // Fallback PATH for macOS
+            let default_path = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin";
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let combined_path = if current_path.is_empty() {
+                default_path.to_string()
+            } else {
+                format!("{}:{}", default_path, current_path)
+            };
+            env_map.insert("PATH".to_string(), combined_path);
+            println!("[PTY] Using fallback PATH: {}", env_map.get("PATH").unwrap());
+        }
+        
+        env_map
+    }
+
+    #[cfg(target_os = "windows")]
+    fn get_shell_env() -> HashMap<String, String> {
+        // On Windows, environment is usually correctly inherited
+        HashMap::new()
+    }
+
     /// Create a new PTY instance
     pub async fn create_pty(
         &self,
@@ -189,13 +241,22 @@ impl PtyManager {
         let shell = options.shell.unwrap_or_else(Self::get_default_shell);
 
         let mut cmd = CommandBuilder::new(&shell);
+        // Add -l flag for login shell to load user's shell profile
+        #[cfg(not(target_os = "windows"))]
+        cmd.arg("-l");
 
         // Set working directory
         if let Some(cwd) = options.cwd {
             cmd.cwd(cwd);
         }
 
-        // Set environment variables
+        // Load shell environment variables first (crucial for macOS GUI apps)
+        let shell_env = Self::get_shell_env();
+        for (key, value) in &shell_env {
+            cmd.env(key, value);
+        }
+
+        // Set user-provided environment variables (override shell env if needed)
         if let Some(env) = options.env {
             for (key, value) in env {
                 cmd.env(key, value);
@@ -427,7 +488,13 @@ impl PtyManager {
             cmd.cwd(cwd);
         }
 
-        // Set environment variables
+        // Load shell environment variables first (crucial for macOS GUI apps)
+        let shell_env = Self::get_shell_env();
+        for (key, value) in &shell_env {
+            cmd.env(key, value);
+        }
+
+        // Set user-provided environment variables (override shell env if needed)
         if let Some(env) = &options.env {
             for (key, value) in env {
                 cmd.env(key, value);

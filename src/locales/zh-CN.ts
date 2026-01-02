@@ -291,6 +291,8 @@ export default {
     selectLogFile: '选择日志文件',
     openFolder: '打开目录',
     selectFileToView: '选择一个日志文件查看内容',
+    autoScrollOn: '自动滚动: 开',
+    autoScrollOff: '自动滚动: 关',
   },
   common: {
     save: '保存',
