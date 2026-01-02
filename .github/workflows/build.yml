@@ -94,7 +94,20 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Upload artifacts to R2
+      - name: Upload artifacts to R2 (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.R2_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET }}
+          aws_bucket: monibuca
+          source_dir: src-tauri/target/universal-apple-darwin/release/bundle
+          destination_dir: rb/${{ github.ref_name }}
+        env:
+          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+
+      - name: Upload artifacts to R2 (Windows)
+        if: matrix.platform == 'windows-latest'
         uses: shallwefootball/s3-upload-action@master
         with:
           aws_key_id: ${{ secrets.R2_ID }}
