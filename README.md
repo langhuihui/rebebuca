@@ -13,7 +13,7 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-  [中文文档](README.md) | English
+  [中文文档](README_CN.md) | English
 </div>
 
 ---
@@ -31,7 +31,7 @@
 ## 📸 Preview
 
 <div align="center">
-  <img src="screenshot.png" alt="Application Screenshot" width="800">
+  <img src="website/snap1_cn.png" alt="Application Screenshot" width="800">
 </div>
 
 ## 🛠️ Tech Stack

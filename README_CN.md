@@ -31,7 +31,7 @@
 ## 📸 预览
 
 <div align="center">
-  <img src="screenshot_CN.png" alt="应用截图" width="800">
+  <img src="website/snap1_cn.png" alt="应用截图" width="800">
 </div>
 
 ## 🛠️ 技术栈
