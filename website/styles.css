@@ -5,7 +5,6 @@
   --bg-secondary: #f6f6f7;
   --bg-card: #ffffff;
   --bg-soft: #f9f9f9;
-  --bg-terminal: #1e1e1e;
   --text-primary: #213547;
   --text-secondary: #476582;
   --text-muted: #6b7280;
@@ -30,7 +29,6 @@
   --bg-secondary: #1a1a1a;
   --bg-card: #242424;
   --bg-soft: #1a1a1a;
-  --bg-terminal: #0d0d0d;
   --text-primary: rgba(255, 255, 255, 0.87);
   --text-secondary: rgba(255, 255, 255, 0.6);
   --text-muted: rgba(255, 255, 255, 0.4);
@@ -442,156 +440,6 @@ body {
   opacity: 1;
 }
 
-/* Terminal Demo */
-.hero-terminal {
-  width: 100%;
-  max-width: 800px;
-  position: relative;
-  z-index: 1;
-}
-
-.terminal {
-  background: var(--bg-terminal);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.terminal-header {
-  background: linear-gradient(180deg, #3a3a3a 0%, #2d2d2d 100%);
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
-}
-
-.terminal-btn {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.terminal-btn.red { background: #ff5f56; }
-.terminal-btn.yellow { background: #ffbd2e; }
-.terminal-btn.green { background: #27ca40; }
-
-.terminal-title {
-  flex: 1;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 13px;
-}
-
-.terminal-body {
-  padding: 20px;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 14px;
-  line-height: 1.8;
-  min-height: 200px;
-}
-
-.terminal-line {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-.terminal-prompt {
-  color: var(--green);
-  margin-right: 8px;
-  user-select: none;
-}
-
-.terminal-command {
-  color: #fff;
-}
-
-.terminal-output {
-  color: rgba(255, 255, 255, 0.7);
-  padding-left: 20px;
-}
-
-.terminal-output.success { color: var(--green); }
-.terminal-output.info { color: var(--blue); }
-.terminal-output.warning { color: var(--yellow); }
-
-/* Process List Demo */
-.process-list {
-  margin-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 16px;
-}
-
-.process-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 6px;
-  margin-bottom: 4px;
-  background: rgba(255, 255, 255, 0.03);
-  transition: background 0.2s ease;
-}
-
-.process-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.process-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 12px;
-  animation: statusPulse 2s infinite;
-}
-
-.process-status.running { background: var(--green); }
-.process-status.stopped { background: var(--red); animation: none; }
-.process-status.pending { background: var(--yellow); }
-
-@keyframes statusPulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
-  50% { opacity: 0.7; box-shadow: 0 0 0 4px transparent; }
-}
-
-.process-name {
-  flex: 1;
-  color: #fff;
-  font-size: 13px;
-}
-
-.process-pid {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 12px;
-  margin-right: 16px;
-}
-
-.process-action {
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.process-action.stop {
-  background: rgba(248, 113, 113, 0.2);
-  color: var(--red);
-}
-
-.process-action.start {
-  background: rgba(74, 222, 128, 0.2);
-  color: var(--green);
-}
-
-.process-action:hover {
-  transform: scale(1.05);
-}
-
 /* Features Section */
 .features {
   padding: 120px 0;
@@ -771,7 +619,7 @@ html[lang="zh"][data-theme="dark"] .screenshot-img[data-lang="zh"][data-theme="d
   border-radius: 16px;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
-  background: var(--bg-terminal);
+  background: var(--bg-primary);
 }
 
 .demo-video {
@@ -1134,19 +982,6 @@ html[lang="zh"] .demo-video[data-lang="zh"] {
     justify-content: center;
     gap: 16px;
   }
-
-  .terminal-body {
-    font-size: 12px;
-    padding: 16px;
-  }
-
-  .process-item {
-    flex-wrap: wrap;
-  }
-
-  .process-pid {
-    display: none;
-  }
 }
 
 /* Animations */
@@ -1168,10 +1003,6 @@ html[lang="zh"] .demo-video[data-lang="zh"] {
 
 .hero-content {
   animation: fadeInUp 0.8s ease-out;
-}
-
-.hero-terminal {
-  animation: fadeInUp 0.8s ease-out 0.2s both;
 }
 
 .feature-card,

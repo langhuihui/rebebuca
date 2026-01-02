@@ -134,44 +134,6 @@ document.querySelectorAll('.feature-card, .tech-category, .download-card').forEa
   observer.observe(el);
 });
 
-// Terminal typing animation
-class TerminalTyping {
-  constructor() {
-    this.commands = [
-      { prompt: '$', command: 'rebebuca list', delay: 1000 },
-      { output: '  ● dev-server     [running]  PID: 12847', type: 'success', delay: 500 },
-      { output: '  ● build-watch    [running]  PID: 12848', type: 'success', delay: 300 },
-      { output: '  ○ test-runner    [stopped]', type: 'info', delay: 300 },
-    ];
-  }
-}
-
-// Process action buttons interaction
-document.querySelectorAll('.process-action').forEach(btn => {
-  btn.addEventListener('click', function(e) {
-    e.preventDefault();
-    const item = this.closest('.process-item');
-    const status = item.querySelector('.process-status');
-    const isRunning = status.classList.contains('running');
-    
-    if (isRunning) {
-      status.classList.remove('running');
-      status.classList.add('stopped');
-      this.classList.remove('stop');
-      this.classList.add('start');
-      this.textContent = 'Start';
-      item.querySelector('.process-pid').textContent = 'PID: --';
-    } else {
-      status.classList.remove('stopped');
-      status.classList.add('running');
-      this.classList.remove('start');
-      this.classList.add('stop');
-      this.textContent = 'Stop';
-      item.querySelector('.process-pid').textContent = 'PID: ' + Math.floor(Math.random() * 90000 + 10000);
-    }
-  });
-});
-
 // Floating nodes parallax effect
 const nodes = document.querySelectorAll('.node');
 let mouseX = 0, mouseY = 0;
