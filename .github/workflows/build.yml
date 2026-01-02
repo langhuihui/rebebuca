@@ -115,6 +115,7 @@ jobs:
           secret_access_key = ${{ secrets.R2_SECRET }}
           endpoint = ${{ secrets.R2_ENDPOINT }}
           acl = private
+          no_check_bucket = true
           EOF
 
       - name: Upload artifacts to R2 (macOS)
@@ -214,6 +215,7 @@ jobs:
           secret_access_key = ${{ secrets.R2_SECRET }}
           endpoint = ${{ secrets.R2_ENDPOINT }}
           acl = private
+          no_check_bucket = true
           EOF
 
       - name: Download and merge latest.json files
