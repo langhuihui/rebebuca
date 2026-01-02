@@ -1003,9 +1003,10 @@ async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
     
     #[cfg(target_os = "windows")]
     {
-        // Use netstat on Windows
-        let output = Command::new("netstat")
-            .args(["-ano", "-p", "TCP"])
+        // Use netstat on Windows - wrap with cmd /c to prevent popup windows
+        let output = Command::new("cmd")
+            .args(["/c", "netstat -ano -p TCP"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output()
             .map_err(|e| format!("Failed to run netstat: {}", e))?;
         
@@ -1020,9 +1021,10 @@ async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                     
                     if let Some(port_str) = local_addr.split(':').last() {
                         if let Ok(port) = port_str.parse::<u16>() {
-                            // Get process name using tasklist
-                            let name_output = Command::new("tasklist")
-                                .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
+                            // Get process name using tasklist - wrap with cmd /c to prevent popup windows
+                            let name_output = Command::new("cmd")
+                                .args(["/c", &format!("tasklist /FI \"PID eq {}\" /FO CSV /NH", pid)])
+                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
                                 .output()
                                 .ok();
                             
@@ -1129,9 +1131,10 @@ async fn kill_process_by_port(port: u16) -> Result<(), String> {
     
     #[cfg(target_os = "windows")]
     {
-        // First get PID from netstat
-        let output = Command::new("netstat")
-            .args(["-ano"])
+        // First get PID from netstat - wrap with cmd /c to prevent popup windows
+        let output = Command::new("cmd")
+            .args(["/c", &format!("netstat -ano | findstr \":{}\" | findstr \"LISTENING\"", port)])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output()
             .map_err(|e| format!("Failed to run netstat: {}", e))?;
         
@@ -1180,6 +1183,7 @@ async fn kill_process_by_pid(pid: u32) -> Result<(), String> {
     {
         let output = Command::new("taskkill")
             .args(["/F", "/PID", &pid.to_string()])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output()
             .map_err(|e| format!("Failed to kill process: {}", e))?;
         
