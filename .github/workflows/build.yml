@@ -94,31 +94,42 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Install rclone
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            choco install rclone -y
+          else
+            brew install rclone
+          fi
+
+      - name: Configure rclone for R2
+        shell: bash
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
       - name: Upload artifacts to R2 (macOS)
         if: matrix.platform == 'macos-latest'
-        uses: shallwefootball/s3-upload-action@master
-        with:
-          aws_key_id: ${{ secrets.R2_ID }}
-          aws_secret_access_key: ${{ secrets.R2_SECRET }}
-          aws_bucket: monibuca
-          source_dir: src-tauri/target/universal-apple-darwin/release/bundle
-          destination_dir: rb/${{ github.ref_name }}
-        env:
-          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        shell: bash
+        run: |
+          rclone copy src-tauri/target/universal-apple-darwin/release/bundle r2:monibuca/rb/${{ github.ref_name }} --progress
 
       - name: Upload artifacts to R2 (Windows)
         if: matrix.platform == 'windows-latest'
-        uses: shallwefootball/s3-upload-action@master
-        with:
-          aws_key_id: ${{ secrets.R2_ID }}
-          aws_secret_access_key: ${{ secrets.R2_SECRET }}
-          aws_bucket: monibuca
-          source_dir: src-tauri/target/release/bundle
-          destination_dir: rb/${{ github.ref_name }}
-        env:
-          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        shell: bash
+        run: |
+          rclone copy src-tauri/target/release/bundle r2:monibuca/rb/${{ github.ref_name }} --progress
 
-      - name: Generate and upload latest.json to R2
+      - name: Generate and upload latest.json to R2 (macOS)
         if: matrix.platform == 'macos-latest'
         shell: bash
         run: |
@@ -149,8 +160,11 @@ jobs:
           
           echo "Generated latest.json:"
           cat latest.json
+          
+          # Upload to R2
+          rclone copyto latest.json r2:monibuca/rb/latest.json --progress
 
-      - name: Generate and upload latest.json to R2 (Windows)
+      - name: Generate and upload windows-latest.json to R2 (Windows)
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
@@ -177,51 +191,42 @@ jobs:
           
           echo "Generated windows-latest.json:"
           cat windows-latest.json
-
-      - name: Upload latest.json to R2
-        if: matrix.platform == 'macos-latest'
-        uses: shallwefootball/s3-upload-action@master
-        with:
-          aws_key_id: ${{ secrets.R2_ID }}
-          aws_secret_access_key: ${{ secrets.R2_SECRET }}
-          aws_bucket: monibuca
-          source_dir: ./
-          destination_dir: rb
-        env:
-          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          SOURCE_FILES: latest.json
-
-      - name: Upload windows-latest.json to R2
-        if: matrix.platform == 'windows-latest'
-        uses: shallwefootball/s3-upload-action@master
-        with:
-          aws_key_id: ${{ secrets.R2_ID }}
-          aws_secret_access_key: ${{ secrets.R2_SECRET }}
-          aws_bucket: monibuca
-          source_dir: ./
-          destination_dir: rb
-        env:
-          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          SOURCE_FILES: windows-latest.json
+          
+          # Upload to R2
+          rclone copyto windows-latest.json r2:monibuca/rb/windows-latest.json --progress
 
   merge-latest-json:
     needs: build-and-release
     runs-on: ubuntu-latest
     steps:
-      - name: Download latest.json files from R2
+      - name: Install rclone
         run: |
-          curl -o mac-latest.json "https://download.m7s.live/rb/latest.json" || echo '{}' > mac-latest.json
-          curl -o win-latest.json "https://download.m7s.live/rb/windows-latest.json" || echo '{}' > win-latest.json
+          sudo apt-get update && sudo apt-get install -y rclone jq
+
+      - name: Configure rclone for R2
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
+      - name: Download and merge latest.json files
+        run: |
+          # Download from R2
+          rclone copyto r2:monibuca/rb/latest.json mac-latest.json || echo '{}' > mac-latest.json
+          rclone copyto r2:monibuca/rb/windows-latest.json win-latest.json || echo '{}' > win-latest.json
           
           echo "Mac latest.json:"
           cat mac-latest.json
+          echo ""
           echo "Windows latest.json:"
           cat win-latest.json
-
-      - name: Merge latest.json
-        run: |
-          # Install jq
-          sudo apt-get update && sudo apt-get install -y jq
           
           # Merge the two JSON files
           jq -s '{
@@ -231,17 +236,10 @@ jobs:
             platforms: (.[0].platforms + .[1].platforms)
           }' mac-latest.json win-latest.json > latest.json
           
+          echo ""
           echo "Merged latest.json:"
           cat latest.json
 
       - name: Upload merged latest.json to R2
-        uses: shallwefootball/s3-upload-action@master
-        with:
-          aws_key_id: ${{ secrets.R2_ID }}
-          aws_secret_access_key: ${{ secrets.R2_SECRET }}
-          aws_bucket: monibuca
-          source_dir: ./
-          destination_dir: rb
-        env:
-          AWS_S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          SOURCE_FILES: latest.json
+        run: |
+          rclone copyto latest.json r2:monibuca/rb/latest.json --progress
