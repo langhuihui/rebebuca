@@ -13,7 +13,7 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-  [中文文档](README_CN.md) | English
+  **[Official Website](https://rebebuca.com)** | [中文文档](README_CN.md) | English
 </div>
 
 ---
@@ -31,7 +31,9 @@
 ## 📸 Preview
 
 <div align="center">
-  <img src="website/snap1_cn.png" alt="Application Screenshot" width="800">
+  <img src="public-website/snap1.png" alt="Application Screenshot - Light Theme" width="800">
+  <br><br>
+  <img src="public-website/snap1_dark.png" alt="Application Screenshot - Dark Theme" width="800">
 </div>
 
 ## 🛠️ Tech Stack

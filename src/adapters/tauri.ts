@@ -15,6 +15,8 @@ import type {
   UpdaterAdapter,
   NotificationAdapter,
   TrayAdapter,
+  RunningProcessInfo,
+  FavoriteTaskInfo,
   CreateTerminalParams,
   TerminalInfo,
   TerminalDataEvent,
@@ -468,9 +470,13 @@ class TauriNotificationAdapter implements NotificationAdapter {
 }
 
 /**
- * Tauri Tray Adapter (placeholder - tray is handled differently in Tauri)
+ * Tauri Tray Adapter - Manages system tray menu with running processes and favorites
  */
 class TauriTrayAdapter implements TrayAdapter {
+  private restartListeners: Map<string, () => void> = new Map();
+  private stopListeners: Map<string, () => void> = new Map();
+  private favoriteListeners: Map<string, () => void> = new Map();
+
   async setIcon(_icon: string): Promise<void> {
     // Tray icon is set in Rust side
   }
@@ -486,6 +492,89 @@ class TauriTrayAdapter implements TrayAdapter {
   onAction(_callback: (action: string) => void): () => void {
     // Tray actions are handled in Rust side
     return () => {};
+  }
+
+  async updateRunningProcesses(processes: RunningProcessInfo[]): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('update_tray_running_processes', { 
+      processes: processes.map(p => ({
+        id: p.id,
+        name: p.name,
+        task_id: p.taskId || null,
+      }))
+    });
+  }
+
+  async updateFavorites(favorites: FavoriteTaskInfo[]): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('update_tray_favorites', { 
+      favorites: favorites.map(f => ({
+        id: f.id,
+        name: f.name,
+        command: f.command,
+        cwd: f.cwd || null,
+      }))
+    });
+  }
+
+  onRestartProcess(callback: (processId: string) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    let unlisten: (() => void) | null = null;
+
+    loadTauriModules().then(async () => {
+      unlisten = await tauriEvent!.listen<string>('tray-restart-process', (e) => {
+        callback(e.payload);
+      });
+      this.restartListeners.set(id, unlisten);
+    });
+
+    return () => {
+      const fn = this.restartListeners.get(id);
+      if (fn) {
+        fn();
+        this.restartListeners.delete(id);
+      }
+    };
+  }
+
+  onStopProcess(callback: (processId: string) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    let unlisten: (() => void) | null = null;
+
+    loadTauriModules().then(async () => {
+      unlisten = await tauriEvent!.listen<string>('tray-stop-process', (e) => {
+        callback(e.payload);
+      });
+      this.stopListeners.set(id, unlisten);
+    });
+
+    return () => {
+      const fn = this.stopListeners.get(id);
+      if (fn) {
+        fn();
+        this.stopListeners.delete(id);
+      }
+    };
+  }
+
+  onRunFavorite(callback: (taskId: string) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    let unlisten: (() => void) | null = null;
+
+    loadTauriModules().then(async () => {
+      unlisten = await tauriEvent!.listen<string>('tray-run-favorite', (e) => {
+        callback(e.payload);
+      });
+      this.favoriteListeners.set(id, unlisten);
+    });
+
+    return () => {
+      const fn = this.favoriteListeners.get(id);
+      if (fn) {
+        fn();
+        this.favoriteListeners.delete(id);
+      }
+    };
   }
 }
 

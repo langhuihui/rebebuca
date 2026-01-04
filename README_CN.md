@@ -13,7 +13,7 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-  中文 | [English](README_EN.md)
+  **[官方网站](https://rebebuca.com)** | 中文 | [English](README.md)
 </div>
 
 ---
@@ -31,7 +31,9 @@
 ## 📸 预览
 
 <div align="center">
-  <img src="website/snap1_cn.png" alt="应用截图" width="800">
+  <img src="public-website/snap1_cn.png" alt="应用截图 - 浅色主题" width="800">
+  <br><br>
+  <img src="public-website/snap1_cn_dark.png" alt="应用截图 - 深色主题" width="800">
 </div>
 
 ## 🛠️ 技术栈

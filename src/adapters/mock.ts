@@ -16,6 +16,8 @@ import type {
   UpdaterAdapter,
   NotificationAdapter,
   TrayAdapter,
+  RunningProcessInfo,
+  FavoriteTaskInfo,
   CreateTerminalParams,
   TerminalInfo,
   TerminalDataEvent,
@@ -567,6 +569,21 @@ class MockTrayAdapter implements TrayAdapter {
   async setTooltip(_tooltip: string): Promise<void> {}
   async setMenu(_items: Array<{ label: string; action?: string; enabled?: boolean }>): Promise<void> {}
   onAction(_callback: (action: string) => void): () => void {
+    return () => {};
+  }
+  async updateRunningProcesses(_processes: RunningProcessInfo[]): Promise<void> {
+    console.log('[MockTray] updateRunningProcesses:', _processes.length);
+  }
+  async updateFavorites(_favorites: FavoriteTaskInfo[]): Promise<void> {
+    console.log('[MockTray] updateFavorites:', _favorites.length);
+  }
+  onRestartProcess(_callback: (processId: string) => void): () => void {
+    return () => {};
+  }
+  onStopProcess(_callback: (processId: string) => void): () => void {
+    return () => {};
+  }
+  onRunFavorite(_callback: (taskId: string) => void): () => void {
     return () => {};
   }
 }

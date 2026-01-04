@@ -95,6 +95,7 @@ import StatusBar from "./components/StatusBar.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
+import { initTrayService, cleanupTrayService } from "./services/trayService";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -691,6 +692,9 @@ onMounted(async () => {
   // Start process monitoring
   startProcessMonitoring();
 
+  // Initialize tray menu service for dynamic tray menu updates
+  await initTrayService();
+
   // Initialize system tray context menu
   // Note: Tray is now created in Rust backend for better stability on macOS
   // Uncomment the line below if you want dynamic tray menus managed by frontend
@@ -709,6 +713,9 @@ onUnmounted(() => {
 
   // Stop process monitoring
   stopProcessMonitoring();
+  
+  // Cleanup tray service
+  cleanupTrayService();
 });
 </script>
 

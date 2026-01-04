@@ -15,6 +15,7 @@ use tokio::process::{Child, Command as TokioCommand};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 use log::info;
+use std::sync::Mutex as StdMutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunConfig {
@@ -62,6 +63,57 @@ pub enum OutputType {
     Stdout,
     Stderr,
     System,
+}
+
+// Tray menu data structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunningProcess {
+    pub id: String,           // PTY ID or process ID
+    pub name: String,         // Display name
+    pub task_id: Option<String>, // Associated task ID (for restart)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteTask {
+    pub id: String,           // Task ID
+    pub name: String,         // Display name
+    pub command: String,      // Command to execute
+    pub cwd: Option<String>,  // Working directory
+}
+
+// Tray state manager for dynamic menu updates
+pub struct TrayState {
+    running_processes: Arc<StdMutex<Vec<RunningProcess>>>,
+    favorite_tasks: Arc<StdMutex<Vec<FavoriteTask>>>,
+}
+
+impl TrayState {
+    pub fn new() -> Self {
+        Self {
+            running_processes: Arc::new(StdMutex::new(Vec::new())),
+            favorite_tasks: Arc::new(StdMutex::new(Vec::new())),
+        }
+    }
+    
+    pub fn set_running_processes(&self, processes: Vec<RunningProcess>) {
+        if let Ok(mut guard) = self.running_processes.lock() {
+            *guard = processes;
+        }
+    }
+    
+    pub fn get_running_processes(&self) -> Vec<RunningProcess> {
+        self.running_processes.lock().map(|g| g.clone()).unwrap_or_default()
+    }
+    
+    pub fn set_favorite_tasks(&self, tasks: Vec<FavoriteTask>) {
+        if let Ok(mut guard) = self.favorite_tasks.lock() {
+            *guard = tasks;
+        }
+    }
+    
+    pub fn get_favorite_tasks(&self) -> Vec<FavoriteTask> {
+        self.favorite_tasks.lock().map(|g| g.clone()).unwrap_or_default()
+    }
 }
 
 // Helper function to get logs directory
@@ -936,6 +988,133 @@ async fn get_running_processes(process_manager: tauri::State<'_, ProcessManager>
     Ok(processes_guard.keys().cloned().collect())
 }
 
+// ============================================
+// Tray Menu Commands
+// ============================================
+
+/// Update tray menu with running processes
+#[tauri::command]
+fn update_tray_running_processes(
+    processes: Vec<RunningProcess>,
+    tray_state: tauri::State<'_, TrayState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    info!("[TRAY] Updating running processes: {:?}", processes.len());
+    tray_state.set_running_processes(processes);
+    rebuild_tray_menu(&app_handle, &tray_state)?;
+    Ok(())
+}
+
+/// Update tray menu with favorite tasks
+#[tauri::command]
+fn update_tray_favorites(
+    favorites: Vec<FavoriteTask>,
+    tray_state: tauri::State<'_, TrayState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    info!("[TRAY] Updating favorite tasks: {:?}", favorites.len());
+    tray_state.set_favorite_tasks(favorites);
+    rebuild_tray_menu(&app_handle, &tray_state)?;
+    Ok(())
+}
+
+/// Rebuild the tray menu with current state
+fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Result<(), String> {
+    let tray = app.tray_by_id("rust-tray")
+        .ok_or("Tray not found")?;
+    
+    let running = tray_state.get_running_processes();
+    let favorites = tray_state.get_favorite_tasks();
+    
+    // Create new menu
+    let menu = Menu::new(app)
+        .map_err(|e| e.to_string())?;
+    
+    // Show main window item
+    let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    menu.append(&show_item).map_err(|e| e.to_string())?;
+    
+    // Separator
+    let sep1 = PredefinedMenuItem::separator(app)
+        .map_err(|e| e.to_string())?;
+    menu.append(&sep1).map_err(|e| e.to_string())?;
+    
+    // Running processes section
+    if !running.is_empty() {
+        let running_label = MenuItem::with_id(app, "running_label", "▶ 运行中的进程", false, None::<&str>)
+            .map_err(|e| e.to_string())?;
+        menu.append(&running_label).map_err(|e| e.to_string())?;
+        
+        for process in &running {
+            // Create submenu for each running process with restart/stop options
+            let restart_item = MenuItem::with_id(
+                app, 
+                &format!("restart:{}", process.id), 
+                "⟳ 重启", 
+                true, 
+                None::<&str>
+            ).map_err(|e| e.to_string())?;
+            
+            let stop_item = MenuItem::with_id(
+                app, 
+                &format!("stop:{}", process.id), 
+                "■ 停止", 
+                true, 
+                None::<&str>
+            ).map_err(|e| e.to_string())?;
+            
+            let process_submenu = Submenu::with_items(
+                app,
+                &process.name,
+                true,
+                &[&restart_item, &stop_item]
+            ).map_err(|e| e.to_string())?;
+            
+            menu.append(&process_submenu).map_err(|e| e.to_string())?;
+        }
+        
+        // Separator after running processes
+        let sep2 = PredefinedMenuItem::separator(app)
+            .map_err(|e| e.to_string())?;
+        menu.append(&sep2).map_err(|e| e.to_string())?;
+    }
+    
+    // Favorites section
+    if !favorites.is_empty() {
+        let favorites_label = MenuItem::with_id(app, "favorites_label", "★ 收藏夹", false, None::<&str>)
+            .map_err(|e| e.to_string())?;
+        menu.append(&favorites_label).map_err(|e| e.to_string())?;
+        
+        for task in &favorites {
+            let task_item = MenuItem::with_id(
+                app, 
+                &format!("run_favorite:{}", task.id), 
+                &task.name, 
+                true, 
+                None::<&str>
+            ).map_err(|e| e.to_string())?;
+            menu.append(&task_item).map_err(|e| e.to_string())?;
+        }
+        
+        // Separator after favorites
+        let sep3 = PredefinedMenuItem::separator(app)
+            .map_err(|e| e.to_string())?;
+        menu.append(&sep3).map_err(|e| e.to_string())?;
+    }
+    
+    // Quit item
+    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    menu.append(&quit_item).map_err(|e| e.to_string())?;
+    
+    tray.set_menu(Some(menu))
+        .map_err(|e| e.to_string())?;
+    
+    info!("[TRAY] Menu rebuilt successfully");
+    Ok(())
+}
+
 #[tauri::command]
 async fn restart_process(
     system_pid: String,
@@ -1571,7 +1750,11 @@ pub fn run() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)  // macOS: right-click for menu
                 .on_menu_event(|app, event| {
-                    match event.id.as_ref() {
+                    let event_id = event.id.as_ref();
+                    info!("[TRAY] Menu event: {}", event_id);
+                    
+                    // Handle static menu items
+                    match event_id {
                         "quit" => {
                             info!("[TRAY] Quit menu item clicked");
                             app.exit(0);
@@ -1583,7 +1766,22 @@ pub fn run() {
                                 let _ = window.set_focus();
                             }
                         }
-                        _ => {}
+                        _ => {
+                            // Handle dynamic menu items (restart, stop, run_favorite)
+                            if event_id.starts_with("restart:") {
+                                let process_id = event_id.strip_prefix("restart:").unwrap_or("");
+                                info!("[TRAY] Restart process: {}", process_id);
+                                let _ = app.emit("tray-restart-process", process_id.to_string());
+                            } else if event_id.starts_with("stop:") {
+                                let process_id = event_id.strip_prefix("stop:").unwrap_or("");
+                                info!("[TRAY] Stop process: {}", process_id);
+                                let _ = app.emit("tray-stop-process", process_id.to_string());
+                            } else if event_id.starts_with("run_favorite:") {
+                                let task_id = event_id.strip_prefix("run_favorite:").unwrap_or("");
+                                info!("[TRAY] Run favorite task: {}", task_id);
+                                let _ = app.emit("tray-run-favorite", task_id.to_string());
+                            }
+                        }
                     }
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -1605,12 +1803,15 @@ pub fn run() {
         })
         .manage(ProcessManager::new())
         .manage(PtyManager::new())
+        .manage(TrayState::new())
         .invoke_handler(tauri::generate_handler![
             greet,
             execute_command,
             kill_process,
             restart_process,
             get_running_processes,
+            update_tray_running_processes,
+            update_tray_favorites,
             open_logs_folder,
             open_file_with_default_app,
             open_in_system_terminal,

@@ -170,11 +170,31 @@ export interface NotificationAdapter {
 /**
  * Tray Adapter Interface
  */
+export interface RunningProcessInfo {
+  id: string;           // PTY ID or process ID
+  name: string;         // Display name
+  taskId?: string;      // Associated task ID (for restart)
+}
+
+export interface FavoriteTaskInfo {
+  id: string;           // Task ID
+  name: string;         // Display name
+  command: string;      // Command to execute
+  cwd?: string;         // Working directory
+}
+
 export interface TrayAdapter {
   setIcon(icon: string): Promise<void>;
   setTooltip(tooltip: string): Promise<void>;
   setMenu(items: Array<{ label: string; action?: string; enabled?: boolean }>): Promise<void>;
   onAction(callback: (action: string) => void): () => void;
+  // Dynamic tray menu updates
+  updateRunningProcesses(processes: RunningProcessInfo[]): Promise<void>;
+  updateFavorites(favorites: FavoriteTaskInfo[]): Promise<void>;
+  // Event listeners for tray menu actions
+  onRestartProcess(callback: (processId: string) => void): () => void;
+  onStopProcess(callback: (processId: string) => void): () => void;
+  onRunFavorite(callback: (taskId: string) => void): () => void;
 }
 
 /**
