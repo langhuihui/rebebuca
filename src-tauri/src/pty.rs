@@ -556,6 +556,9 @@ impl PtyManager {
         let pty_id_clone = pty_id.clone();
         let task_instances_arc = Arc::clone(&self.task_instances);
 
+        // Get Tokio runtime handle for use in the thread
+        let runtime_handle = tokio::runtime::Handle::current();
+
         // Spawn a thread to read PTY output and wait for process exit
         let app_handle_clone = app_handle.clone();
         let pty_id_for_thread = pty_id.clone();
@@ -645,7 +648,7 @@ impl PtyManager {
 
             // Clean up task instance
             let pty_id_cleanup = pty_id_for_thread.clone();
-            tokio::spawn(async move {
+            runtime_handle.spawn(async move {
                 let mut task_instances = task_instances_arc.lock().await;
                 task_instances.remove(&pty_id_cleanup);
                 println!("[PTY] Cleaned up task PTY: {}", pty_id_cleanup);

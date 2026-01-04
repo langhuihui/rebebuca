@@ -90,9 +90,9 @@
               </template>
             </n-button>
 
-            <!-- 重新运行按钮 (仅任务类型且已完成显示) -->
+            <!-- 重启按钮 (仅任务类型显示) -->
             <n-button
-              v-if="terminalStore.activeTab.type === 'task' && terminalStore.activeTab.status !== 'running'"
+              v-if="terminalStore.activeTab.type === 'task'"
               size="small"
               text
               @click="handleRestartTask"

@@ -4,6 +4,17 @@ import { createAnsiConverter } from "../utils/ansiUtils";
 import { useTheme } from "../composables/useTheme";
 import { forceThemeOnFloatingComponents } from "../utils/themeUtils";
 import { nextTick } from "vue";
+import { getAdapter, isTauri, type BackendAdapter } from "../adapters";
+
+// Adapter instance
+let adapter: BackendAdapter | null = null;
+
+const getAdapterInstance = async (): Promise<BackendAdapter> => {
+  if (!adapter) {
+    adapter = await getAdapter();
+  }
+  return adapter;
+};
 
 export const useAppStore = defineStore("app", () => {
   // App state
@@ -26,56 +37,17 @@ export const useAppStore = defineStore("app", () => {
 
   // Tauri environment detection
   const detectTauriEnvironment = () => {
-    // Cache the result to avoid repeated checks
     if (isTauriEnvironment.value !== null) {
       return isTauriEnvironment.value;
     }
-
-    try {
-      // Method 1: Check for Tauri globals
-      if (typeof window !== "undefined") {
-        if (
-          (window as any).__TAURI__ ||
-          (window as any).__TAURI_INTERNALS__ ||
-          (window as any).__TAURI_METADATA__
-        ) {
-          isTauriEnvironment.value = true;
-          return true;
-        }
-      }
-
-      // Method 2: Check user agent
-      if (
-        typeof navigator !== "undefined" &&
-        navigator.userAgent.includes("Tauri")
-      ) {
-        isTauriEnvironment.value = true;
-        return true;
-      }
-
-      // Method 3: Check for webview environment (common in Tauri)
-      if (
-        typeof window !== "undefined" &&
-        (window as any).chrome &&
-        (window as any).chrome.runtime
-      ) {
-        isTauriEnvironment.value = true;
-        return true;
-      }
-
-      isTauriEnvironment.value = false;
-      return false;
-    } catch (error) {
-      isTauriEnvironment.value = false;
-      return false;
-    }
+    isTauriEnvironment.value = isTauri();
+    return isTauriEnvironment.value;
   };
 
   // Safe listen function that handles browser environment
   const safeListen = async (event: string, handler: (event: any) => void) => {
     if (!detectTauriEnvironment()) {
-      // Silent fallback in browser environment
-      return () => { }; // Return empty unlisten function
+      return () => { };
     }
 
     try {
@@ -83,7 +55,7 @@ export const useAppStore = defineStore("app", () => {
       return await listen(event, handler);
     } catch (error) {
       console.error(`Failed to listen to '${event}':`, error);
-      return () => { }; // Return empty unlisten function
+      return () => { };
     }
   };
 
@@ -92,16 +64,9 @@ export const useAppStore = defineStore("app", () => {
     title: string;
     body: string;
   }) => {
-    if (!detectTauriEnvironment()) {
-      // Silent fallback in browser environment
-      return;
-    }
-
     try {
-      const { sendNotification } = await import(
-        "@tauri-apps/plugin-notification"
-      );
-      await sendNotification(options);
+      const adapterInstance = await getAdapterInstance();
+      await adapterInstance.notification.show(options);
     } catch (error) {
       console.error("Failed to send notification:", error);
     }

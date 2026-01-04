@@ -1,50 +1,21 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
 
-// Check if running in Tauri environment
-let _isTauri: boolean | null = null;
+// Adapter instance
+let adapter: BackendAdapter | null = null;
 
-const isTauri = () => {
-  // Cache the result to avoid repeated checks
-  if (_isTauri !== null) {
-    return _isTauri;
+// Get adapter instance
+const getAdapterInstance = async (): Promise<BackendAdapter> => {
+  if (!adapter) {
+    adapter = await getAdapter();
   }
-
-  try {
-    // Method 1: Check for Tauri globals
-    if (typeof window !== 'undefined') {
-      if ((window as any).__TAURI__ ||
-        (window as any).__TAURI_INTERNALS__ ||
-        (window as any).__TAURI_METADATA__) {
-        _isTauri = true;
-        return true;
-      }
-    }
-
-    // Method 2: Check user agent
-    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Tauri')) {
-      _isTauri = true;
-      return true;
-    }
-
-    // Method 3: Check for webview environment (common in Tauri)
-    if (typeof window !== 'undefined' && (window as any).chrome && (window as any).chrome.runtime) {
-      _isTauri = true;
-      return true;
-    }
-
-    _isTauri = false;
-    return false;
-  } catch (error) {
-    _isTauri = false;
-    return false;
-  }
+  return adapter;
 };
 
-// Safe safeInvoke function that handles browser environment
+// Safe invoke function that handles browser environment
 const safeInvoke = async <T = unknown>(command: string, args?: any): Promise<T | undefined> => {
   if (!isTauri()) {
-    // Silent fallback in browser environment
     throw new Error(`Command '${command}' not available in browser environment`);
   }
 
@@ -52,15 +23,12 @@ const safeInvoke = async <T = unknown>(command: string, args?: any): Promise<T |
     const { invoke } = await import('@tauri-apps/api/core');
     return await invoke<T>(command, args);
   } catch (error) {
-    // For process stats commands, only log as error for unexpected issues
     if (command === 'get_process_stats') {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes("Process not found - it has finished") ||
         errorMessage.includes("Process has finished")) {
-        // This is expected behavior, don't log as error
         throw error;
       } else {
-        // Log other errors but still throw them
         console.warn(`Process stats temporarily unavailable: ${errorMessage}`);
         throw error;
       }
@@ -70,26 +38,15 @@ const safeInvoke = async <T = unknown>(command: string, args?: any): Promise<T |
   }
 };
 
-// Store instance for persistence
-let store: any = null;
-
-// Initialize store
-const initStore = async () => {
-  if (!isTauri()) {
-    // Silent fallback to localStorage in browser environment
+// Initialize storage via adapter
+const initStorage = async () => {
+  try {
+    const adapterInstance = await getAdapterInstance();
+    return adapterInstance.storage;
+  } catch (error) {
+    console.warn('Failed to initialize storage:', error);
     return null;
   }
-
-  if (!store) {
-    try {
-      const { Store } = await import('@tauri-apps/plugin-store');
-      store = await Store.load('rebebuca-config.json');
-    } catch (error) {
-      console.warn('Failed to initialize Tauri store, using localStorage fallback:', error);
-      return null;
-    }
-  }
-  return store;
 };
 
 export interface RunConfig {
@@ -183,11 +140,10 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   // Load configs from persistent storage
   const loadConfigs = async () => {
     try {
-      const storeInstance = await initStore();
+      const storage = await initStorage();
 
-      if (storeInstance) {
-        // Use Tauri store
-        const savedConfigs = await storeInstance.get('configs');
+      if (storage) {
+        const savedConfigs = await storage.get<any[]>('configs');
 
         if (savedConfigs && Array.isArray(savedConfigs)) {
           configs.value = savedConfigs.map(deserializeConfig);
@@ -222,89 +178,53 @@ export const useRunConfigStore = defineStore('runConfig', () => {
             configs.value = parsedConfigs.map(deserializeConfig);
           } catch (error) {
             console.error('Failed to parse saved configs:', error);
-            // Set default configs on parse error
-            configs.value = [
-              {
-                id: '1',
-                name: '示例配置 - Echo',
-                command: 'echo',
-                arguments: ['Hello, Rebebuca!'],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-              {
-                id: '2',
-                name: '示例配置 - 列出文件',
-                command: 'ls',
-                arguments: ['-la'],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-            ];
+            configs.value = getDefaultConfigs();
           }
         } else {
-          // Set default configs if none exist
-          configs.value = [
-            {
-              id: '1',
-              name: '示例配置 - Echo',
-              command: 'echo',
-              arguments: ['Hello, Rebebuca!'],
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-            {
-              id: '2',
-              name: '示例配置 - 列出文件',
-              command: 'ls',
-              arguments: ['-la'],
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-          ];
+          configs.value = getDefaultConfigs();
         }
       }
     } catch (error) {
       console.error('Failed to load configs:', error);
-      // Use default configs on error
-      configs.value = [
-        {
-          id: '1',
-          name: '示例配置 - Echo',
-          command: 'echo',
-          workingDirectory: undefined,
-          environment: {},
-          arguments: ['Hello from Rebebuca!'],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: '2',
-          name: '示例配置 - 列出文件',
-          command: 'ls',
-          workingDirectory: undefined,
-          environment: {},
-          arguments: ['-la'],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-      ];
+      configs.value = getDefaultConfigs();
     }
     initialized.value = true;
   };
+  
+  // Helper to get default configs
+  const getDefaultConfigs = (): RunConfig[] => [
+    {
+      id: '1',
+      name: '示例配置 - Echo',
+      command: 'echo',
+      workingDirectory: undefined,
+      environment: {},
+      arguments: ['Hello from Rebebuca!'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: '2',
+      name: '示例配置 - 列出文件',
+      command: 'ls',
+      workingDirectory: undefined,
+      environment: {},
+      arguments: ['-la'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+  ];
 
   // Save configs to persistent storage
   const saveConfigs = async () => {
     try {
-      const storeInstance = await initStore();
+      const storage = await initStorage();
 
-      if (storeInstance) {
-        // Use Tauri store
+      if (storage) {
         const serializedConfigs = configs.value.map(serializeConfig);
-        await storeInstance.set('configs', serializedConfigs);
-        await storeInstance.save();
+        await storage.set('configs', serializedConfigs);
+        await storage.save();
       } else {
-        // Use localStorage fallback
         localStorage.setItem('rebebuca-configs', JSON.stringify(configs.value.map(serializeConfig)));
       }
     } catch (error) {
@@ -315,17 +235,15 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   // Load history from persistent storage
   const loadHistory = async () => {
     try {
-      const storeInstance = await initStore();
+      const storage = await initStorage();
 
-      if (storeInstance) {
-        // Use Tauri store
-        const savedHistory = await storeInstance.get('history');
+      if (storage) {
+        const savedHistory = await storage.get<any[]>('history');
 
         if (savedHistory && Array.isArray(savedHistory)) {
           history.value = savedHistory.map(deserializeHistory);
         }
       } else {
-        // Use localStorage fallback
         const savedHistory = localStorage.getItem('rebebuca-history');
 
         if (savedHistory) {
@@ -338,8 +256,6 @@ export const useRunConfigStore = defineStore('runConfig', () => {
         }
       }
       
-      // Clear running status on app initialization
-      // Because processes from previous session are no longer running
       await clearRunningStatus();
     } catch (error) {
       console.error('Failed to load history:', error);
@@ -353,7 +269,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       if (history.value[i].status === 'running') {
         history.value[i] = {
           ...history.value[i],
-          status: 'error', // Mark as error since the process was interrupted
+          status: 'error',
         };
         hasChanges = true;
       }
@@ -367,17 +283,14 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   // Save history to persistent storage
   const saveHistory = async () => {
     try {
-      const storeInstance = await initStore();
+      const storage = await initStorage();
 
-      if (storeInstance) {
-        // Use Tauri store
-        // 只保存最近 100 条历史记录
+      if (storage) {
         const recentHistory = history.value.slice(0, 100);
         const serializedHistory = recentHistory.map(serializeHistory);
-        await storeInstance.set('history', serializedHistory);
-        await storeInstance.save();
+        await storage.set('history', serializedHistory);
+        await storage.save();
       } else {
-        // Use localStorage fallback
         const recentHistory = history.value.slice(0, 100);
         localStorage.setItem('rebebuca-history', JSON.stringify(recentHistory.map(serializeHistory)));
       }

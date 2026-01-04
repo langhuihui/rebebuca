@@ -122,11 +122,13 @@ export interface TaskFolder {
 export interface TaskTreeItem {
   id: string;
   label: string;
-  type: 'folder' | 'source' | 'task' | 'group';
+  type: 'folder' | 'subfolder' | 'source' | 'task' | 'group';
   children?: TaskTreeItem[];
   task?: Task;
   icon?: string;
   expanded?: boolean;
+  // Relative path from root folder (for subfolders)
+  relativePath?: string;
 }
 
 /**

@@ -18,6 +18,7 @@
 
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
 
 export interface UpdateInfo {
   version: string;
@@ -31,21 +32,14 @@ export interface ReleaseNote {
   body: string;
 }
 
-// Store instance for persistence
-let store: any = null;
+// Adapter instance
+let adapter: BackendAdapter | null = null;
 
-// Initialize Tauri store
-const initStore = async () => {
-  if (!store) {
-    try {
-      const { Store } = await import('@tauri-apps/plugin-store');
-      store = await Store.load('rebebuca-config.json');
-    } catch (error) {
-      console.warn('[Updater] Failed to initialize Tauri store:', error);
-      return null;
-    }
+const getAdapterInstance = async (): Promise<BackendAdapter> => {
+  if (!adapter) {
+    adapter = await getAdapter();
   }
-  return store;
+  return adapter;
 };
 
 export const useUpdaterStore = defineStore('updater', () => {
@@ -64,11 +58,20 @@ export const useUpdaterStore = defineStore('updater', () => {
   const whatsNewReleaseNotes = ref<ReleaseNote[]>([]);
   const lastSeenVersion = ref<string>('');
   
+  // Current version release note (for displaying current version features)
+  const currentVersionNote = ref<ReleaseNote | null>(null);
+  // New version release note (for displaying upgrade available)
+  const newVersionNote = ref<ReleaseNote | null>(null);
+  
   /**
    * Get current app version
    */
   async function getCurrentVersion(): Promise<string> {
     try {
+      if (!isTauri()) {
+        currentVersion.value = '0.0.0-web';
+        return currentVersion.value;
+      }
       const { getVersion } = await import('@tauri-apps/api/app');
       currentVersion.value = await getVersion();
       return currentVersion.value;
@@ -83,12 +86,10 @@ export const useUpdaterStore = defineStore('updater', () => {
    */
   async function loadLastSeenVersion(): Promise<string> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        const version = await storeInstance.get('lastSeenVersion');
-        lastSeenVersion.value = version || '';
-        return lastSeenVersion.value;
-      }
+      const adapterInstance = await getAdapterInstance();
+      const version = await adapterInstance.storage.get<string>('lastSeenVersion');
+      lastSeenVersion.value = version || '';
+      return lastSeenVersion.value;
     } catch (error) {
       console.error('[Updater] Failed to load last seen version:', error);
     }
@@ -100,12 +101,10 @@ export const useUpdaterStore = defineStore('updater', () => {
    */
   async function saveLastSeenVersion(version: string): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        await storeInstance.set('lastSeenVersion', version);
-        await storeInstance.save();
-        lastSeenVersion.value = version;
-      }
+      const adapterInstance = await getAdapterInstance();
+      await adapterInstance.storage.set('lastSeenVersion', version);
+      await adapterInstance.storage.save();
+      lastSeenVersion.value = version;
     } catch (error) {
       console.error('[Updater] Failed to save last seen version:', error);
     }
@@ -124,12 +123,17 @@ export const useUpdaterStore = defineStore('updater', () => {
     if (!lastSeen || lastSeen !== version) {
       console.log(`[Updater] Version changed: ${lastSeen} -> ${version}`);
       
-      // Fetch release notes for current version
+      // Fetch release note for current version only
       try {
-        const notes = await fetchReleaseNotes(version);
-        if (notes.length > 0) {
-          whatsNewReleaseNotes.value = notes;
+        const note = await fetchCurrentVersionNote();
+        if (note) {
+          // Only show current version's release note
+          whatsNewReleaseNotes.value = [note];
           showWhatsNew.value = true;
+          
+          // Also check if there's a newer version available
+          await checkNewVersionAvailable();
+          
           return true;
         }
       } catch (error) {
@@ -138,6 +142,9 @@ export const useUpdaterStore = defineStore('updater', () => {
       
       // Save current version even if no notes found
       await saveLastSeenVersion(version);
+    } else {
+      // Even if version hasn't changed, check for new version available
+      await checkNewVersionAvailable();
     }
     
     return false;
@@ -160,6 +167,11 @@ export const useUpdaterStore = defineStore('updater', () => {
     if (hasCheckedOnStartup.value) return;
     hasCheckedOnStartup.value = true;
     
+    if (!isTauri()) {
+      console.log('[Updater] Auto-check skipped in non-Tauri environment');
+      return;
+    }
+    
     try {
       const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
@@ -178,7 +190,6 @@ export const useUpdaterStore = defineStore('updater', () => {
         console.log('[Updater] Auto-check: No updates available');
       }
     } catch (e) {
-      // Silent fail for auto-check
       console.log('[Updater] Auto-check failed (silent):', e);
     }
   }
@@ -188,7 +199,7 @@ export const useUpdaterStore = defineStore('updater', () => {
    */
   async function fetchReleaseNotes(targetVersion?: string): Promise<ReleaseNote[]> {
     try {
-      const response = await fetch('https://api.github.com/repos/langhuihui/rebebuca/releases?per_page=5');
+      const response = await fetch('https://api.github.com/repos/langhuihui/rebebuca/releases?per_page=10');
       if (!response.ok) throw new Error('Failed to fetch releases');
       const releases = await response.json();
       
@@ -216,9 +227,121 @@ export const useUpdaterStore = defineStore('updater', () => {
   }
   
   /**
+   * Fetch current version's release note only
+   */
+  async function fetchCurrentVersionNote(): Promise<ReleaseNote | null> {
+    try {
+      const version = currentVersion.value || await getCurrentVersion();
+      if (!version) return null;
+      
+      const targetTag = `v${version}`;
+      const response = await fetch(`https://api.github.com/repos/langhuihui/rebebuca/releases/tags/${targetTag}`);
+      
+      if (!response.ok) {
+        console.log(`[Updater] No release found for tag ${targetTag}`);
+        return null;
+      }
+      
+      const release = await response.json();
+      const note: ReleaseNote = {
+        tag: release.tag_name,
+        date: new Date(release.published_at).toLocaleDateString(),
+        body: release.body || ''
+      };
+      
+      currentVersionNote.value = note;
+      return note;
+    } catch (error) {
+      console.error('[Updater] Failed to fetch current version note:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Fetch latest release note (for upgrade notification)
+   */
+  async function fetchLatestVersionNote(): Promise<ReleaseNote | null> {
+    try {
+      const response = await fetch('https://api.github.com/repos/langhuihui/rebebuca/releases/latest');
+      
+      if (!response.ok) {
+        console.log('[Updater] No latest release found');
+        return null;
+      }
+      
+      const release = await response.json();
+      const note: ReleaseNote = {
+        tag: release.tag_name,
+        date: new Date(release.published_at).toLocaleDateString(),
+        body: release.body || ''
+      };
+      
+      return note;
+    } catch (error) {
+      console.error('[Updater] Failed to fetch latest version note:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Check if there's a newer version available and fetch its release note
+   */
+  async function checkNewVersionAvailable(): Promise<boolean> {
+    try {
+      const version = currentVersion.value || await getCurrentVersion();
+      if (!version) return false;
+      
+      const latestNote = await fetchLatestVersionNote();
+      if (!latestNote) return false;
+      
+      const currentTag = `v${version}`;
+      
+      // Compare versions - if latest tag is different from current, there's an update
+      if (latestNote.tag !== currentTag) {
+        // Simple version comparison: check if latest is newer
+        const latestVersion = latestNote.tag.replace(/^v/, '');
+        if (compareVersions(latestVersion, version) > 0) {
+          newVersionNote.value = latestNote;
+          return true;
+        }
+      }
+      
+      newVersionNote.value = null;
+      return false;
+    } catch (error) {
+      console.error('[Updater] Failed to check new version:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Compare two version strings
+   * Returns: 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+   */
+  function compareVersions(v1: string, v2: string): number {
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+      const p1 = parts1[i] || 0;
+      const p2 = parts2[i] || 0;
+      
+      if (p1 > p2) return 1;
+      if (p1 < p2) return -1;
+    }
+    
+    return 0;
+  }
+  
+  /**
    * Check for updates
    */
   async function checkForUpdates(): Promise<boolean> {
+    if (!isTauri()) {
+      console.log('[Updater] Check skipped in non-Tauri environment');
+      return false;
+    }
+    
     checking.value = true;
     error.value = null;
     
@@ -328,6 +451,8 @@ export const useUpdaterStore = defineStore('updater', () => {
     showWhatsNew,
     whatsNewReleaseNotes,
     lastSeenVersion,
+    currentVersionNote,
+    newVersionNote,
     
     // Actions
     getCurrentVersion,
@@ -338,5 +463,8 @@ export const useUpdaterStore = defineStore('updater', () => {
     checkWhatsNew,
     dismissWhatsNew,
     fetchReleaseNotes,
+    fetchCurrentVersionNote,
+    fetchLatestVersionNote,
+    checkNewVersionAvailable,
   };
 });

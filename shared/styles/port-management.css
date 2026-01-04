@@ -1,0 +1,153 @@
+/**
+ * Rebebuca - Shared Port Management Styles
+ * Used by StatusBar (port dialog) and DemoApp
+ */
+
+/* Port list container */
+.port-list {
+  font-size: 13px;
+}
+
+/* Port list header */
+.port-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.1));
+  opacity: 0.7;
+}
+
+/* Port list item */
+.port-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.1));
+  transition: background 0.15s;
+}
+
+.port-item:last-child {
+  border-bottom: none;
+}
+
+.port-item:hover {
+  background: var(--n-color-hover, rgba(255, 255, 255, 0.05));
+}
+
+/* Port column styles */
+.port-col-name {
+  flex: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.port-col-pid {
+  flex: 1;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
+}
+
+.port-col-port {
+  flex: 1;
+}
+
+.port-col-command {
+  flex: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
+}
+
+.port-col-action {
+  width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Port tag */
+.port-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
+}
+
+/* Empty state */
+.port-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
+}
+
+/* Loading state */
+.port-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  gap: 8px;
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
+}
+
+/* Refresh button area */
+.port-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.1));
+}
+
+.port-toolbar-title {
+  font-weight: 500;
+}
+
+/* Filter input */
+.port-filter {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.1));
+}
+
+/* Group by app */
+.port-group {
+  margin-bottom: 8px;
+}
+
+.port-group-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  gap: 8px;
+  font-weight: 500;
+  background: var(--n-color-modal, rgba(255, 255, 255, 0.02));
+  cursor: pointer;
+}
+
+.port-group-header:hover {
+  background: var(--n-color-hover, rgba(255, 255, 255, 0.05));
+}
+
+.port-group-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--n-text-color-3);
+}
+
+.port-group-name {
+  flex: 1;
+}
+
+.port-group-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--n-color-hover, rgba(255, 255, 255, 0.08));
+  color: var(--n-text-color-3);
+}

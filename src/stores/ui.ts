@@ -11,10 +11,6 @@ export const useUIStore = defineStore("ui", () => {
   const selectedHistoryItem = ref<RunHistory | null>(null);
   const consoleScrollbarRef = ref<any>(null);
 
-  // Dialog state
-  const configDialogVisible = ref(false);
-  const editingConfig = ref<any>(null);
-
   // Computed properties
   const themeOptions = computed(() => {
     const { t } = useI18n();
@@ -54,24 +50,12 @@ export const useUIStore = defineStore("ui", () => {
     consoleScrollbarRef.value = ref;
   };
 
-  const openConfigDialog = (config: any = null) => {
-    editingConfig.value = config;
-    configDialogVisible.value = true;
-  };
-
-  const closeConfigDialog = () => {
-    configDialogVisible.value = false;
-    editingConfig.value = null;
-  };
-
   return {
     // State
     sidebarVisible,
     isWindowsPlatform,
     selectedHistoryItem,
     consoleScrollbarRef,
-    configDialogVisible,
-    editingConfig,
 
     // Computed
     themeOptions,
@@ -81,7 +65,5 @@ export const useUIStore = defineStore("ui", () => {
     setWindowsPlatform,
     setSelectedHistoryItem,
     setConsoleScrollbarRef,
-    openConfigDialog,
-    closeConfigDialog,
   };
 });

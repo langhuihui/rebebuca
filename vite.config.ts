@@ -1,12 +1,34 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import { resolve } from "path";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+// Check if building for web demo
+const isWebBuild = process.env.VITE_BUILD_TARGET === 'web';
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [vue()],
+  
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+      '@shared': resolve(__dirname, 'shared'),
+    },
+  },
+  
+  // Tauri build uses 'public', website build merges 'public' + 'public-website' via plugin
+  
+  // Build configuration based on target
+  build: isWebBuild ? {
+    // Web app build: outputs to dist/web  
+    outDir: 'dist/web',
+  } : {
+    // Tauri app build: outputs to dist
+    outDir: 'dist',
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

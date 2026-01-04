@@ -1,12 +1,16 @@
 {
   "name": "rebebuca",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.3",
   "license": "GPL-3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:web": "VITE_BACKEND=mock vite --port 5173",
+    "dev:website": "VITE_BACKEND=mock vite --config vite.website.config.ts",
     "build": "vue-tsc --noEmit && vite build",
+    "build:web": "VITE_BUILD_TARGET=web VITE_BACKEND=mock vue-tsc --noEmit && vite build",
+    "build:website": "VITE_BACKEND=mock vue-tsc --noEmit && vite build --config vite.website.config.ts && mv dist/website/website.html dist/website/index.html",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
@@ -30,7 +34,7 @@
     "ansi-to-html": "^0.7.2",
     "highlight.js": "^11.11.1",
     "json5": "^2.2.3",
-    "naive-ui": "^2.43.1",
+    "naive-ui": "^2.43.2",
     "pinia": "^3.0.3",
     "vue": "^3.5.13",
     "vue-i18n": "9",
@@ -42,6 +46,7 @@
     "sass": "^1.93.2",
     "typescript": "~5.6.2",
     "vite": "^7.2.7",
+    "vite-plugin-static-copy": "^3.1.4",
     "vue-tsc": "^2.1.10"
   }
 }

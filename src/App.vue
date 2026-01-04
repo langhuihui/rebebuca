@@ -17,16 +17,10 @@
  -->
 
 <template>
-  <n-config-provider :theme="currentTheme" :hljs="hljs" :key="themeMode">
+  <!-- In embedded mode, skip config-provider to avoid nesting issues with NModal teleport -->
+  <component :is="props.embedded ? 'div' : NConfigProvider" :theme="currentTheme" :hljs="hljs" :key="themeMode">
     <n-message-provider>
       <n-dialog-provider>
-        <!-- Run configuration dialog -->
-        <RunConfigDialog
-          v-model:show="uiStore.configDialogVisible"
-          :config="uiStore.editingConfig"
-          @saved="onConfigSaved"
-        />
-        
         <!-- About dialog -->
         <n-modal
           v-model:show="showAboutDialog"
@@ -34,6 +28,7 @@
           :title="t('about.title')"
           style="width: 400px;"
           class="about-modal"
+          to="body"
         >
           <div class="about-content">
             <img src="/logo.svg" alt="Rebebuca" class="about-logo" />
@@ -54,9 +49,9 @@
           </div>
         </n-modal>
         
-        <n-layout class="h-screen app-window">
-          <!-- Custom Title Bar -->
-          <TitleBar :effective-theme="effectiveTheme" />
+        <n-layout class="h-screen app-window" :class="{ 'embedded-mode': props.embedded }">
+          <!-- Custom Title Bar (hidden in embedded mode) -->
+          <TitleBar v-if="!props.embedded" :effective-theme="effectiveTheme" />
 
           <n-layout has-sider class="main-layout">
             <!-- Left sidebar - Task Explorer -->
@@ -69,17 +64,16 @@
             </n-layout-content>
           </n-layout>
 
-          <!-- Status Bar -->
-          <StatusBar />
+          <!-- Status Bar (hidden in embedded mode) -->
+          <StatusBar v-if="!props.embedded" />
         </n-layout>
       </n-dialog-provider>
     </n-message-provider>
-  </n-config-provider>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, inject } from "vue";
-import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
 import {
   NMessageProvider,
@@ -94,7 +88,6 @@ import { useRunConfigStore } from "./stores/runConfig";
 import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
 import { useUpdaterStore } from "./stores/updater";
-import RunConfigDialog from "./components/RunConfigDialog.vue";
 import TitleBar from "./components/TitleBar.vue";
 import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
@@ -102,8 +95,16 @@ import StatusBar from "./components/StatusBar.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
-import { handleConfigSaved } from "./utils/configUtils";
 // import { setupSystemTrayMenu } from "./utils/tray";
+
+// Props for embedded mode (website demo)
+interface Props {
+  embedded?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  embedded: false,
+});
 
 // Get hljs from main.ts
 const hljs = inject<any>("hljs");
@@ -119,18 +120,10 @@ const runConfigStore = useRunConfigStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
-const { editingConfig } = storeToRefs(uiStore);
 
 // About dialog state
 const showAboutDialog = ref(false);
 const currentVersion = ref('');
-
-// Config saved handler
-const onConfigSaved = async (configData: any) => {
-  await handleConfigSaved(configData, editingConfig, runConfigStore, () => {
-    uiStore.closeConfigDialog();
-  });
-};
 
 // Process stats interface
 interface ProcessStats {

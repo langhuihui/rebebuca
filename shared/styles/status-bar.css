@@ -1,0 +1,181 @@
+/**
+ * Rebebuca - Shared Status Bar Styles
+ * Used by StatusBar and DemoApp
+ */
+
+/* Status bar container */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 12px;
+  background: #007acc;
+  font-size: 12px;
+  color: white;
+  user-select: none;
+}
+
+/* Alternative dark background style */
+.status-bar.dark-bg {
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.light-theme .status-bar.dark-bg,
+.n-config-provider--light .status-bar.dark-bg {
+  background: rgba(0, 0, 0, 0.05);
+  border-top-color: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.65);
+}
+
+/* Status sections */
+.status-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-left {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Status item */
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.9;
+}
+
+/* Status indicator (running/success/error) */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Running pulse dot */
+.status-indicator.running .pulse-dot,
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #00d084;
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+/* Success indicator */
+.status-indicator.success {
+  color: #52c41a;
+  font-size: 12px;
+}
+
+/* Error indicator */
+.status-indicator.error {
+  color: #ff4d4f;
+  font-size: 12px;
+}
+
+/* Status location/path */
+.status-location {
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.status-bar.dark-bg .status-location {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.light-theme .status-bar.dark-bg .status-location,
+.n-config-provider--light .status-bar.dark-bg .status-location {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* Status separator */
+.status-separator {
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* Status command display */
+.status-command {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+
+/* Placeholder text */
+.status-placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+.light-theme .status-placeholder,
+.n-config-provider--light .status-placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* Status badge (exit code, etc.) */
+.status-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.status-badge.success {
+  background: rgba(82, 196, 26, 0.2);
+  color: #52c41a;
+}
+
+.status-badge.error {
+  background: rgba(255, 77, 79, 0.2);
+  color: #ff4d4f;
+}
+
+/* Running count */
+.running-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.running-count::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d084;
+}

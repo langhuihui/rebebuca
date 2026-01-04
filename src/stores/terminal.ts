@@ -18,8 +18,7 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
 export type TerminalType = 'task' | 'shell';
@@ -49,11 +48,6 @@ export interface TerminalTab {
   pid?: number;         // 进程 PID
 }
 
-interface PtyExitEvent {
-  pty_id: string;
-  exit_code: number | null;
-}
-
 export const useTerminalStore = defineStore('terminal', () => {
   // Terminal tabs
   const tabs = ref<TerminalTab[]>([]);
@@ -61,8 +55,19 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Currently active tab ID
   const activeTabId = ref<string | null>(null);
   
-  // Event listeners
-  let unlistenExit: UnlistenFn | null = null;
+  // Event listeners cleanup function
+  let unlistenExit: (() => void) | null = null;
+  
+  // Adapter instance (cached)
+  let adapter: BackendAdapter | null = null;
+  
+  // Get adapter instance
+  const getAdapterInstance = async (): Promise<BackendAdapter> => {
+    if (!adapter) {
+      adapter = await getAdapter();
+    }
+    return adapter;
+  };
   
   // Computed
   const activeTabs = computed(() => tabs.value.filter(t => t.status !== 'closed'));
@@ -74,15 +79,17 @@ export const useTerminalStore = defineStore('terminal', () => {
     if (unlistenExit) return; // Already initialized
     
     try {
-      // Listen for PTY exit events
-      unlistenExit = await listen<PtyExitEvent>('pty-exit', async (event) => {
-        const { pty_id, exit_code } = event.payload;
-        console.log('[Terminal Store] PTY exit event:', pty_id, exit_code);
+      const adapterInstance = await getAdapterInstance();
+      
+      // Listen for PTY exit events via adapter
+      unlistenExit = adapterInstance.terminal.onExit(async (event: TerminalExitEvent) => {
+        const { ptyId, exitCode } = event;
+        console.log('[Terminal Store] PTY exit event:', ptyId, exitCode);
         
-        const tab = tabs.value.find(t => t.ptyId === pty_id);
+        const tab = tabs.value.find(t => t.ptyId === ptyId);
         if (tab) {
-          tab.exitCode = exit_code ?? undefined;
-          tab.status = exit_code === 0 ? 'success' : 'error';
+          tab.exitCode = exitCode ?? undefined;
+          tab.status = exitCode === 0 ? 'success' : 'error';
           
           // Notify taskManager that this task has exited
           try {
@@ -103,7 +110,7 @@ export const useTerminalStore = defineStore('terminal', () => {
               if (historyItem) {
                 const duration = historyItem.startTime ? Date.now() - historyItem.startTime : undefined;
                 await runConfigStore.updateHistory(tab.historyId, {
-                  status: exit_code === 0 ? 'success' : 'error',
+                  status: exitCode === 0 ? 'success' : 'error',
                   duration,
                 });
                 console.log('[Terminal Store] Updated history record:', tab.historyId);
@@ -210,18 +217,20 @@ export const useTerminalStore = defineStore('terminal', () => {
     try {
       tab.status = 'running';
       
-      await invoke('execute_task', {
-        ptyId: tab.ptyId,
+      const adapterInstance = await getAdapterInstance();
+      const result = await adapterInstance.terminal.create({
         command,
-        args: args || [],
-        options: {
-          cwd,
-          env,
-          rows: 24,
-          cols: 80,
-          log_path: logPath,
-        },
+        args,
+        cwd,
+        env,
+        logPath,
       });
+      
+      // Update tab with actual ptyId from adapter
+      tab.ptyId = result.ptyId;
+      if (result.pid) {
+        tab.pid = result.pid;
+      }
       
       console.log('[Terminal Store] Task started:', tab.ptyId, command);
     } catch (error) {
@@ -239,12 +248,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     // If running, try to kill the task/close the PTY
     if (tab.status === 'running') {
       try {
-        // First try kill_task for task-based PTYs
-        if (tab.type === 'task') {
-          await invoke('kill_task', { ptyId: tab.ptyId });
-        } else {
-          await invoke('close_pty', { ptyId: tab.ptyId });
-        }
+        const adapterInstance = await getAdapterInstance();
+        await adapterInstance.terminal.kill(tab.ptyId);
       } catch (error) {
         console.warn('[Terminal Store] Failed to close PTY:', error);
       }
@@ -268,7 +273,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     if (!tab || tab.status !== 'running') return;
     
     try {
-      await invoke('kill_task', { ptyId: tab.ptyId });
+      const adapterInstance = await getAdapterInstance();
+      await adapterInstance.terminal.kill(tab.ptyId);
       tab.status = 'error'; // Mark as stopped/error
       console.log('[Terminal Store] Task stopped:', tab.ptyId);
     } catch (error) {
@@ -336,21 +342,18 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Get process stats for a running tab
   const getTabProcessStats = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (!tab || tab.status !== 'running') {
+    if (!tab || tab.status !== 'running' || !tab.pid) {
       return null;
     }
     
     try {
-      const stats = await invoke<{
-        pty_id: string;
-        pid: number;
-        cpu_usage: number;
-        memory_usage: number;
-        memory_usage_mb: string;
-      }>('get_pty_process_stats', { ptyId: tab.ptyId });
+      const adapterInstance = await getAdapterInstance();
+      const stats = await adapterInstance.system.getProcessInfo(tab.pid);
       
-      const cpuUsage = `${stats.cpu_usage.toFixed(1)}%`;
-      const memoryUsage = stats.memory_usage_mb;
+      if (!stats) return null;
+      
+      const cpuUsage = stats.cpuUsage !== undefined ? `${stats.cpuUsage.toFixed(1)}%` : undefined;
+      const memoryUsage = stats.memoryUsage !== undefined ? `${(stats.memoryUsage / 1024 / 1024).toFixed(1)} MB` : undefined;
       
       updateTabStats(tabId, { cpuUsage, memoryUsage, pid: stats.pid });
       

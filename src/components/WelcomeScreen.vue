@@ -76,7 +76,7 @@
       <div v-if="updaterStore.showWhatsNew && updaterStore.whatsNewReleaseNotes.length > 0" class="whats-new-section">
         <div class="whats-new-title-bar">
           <div class="whats-new-title">
-            {{ t('settings.whatsNew') }} 
+            {{ t('settings.currentVersionFeatures') }} 
             <span class="version-badge">v{{ updaterStore.currentVersion }}</span>
           </div>
           <n-button text class="close-whats-new" @click="updaterStore.dismissWhatsNew">
@@ -99,13 +99,47 @@
           </n-scrollbar>
         </div>
       </div>
+      
+      <!-- New Version Available Section -->
+      <div v-if="updaterStore.newVersionNote" class="new-version-section">
+        <div class="new-version-header">
+          <div class="new-version-title">
+            <component :is="iconComponents.upgrade" class="upgrade-icon" />
+            {{ t('settings.newVersionAvailable') }}
+            <span class="version-badge new-version-badge">{{ updaterStore.newVersionNote.tag }}</span>
+          </div>
+          <n-button 
+            type="primary" 
+            size="small" 
+            :loading="updaterStore.downloading"
+            @click="handleUpgrade"
+          >
+            <template #icon>
+              <component :is="iconComponents.download" />
+            </template>
+            {{ updaterStore.downloading ? t('settings.downloading') : t('settings.downloadAndInstall') }}
+          </n-button>
+        </div>
+        <n-progress 
+          v-if="updaterStore.downloading" 
+          type="line" 
+          :percentage="updaterStore.downloadProgress" 
+          :show-indicator="true"
+          style="margin-top: 12px;"
+        />
+        <n-collapse :default-expanded-names="[]" style="margin-top: 12px;">
+          <n-collapse-item :title="t('settings.viewNewFeatures')" name="features">
+            <div class="new-version-features" v-html="formatReleaseBody(updaterStore.newVersionNote.body)"></div>
+          </n-collapse-item>
+        </n-collapse>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { NScrollbar, NButton } from "naive-ui";
+import { NScrollbar, NButton, NProgress, NCollapse, NCollapseItem } from "naive-ui";
 import { useUpdaterStore } from "../stores/updater";
 import { iconComponents } from "../utils/icons";
 
@@ -117,6 +151,15 @@ defineProps<Props>();
 
 const { t } = useI18n();
 const updaterStore = useUpdaterStore();
+
+// Handle upgrade button click
+const handleUpgrade = async () => {
+  try {
+    await updaterStore.downloadAndInstall();
+  } catch (error) {
+    console.error('Failed to download and install update:', error);
+  }
+};
 
 
 // Format release body (convert markdown to HTML)
@@ -347,5 +390,79 @@ const formatReleaseBody = (body: string): string => {
 /* Light theme overrides if needed */
 .light-theme .welcome-screen {
   /* Add specific light theme overrides here if base styles rely on CSS vars that don't switch */
+}
+
+/* New Version Available Section */
+.new-version-section {
+  margin-top: 20px;
+  text-align: left;
+  background: linear-gradient(135deg, rgba(24, 160, 88, 0.1) 0%, rgba(54, 173, 106, 0.05) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(24, 160, 88, 0.3);
+  padding: 20px;
+}
+
+.new-version-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.new-version-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--n-text-color-1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upgrade-icon {
+  color: #18a058;
+}
+
+.new-version-badge {
+  background: linear-gradient(135deg, #2080f0 0%, #409eff 100%);
+}
+
+.new-version-features {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--n-text-color-2);
+}
+
+.new-version-features :deep(h2),
+.new-version-features :deep(h3),
+.new-version-features :deep(h4) {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  color: var(--n-text-color-1);
+}
+
+.new-version-features :deep(h2) { font-size: 15px; }
+.new-version-features :deep(h3) { font-size: 14px; }
+.new-version-features :deep(h4) { font-size: 13px; }
+
+.new-version-features :deep(ul) {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.new-version-features :deep(li) {
+  margin: 3px 0;
+}
+
+.new-version-features :deep(code) {
+  background: rgba(128, 128, 128, 0.15);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.new-version-features :deep(p) {
+  margin: 6px 0;
 }
 </style>

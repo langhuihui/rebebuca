@@ -18,7 +18,7 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed, shallowRef } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { getAdapter, type BackendAdapter } from '../adapters';
 import { 
   Task, 
   TaskProvider, 
@@ -34,21 +34,20 @@ import { useRunConfigStore } from './runConfig';
 import { useSettingsStore } from './settings';
 import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
 
-// Store instance for persistence
-let store: any = null;
+// Adapter instance for persistence
+let adapter: BackendAdapter | null = null;
 
-// Initialize Tauri store
-const initStore = async () => {
-  if (!store) {
+// Initialize adapter
+const initAdapter = async () => {
+  if (!adapter) {
     try {
-      const { Store } = await import('@tauri-apps/plugin-store');
-      store = await Store.load('rebebuca-config.json');
+      adapter = await getAdapter();
     } catch (error) {
-      console.warn('[TaskManager] Failed to initialize Tauri store:', error);
+      console.warn('[TaskManager] Failed to initialize adapter:', error);
       return null;
     }
   }
-  return store;
+  return adapter;
 };
 
 // User task group interface
@@ -248,26 +247,105 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         children: [],
       };
       
-      // Group tasks by source
+      // Group tasks by their cwd (subfolder), then by source
+      // First, collect all tasks and group by their relative path
+      const tasksBySubfolder = new Map<string, Map<TaskSource, Task[]>>();
+      
       for (const [source, tasks] of folder.tasksBySource) {
-        if (tasks.length === 0) continue;
+        for (const task of tasks) {
+          // Determine the subfolder relative path
+          const taskCwd = task.cwd || folder.path;
+          let relativePath = '';
+          
+          if (taskCwd.startsWith(folder.path)) {
+            relativePath = taskCwd.slice(folder.path.length).replace(/^[/\\]+/, '');
+          }
+          
+          // Use empty string for root folder tasks
+          const subfolderKey = relativePath || '';
+          
+          if (!tasksBySubfolder.has(subfolderKey)) {
+            tasksBySubfolder.set(subfolderKey, new Map());
+          }
+          
+          const sourceMap = tasksBySubfolder.get(subfolderKey)!;
+          if (!sourceMap.has(source)) {
+            sourceMap.set(source, []);
+          }
+          sourceMap.get(source)!.push(task);
+        }
+      }
+      
+      // Convert to tree structure
+      // Sort subfolder keys: root first, then alphabetically
+      const sortedSubfolders = Array.from(tasksBySubfolder.keys()).sort((a, b) => {
+        if (a === '') return -1;
+        if (b === '') return 1;
+        return a.localeCompare(b);
+      });
+      
+      for (const subfolderPath of sortedSubfolders) {
+        const sourceMap = tasksBySubfolder.get(subfolderPath)!;
         
-        const sourceItem: TaskTreeItem = {
-          id: `source:${folder.path}:${source}`,
-          label: getSourceLabel(source),
-          type: 'source',
-          icon: getSourceIcon(source),
-          expanded: true,
-          children: tasks.map(task => ({
-            id: task.id,
-            label: task.name,
-            type: 'task' as const,
-            task,
-            icon: getTaskIcon(task),
-          })),
-        };
-        
-        folderItem.children?.push(sourceItem);
+        if (subfolderPath === '') {
+          // Root folder tasks - add sources directly to folder
+          for (const [source, tasks] of sourceMap) {
+            if (tasks.length === 0) continue;
+            
+            const sourceItem: TaskTreeItem = {
+              id: `source:${folder.path}:${source}`,
+              label: getSourceLabel(source),
+              type: 'source',
+              icon: getSourceIcon(source),
+              expanded: true,
+              children: tasks.map(task => ({
+                id: task.id,
+                label: task.name,
+                type: 'task' as const,
+                task,
+                icon: getTaskIcon(task),
+              })),
+            };
+            
+            folderItem.children?.push(sourceItem);
+          }
+        } else {
+          // Subfolder - create subfolder node with sources as children
+          const subfolderName = subfolderPath.split(/[/\\]/).pop() || subfolderPath;
+          const subfolderItem: TaskTreeItem = {
+            id: `subfolder:${folder.path}:${subfolderPath}`,
+            label: subfolderName,
+            type: 'subfolder',
+            expanded: true,
+            relativePath: subfolderPath,
+            children: [],
+          };
+          
+          for (const [source, tasks] of sourceMap) {
+            if (tasks.length === 0) continue;
+            
+            const sourceItem: TaskTreeItem = {
+              id: `source:${folder.path}:${subfolderPath}:${source}`,
+              label: getSourceLabel(source),
+              type: 'source',
+              icon: getSourceIcon(source),
+              expanded: true,
+              children: tasks.map(task => ({
+                id: task.id,
+                label: task.name,
+                type: 'task' as const,
+                task,
+                icon: getTaskIcon(task),
+              })),
+            };
+            
+            subfolderItem.children?.push(sourceItem);
+          }
+          
+          if (subfolderItem.children && subfolderItem.children.length > 0) {
+            folderItem.children?.push(subfolderItem);
+          }
+        }
       }
       
       if (folderItem.children && folderItem.children.length > 0) {
@@ -367,11 +445,11 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function saveFolderPaths(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
         const paths = folders.value.map(f => f.path);
-        await storeInstance.set('taskFolders', paths);
-        await storeInstance.save();
+        await adapterInstance.storage.set('taskFolders', paths);
+        await adapterInstance.storage.save();
         console.log('[TaskManager] Saved folder paths:', paths);
       }
     } catch (error) {
@@ -384,9 +462,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function loadFolderPaths(): Promise<string[]> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        const paths = await storeInstance.get('taskFolders');
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        const paths = await adapterInstance.storage.get<string[]>('taskFolders');
         if (paths && Array.isArray(paths)) {
           console.log('[TaskManager] Loaded folder paths:', paths);
           return paths;
@@ -403,10 +481,10 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function saveFavorites(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        await storeInstance.set('favoriteTasks', favoriteTaskIds.value);
-        await storeInstance.save();
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        await adapterInstance.storage.set('favoriteTasks', favoriteTaskIds.value);
+        await adapterInstance.storage.save();
         console.log('[TaskManager] Saved favorites:', favoriteTaskIds.value);
       }
     } catch (error) {
@@ -419,9 +497,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function loadFavorites(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        const ids = await storeInstance.get('favoriteTasks');
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        const ids = await adapterInstance.storage.get<string[]>('favoriteTasks');
         if (ids && Array.isArray(ids)) {
           favoriteTaskIds.value = ids;
           console.log('[TaskManager] Loaded favorites:', ids);
@@ -437,12 +515,12 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function saveTaskRunStats(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
         // Convert Map to array for storage
         const statsArray = Array.from(taskRunStats.value.values());
-        await storeInstance.set('taskRunStats', statsArray);
-        await storeInstance.save();
+        await adapterInstance.storage.set('taskRunStats', statsArray);
+        await adapterInstance.storage.save();
         console.log('[TaskManager] Saved task run stats:', statsArray.length, 'entries');
       }
     } catch (error) {
@@ -455,16 +533,16 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function loadTaskRunStats(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        const statsArray = await storeInstance.get('taskRunStats');
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        const statsArray = await adapterInstance.storage.get<TaskRunStats[]>('taskRunStats');
         if (statsArray && Array.isArray(statsArray)) {
           taskRunStats.value = new Map(statsArray.map((s: TaskRunStats) => [s.taskId, s]));
           console.log('[TaskManager] Loaded task run stats:', statsArray.length, 'entries');
         }
         
         // Load recent sort mode
-        const sortMode = await storeInstance.get('recentSortMode');
+        const sortMode = await adapterInstance.storage.get<string>('recentSortMode');
         if (sortMode === 'time' || sortMode === 'frequency') {
           recentSortMode.value = sortMode;
           console.log('[TaskManager] Loaded recent sort mode:', sortMode);
@@ -483,10 +561,10 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     // Save the preference
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        await storeInstance.set('recentSortMode', recentSortMode.value);
-        await storeInstance.save();
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        await adapterInstance.storage.set('recentSortMode', recentSortMode.value);
+        await adapterInstance.storage.save();
         console.log('[TaskManager] Saved recent sort mode:', recentSortMode.value);
       }
     } catch (error) {
@@ -567,10 +645,10 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function saveUserGroups(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        await storeInstance.set('userGroups', userGroups.value);
-        await storeInstance.save();
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        await adapterInstance.storage.set('userGroups', userGroups.value);
+        await adapterInstance.storage.save();
         console.log('[TaskManager] Saved user groups:', userGroups.value.length);
       }
     } catch (error) {
@@ -583,9 +661,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    */
   async function loadUserGroups(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        const groups = await storeInstance.get('userGroups');
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        const groups = await adapterInstance.storage.get<UserTaskGroup[]>('userGroups');
         if (groups && Array.isArray(groups) && groups.length > 0) {
           userGroups.value = groups;
           console.log('[TaskManager] Loaded user groups:', groups.length);
@@ -1174,10 +1252,13 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       
       if (settingsStore.settings.saveLogs) {
         try {
-          const logInfo = await invoke<{ log_filename: string; log_path: string }>('generate_log_path');
-          logPath = logInfo.log_path;
-          logFilename = logInfo.log_filename;
-          console.log('[TaskManager] Generated log path:', logPath);
+          const adapterInstance = await initAdapter();
+          if (adapterInstance) {
+            const logInfo = await adapterInstance.system.generateLogPath();
+            logPath = logInfo.logPath;
+            logFilename = logInfo.logFilename;
+            console.log('[TaskManager] Generated log path:', logPath);
+          }
         } catch (error) {
           console.error('[TaskManager] Failed to generate log path:', error);
         }
@@ -1258,10 +1339,10 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       : task.command;
     
     try {
-      await invoke('open_in_system_terminal', {
-        command: fullCommand,
-        cwd: cwd || null,
-      });
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+      }
       console.log(`[TaskManager] Task opened in system terminal: ${task.name}`);
     } catch (error) {
       console.error('[TaskManager] Failed to open in system terminal:', error);

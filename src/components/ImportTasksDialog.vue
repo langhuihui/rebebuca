@@ -22,6 +22,7 @@
     preset="dialog"
     :title="t('import.title')"
     style="width: 700px"
+    to="body"
   >
     <template #action>
       <n-space>
@@ -46,18 +47,7 @@
           <n-button @click="selectTasksFile">
             <template #icon>
               <n-icon size="16">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                  <polyline points="13 2 13 9 20 9"></polyline>
-                </svg>
+                <component :is="svgIcons.file" />
               </n-icon>
             </template>
             {{ t('import.browse') }}
@@ -82,17 +72,7 @@
             <n-button text @click="selectWorkspaceFolder">
               <template #icon>
                 <n-icon size="16">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
-                  </svg>
+                  <component :is="svgIcons.folderOpen" />
                 </n-icon>
               </template>
             </n-button>
@@ -180,8 +160,8 @@ import {
   NEmpty,
   useMessage,
 } from 'naive-ui';
-import { open } from '@tauri-apps/plugin-dialog';
-import { readTextFile } from '@tauri-apps/plugin-fs';
+import { svgIcons } from '../utils/icons';
+import { getAdapter } from '../adapters';
 import { useI18n } from 'vue-i18n';
 import { parseVSCodeTasks, convertToRunConfigs, type ParseResult } from '../utils/vscodeTasksParser';
 
@@ -213,16 +193,15 @@ const show = computed({
 // Select tasks.json file
 const selectTasksFile = async () => {
   try {
-    const selected = await open({
-      multiple: false,
-      directory: false,
+    const adapter = await getAdapter();
+    const selected = await adapter.dialog.selectFile({
       title: t('import.selectTasksJson'),
       filters: [
         { name: 'tasks.json', extensions: ['json'] }
       ]
     });
     
-    if (selected && typeof selected === 'string') {
+    if (selected) {
       selectedFilePath.value = selected;
       
       // Auto-detect workspace folder from file path
@@ -249,13 +228,12 @@ const selectTasksFile = async () => {
 // Select workspace folder
 const selectWorkspaceFolder = async () => {
   try {
-    const selected = await open({
-      multiple: false,
-      directory: true,
+    const adapter = await getAdapter();
+    const selected = await adapter.dialog.selectFolder({
       title: t('import.selectWorkspaceFolder'),
     });
     
-    if (selected && typeof selected === 'string') {
+    if (selected) {
       workspaceFolder.value = selected;
       // Re-parse if file already selected
       if (selectedFilePath.value) {
@@ -272,7 +250,8 @@ const parseFile = async () => {
   if (!selectedFilePath.value) return;
   
   try {
-    const content = await readTextFile(selectedFilePath.value);
+    const adapter = await getAdapter();
+    const content = await adapter.fs.readTextFile(selectedFilePath.value);
     parseResult.value = parseVSCodeTasks(content, workspaceFolder.value || undefined);
     
     // Auto-select all tasks

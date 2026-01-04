@@ -18,22 +18,22 @@
 
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { getAdapter, type BackendAdapter } from '../adapters';
 
-// Store instance for persistence
-let store: any = null;
+// Adapter instance for persistence
+let adapter: BackendAdapter | null = null;
 
-// Initialize Tauri store
-const initStore = async () => {
-  if (!store) {
+// Initialize adapter
+const initAdapter = async () => {
+  if (!adapter) {
     try {
-      const { Store } = await import('@tauri-apps/plugin-store');
-      store = await Store.load('rebebuca-settings.json');
+      adapter = await getAdapter();
     } catch (error) {
-      console.warn('[Settings] Failed to initialize Tauri store:', error);
+      console.warn('[Settings] Failed to initialize adapter:', error);
       return null;
     }
   }
-  return store;
+  return adapter;
 };
 
 export interface AppSettings {
@@ -78,10 +78,10 @@ export const useSettingsStore = defineStore('settings', () => {
    */
   async function saveSettings(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        await storeInstance.set('appSettings', settings.value);
-        await storeInstance.save();
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        await adapterInstance.storage.set('appSettings', settings.value);
+        await adapterInstance.storage.save();
         console.log('[Settings] Saved settings:', settings.value);
       }
     } catch (error) {
@@ -94,9 +94,9 @@ export const useSettingsStore = defineStore('settings', () => {
    */
   async function loadSettings(): Promise<void> {
     try {
-      const storeInstance = await initStore();
-      if (storeInstance) {
-        const savedSettings = await storeInstance.get('appSettings');
+      const adapterInstance = await initAdapter();
+      if (adapterInstance) {
+        const savedSettings = await adapterInstance.storage.get<AppSettings>('appSettings');
         if (savedSettings) {
           settings.value = { ...defaultSettings, ...savedSettings };
           console.log('[Settings] Loaded settings:', settings.value);

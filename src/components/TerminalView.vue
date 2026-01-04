@@ -32,10 +32,18 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, TauriEvent, type UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
 import '@xterm/xterm/css/xterm.css';
+
+// Adapter instance
+let adapter: BackendAdapter | null = null;
+
+const getAdapterInstance = async (): Promise<BackendAdapter> => {
+  if (!adapter) {
+    adapter = await getAdapter();
+  }
+  return adapter;
+};
 
 interface Props {
   ptyId: string;
@@ -62,9 +70,9 @@ const isDragOver = ref(false);
 
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
-let unlistenOutput: UnlistenFn | null = null;
-let unlistenExit: UnlistenFn | null = null;
-let unlistenDragDrop: UnlistenFn | null = null;
+let unlistenOutput: (() => void) | null = null;
+let unlistenExit: (() => void) | null = null;
+let unlistenDragDrop: (() => void) | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let isInitialized = false;
 
@@ -120,6 +128,8 @@ const lightTheme = {
 const initTerminal = async () => {
   if (!terminalContainer.value || isInitialized) return;
 
+  const adapterInstance = await getAdapterInstance();
+
   // Create terminal instance
   terminal = new Terminal({
     cursorBlink: true,
@@ -135,7 +145,16 @@ const initTerminal = async () => {
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
 
-  const webLinksAddon = new WebLinksAddon();
+  const webLinksAddon = new WebLinksAddon(async (_event, uri) => {
+    // Use adapter to open URL in system browser
+    try {
+      await adapterInstance.system.openExternal(uri);
+    } catch (error) {
+      console.error('Failed to open URL:', error);
+      // Fallback to window.open
+      window.open(uri, '_blank');
+    }
+  });
   terminal.loadAddon(webLinksAddon);
 
   // Open terminal in container
@@ -155,25 +174,25 @@ const initTerminal = async () => {
   try {
     // Only create PTY if not in attach-only mode
     if (!props.attachOnly) {
-      await invoke('create_pty', {
-        ptyId: props.ptyId,
-        options: {
-          rows,
-          cols,
-          cwd: props.cwd,
-          env: props.env,
-        },
-      });
+      // For shell PTY, we need to use invoke directly since adapter.terminal.create is for task execution
+      if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('create_pty', {
+          ptyId: props.ptyId,
+          options: {
+            rows,
+            cols,
+            cwd: props.cwd,
+            env: props.env,
+          },
+        });
+      }
     } else {
       // In attach mode, just resize to fit
       try {
-        await invoke('resize_pty', {
-          ptyId: props.ptyId,
-          rows,
-          cols,
-        });
+        await adapterInstance.terminal.resize(props.ptyId, cols, rows);
       } catch (e) {
-        // Ignore resize errors for already-exited tasks (e.g., quick commands like 'ls')
+        // Ignore resize errors for already-exited tasks
         const errStr = String(e);
         if (errStr.includes('PTY not found') || errStr.includes('not found')) {
           console.debug('PTY already exited during init, resize skipped');
@@ -183,37 +202,32 @@ const initTerminal = async () => {
       }
     }
 
-    // Listen for PTY output
-    unlistenOutput = await listen<{ pty_id: string; data: string }>('pty-output', (event) => {
-      if (event.payload.pty_id === props.ptyId && terminal) {
-        terminal.write(event.payload.data);
+    // Listen for PTY output - use global listener and filter by ptyId
+    const outputUnlisten = adapterInstance.terminal.onData((event) => {
+      if (event.ptyId === props.ptyId && terminal) {
+        terminal.write(event.data);
       }
     });
+    unlistenOutput = outputUnlisten;
 
     // Listen for PTY exit
-    unlistenExit = await listen<{ pty_id: string; exit_code: number | null }>('pty-exit', (event) => {
-      if (event.payload.pty_id === props.ptyId) {
-        emit('exit', event.payload.exit_code);
+    const exitUnlisten = adapterInstance.terminal.onExit((event) => {
+      if (event.ptyId === props.ptyId) {
+        emit('exit', event.exitCode);
       }
     });
+    unlistenExit = exitUnlisten;
 
     // Handle user input
     terminal.onData((data) => {
-      invoke('write_pty', {
-        ptyId: props.ptyId,
-        data,
-      }).catch((err) => {
+      adapterInstance.terminal.write(props.ptyId, data).catch((err: Error) => {
         console.error('Failed to write to PTY:', err);
       });
     });
 
     // Handle resize
     terminal.onResize(({ cols, rows }) => {
-      invoke('resize_pty', {
-        ptyId: props.ptyId,
-        rows,
-        cols,
-      }).catch((err) => {
+      adapterInstance.terminal.resize(props.ptyId, cols, rows).catch((err: Error) => {
         // Ignore "PTY not found" errors - this happens when process exits quickly
         const errStr = String(err);
         if (errStr.includes('PTY not found') || errStr.includes('not found')) {
@@ -264,7 +278,10 @@ const dispose = async () => {
   // Only close PTY if we created it (not in attach mode)
   if (isInitialized && !props.attachOnly) {
     try {
-      await invoke('close_pty', { ptyId: props.ptyId });
+      if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('close_pty', { ptyId: props.ptyId });
+      }
     } catch (error) {
       console.error('Failed to close PTY:', error);
     }
@@ -338,10 +355,8 @@ const writePathsToPty = async (paths: string[]) => {
   const escapedPaths = paths.map(escapePathForShell).join(' ');
   
   try {
-    await invoke('write_pty', {
-      ptyId: props.ptyId,
-      data: escapedPaths,
-    });
+    const adapterInstance = await getAdapterInstance();
+    await adapterInstance.terminal.write(props.ptyId, escapedPaths);
     
     // Focus terminal after drop
     terminal?.focus();
@@ -352,57 +367,66 @@ const writePathsToPty = async (paths: string[]) => {
 
 // Setup Tauri drag-drop event listener
 const setupDragDropListener = async () => {
-  const appWindow = getCurrentWindow();
+  if (!isTauri()) {
+    // In non-Tauri environment, skip drag-drop setup
+    return;
+  }
   
-  // Listen for drag enter
-  const unlistenEnter = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
-    TauriEvent.DRAG_ENTER,
-    (event) => {
-      // Check if drop is over this terminal container
-      if (terminalContainer.value && isDropOverElement(event.payload.position)) {
-        isDragOver.value = true;
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const { TauriEvent } = await import('@tauri-apps/api/event');
+    const appWindow = getCurrentWindow();
+    
+    // Listen for drag enter
+    const unlistenEnter = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
+      TauriEvent.DRAG_ENTER,
+      (event) => {
+        if (terminalContainer.value && isDropOverElement(event.payload.position)) {
+          isDragOver.value = true;
+        }
       }
-    }
-  );
-  
-  // Listen for drag over (to update position)
-  const unlistenOver = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
-    TauriEvent.DRAG_OVER,
-    (event) => {
-      if (terminalContainer.value) {
-        isDragOver.value = isDropOverElement(event.payload.position);
+    );
+    
+    // Listen for drag over (to update position)
+    const unlistenOver = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
+      TauriEvent.DRAG_OVER,
+      (event) => {
+        if (terminalContainer.value) {
+          isDragOver.value = isDropOverElement(event.payload.position);
+        }
       }
-    }
-  );
-  
-  // Listen for drag leave
-  const unlistenLeave = await appWindow.listen(
-    TauriEvent.DRAG_LEAVE,
-    () => {
-      isDragOver.value = false;
-    }
-  );
-  
-  // Listen for actual drop
-  const unlistenDrop = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
-    TauriEvent.DRAG_DROP,
-    async (event) => {
-      isDragOver.value = false;
-      
-      // Only process if drop is over this terminal
-      if (terminalContainer.value && isDropOverElement(event.payload.position)) {
-        await writePathsToPty(event.payload.paths);
+    );
+    
+    // Listen for drag leave
+    const unlistenLeave = await appWindow.listen(
+      TauriEvent.DRAG_LEAVE,
+      () => {
+        isDragOver.value = false;
       }
-    }
-  );
-  
-  // Store cleanup function
-  unlistenDragDrop = () => {
-    unlistenEnter();
-    unlistenOver();
-    unlistenLeave();
-    unlistenDrop();
-  };
+    );
+    
+    // Listen for actual drop
+    const unlistenDrop = await appWindow.listen<{ paths: string[]; position: { x: number; y: number } }>(
+      TauriEvent.DRAG_DROP,
+      async (event) => {
+        isDragOver.value = false;
+        
+        if (terminalContainer.value && isDropOverElement(event.payload.position)) {
+          await writePathsToPty(event.payload.paths);
+        }
+      }
+    );
+    
+    // Store cleanup function
+    unlistenDragDrop = () => {
+      unlistenEnter();
+      unlistenOver();
+      unlistenLeave();
+      unlistenDrop();
+    };
+  } catch (error) {
+    console.warn('Failed to setup drag-drop listener:', error);
+  }
 };
 
 // Check if the drop position is over this terminal element

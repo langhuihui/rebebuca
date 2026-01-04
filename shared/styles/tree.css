@@ -1,0 +1,211 @@
+/**
+ * Rebebuca - Shared Tree Styles
+ * Used by TaskSidebar and DemoApp
+ */
+
+/* Base tree node */
+.tree-node {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  gap: 6px;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tree-node:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Light theme */
+.light-theme .tree-node:hover,
+.n-config-provider--light .tree-node:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Tree icons */
+.tree-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.expand-icon {
+  opacity: 0.5;
+}
+
+/* Tree label */
+.tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  user-select: none;
+}
+
+/* Task label - monospace */
+.task-label {
+  font-family: monospace;
+  user-select: none;
+}
+
+/* Tree badge (count) */
+.tree-badge {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.light-theme .tree-badge,
+.n-config-provider--light .tree-badge {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* Section node (e.g., Favorites, Recent headers) */
+.section-node {
+  padding-left: 8px;
+}
+
+.section-label {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.light-theme .section-label,
+.n-config-provider--light .section-label {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* Section divider */
+.section-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 8px 12px;
+}
+
+.light-theme .section-divider,
+.n-config-provider--light .section-divider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Folder node */
+.folder-node {
+  padding-left: 8px;
+}
+
+.folder-icon {
+  color: #f5a623;
+}
+
+/* Source node */
+.source-node {
+  padding-left: 24px;
+}
+
+.source-label {
+  flex: 1;
+  opacity: 0.8;
+}
+
+/* Task node */
+.task-node {
+  padding-left: 40px;
+  padding-right: 8px;
+}
+
+.task-node.nested {
+  padding-left: 44px;
+}
+
+/* Task running state */
+.task-node.task-running {
+  background: rgba(0, 208, 132, 0.08);
+}
+
+.task-node.task-running .task-icon,
+.task-node.task-running .tree-icon {
+  color: #00d084;
+}
+
+/* Floating action buttons */
+.task-actions,
+.task-actions-float {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tree-node:hover .task-actions,
+.tree-node:hover .task-actions-float {
+  opacity: 1;
+}
+
+.task-actions-float {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  gap: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--action-bg, rgba(36, 36, 36, 0.95)) 20%);
+  padding-left: 16px;
+}
+
+.light-theme .task-actions-float,
+.n-config-provider--light .task-actions-float {
+  --action-bg: rgba(255, 255, 255, 0.95);
+}
+
+/* Action button */
+.action-btn {
+  padding: 2px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.light-theme .action-btn:hover,
+.n-config-provider--light .action-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Special icons */
+.star-icon {
+  color: #f5a623;
+}
+
+.star-btn.active {
+  color: #f5a623 !important;
+}
+
+.recent-icon {
+  color: #36cfc9;
+}
+
+.stop-btn {
+  color: #ff4d4f !important;
+}
+
+/* Folder/Source actions */
+.folder-actions,
+.source-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tree-node:hover .folder-actions,
+.tree-node:hover .source-actions {
+  opacity: 1;
+}

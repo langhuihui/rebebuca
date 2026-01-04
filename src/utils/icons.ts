@@ -333,6 +333,20 @@ export const iconComponents = {
     h('path', { d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' }),
     h('line', { x1: '10', y1: '11', x2: '10', y2: '17' }),
     h('line', { x1: '14', y1: '11', x2: '14', y2: '17' })
+  ]),
+
+  // 升级图标 (向上箭头 + 圆圈)
+  upgrade: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('polyline', { points: '16 12 12 8 8 12' }),
+    h('line', { x1: '12', y1: '16', x2: '12', y2: '8' })
+  ]),
+
+  // 下载图标
+  download: createIconComponent([
+    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+    h('polyline', { points: '7 10 12 15 17 10' }),
+    h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })
   ])
 };
 
@@ -613,5 +627,21 @@ export const svgIcons = {
     h('line', { x1: '18', y1: '20', x2: '18', y2: '10' }),
     h('line', { x1: '12', y1: '20', x2: '12', y2: '4' }),
     h('line', { x1: '6', y1: '20', x2: '6', y2: '14' })
+  ]),
+  
+  // 列表图标
+  list: createSvgIcon([
+    h('line', { x1: '8', y1: '6', x2: '21', y2: '6' }),
+    h('line', { x1: '8', y1: '12', x2: '21', y2: '12' }),
+    h('line', { x1: '8', y1: '18', x2: '21', y2: '18' }),
+    h('line', { x1: '3', y1: '6', x2: '3.01', y2: '6' }),
+    h('line', { x1: '3', y1: '12', x2: '3.01', y2: '12' }),
+    h('line', { x1: '3', y1: '18', x2: '3.01', y2: '18' })
+  ]),
+  
+  // 文件图标
+  file: createSvgIcon([
+    h('path', { d: 'M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z' }),
+    h('polyline', { points: '13 2 13 9 20 9' })
   ]),
 };
