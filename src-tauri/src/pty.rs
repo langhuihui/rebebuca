@@ -159,9 +159,9 @@ impl PtyManager {
         let mut env_map = HashMap::new();
         
         // Try to get environment from a login shell
-        // Use -l for login shell and -c to run a command
+        // Use -l for login shell and -i for interactive (loads .zshrc/.bashrc)
         let result = Command::new(&shell)
-            .args(["-l", "-c", "env"])
+            .args(["-l", "-i", "-c", "env"])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -179,15 +179,14 @@ impl PtyManager {
             }
         }
         
-        // If we couldn't get env from shell, at least set common paths
+        // If we couldn't get env from shell, use basic fallback
         if env_map.is_empty() || !env_map.contains_key("PATH") {
-            // Fallback PATH for macOS
-            let default_path = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin";
+            let default_path = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
             let current_path = std::env::var("PATH").unwrap_or_default();
             let combined_path = if current_path.is_empty() {
                 default_path.to_string()
             } else {
-                format!("{}:{}", default_path, current_path)
+                format!("{}:{}", current_path, default_path)
             };
             env_map.insert("PATH".to_string(), combined_path);
             println!("[PTY] Using fallback PATH: {}", env_map.get("PATH").unwrap());

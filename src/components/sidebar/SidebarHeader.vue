@@ -25,7 +25,8 @@
           <img
             :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
             alt="Logo"
-            class="logo-image"
+            class="logo-image logo-clickable"
+            @click="openOfficialWebsite"
           />
           <span class="version-text">v{{ currentVersion }}</span>
           <n-tooltip v-if="updateAvailable" trigger="hover">
@@ -140,6 +141,7 @@
 import { NTooltip, NButton, NSpace, NIcon } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../utils/icons';
+import { adapter } from '../../adapters';
 
 defineProps<{
   effectiveTheme: string;
@@ -159,6 +161,14 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const openOfficialWebsite = async () => {
+  try {
+    await adapter.system.openExternal('https://rebebuca.com');
+  } catch (error) {
+    console.error('Failed to open official website:', error);
+  }
+};
 </script>
 
 <style scoped>
@@ -182,6 +192,15 @@ const { t } = useI18n();
   width: 24px;
   height: 24px;
   flex-shrink: 0;
+}
+
+.logo-clickable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.logo-clickable:hover {
+  opacity: 0.8;
 }
 
 .logo-version {

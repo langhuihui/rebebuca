@@ -156,6 +156,18 @@
         <n-button
           text
           size="small"
+          @click="openGitHub"
+          class="titlebar-button"
+          title="GitHub"
+          @mousedown.stop
+        >
+          <template #icon>
+            <component :is="svgIcons.github" />
+          </template>
+        </n-button>
+        <n-button
+          text
+          size="small"
           @click="showSettingsDialog = true"
           class="titlebar-button"
           :title="t('task.settings')"
@@ -225,6 +237,7 @@ import {
   startDrag,
 } from "../utils/windowControls";
 import { SettingsDialog } from "./settings";
+import { adapter } from "../adapters";
 
 interface Props {
   effectiveTheme: string;
@@ -319,6 +332,15 @@ const openLogsFolder = async () => {
     await runConfigStore.openLogsFolder();
   } catch (error) {
     console.error('Failed to open logs folder:', error);
+  }
+};
+
+// Open GitHub
+const openGitHub = async () => {
+  try {
+    await adapter.system.openExternal('https://github.com/langhuihui/rebebuca');
+  } catch (error) {
+    console.error('Failed to open GitHub:', error);
   }
 };
 </script>
