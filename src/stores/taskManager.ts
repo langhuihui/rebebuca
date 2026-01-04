@@ -34,6 +34,66 @@ import { useRunConfigStore } from './runConfig';
 import { useSettingsStore } from './settings';
 import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
 
+/**
+ * Parse a command line string into command and arguments
+ * Handles quoted arguments properly
+ */
+function parseCommandLine(cmdLine: string): { command: string; args: string[] } {
+  const tokens: string[] = [];
+  let current = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escaped = false;
+  
+  for (let i = 0; i < cmdLine.length; i++) {
+    const char = cmdLine[i];
+    
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    
+    if (char === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+    
+    if (char === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+    
+    if (char === ' ' && !inSingleQuote && !inDoubleQuote) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+    
+    current += char;
+  }
+  
+  if (current) {
+    tokens.push(current);
+  }
+  
+  if (tokens.length === 0) {
+    return { command: '', args: [] };
+  }
+  
+  return {
+    command: tokens[0],
+    args: tokens.slice(1),
+  };
+}
+
 // Adapter instance for persistence
 let adapter: BackendAdapter | null = null;
 
@@ -1138,16 +1198,23 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       return false;
     };
     
-    if (task.type === 'shell' && commandHasSpaces && !hasArgs && needsShellExecution(task.command)) {
-      // Execute via shell for commands with shell operators or sudo
-      // On macOS/Linux use sh -c, on Windows use cmd /c
-      const isWindows = navigator.platform.toLowerCase().includes('win');
-      if (isWindows) {
-        command = 'cmd';
-        args = ['/c', task.command];
+    if (commandHasSpaces && !hasArgs) {
+      if (needsShellExecution(task.command)) {
+        // Execute via shell for commands with shell operators or sudo
+        // On macOS/Linux use sh -c, on Windows use cmd /c
+        const isWindows = navigator.platform.toLowerCase().includes('win');
+        if (isWindows) {
+          command = 'cmd';
+          args = ['/c', task.command];
+        } else {
+          command = 'sh';
+          args = ['-c', task.command];
+        }
       } else {
-        command = 'sh';
-        args = ['-c', task.command];
+        // Parse command string into command and args
+        const parsed = parseCommandLine(task.command);
+        command = parsed.command;
+        args = parsed.args;
       }
     } else {
       command = task.command;
