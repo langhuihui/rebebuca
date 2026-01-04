@@ -639,16 +639,26 @@ async fn open_in_system_terminal(command: String, cwd: Option<String>) -> Result
 
     #[cfg(target_os = "windows")]
     {
-        // Use cmd to open a new command prompt window
-        // The command needs to be properly formatted for start cmd /k
+        // Use PowerShell's Start-Process to open a new cmd window
+        // This handles complex commands better than cmd /c start
         let full_command = if let Some(ref dir) = cwd {
-            format!("cd /d \"{}\" && {}", dir, command)
+            // Escape single quotes in the command for PowerShell
+            let escaped_cmd = command.replace("'", "''");
+            let escaped_dir = dir.replace("'", "''");
+            format!(
+                "Start-Process cmd -ArgumentList '/k','cd /d \"{}\" && {}' -WorkingDirectory '{}'",
+                escaped_dir, escaped_cmd, escaped_dir
+            )
         } else {
-            command.clone()
+            let escaped_cmd = command.replace("'", "''");
+            format!(
+                "Start-Process cmd -ArgumentList '/k','{}'",
+                escaped_cmd
+            )
         };
         
-        std::process::Command::new("cmd")
-            .args(["/c", "start", "cmd", "/k", &full_command])
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &full_command])
             .spawn()
             .map_err(|e| format!("Failed to open system terminal: {}", e))?;
     }
