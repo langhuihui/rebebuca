@@ -162,7 +162,6 @@ const WebsiteContentInner = defineComponent({
     const taskEditForm = reactive({
       name: '',
       command: '',
-      argsStr: '',
       cwd: '',
       envStr: '',
       useSystemTerminal: false,
@@ -327,7 +326,6 @@ const WebsiteContentInner = defineComponent({
       showTaskEditDialog.value = false
       taskEditForm.name = ''
       taskEditForm.command = ''
-      taskEditForm.argsStr = ''
       taskEditForm.cwd = ''
       taskEditForm.envStr = ''
       taskEditForm.useSystemTerminal = false
@@ -663,15 +661,12 @@ const WebsiteContentInner = defineComponent({
             h(NInput, { value: taskEditForm.name, 'onUpdate:value': (v: string) => taskEditForm.name = v, placeholder: t('task.namePlaceholder') })
           ),
           h(NFormItem, { label: t('task.command') }, () => 
-            h(NInput, { value: taskEditForm.command, 'onUpdate:value': (v: string) => taskEditForm.command = v, placeholder: t('task.commandPlaceholder') })
-          ),
-          h(NFormItem, { label: t('task.args') }, () =>
             h(NInput, { 
-              value: taskEditForm.argsStr, 
-              'onUpdate:value': (v: string) => taskEditForm.argsStr = v, 
+              value: taskEditForm.command, 
+              'onUpdate:value': (v: string) => taskEditForm.command = v, 
               type: 'textarea',
-              placeholder: t('task.argsPlaceholder'),
-              autosize: { minRows: 1, maxRows: 10 }
+              placeholder: t('task.commandPlaceholder'),
+              autosize: { minRows: 1, maxRows: 5 }
             })
           ),
           h(NFormItem, { label: t('task.cwd') }, () =>

@@ -32,15 +32,12 @@
         <n-input v-model:value="editingTask.name" :placeholder="t('task.namePlaceholder')" />
       </n-form-item>
       <n-form-item :label="t('task.command')" path="command">
-        <n-input v-model:value="editingTask.command" :placeholder="t('task.commandPlaceholder')" />
-      </n-form-item>
-      <n-form-item :label="t('task.args')">
         <n-input 
-          v-model:value="editingTask.argsStr" 
+          v-model:value="editingTask.command" 
           type="textarea"
-          :placeholder="t('task.argsPlaceholder')"
-          :autosize="{ minRows: 1, maxRows: 10 }"
-          class="args-textarea"
+          :placeholder="t('task.commandPlaceholder')"
+          :autosize="{ minRows: 1, maxRows: 5 }"
+          class="command-textarea"
         />
       </n-form-item>
       <n-form-item :label="t('task.cwd')">
@@ -103,7 +100,6 @@ interface EditingTask {
   id: string;
   name: string;
   command: string;
-  argsStr: string;
   cwd: string;
   group: TaskGroup;
   type: 'shell' | 'process';
@@ -193,7 +189,7 @@ watch(showDialog, (show) => {
 </script>
 
 <style scoped>
-.args-textarea :deep(textarea) {
+.command-textarea :deep(textarea) {
   font-family: monospace;
   font-size: 13px;
   line-height: 1.5;

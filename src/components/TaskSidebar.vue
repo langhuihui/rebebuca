@@ -545,7 +545,6 @@ const editingTask = ref({
   id: '',
   name: '',
   command: '',
-  argsStr: '',
   cwd: '',
   group: 'none' as TaskGroup,
   type: 'shell' as 'shell' | 'process',
@@ -933,7 +932,6 @@ const handleAddTask = () => {
     id: '',
     name: '',
     command: '',
-    argsStr: '',
     cwd: '',
     group: 'none',
     type: 'shell',
@@ -947,10 +945,14 @@ const handleAddTask = () => {
 // Handle AI result
 const handleAddAIResult = async (result: any) => {
   try {
+    // Combine command and args into a single command string
+    const fullCommand = result.args?.length 
+      ? `${result.command} ${result.args.join(' ')}`
+      : result.command;
+    
     await taskManager.addTaskToGroup('default', {
       name: result.name,
-      command: result.command,
-      args: result.args,
+      command: fullCommand,
       cwd: result.cwd,
       group: result.group || 'none',
       type: result.type || 'shell',
@@ -966,14 +968,18 @@ const handleAddAIResult = async (result: any) => {
 
 // Handle edit AI result
 const handleEditAIResult = (result: any) => {
+  // Combine command and args into a single command string
+  const fullCommand = result.args?.length 
+    ? `${result.command} ${result.args.join(' ')}`
+    : result.command;
+  
   isEditMode.value = false;
   isUserTask.value = true;
   editingTaskGroupId.value = 'default';
   editingTask.value = {
     id: '',
     name: result.name,
-    command: result.command,
-    argsStr: result.args?.join(' ') || '',
+    command: fullCommand,
     cwd: result.cwd || '',
     group: result.group || 'none',
     type: result.type || 'shell',
@@ -1000,11 +1006,15 @@ const handleTaskEditVisual = (task: Task) => {
       .join('\n');
   }
   
+  // Combine command and args into a single command string
+  const fullCommand = task.args?.length 
+    ? `${task.command} ${task.args.join(' ')}`
+    : task.command;
+  
   editingTask.value = {
     id: task.id,
     name: task.name,
-    command: task.command,
-    argsStr: task.args?.join(' ') || '',
+    command: fullCommand,
     cwd: task.cwd || '',
     group: task.group || 'none',
     type: (task.type || 'shell') as 'shell' | 'process',
@@ -1018,10 +1028,6 @@ const handleTaskEditVisual = (task: Task) => {
 // Handle save task
 const handleSaveTask = async (task: any, groupId: string, newGroupName: string) => {
   try {
-    const args = task.argsStr
-      ? task.argsStr.split(/\s+/).filter(Boolean)
-      : undefined;
-    
     let env: Record<string, string> | undefined;
     if (task.envStr.trim()) {
       env = {};
@@ -1049,7 +1055,6 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       await taskManager.updateTaskInGroup(task.id, {
         name: task.name,
         command: task.command,
-        args,
         group: task.group,
         type: task.type,
         cwd: task.cwd,
@@ -1064,7 +1069,6 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       await taskManager.addTaskToGroup(targetGroupId, {
         name: task.name,
         command: task.command,
-        args,
         group: task.group,
         type: task.type,
         cwd: task.cwd,
@@ -1077,7 +1081,6 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       await taskManager.addUserTask(folderPath, {
         name: task.name,
         command: task.command,
-        args,
         group: task.group,
         type: task.type,
         cwd: task.cwd,

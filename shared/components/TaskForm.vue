@@ -11,15 +11,12 @@
       <n-input v-model:value="formData.name" :placeholder="placeholders.name" />
     </n-form-item>
     <n-form-item :label="labels.command" path="command">
-      <n-input v-model:value="formData.command" :placeholder="placeholders.command" />
-    </n-form-item>
-    <n-form-item :label="labels.args">
       <n-input 
-        v-model:value="formData.argsStr" 
+        v-model:value="formData.command" 
         type="textarea"
-        :placeholder="placeholders.args"
-        :autosize="{ minRows: 1, maxRows: 10 }"
-        class="args-textarea"
+        :placeholder="placeholders.command" 
+        :autosize="{ minRows: 1, maxRows: 5 }"
+        class="command-textarea"
       />
     </n-form-item>
     <n-form-item :label="labels.cwd">
@@ -73,7 +70,6 @@ export interface TaskFormData {
   id?: string;
   name: string;
   command: string;
-  argsStr: string;
   cwd: string;
   envStr: string;
   group: string;
@@ -83,7 +79,6 @@ export interface TaskFormData {
 export interface TaskFormLabels {
   name: string;
   command: string;
-  args: string;
   cwd: string;
   env: string;
   useSystemTerminal: string;
@@ -93,7 +88,6 @@ export interface TaskFormLabels {
 export interface TaskFormPlaceholders {
   name: string;
   command: string;
-  args: string;
   cwd: string;
   env: string;
 }
@@ -137,7 +131,6 @@ const formRef = ref<any>(null);
 const defaultLabels: TaskFormLabels = {
   name: 'Name',
   command: 'Command',
-  args: 'Arguments',
   cwd: 'Working Directory',
   env: 'Environment Variables',
   useSystemTerminal: 'Use System Terminal',
@@ -147,8 +140,7 @@ const defaultLabels: TaskFormLabels = {
 // Default placeholders
 const defaultPlaceholders: TaskFormPlaceholders = {
   name: 'Enter task name',
-  command: 'Enter command',
-  args: 'Space-separated arguments',
+  command: 'e.g., npm run dev --port 3000',
   cwd: 'Enter working directory path',
   env: 'One variable per line, format: KEY=VALUE\n# Lines starting with # are comments',
 };
@@ -162,7 +154,6 @@ const formData = reactive<TaskFormData>({
   id: props.modelValue.id || '',
   name: props.modelValue.name || '',
   command: props.modelValue.command || '',
-  argsStr: props.modelValue.argsStr || '',
   cwd: props.modelValue.cwd || '',
   envStr: props.modelValue.envStr || '',
   group: props.modelValue.group || 'none',
@@ -174,7 +165,6 @@ watch(() => props.modelValue, (newVal) => {
   formData.id = newVal.id || '';
   formData.name = newVal.name || '';
   formData.command = newVal.command || '';
-  formData.argsStr = newVal.argsStr || '';
   formData.cwd = newVal.cwd || '';
   formData.envStr = newVal.envStr || '';
   formData.group = newVal.group || 'none';
@@ -204,7 +194,7 @@ defineExpose({
 </script>
 
 <style scoped>
-.args-textarea :deep(.n-input__textarea-el) {
+.command-textarea :deep(.n-input__textarea-el) {
   font-family: monospace;
 }
 
