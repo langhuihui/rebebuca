@@ -1198,10 +1198,25 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       return false;
     };
     
-    if (commandHasSpaces && !hasArgs) {
+    // Determine if task should be executed via shell
+    // user and npm tasks: always use shell execution for the whole command string
+    // vscode tasks: use command + args as configured
+    const shouldUseShellExecution = task.source === 'user' || task.source === 'npm';
+    
+    if (shouldUseShellExecution && commandHasSpaces) {
+      // Execute via shell for user/npm tasks
+      // On macOS/Linux use sh -c, on Windows use cmd /c
+      const isWindows = navigator.platform.toLowerCase().includes('win');
+      if (isWindows) {
+        command = 'cmd';
+        args = ['/c', task.command];
+      } else {
+        command = 'sh';
+        args = ['-c', task.command];
+      }
+    } else if (commandHasSpaces && !hasArgs) {
       if (needsShellExecution(task.command)) {
         // Execute via shell for commands with shell operators or sudo
-        // On macOS/Linux use sh -c, on Windows use cmd /c
         const isWindows = navigator.platform.toLowerCase().includes('win');
         if (isWindows) {
           command = 'cmd';
@@ -1211,7 +1226,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
           args = ['-c', task.command];
         }
       } else {
-        // Parse command string into command and args
+        // Parse command string into command and args (for vscode tasks without args)
         const parsed = parseCommandLine(task.command);
         command = parsed.command;
         args = parsed.args;
