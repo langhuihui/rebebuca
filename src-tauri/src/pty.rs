@@ -10,6 +10,9 @@ use std::thread;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PtyOptions {
     pub rows: u16,
@@ -665,8 +668,54 @@ impl PtyManager {
         let mut task_instances = self.task_instances.lock().await;
         
         if let Some(task_instance) = task_instances.remove(pty_id) {
-            let mut child = task_instance.child.lock().await;
-            child.kill().map_err(|e| format!("Failed to kill task: {}", e))?;
+            let child = task_instance.child.lock().await;
+            
+            // On Windows, use taskkill with /T flag to kill the entire process tree
+            // This is necessary because cmd.exe /c spawns child processes that won't be killed
+            // by just killing the cmd.exe process
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(pid) = child.process_id() {
+                    println!("[PTY] Killing process tree for PID: {} (PTY: {})", pid, pty_id);
+                    let output = Command::new("taskkill")
+                        .args(["/F", "/T", "/PID", &pid.to_string()])
+                        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                        .output();
+                    
+                    match output {
+                        Ok(result) => {
+                            if result.status.success() {
+                                println!("[PTY] Successfully killed process tree for PID: {}", pid);
+                            } else {
+                                let stderr = String::from_utf8_lossy(&result.stderr);
+                                println!("[PTY] taskkill warning for PID {}: {}", pid, stderr);
+                                // Don't return error - process might have already exited
+                            }
+                        }
+                        Err(e) => {
+                            println!("[PTY] Failed to run taskkill for PID {}: {}", pid, e);
+                            // Fallback to normal kill
+                            drop(child);
+                            let mut child = task_instance.child.lock().await;
+                            let _ = child.kill();
+                        }
+                    }
+                } else {
+                    // No PID available, try normal kill
+                    drop(child);
+                    let mut child = task_instance.child.lock().await;
+                    child.kill().map_err(|e| format!("Failed to kill task: {}", e))?;
+                }
+            }
+            
+            // On non-Windows platforms, use the standard kill method
+            #[cfg(not(target_os = "windows"))]
+            {
+                drop(child);
+                let mut child = task_instance.child.lock().await;
+                child.kill().map_err(|e| format!("Failed to kill task: {}", e))?;
+            }
+            
             println!("[PTY] Killed task PTY: {}", pty_id);
             Ok(())
         } else {

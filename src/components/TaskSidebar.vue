@@ -1055,6 +1055,7 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       await taskManager.updateTaskInGroup(task.id, {
         name: task.name,
         command: task.command,
+        args: undefined, // Clear args since command now contains full command line
         group: task.group,
         type: task.type,
         cwd: task.cwd,
@@ -1069,6 +1070,7 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       await taskManager.addTaskToGroup(targetGroupId, {
         name: task.name,
         command: task.command,
+        args: undefined, // No separate args, command contains full command line
         group: task.group,
         type: task.type,
         cwd: task.cwd,
