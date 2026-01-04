@@ -101,6 +101,7 @@
             </template>
           </n-button>
           <n-button
+            v-if="canEdit"
             size="tiny"
             quaternary
             class="action-btn"
@@ -148,6 +149,7 @@ const props = defineProps<{
   isFavorite: boolean;
   showIcon?: boolean;
   showDelete?: boolean;
+  showEdit?: boolean;
   draggable?: boolean;
   isDragging?: boolean;
   dragPosition?: 'top' | 'bottom' | null;
@@ -194,6 +196,17 @@ const taskIcon = computed(() => {
     default:
       return svgIcons.task;
   }
+});
+
+// Determine if edit button should be shown
+// Only user-created tasks are editable, folder-scanned tasks (vscode, npm) are read-only
+const canEdit = computed(() => {
+  // If showEdit prop is explicitly set, use it
+  if (props.showEdit !== undefined) {
+    return props.showEdit;
+  }
+  // Otherwise, only user-created tasks are editable
+  return props.task.source === 'user';
 });
 </script>
 
