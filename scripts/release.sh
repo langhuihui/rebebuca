@@ -58,7 +58,9 @@ echo -e "${GREEN}[3/5]${NC} Updating version in src-tauri/Cargo.toml..."
 sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 
 echo -e "${GREEN}[4/5]${NC} Committing changes..."
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+# Update Cargo.lock by running cargo check
+cd src-tauri && cargo check --quiet 2>/dev/null || true && cd ..
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
 git commit -m "chore: bump version to ${VERSION}"
 
 echo -e "${GREEN}[5/5]${NC} Creating and pushing tag..."
