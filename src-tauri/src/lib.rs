@@ -1220,11 +1220,20 @@ async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                 .ok();
                             
                             let name = name_output
-                                .map(|o| {
+                                .and_then(|o| {
                                     let s = String::from_utf8_lossy(&o.stdout);
-                                    s.split(',').next().unwrap_or("").trim_matches('"').to_string()
+                                    let trimmed = s.trim();
+                                    // tasklist CSV format: "process.exe","pid","Session Name","Session#","Mem Usage"
+                                    // Skip if output contains "INFO:" (no matching process) or is empty
+                                    if trimmed.is_empty() || trimmed.starts_with("INFO:") || !trimmed.contains(',') {
+                                        return None;
+                                    }
+                                    // Extract first field (process name) from CSV
+                                    trimmed.split(',')
+                                        .next()
+                                        .map(|s| s.trim().trim_matches('"').to_string())
                                 })
-                                .unwrap_or_default();
+                                .unwrap_or_else(|| format!("PID:{}", pid));
                             
                             result.push(PortProcess {
                                 port,
