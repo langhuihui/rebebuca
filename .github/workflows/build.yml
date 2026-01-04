@@ -172,8 +172,8 @@ jobs:
           VERSION=${{ github.ref_name }}
           VERSION_NUM=${VERSION#v}
           
-          # Find signature files
-          WIN_SIG=$(cat src-tauri/target/release/bundle/nsis/Rebebuca_${VERSION_NUM}_x64-setup.nsis.zip.sig 2>/dev/null || echo "")
+          # Find signature files (Tauri v2 uses .exe directly, not .nsis.zip)
+          WIN_SIG=$(cat src-tauri/target/release/bundle/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe.sig 2>/dev/null || echo "")
           
           # Create windows-latest.json
           cat > windows-latest.json << EOF
@@ -184,7 +184,7 @@ jobs:
             "platforms": {
               "windows-x86_64": {
                 "signature": "${WIN_SIG}",
-                "url": "https://download.m7s.live/rb/${VERSION}/nsis/Rebebuca_${VERSION_NUM}_x64-setup.nsis.zip"
+                "url": "https://download.m7s.live/rb/${VERSION}/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe"
               }
             }
           }
