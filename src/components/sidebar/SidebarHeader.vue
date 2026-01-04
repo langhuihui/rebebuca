@@ -141,7 +141,7 @@
 import { NTooltip, NButton, NSpace, NIcon } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../utils/icons';
-import { adapter } from '../../adapters';
+import { getAdapter } from '../../adapters';
 
 defineProps<{
   effectiveTheme: string;
@@ -164,6 +164,7 @@ const { t } = useI18n();
 
 const openOfficialWebsite = async () => {
   try {
+    const adapter = await getAdapter();
     await adapter.system.openExternal('https://rebebuca.com');
   } catch (error) {
     console.error('Failed to open official website:', error);

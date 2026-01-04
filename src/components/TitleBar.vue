@@ -237,7 +237,7 @@ import {
   startDrag,
 } from "../utils/windowControls";
 import { SettingsDialog } from "./settings";
-import { adapter } from "../adapters";
+import { getAdapter } from "../adapters";
 
 interface Props {
   effectiveTheme: string;
@@ -338,6 +338,7 @@ const openLogsFolder = async () => {
 // Open GitHub
 const openGitHub = async () => {
   try {
+    const adapter = await getAdapter();
     await adapter.system.openExternal('https://github.com/langhuihui/rebebuca');
   } catch (error) {
     console.error('Failed to open GitHub:', error);
