@@ -616,6 +616,14 @@ export const svgIcons = {
     h('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' })
   ]),
   
+  // 网格图标（命令广场）
+  grid: createSvgIcon([
+    h('rect', { x: '3', y: '3', width: '7', height: '7' }),
+    h('rect', { x: '14', y: '3', width: '7', height: '7' }),
+    h('rect', { x: '14', y: '14', width: '7', height: '7' }),
+    h('rect', { x: '3', y: '14', width: '7', height: '7' })
+  ]),
+  
   // 时钟图标（按时间排序）
   clock: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '10' }),

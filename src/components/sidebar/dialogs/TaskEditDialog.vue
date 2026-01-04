@@ -32,13 +32,27 @@
         <n-input v-model:value="editingTask.name" :placeholder="t('task.namePlaceholder')" />
       </n-form-item>
       <n-form-item :label="t('task.command')" path="command">
-        <n-input 
-          v-model:value="editingTask.command" 
-          type="textarea"
-          :placeholder="t('task.commandPlaceholder')"
-          :autosize="{ minRows: 1, maxRows: 5 }"
-          class="command-textarea"
-        />
+        <n-input-group>
+          <n-input 
+            v-model:value="editingTask.command" 
+            type="textarea"
+            :placeholder="t('task.commandPlaceholder')"
+            :autosize="{ minRows: 1, maxRows: 5 }"
+            class="command-textarea"
+          />
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button @click="showCommandPlaza = true">
+                <template #icon>
+                  <n-icon size="16">
+                    <component :is="svgIcons.grid" />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            {{ t('commandPlaza.title') }}
+          </n-tooltip>
+        </n-input-group>
       </n-form-item>
       <n-form-item :label="t('task.cwd')">
         <n-input-group>
@@ -75,6 +89,12 @@
       </n-form-item>
     </n-form>
   </n-modal>
+  
+  <!-- Command Plaza Dialog -->
+  <CommandPlazaDialog
+    v-model:show="showCommandPlaza"
+    @select="handleCommandSelect"
+  />
 </template>
 
 <script setup lang="ts">
@@ -89,12 +109,14 @@ import {
   NSwitch,
   NButton,
   NIcon,
+  NTooltip,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
 import { svgIcons } from '../../../utils/icons';
 import type { TaskGroup } from '../../../providers/types';
+import CommandPlazaDialog from './CommandPlazaDialog.vue';
 
 interface EditingTask {
   id: string;
@@ -128,6 +150,7 @@ const { t } = useI18n();
 
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');
+const showCommandPlaza = ref(false);
 
 const showDialog = computed({
   get: () => props.show,
@@ -177,6 +200,15 @@ const handleSave = async () => {
   } catch (error) {
     console.error('[TaskEditDialog] Validation failed:', error);
     return false;
+  }
+};
+
+// Handle command selection from Command Plaza
+const handleCommandSelect = (command: string, name: string) => {
+  editingTask.value.command = command;
+  // If name is empty, use the command plaza item name
+  if (!editingTask.value.name.trim()) {
+    editingTask.value.name = name;
   }
 };
 
