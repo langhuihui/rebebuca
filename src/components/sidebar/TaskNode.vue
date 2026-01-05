@@ -196,8 +196,8 @@ const taskIcon = computed(() => {
   // Show a special icon for macro tasks
   if (props.task.type === 'macro') {
     return props.task.executionMode === 'parallel' 
-      ? svgIcons.grid || svgIcons.task  // use grid for parallel
-      : svgIcons.task;                   // use default task icon for serial
+      ? svgIcons.grid  // use grid for parallel
+      : svgIcons.task; // use task icon for serial
   }
   
   const customIcons = settingsStore.settings.commandIcons || {};
