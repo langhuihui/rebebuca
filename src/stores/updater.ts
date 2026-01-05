@@ -32,6 +32,14 @@ export interface ReleaseNote {
   body: string;
 }
 
+// Self-hosted releases endpoint (same server as update check)
+const RELEASES_URL = 'https://download.m7s.live/rb/releases.json';
+
+// Cache for releases data
+let releasesCache: { latest: string; releases: Array<{ version: string; date: string; body: string }> } | null = null;
+let releasesCacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // Adapter instance
 let adapter: BackendAdapter | null = null;
 
@@ -195,92 +203,115 @@ export const useUpdaterStore = defineStore('updater', () => {
   }
   
   /**
+   * Fetch all releases from self-hosted server
+   */
+  async function fetchReleasesData(): Promise<typeof releasesCache> {
+    // Return cached data if still valid
+    if (releasesCache && Date.now() - releasesCacheTime < CACHE_TTL) {
+      return releasesCache;
+    }
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(RELEASES_URL, {
+        signal: controller.signal,
+        cache: 'no-cache'
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        console.log(`[Updater] Failed to fetch releases: ${response.status}`);
+        return null;
+      }
+      
+      releasesCache = await response.json();
+      releasesCacheTime = Date.now();
+      return releasesCache;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.log('[Updater] Request timeout fetching releases');
+        } else {
+          console.log('[Updater] Network error fetching releases:', error.message);
+        }
+      }
+      return null;
+    }
+  }
+  
+  /**
    * Fetch release notes for a specific version or recent releases
    */
   async function fetchReleaseNotes(targetVersion?: string): Promise<ReleaseNote[]> {
-    try {
-      const response = await fetch('https://api.github.com/repos/langhuihui/rebebuca/releases?per_page=10');
-      if (!response.ok) throw new Error('Failed to fetch releases');
-      const releases = await response.json();
-      
-      const notes: ReleaseNote[] = releases.map((release: { tag_name: string; published_at: string; body: string }) => ({
-        tag: release.tag_name,
-        date: new Date(release.published_at).toLocaleDateString(),
-        body: release.body || ''
-      }));
-      
-      // If target version specified, find releases since that version
-      if (targetVersion) {
-        const targetTag = `v${targetVersion}`;
-        const targetIndex = notes.findIndex(n => n.tag === targetTag);
-        if (targetIndex >= 0) {
-          // Return only the current version's notes
-          return notes.slice(0, targetIndex + 1);
-        }
+    const data = await fetchReleasesData();
+    if (!data) return [];
+    
+    const notes: ReleaseNote[] = data.releases.map(release => ({
+      tag: `v${release.version}`,
+      date: release.date,
+      body: release.body || ''
+    }));
+    
+    // If target version specified, find releases since that version
+    if (targetVersion) {
+      const targetTag = `v${targetVersion}`;
+      const targetIndex = notes.findIndex(n => n.tag === targetTag);
+      if (targetIndex >= 0) {
+        return notes.slice(0, targetIndex + 1);
       }
-      
-      return notes;
-    } catch (error) {
-      console.error('[Updater] Failed to fetch release notes:', error);
-      return [];
     }
+    
+    return notes;
   }
   
   /**
    * Fetch current version's release note only
    */
   async function fetchCurrentVersionNote(): Promise<ReleaseNote | null> {
-    try {
-      const version = currentVersion.value || await getCurrentVersion();
-      if (!version) return null;
-      
-      const targetTag = `v${version}`;
-      const response = await fetch(`https://api.github.com/repos/langhuihui/rebebuca/releases/tags/${targetTag}`);
-      
-      if (!response.ok) {
-        console.log(`[Updater] No release found for tag ${targetTag}`);
-        return null;
-      }
-      
-      const release = await response.json();
-      const note: ReleaseNote = {
-        tag: release.tag_name,
-        date: new Date(release.published_at).toLocaleDateString(),
-        body: release.body || ''
-      };
-      
-      currentVersionNote.value = note;
-      return note;
-    } catch (error) {
-      console.error('[Updater] Failed to fetch current version note:', error);
+    const version = currentVersion.value || await getCurrentVersion();
+    if (!version) return null;
+    
+    const data = await fetchReleasesData();
+    if (!data) return null;
+    
+    const release = data.releases.find(r => r.version === version);
+    if (!release) {
+      console.log(`[Updater] No release found for version ${version}`);
       return null;
     }
+    
+    const note: ReleaseNote = {
+      tag: `v${release.version}`,
+      date: release.date,
+      body: release.body || ''
+    };
+    
+    currentVersionNote.value = note;
+    return note;
   }
   
   /**
    * Fetch latest release note (for upgrade notification)
    */
   async function fetchLatestVersionNote(): Promise<ReleaseNote | null> {
-    try {
-      const response = await fetch('https://api.github.com/repos/langhuihui/rebebuca/releases/latest');
-      
-      if (!response.ok) {
-        console.log('[Updater] No latest release found');
-        return null;
-      }
-      
-      const release = await response.json();
-      const note: ReleaseNote = {
-        tag: release.tag_name,
-        date: new Date(release.published_at).toLocaleDateString(),
-        body: release.body || ''
-      };
-      
-      return note;
-    } catch (error) {
-      console.error('[Updater] Failed to fetch latest version note:', error);
+    const data = await fetchReleasesData();
+    if (!data || data.releases.length === 0) {
+      console.log('[Updater] No releases found');
       return null;
     }
+    
+    // First release is the latest
+    const release = data.releases[0];
+    const note: ReleaseNote = {
+      tag: `v${release.version}`,
+      date: release.date,
+      body: release.body || ''
+    };
+    
+    return note;
   }
   
   /**

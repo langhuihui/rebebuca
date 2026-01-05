@@ -200,6 +200,11 @@ jobs:
     needs: build-and-release
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Install rclone
         run: |
           sudo apt-get update && sudo apt-get install -y rclone jq
@@ -245,3 +250,44 @@ jobs:
       - name: Upload merged latest.json to R2
         run: |
           rclone copyto latest.json r2:monibuca/rb/latest.json --progress
+
+      - name: Generate and upload releases.json
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION_NUM=${VERSION#v}
+          DATE=$(date +%Y-%m-%d)
+          
+          # Generate release notes from git log
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:'- %s' | head -20)
+          else
+            NOTES=$(git log --pretty=format:'- %s' --reverse | head -20)
+          fi
+          
+          # Escape for JSON
+          NOTES_ESCAPED=$(echo "$NOTES" | jq -Rs .)
+          
+          # Download existing releases.json or create empty one
+          rclone copyto r2:monibuca/rb/releases.json releases.json 2>/dev/null || echo '{"latest":"","releases":[]}' > releases.json
+          
+          echo "Existing releases.json:"
+          cat releases.json
+          
+          # Update releases.json with new release
+          jq --arg version "$VERSION_NUM" \
+             --arg date "$DATE" \
+             --arg body "$NOTES" \
+             '{
+               latest: $version,
+               releases: ([{version: $version, date: $date, body: $body}] + [.releases[] | select(.version != $version)]) | .[0:20]
+             }' releases.json > releases-new.json
+          
+          mv releases-new.json releases.json
+          
+          echo ""
+          echo "Updated releases.json:"
+          cat releases.json
+          
+          # Upload to R2
+          rclone copyto releases.json r2:monibuca/rb/releases.json --progress
