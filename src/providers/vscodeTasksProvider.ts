@@ -217,10 +217,16 @@ export class VSCodeTasksProvider implements TaskProvider {
     }
     
     // Get command and args based on task type
-    let command: string;
+    let command: string = '';
     let args: string[] = [];
+    let isMacroTask = false;
     
-    if (task.type === 'npm' && task.script) {
+    // Check if this is a compound/macro task (has dependsOn but no command)
+    if (task.dependsOn && !task.command && task.type !== 'npm') {
+      // This is a macro task that orchestrates other tasks
+      isMacroTask = true;
+      command = ''; // Macro tasks don't have a command
+    } else if (task.type === 'npm' && task.script) {
       // npm type task
       command = 'npm';
       args = ['run', task.script];
@@ -250,11 +256,11 @@ export class VSCodeTasksProvider implements TaskProvider {
         args = [];
       }
     } else {
-      // No command, skip this task
+      // No command and not a macro task, skip this task
       return null;
     }
     
-    if (!command) {
+    if (!command && !isMacroTask) {
       return null;
     }
     
@@ -270,10 +276,32 @@ export class VSCodeTasksProvider implements TaskProvider {
       }
     }
     
-    // Parse depends on
+    // Parse depends on and execution mode
     let dependsOn: string[] | undefined;
+    let executionMode: 'parallel' | 'serial' | undefined;
+    let subTasks: string[] | undefined;
+    
     if (task.dependsOn) {
-      dependsOn = Array.isArray(task.dependsOn) ? task.dependsOn : [task.dependsOn];
+      if (typeof task.dependsOn === 'object' && !Array.isArray(task.dependsOn)) {
+        // New format with order specification - validate structure
+        const depObj = task.dependsOn as any;
+        if (depObj && typeof depObj === 'object' && Array.isArray(depObj.tasks)) {
+          if (depObj.order === 'parallel') {
+            executionMode = 'parallel';
+            subTasks = depObj.tasks;
+          } else {
+            // Default to serial execution
+            executionMode = 'serial';
+            dependsOn = depObj.tasks;
+          }
+        } else {
+          console.warn(`[VSCodeTasksProvider] Invalid dependsOn object format for task: ${task.label}`);
+        }
+      } else {
+        // Legacy format: array or string (always serial)
+        dependsOn = Array.isArray(task.dependsOn) ? task.dependsOn : [task.dependsOn];
+        executionMode = 'serial';
+      }
     }
     
     // Build working directory
@@ -296,8 +324,10 @@ export class VSCodeTasksProvider implements TaskProvider {
       args,
       cwd,
       env: task.options?.env,
-      type: task.type || 'shell',
+      type: isMacroTask ? 'macro' : (task.type || 'shell'),
       dependsOn,
+      executionMode,
+      subTasks,
       problemMatcher: task.problemMatcher 
         ? (Array.isArray(task.problemMatcher) ? task.problemMatcher : [task.problemMatcher])
         : undefined,

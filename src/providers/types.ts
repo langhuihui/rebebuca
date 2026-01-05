@@ -56,8 +56,8 @@ export interface Task {
   // Task group
   group?: TaskGroup;
   
-  // Command to execute
-  command: string;
+  // Command to execute (required for simple tasks, optional for macro tasks)
+  command?: string;
   
   // Command arguments
   args?: string[];
@@ -68,14 +68,22 @@ export interface Task {
   // Environment variables
   env?: Record<string, string>;
   
-  // Task type (e.g., 'shell', 'process', 'npm')
+  // Task type (e.g., 'shell', 'process', 'npm', 'macro')
   type?: string;
   
   // Whether to use system terminal to run the task
   useSystemTerminal?: boolean;
   
-  // Whether this task depends on other tasks
+  // Whether this task depends on other tasks (for serial execution)
   dependsOn?: string[];
+  
+  // Execution mode for macro tasks
+  executionMode?: 'parallel' | 'serial';
+  
+  // Sub-task IDs for macro tasks running in parallel
+  // When executionMode is 'parallel', these tasks run simultaneously
+  // When executionMode is 'serial' or undefined, use dependsOn instead
+  subTasks?: string[];
   
   // Problem matchers for parsing output
   problemMatcher?: string[];
@@ -256,7 +264,12 @@ export interface VSCodeTask {
     };
   };
   presentation?: TaskPresentation;
-  dependsOn?: string | string[];
+  dependsOn?: string | string[] | {
+    // Task IDs to depend on
+    tasks: string[];
+    // Execution order: 'sequence' (serial) or 'parallel'
+    order?: 'sequence' | 'parallel';
+  };
   windows?: Partial<VSCodeTask>;
   linux?: Partial<VSCodeTask>;
   osx?: Partial<VSCodeTask>;

@@ -310,7 +310,8 @@ export const parseVSCodeTasks = (
         continue;
       }
       
-      // Skip compound tasks (dependsOn without command)
+      // For this parser (used by ImportTasksDialog), we still skip compound tasks
+      // The main vscodeTasksProvider handles macro tasks differently
       if (task.dependsOn && !task.command) {
         result.warnings.push(`Skipping compound task "${task.label}" (dependsOn without command)`);
         continue;
