@@ -130,8 +130,21 @@
       </div>
     </template>
     <div class="task-tooltip">
-      <div class="tooltip-command">{{ fullCommand }}</div>
-      <div v-if="task.cwd" class="tooltip-cwd">{{ task.cwd }}</div>
+      <div v-if="task.type === 'macro'" class="tooltip-macro-info">
+        <div class="tooltip-label">
+          {{ task.executionMode === 'parallel' ? 'Parallel Macro Task' : 'Serial Macro Task' }}
+        </div>
+        <div v-if="task.subTasks && task.subTasks.length > 0" class="tooltip-subtasks">
+          Sub-tasks: {{ task.subTasks.join(', ') }}
+        </div>
+        <div v-else-if="task.dependsOn && task.dependsOn.length > 0" class="tooltip-subtasks">
+          Dependencies: {{ task.dependsOn.join(', ') }}
+        </div>
+      </div>
+      <div v-else>
+        <div class="tooltip-command">{{ fullCommand }}</div>
+        <div v-if="task.cwd" class="tooltip-cwd">{{ task.cwd }}</div>
+      </div>
     </div>
   </n-tooltip>
 </template>
@@ -180,6 +193,13 @@ const fullCommand = computed(() => {
 });
 
 const taskIcon = computed(() => {
+  // Show a special icon for macro tasks
+  if (props.task.type === 'macro') {
+    return props.task.executionMode === 'parallel' 
+      ? svgIcons.grid || svgIcons.task  // use grid for parallel
+      : svgIcons.task;                   // use default task icon for serial
+  }
+  
   const customIcons = settingsStore.settings.commandIcons || {};
   const iconName = getCommandIconName(props.task.command, customIcons);
   if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {
@@ -367,6 +387,22 @@ const canEdit = computed(() => {
   color: rgba(255, 255, 255, 0.6);
   margin-top: 4px;
   word-break: break-all;
+}
+
+.tooltip-macro-info {
+  font-size: 12px;
+}
+
+.tooltip-label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #18a058;
+}
+
+.tooltip-subtasks {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
 }
 
 /* Light theme */
