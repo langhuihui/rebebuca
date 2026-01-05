@@ -270,10 +270,28 @@ export class VSCodeTasksProvider implements TaskProvider {
       }
     }
     
-    // Parse depends on
+    // Parse depends on and execution mode
     let dependsOn: string[] | undefined;
+    let executionMode: 'parallel' | 'serial' | undefined;
+    let subTasks: string[] | undefined;
+    
     if (task.dependsOn) {
-      dependsOn = Array.isArray(task.dependsOn) ? task.dependsOn : [task.dependsOn];
+      if (typeof task.dependsOn === 'object' && !Array.isArray(task.dependsOn)) {
+        // New format with order specification
+        const depObj = task.dependsOn as { tasks: string[]; order?: 'sequence' | 'parallel' };
+        if (depObj.order === 'parallel') {
+          executionMode = 'parallel';
+          subTasks = depObj.tasks;
+        } else {
+          // Default to serial execution
+          executionMode = 'serial';
+          dependsOn = depObj.tasks;
+        }
+      } else {
+        // Legacy format: array or string (always serial)
+        dependsOn = Array.isArray(task.dependsOn) ? task.dependsOn : [task.dependsOn];
+        executionMode = 'serial';
+      }
     }
     
     // Build working directory
@@ -298,6 +316,8 @@ export class VSCodeTasksProvider implements TaskProvider {
       env: task.options?.env,
       type: task.type || 'shell',
       dependsOn,
+      executionMode,
+      subTasks,
       problemMatcher: task.problemMatcher 
         ? (Array.isArray(task.problemMatcher) ? task.problemMatcher : [task.problemMatcher])
         : undefined,

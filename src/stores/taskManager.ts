@@ -1115,6 +1115,115 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   }
   
   /**
+   * Resolve task dependencies recursively
+   * Returns an array of task IDs in execution order
+   */
+  function resolveTaskDependencies(taskId: string, visited: Set<string> = new Set()): string[] {
+    // Detect circular dependencies
+    if (visited.has(taskId)) {
+      console.error(`[TaskManager] Circular dependency detected: ${taskId}`);
+      return [];
+    }
+    
+    visited.add(taskId);
+    
+    const task = findTask(taskId);
+    if (!task) {
+      console.error(`[TaskManager] Task not found: ${taskId}`);
+      return [];
+    }
+    
+    // If task has no dependencies, return just this task
+    if (!task.dependsOn || task.dependsOn.length === 0) {
+      return [taskId];
+    }
+    
+    // Recursively resolve dependencies
+    const resolvedDeps: string[] = [];
+    for (const depId of task.dependsOn) {
+      const depResolved = resolveTaskDependencies(depId, new Set(visited));
+      // Add dependencies that aren't already in the list
+      for (const id of depResolved) {
+        if (!resolvedDeps.includes(id)) {
+          resolvedDeps.push(id);
+        }
+      }
+    }
+    
+    // Add this task after its dependencies
+    resolvedDeps.push(taskId);
+    
+    return resolvedDeps;
+  }
+  
+  /**
+   * Execute tasks in serial (one after another)
+   */
+  async function executeTasksSerial(taskIds: string[], options?: TaskExecutionOptions): Promise<void> {
+    console.log('[TaskManager] Executing tasks in serial:', taskIds);
+    
+    for (const taskId of taskIds) {
+      const task = findTask(taskId);
+      if (!task) {
+        console.error(`[TaskManager] Task not found: ${taskId}`);
+        continue;
+      }
+      
+      console.log(`[TaskManager] Executing task: ${task.name}`);
+      await executeTaskInternal(task, options);
+      
+      // Wait for task to complete before starting next one
+      // We need to wait for the task to finish
+      const tabId = runningTasks.value.get(task.id);
+      if (tabId) {
+        const terminalStore = useTerminalStore();
+        const tab = terminalStore.tabs.find(t => t.id === tabId);
+        if (tab) {
+          // Wait for task completion
+          await new Promise<void>((resolve) => {
+            const checkInterval = setInterval(() => {
+              const currentTab = terminalStore.tabs.find(t => t.id === tabId);
+              if (!currentTab || currentTab.status !== 'running') {
+                clearInterval(checkInterval);
+                resolve();
+              }
+            }, 100);
+            
+            // Timeout after 1 hour
+            setTimeout(() => {
+              clearInterval(checkInterval);
+              resolve();
+            }, 3600000);
+          });
+        }
+      }
+    }
+  }
+  
+  /**
+   * Execute tasks in parallel (all at once)
+   */
+  async function executeTasksParallel(taskIds: string[], options?: TaskExecutionOptions): Promise<void> {
+    console.log('[TaskManager] Executing tasks in parallel:', taskIds);
+    
+    const promises: Promise<void>[] = [];
+    
+    for (const taskId of taskIds) {
+      const task = findTask(taskId);
+      if (!task) {
+        console.error(`[TaskManager] Task not found: ${taskId}`);
+        continue;
+      }
+      
+      console.log(`[TaskManager] Starting task: ${task.name}`);
+      promises.push(executeTaskInternal(task, options));
+    }
+    
+    // Wait for all tasks to start (not complete)
+    await Promise.all(promises);
+  }
+  
+  /**
    * Find a task by ID (searches both folder tasks and user group tasks)
    */
   function findTask(taskId: string): Task | undefined {
@@ -1132,11 +1241,40 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   }
   
   /**
-   * Execute a task
+   * Execute a task (handles macro tasks with dependencies)
    * If the task is currently running, it will be restarted (stop + start in same context)
    * If the task is not running, a new terminal tab will be created
    */
   async function executeTask(task: Task, options?: TaskExecutionOptions): Promise<void> {
+    // Handle macro tasks
+    if (task.type === 'macro' || task.dependsOn || task.subTasks) {
+      console.log('[TaskManager] Executing macro task:', task.name);
+      
+      // Check if this is a parallel macro task
+      if (task.executionMode === 'parallel' && task.subTasks) {
+        await executeTasksParallel(task.subTasks, options);
+      } else if (task.dependsOn) {
+        // Serial execution with dependencies
+        const resolvedTasks = resolveTaskDependencies(task.id);
+        await executeTasksSerial(resolvedTasks, options);
+      } else if (task.subTasks) {
+        // Serial execution without dependencies (default)
+        await executeTasksSerial(task.subTasks, options);
+      }
+      
+      // Update task run statistics for macro task
+      await updateTaskRunStats(task.id);
+      return;
+    }
+    
+    // Execute as a simple task
+    await executeTaskInternal(task, options);
+  }
+  
+  /**
+   * Internal function to execute a single task (non-macro)
+   */
+  async function executeTaskInternal(task: Task, options?: TaskExecutionOptions): Promise<void> {
     const terminalStore = useTerminalStore();
     const runConfigStore = useRunConfigStore();
     await terminalStore.initListeners();
