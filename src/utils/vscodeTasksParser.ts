@@ -310,22 +310,18 @@ export const parseVSCodeTasks = (
         continue;
       }
       
-      // Parse compound tasks (dependsOn without command) as macro tasks
-      // These are tasks that orchestrate other tasks
-      const isMacroTask = task.dependsOn && !task.command;
+      // For this parser (used by ImportTasksDialog), we still skip compound tasks
+      // The main vscodeTasksProvider handles macro tasks differently
+      if (task.dependsOn && !task.command) {
+        result.warnings.push(`Skipping compound task "${task.label}" (dependsOn without command)`);
+        continue;
+      }
       
       const parsed = parseTask(task, tasksJson.options, workspaceFolder);
       
       if (parsed) {
-        // Mark macro tasks with appropriate type
-        if (isMacroTask) {
-          parsed.type = 'macro';
-          // Set a placeholder command for macro tasks
-          parsed.command = '';
-        }
         result.tasks.push(parsed);
-      } else if (!isMacroTask) {
-        // Only warn about non-macro tasks without commands
+      } else {
         result.warnings.push(`Skipping task "${task.label}" (no command found)`);
       }
     }

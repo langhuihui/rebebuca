@@ -217,10 +217,16 @@ export class VSCodeTasksProvider implements TaskProvider {
     }
     
     // Get command and args based on task type
-    let command: string;
+    let command: string = '';
     let args: string[] = [];
+    let isMacroTask = false;
     
-    if (task.type === 'npm' && task.script) {
+    // Check if this is a compound/macro task (has dependsOn but no command)
+    if (task.dependsOn && !task.command && task.type !== 'npm') {
+      // This is a macro task that orchestrates other tasks
+      isMacroTask = true;
+      command = ''; // Macro tasks don't have a command
+    } else if (task.type === 'npm' && task.script) {
       // npm type task
       command = 'npm';
       args = ['run', task.script];
@@ -250,11 +256,11 @@ export class VSCodeTasksProvider implements TaskProvider {
         args = [];
       }
     } else {
-      // No command, skip this task
+      // No command and not a macro task, skip this task
       return null;
     }
     
-    if (!command) {
+    if (!command && !isMacroTask) {
       return null;
     }
     
@@ -314,7 +320,7 @@ export class VSCodeTasksProvider implements TaskProvider {
       args,
       cwd,
       env: task.options?.env,
-      type: task.type || 'shell',
+      type: isMacroTask ? 'macro' : (task.type || 'shell'),
       dependsOn,
       executionMode,
       subTasks,
