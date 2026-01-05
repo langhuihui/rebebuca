@@ -269,7 +269,10 @@ jobs:
           NOTES_ESCAPED=$(echo "$NOTES" | jq -Rs .)
           
           # Download existing releases.json or create empty one
-          rclone copyto r2:monibuca/rb/releases.json releases.json 2>/dev/null || echo '{"latest":"","releases":[]}' > releases.json
+          if ! rclone copyto r2:monibuca/rb/releases.json releases.json 2>/dev/null; then
+            echo "No existing releases.json found, creating new one"
+            echo '{"latest":"","releases":[]}' > releases.json
+          fi
           
           echo "Existing releases.json:"
           cat releases.json
