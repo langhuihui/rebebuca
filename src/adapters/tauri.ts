@@ -17,6 +17,7 @@ import type {
   TrayAdapter,
   RunningProcessInfo,
   FavoriteTaskInfo,
+  RecentTaskInfo,
   CreateTerminalParams,
   TerminalInfo,
   TerminalDataEvent,
@@ -476,6 +477,7 @@ class TauriTrayAdapter implements TrayAdapter {
   private restartListeners: Map<string, () => void> = new Map();
   private stopListeners: Map<string, () => void> = new Map();
   private favoriteListeners: Map<string, () => void> = new Map();
+  private recentListeners: Map<string, () => void> = new Map();
 
   async setIcon(_icon: string): Promise<void> {
     // Tray icon is set in Rust side
@@ -513,6 +515,19 @@ class TauriTrayAdapter implements TrayAdapter {
         name: f.name,
         command: f.command,
         cwd: f.cwd || null,
+      }))
+    });
+  }
+
+  async updateRecentTasks(recent: RecentTaskInfo[]): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('update_tray_recent_tasks', { 
+      recent: recent.map(r => ({
+        id: r.id,
+        name: r.name,
+        command: r.command,
+        cwd: r.cwd || null,
+        timestamp: r.timestamp,
       }))
     });
   }
@@ -573,6 +588,26 @@ class TauriTrayAdapter implements TrayAdapter {
       if (fn) {
         fn();
         this.favoriteListeners.delete(id);
+      }
+    };
+  }
+
+  onRunRecent(callback: (taskId: string) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    let unlisten: (() => void) | null = null;
+
+    loadTauriModules().then(async () => {
+      unlisten = await tauriEvent!.listen<string>('tray-run-recent', (e) => {
+        callback(e.payload);
+      });
+      this.recentListeners.set(id, unlisten);
+    });
+
+    return () => {
+      const fn = this.recentListeners.get(id);
+      if (fn) {
+        fn();
+        this.recentListeners.delete(id);
       }
     };
   }

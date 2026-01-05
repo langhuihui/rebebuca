@@ -18,6 +18,7 @@ import type {
   TrayAdapter,
   RunningProcessInfo,
   FavoriteTaskInfo,
+  RecentTaskInfo,
   CreateTerminalParams,
   TerminalInfo,
   TerminalDataEvent,
@@ -577,6 +578,9 @@ class MockTrayAdapter implements TrayAdapter {
   async updateFavorites(_favorites: FavoriteTaskInfo[]): Promise<void> {
     console.log('[MockTray] updateFavorites:', _favorites.length);
   }
+  async updateRecentTasks(_recent: RecentTaskInfo[]): Promise<void> {
+    console.log('[MockTray] updateRecentTasks:', _recent.length);
+  }
   onRestartProcess(_callback: (processId: string) => void): () => void {
     return () => {};
   }
@@ -584,6 +588,9 @@ class MockTrayAdapter implements TrayAdapter {
     return () => {};
   }
   onRunFavorite(_callback: (taskId: string) => void): () => void {
+    return () => {};
+  }
+  onRunRecent(_callback: (taskId: string) => void): () => void {
     return () => {};
   }
 }

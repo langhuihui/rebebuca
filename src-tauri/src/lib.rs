@@ -149,7 +149,7 @@ pub fn run() {
                             }
                         }
                         _ => {
-                            // Handle dynamic menu items (restart, stop, run_favorite)
+                            // Handle dynamic menu items (restart, stop, run_favorite, run_recent)
                             if event_id.starts_with("restart:") {
                                 let process_id = event_id.strip_prefix("restart:").unwrap_or("");
                                 info!("[TRAY] Restart process: {}", process_id);
@@ -162,6 +162,10 @@ pub fn run() {
                                 let task_id = event_id.strip_prefix("run_favorite:").unwrap_or("");
                                 info!("[TRAY] Run favorite task: {}", task_id);
                                 let _ = app.emit("tray-run-favorite", task_id.to_string());
+                            } else if event_id.starts_with("run_recent:") {
+                                let task_id = event_id.strip_prefix("run_recent:").unwrap_or("");
+                                info!("[TRAY] Run recent task: {}", task_id);
+                                let _ = app.emit("tray-run-recent", task_id.to_string());
                             }
                         }
                     }
@@ -208,6 +212,7 @@ pub fn run() {
             // tray module
             tray::update_tray_running_processes,
             tray::update_tray_favorites,
+            tray::update_tray_recent_tasks,
             // port module
             port::get_port_processes,
             port::kill_process_by_port,

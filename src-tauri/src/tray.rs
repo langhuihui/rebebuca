@@ -1,4 +1,4 @@
-use crate::types::{FavoriteTask, RunningProcess};
+use crate::types::{FavoriteTask, RecentTask, RunningProcess};
 use log::info;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
@@ -8,6 +8,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 pub struct TrayState {
     running_processes: Arc<StdMutex<Vec<RunningProcess>>>,
     favorite_tasks: Arc<StdMutex<Vec<FavoriteTask>>>,
+    recent_tasks: Arc<StdMutex<Vec<RecentTask>>>,
 }
 
 impl TrayState {
@@ -15,6 +16,7 @@ impl TrayState {
         Self {
             running_processes: Arc::new(StdMutex::new(Vec::new())),
             favorite_tasks: Arc::new(StdMutex::new(Vec::new())),
+            recent_tasks: Arc::new(StdMutex::new(Vec::new())),
         }
     }
     
@@ -36,6 +38,16 @@ impl TrayState {
     
     pub fn get_favorite_tasks(&self) -> Vec<FavoriteTask> {
         self.favorite_tasks.lock().map(|g| g.clone()).unwrap_or_default()
+    }
+    
+    pub fn set_recent_tasks(&self, tasks: Vec<RecentTask>) {
+        if let Ok(mut guard) = self.recent_tasks.lock() {
+            *guard = tasks;
+        }
+    }
+    
+    pub fn get_recent_tasks(&self) -> Vec<RecentTask> {
+        self.recent_tasks.lock().map(|g| g.clone()).unwrap_or_default()
     }
 }
 
@@ -65,6 +77,19 @@ pub fn update_tray_favorites(
     Ok(())
 }
 
+/// Update tray menu with recent tasks
+#[tauri::command]
+pub fn update_tray_recent_tasks(
+    recent: Vec<RecentTask>,
+    tray_state: tauri::State<'_, TrayState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    info!("[TRAY] Updating recent tasks: {:?}", recent.len());
+    tray_state.set_recent_tasks(recent);
+    rebuild_tray_menu(&app_handle, &tray_state)?;
+    Ok(())
+}
+
 /// Rebuild the tray menu with current state
 pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Result<(), String> {
     let tray = app.tray_by_id("rust-tray")
@@ -72,6 +97,7 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
     
     let running = tray_state.get_running_processes();
     let favorites = tray_state.get_favorite_tasks();
+    let recent = tray_state.get_recent_tasks();
     
     // Create new menu
     let menu = Menu::new(app)
@@ -125,6 +151,30 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
         let sep2 = PredefinedMenuItem::separator(app)
             .map_err(|e| e.to_string())?;
         menu.append(&sep2).map_err(|e| e.to_string())?;
+    }
+    
+    // Recent tasks section (like VSCode's recent projects in dock)
+    if !recent.is_empty() {
+        let recent_label = MenuItem::with_id(app, "recent_label", "⏱ 最近运行", false, None::<&str>)
+            .map_err(|e| e.to_string())?;
+        menu.append(&recent_label).map_err(|e| e.to_string())?;
+        
+        // Show at most 10 recent tasks
+        for task in recent.iter().take(10) {
+            let task_item = MenuItem::with_id(
+                app, 
+                &format!("run_recent:{}", task.id), 
+                &task.name, 
+                true, 
+                None::<&str>
+            ).map_err(|e| e.to_string())?;
+            menu.append(&task_item).map_err(|e| e.to_string())?;
+        }
+        
+        // Separator after recent tasks
+        let sep_recent = PredefinedMenuItem::separator(app)
+            .map_err(|e| e.to_string())?;
+        menu.append(&sep_recent).map_err(|e| e.to_string())?;
     }
     
     // Favorites section

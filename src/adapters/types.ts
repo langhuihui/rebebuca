@@ -183,6 +183,14 @@ export interface FavoriteTaskInfo {
   cwd?: string;         // Working directory
 }
 
+export interface RecentTaskInfo {
+  id: string;           // Task ID
+  name: string;         // Display name
+  command: string;      // Command to execute
+  cwd?: string;         // Working directory
+  timestamp: number;    // Last run timestamp (ms)
+}
+
 export interface TrayAdapter {
   setIcon(icon: string): Promise<void>;
   setTooltip(tooltip: string): Promise<void>;
@@ -191,10 +199,12 @@ export interface TrayAdapter {
   // Dynamic tray menu updates
   updateRunningProcesses(processes: RunningProcessInfo[]): Promise<void>;
   updateFavorites(favorites: FavoriteTaskInfo[]): Promise<void>;
+  updateRecentTasks(recent: RecentTaskInfo[]): Promise<void>;
   // Event listeners for tray menu actions
   onRestartProcess(callback: (processId: string) => void): () => void;
   onStopProcess(callback: (processId: string) => void): () => void;
   onRunFavorite(callback: (taskId: string) => void): () => void;
+  onRunRecent(callback: (taskId: string) => void): () => void;
 }
 
 /**

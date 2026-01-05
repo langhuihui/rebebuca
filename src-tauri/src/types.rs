@@ -64,3 +64,13 @@ pub struct FavoriteTask {
     pub command: String,      // Command to execute
     pub cwd: Option<String>,  // Working directory
 }
+
+// Recent task for tray menu (similar to VSCode's recent projects in dock)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentTask {
+    pub id: String,           // Task ID
+    pub name: String,         // Display name
+    pub command: String,      // Command to execute
+    pub cwd: Option<String>,  // Working directory
+    pub timestamp: u64,       // Last run timestamp (ms)
+}

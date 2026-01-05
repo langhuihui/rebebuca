@@ -18,7 +18,7 @@
 
 import { watch } from 'vue';
 import { getAdapter, type BackendAdapter } from '../adapters';
-import type { RunningProcessInfo, FavoriteTaskInfo } from '../adapters/types';
+import type { RunningProcessInfo, FavoriteTaskInfo, RecentTaskInfo } from '../adapters/types';
 import { useTaskManagerStore } from '../stores/taskManager';
 import { useTerminalStore } from '../stores/terminal';
 
@@ -117,6 +117,32 @@ function setupWatchers() {
     { immediate: true, deep: true }
   );
   stopWatchers.push(stopFavoritesWatch);
+  
+  // Watch for recent tasks changes
+  const stopRecentWatch = watch(
+    () => taskManager.recentTasksWithTimestamp,
+    async (recent) => {
+      if (!adapter || adapter.type !== 'tauri') return;
+      
+      try {
+        // Map recent tasks to RecentTaskInfo
+        const recentInfos: RecentTaskInfo[] = recent.map(task => ({
+          id: task.id,
+          name: task.name,
+          command: task.command,
+          cwd: task.cwd,
+          timestamp: task.timestamp,
+        }));
+        
+        await adapter.tray.updateRecentTasks(recentInfos);
+        console.log('[TrayService] Updated recent tasks:', recentInfos.length);
+      } catch (error) {
+        console.error('[TrayService] Failed to update recent tasks:', error);
+      }
+    },
+    { immediate: true, deep: true }
+  );
+  stopWatchers.push(stopRecentWatch);
 }
 
 /**
@@ -189,6 +215,25 @@ function setupEventListeners() {
     }
   });
   cleanupFns.push(cleanupFavorite);
+  
+  // Listen for run recent events
+  const cleanupRecent = adapter.tray.onRunRecent(async (taskId: string) => {
+    console.log('[TrayService] Run recent requested:', taskId);
+    
+    // Find the task by id
+    const task = taskManager.findTask(taskId);
+    if (task) {
+      try {
+        await taskManager.executeTask(task);
+        console.log('[TrayService] Recent task started:', task.name);
+      } catch (error) {
+        console.error('[TrayService] Failed to start recent task:', error);
+      }
+    } else {
+      console.warn('[TrayService] Task not found:', taskId);
+    }
+  });
+  cleanupFns.push(cleanupRecent);
 }
 
 /**

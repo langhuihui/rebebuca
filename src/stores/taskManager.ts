@@ -251,6 +251,32 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     return tasksWithStats;
   });
   
+  // Recent tasks with timestamp (for tray menu)
+  // Returns tasks with their last run timestamp for display in dock/tray menu
+  const recentTasksWithTimestamp = computed(() => {
+    const settingsStore = useSettingsStore();
+    const count = settingsStore.settings.recentTasksCount ?? 5;
+    
+    const statsSize = taskRunStats.value.size;
+    if (count === 0 || statsSize === 0) return [];
+    
+    const matchingTasks = combinedTasks.value.filter(t => taskRunStats.value.has(t.id));
+    
+    return matchingTasks
+      .map(task => {
+        const stats = taskRunStats.value.get(task.id)!;
+        return {
+          id: task.id,
+          name: task.name,
+          command: task.command,
+          cwd: task.cwd,
+          timestamp: stats.lastRunTime,
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp) // Most recent first
+      .slice(0, count);
+  });
+  
   // Check if a task is running
   const isTaskRunning = (taskId: string): boolean => {
     return runningTasks.value.has(taskId);
@@ -1535,6 +1561,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     userGroupTreeItems,
     favoriteTasks,
     recentTasks,
+    recentTasksWithTimestamp,
     regularTasks,
     allUserTasks,
     combinedTasks,
