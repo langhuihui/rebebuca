@@ -88,6 +88,7 @@ import { useRunConfigStore } from "./stores/runConfig";
 import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
 import { useUpdaterStore } from "./stores/updater";
+import { useNotificationStore } from "./stores/notification";
 import TitleBar from "./components/TitleBar.vue";
 import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
@@ -96,6 +97,7 @@ import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
+import { setErrorCallback } from "./utils/devLogger";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -121,6 +123,7 @@ const runConfigStore = useRunConfigStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
+const notificationStore = useNotificationStore();
 
 // About dialog state
 const showAboutDialog = ref(false);
@@ -150,6 +153,7 @@ let unlistenPtyExit: UnlistenFn | null = null;
 
 // Wheel event handler for preventing body scroll
 let preventBodyScrollHandler: ((e: WheelEvent) => void) | null = null;
+let preventTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
 
 // Process monitoring
 let processStatsInterval: number | null = null;
@@ -485,18 +489,38 @@ onMounted(async () => {
   // Check platform for window controls styling
   uiStore.setWindowsPlatform(await isWindows());
 
+  // Setup devLogger error callback to send errors to notification store
+  setErrorCallback((level, message, source) => {
+    if (level === 'error') {
+      // Truncate long messages
+      const truncatedMessage = message.length > 200 ? message.substring(0, 200) + '...' : message;
+      notificationStore.addError(
+        source === 'frontend' ? 'Frontend Error' : 'Tauri Error',
+        truncatedMessage,
+        source
+      );
+    }
+  });
+
     // Suppress ResizeObserver errors
   suppressResizeObserverError();
 
   // Add global error handler for ResizeObserver
   window.addEventListener("error", resizeObserverErrorHandler);
 
-  // Prevent body scroll on wheel events
+  // Prevent body scroll on wheel events (prevent macOS rubber band effect)
   preventBodyScrollHandler = (e: WheelEvent) => {
     const target = e.target as HTMLElement;
+    
+    // Check if the target is inside a terminal (xterm.js)
+    if (target.closest('.xterm') || target.closest('.terminal-container')) {
+      // Let xterm handle its own scrolling
+      return;
+    }
+    
     // Check if the target or its ancestors have scrollable content
     let element: HTMLElement | null = target;
-    let isScrollable = false;
+    let foundScrollableElement: HTMLElement | null = null;
     
     while (element && element !== document.body && element !== document.documentElement) {
       const style = window.getComputedStyle(element);
@@ -504,14 +528,17 @@ onMounted(async () => {
       const overflow = style.overflow;
       
       // Check if element is scrollable
-      if (
-        (overflowY === 'auto' || overflowY === 'scroll') ||
-        (overflow === 'auto' || overflow === 'scroll')
-      ) {
+      const isScrollableStyle = 
+        overflowY === 'auto' || overflowY === 'scroll' ||
+        overflow === 'auto' || overflow === 'scroll';
+      
+      if (isScrollableStyle) {
         const scrollHeight = element.scrollHeight;
         const clientHeight = element.clientHeight;
+        
+        // If element has scrollable content
         if (scrollHeight > clientHeight) {
-          isScrollable = true;
+          foundScrollableElement = element;
           break;
         }
       }
@@ -519,14 +546,54 @@ onMounted(async () => {
       element = element.parentElement;
     }
     
-    // Only prevent default if the event is on body/document and not on a scrollable element
-    if (!isScrollable && (target === document.body || target === document.documentElement)) {
-      e.preventDefault();
+    if (foundScrollableElement) {
+      const scrollTop = foundScrollableElement.scrollTop;
+      const scrollHeight = foundScrollableElement.scrollHeight;
+      const clientHeight = foundScrollableElement.clientHeight;
+      
+      // Check if we're at the boundary and trying to scroll further
+      const isAtTop = scrollTop <= 0;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+      const scrollingUp = e.deltaY < 0;
+      const scrollingDown = e.deltaY > 0;
+      
+      // If at boundary and trying to scroll past it, prevent default
+      if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      
+      // Allow scroll within the scrollable element
+      return;
     }
+    
+    // No scrollable ancestor found - prevent default to avoid body/window scroll
+    e.preventDefault();
+    e.stopPropagation();
   };
   
-  document.body.addEventListener('wheel', preventBodyScrollHandler, { passive: false });
-  document.documentElement.addEventListener('wheel', preventBodyScrollHandler, { passive: false });
+  // Use capture phase to intercept events early
+  document.addEventListener('wheel', preventBodyScrollHandler, { passive: false, capture: true });
+  
+  // Also prevent touchmove on document level (for touch devices)
+  preventTouchMoveHandler = (e: TouchEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.xterm') || target.closest('.terminal-container')) {
+      return;
+    }
+    // Only prevent if touching non-scrollable areas
+    let element: HTMLElement | null = target;
+    while (element && element !== document.body) {
+      const style = window.getComputedStyle(element);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        return;
+      }
+      element = element.parentElement;
+    }
+    e.preventDefault();
+  };
+  document.addEventListener('touchmove', preventTouchMoveHandler, { passive: false });
   
   // Get current version
   currentVersion.value = await updaterStore.getCurrentVersion();
@@ -746,11 +813,19 @@ onUnmounted(() => {
   // Remove ResizeObserver error handler
   window.removeEventListener("error", resizeObserverErrorHandler);
 
+  // Clear devLogger error callback
+  setErrorCallback(null);
+
   // Remove wheel event listeners
   if (preventBodyScrollHandler) {
-    document.body.removeEventListener('wheel', preventBodyScrollHandler);
-    document.documentElement.removeEventListener('wheel', preventBodyScrollHandler);
+    document.removeEventListener('wheel', preventBodyScrollHandler, { capture: true });
     preventBodyScrollHandler = null;
+  }
+  
+  // Remove touch event listeners
+  if (preventTouchMoveHandler) {
+    document.removeEventListener('touchmove', preventTouchMoveHandler);
+    preventTouchMoveHandler = null;
   }
 
   if (unlistenOutput) unlistenOutput();

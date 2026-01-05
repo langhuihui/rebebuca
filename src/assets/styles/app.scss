@@ -1,24 +1,31 @@
 @use "./console-area.scss";
 
-html,
-body {
-  background: none;
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow: hidden;
+/* 全局禁止文字选择和图片拖动，终端和日志查看器除外 */
+*:not(.xterm *):not(.xterm):not(.terminal-container *):not(.terminal-container):not(.log-content):not(.log-entry):not(.no-logs) {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
-/* Secondary text brightness for light theme */
-.n-config-provider--light .n-descriptions .n-descriptions-item-label,
-.n-config-provider--light .n-form-item-label,
-.n-config-provider--light .n-input__placeholder,
-.n-config-provider--light .n-form-item-feedback,
-.n-config-provider--light .n-tag,
-.n-config-provider--light .n-time-picker-input,
-.n-config-provider--light .n-date-picker-input {
-  color: #666666;
-  /* Slightly dimmed black for secondary text */
+/* 禁止图片拖动 */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* 可点击的图片恢复 pointer-events */
+img.logo-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* 允许输入框和日志查看器内文字选择 */
+input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, pre.log-content, .log-entry, .no-logs, .log-toolbar, .log-time, .log-level, .log-source, .log-message, .log-content {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
 }
 
 /* App window with rounded corners - only on outermost container */
@@ -27,7 +34,11 @@ body {
   overflow: hidden;
   background: transparent;
   height: 100vh;
-  position: relative;
+  width: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+  overscroll-behavior: none;
 }
 
 .grid-overlay {
@@ -440,9 +451,17 @@ body {
   overflow: hidden;
 }
 
-/* 禁用 n-layout-sider 内部的滚动 */
-.sidebar-layout .n-layout-sider-scroll-container {
+/* 禁用 n-layout 内部的所有滚动 */
+.n-layout-scroll-container,
+.n-layout-sider-scroll-container {
   overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+/* 禁用 document 级别的滚动弹性效果 */
+html, body, #app, .n-layout, .n-layout-content {
+  overscroll-behavior: none !important;
+  -webkit-overflow-scrolling: auto !important;
 }
 
 .sidebar-container {
@@ -450,7 +469,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
+  padding: 0 16px 16px;
 }
 
 .config-list-container {

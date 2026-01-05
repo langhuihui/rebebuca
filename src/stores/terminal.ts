@@ -251,7 +251,11 @@ export const useTerminalStore = defineStore('terminal', () => {
         const adapterInstance = await getAdapterInstance();
         await adapterInstance.terminal.kill(tab.ptyId);
       } catch (error) {
-        console.warn('[Terminal Store] Failed to close PTY:', error);
+        // Ignore "PTY not found" errors - PTY was already closed
+        const errorMsg = String(error);
+        if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
+          console.warn('[Terminal Store] Failed to close PTY:', error);
+        }
       }
     }
     
@@ -283,24 +287,30 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   };
   
-  // Restart a task using saved execution params
+  // Restart a task using saved execution params (reuse existing tab)
   const restartTask = async (tabId: string): Promise<TerminalTab | null> => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab || !tab.execParams) {
       console.warn('[Terminal Store] Cannot restart: no execution params saved');
       return null;
     }
-    
-    // Execute with saved params
-    return executeTask({
-      command: tab.execParams.command,
-      args: tab.execParams.args,
-      cwd: tab.execParams.cwd,
-      env: tab.execParams.env,
-      logPath: tab.execParams.logPath,
-      taskId: tab.taskId,
-      label: tab.label,
-    });
+
+    // Generate new PTY ID for the restart
+    const newPtyId = `task-${generateId()}`;
+
+    // Reset tab status to pending and update PTY ID
+    tab.status = 'pending';
+    tab.ptyId = newPtyId;
+    tab.startTime = Date.now();
+    tab.exitCode = undefined;
+    tab.pid = undefined;
+
+    // Set as active tab
+    activeTabId.value = tab.id;
+
+    console.log('[Terminal Store] Task tab restarted (pending):', newPtyId, 'tabId:', tab.id);
+
+    return tab;
   };
   
   // Set active tab

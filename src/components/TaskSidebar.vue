@@ -31,9 +31,7 @@
         :current-version="currentVersion"
         :update-available="updaterStore.updateAvailable"
         :update-version="updaterStore.updateInfo?.version"
-        :has-folders="taskManager.folders.length > 0"
         @show-update="handleShowUpdateDialog"
-        @quick-scan="handleQuickScan"
         @add-folder="handleAddFolder"
         @add-task="handleAddTask"
         @ai-generate="showAIDialog = true"
@@ -97,12 +95,13 @@
               
               <template v-if="isExpanded('recent')">
                 <TaskNode
-                  v-for="task in taskManager.recentTasks" 
+                  v-for="task in taskManager.recentTasks"
                   :key="`recent-${task.id}`"
                   :task="task"
                   :is-running="taskManager.isTaskRunning(task.id)"
                   :is-favorite="taskManager.isFavorite(task.id)"
                   :show-icon="settingsStore.settings.showTaskIcons"
+                  :show-edit="true"
                   :folder-hint="getFavoriteFolderLabel(task)"
                   node-class="recent-task-node"
                   @click="handleTaskClick"
@@ -140,6 +139,7 @@
                   :is-running="taskManager.isTaskRunning(task.id)"
                   :is-favorite="true"
                   :show-icon="settingsStore.settings.showTaskIcons"
+                  :show-edit="true"
                   :folder-hint="getFavoriteFolderLabel(task)"
                   :is-dragging="isDraggingFavorite && favoriteDraggedIndex === index"
                   :drag-position="favoriteDragOverIndex === index ? favoriteDragPosition : null"
@@ -204,12 +204,13 @@
               <!-- Group tasks -->
               <template v-if="isExpanded(`group:${group.id}`)">
                 <TaskNode
-                  v-for="task in group.tasks" 
+                  v-for="task in group.tasks"
                   :key="task.id"
                   :task="task"
                   :is-running="taskManager.isTaskRunning(task.id)"
                   :is-favorite="taskManager.isFavorite(task.id)"
                   :show-icon="settingsStore.settings.showTaskIcons"
+                  :show-edit="true"
                   :show-delete="true"
                   :draggable="true"
                   node-class="group-task-node"
@@ -680,40 +681,6 @@ const handleAddFolder = () => {
   showAddFolderDialog.value = true;
 };
 
-// Handle quick scan
-const handleQuickScan = async () => {
-  try {
-    const commonDirs = ['Documents', 'Desktop'];
-    const allTasks: Task[] = [];
-    let scannedAny = false;
-    
-    for (const dir of commonDirs) {
-      try {
-        const tasks = await taskManager.scanFolderForTasks(dir);
-        if (tasks.length > 0) {
-          allTasks.push(...tasks);
-          scannedAny = true;
-        }
-      } catch (error) {
-        console.warn(`[TaskSidebar] Failed to scan ${dir}:`, error);
-      }
-    }
-    
-    if (scannedAny && allTasks.length > 0) {
-      try {
-        const newGroupName = t('task.quickScanGroupName');
-        const newGroup = await taskManager.createUserGroup(newGroupName);
-        const importedCount = await taskManager.importTasksToGroupWithOverwrite(newGroup.id, allTasks);
-        console.log(`[TaskSidebar] Quick scan completed: imported ${importedCount} tasks`);
-      } catch (error) {
-        console.error('[TaskSidebar] Quick scan failed:', error);
-      }
-    }
-  } catch (error) {
-    console.error('[TaskSidebar] Quick scan failed:', error);
-  }
-};
-
 // Handle confirm add folder
 const handleConfirmAddFolder = async (data: AddFolderFormData) => {
   addFolderFormData.value = data;
@@ -1172,11 +1139,11 @@ watch(() => taskManager.folders.length, () => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  margin-top: 8px;
 }
 
 .task-tree-container :deep(.n-scrollbar-content) {
   padding-right: 14px;
+  padding-bottom: 28px;
 }
 
 .task-tree-container :deep(.n-scrollbar-rail) {

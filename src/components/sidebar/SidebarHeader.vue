@@ -42,24 +42,6 @@
         </div>
         <!-- Action buttons -->
         <n-space :size="4">
-          <!-- Quick Scan button (only shown when no folders) -->
-          <n-tooltip v-if="!hasFolders" trigger="hover">
-            <template #trigger>
-              <n-button
-                size="small"
-                quaternary
-                @click="$emit('quick-scan')"
-              >
-                <template #icon>
-                  <n-icon size="16">
-                    <component :is="svgIcons.search" />
-                  </n-icon>
-                </template>
-              </n-button>
-            </template>
-            {{ t('task.quickScan') }}
-          </n-tooltip>
-          
           <!-- Add folder/Open/Import button (always shown) -->
           <n-tooltip trigger="hover">
             <template #trigger>
@@ -148,12 +130,10 @@ defineProps<{
   currentVersion: string;
   updateAvailable: boolean;
   updateVersion?: string;
-  hasFolders: boolean;
 }>();
 
 defineEmits<{
   (e: 'show-update'): void;
-  (e: 'quick-scan'): void;
   (e: 'add-folder'): void;
   (e: 'add-task'): void;
   (e: 'ai-generate'): void;
@@ -178,7 +158,7 @@ const openOfficialWebsite = async () => {
 }
 
 .task-header-content {
-  padding: 16px 0;
+  padding: 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 

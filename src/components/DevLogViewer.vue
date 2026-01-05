@@ -172,14 +172,24 @@ function clearConsoleLogs() {
 }
 
 function exportConsoleLogs() {
+  console.log('[DevLogViewer] Exporting console logs...');
+  console.log('[DevLogViewer] Total logs:', filteredConsoleLogs.value.length);
+  
   const content = exportLogsAsText();
+  console.log('[DevLogViewer] Exported content length:', content.length);
+  
   const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = `rebebuca-console-${new Date().toISOString().slice(0, 10)}.log`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  
+  console.log('[DevLogViewer] Export completed');
 }
 
 async function refreshLogFiles() {
@@ -259,26 +269,29 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .dev-log-viewer {
-  .log-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding: 8px;
-    background: var(--n-color-modal);
-    border-radius: 4px;
-  }
+.log-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: var(--n-color-modal);
+  border-radius: 4px;
+  user-select: text;  /* Allow text selection in toolbar */
+}
   
-  .log-entries {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 12px;
-  }
-  
-  .log-entry {
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--n-border-color);
-    display: flex;
-    gap: 8px;
+.log-entries {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  user-select: text;  /* Allow text selection in log viewer */
+}
+
+.log-entry {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--n-border-color);
+  display: flex;
+  gap: 8px;
+  user-select: text;  /* Allow text selection for log entries */
     
     &.log-debug {
       opacity: 0.7;
@@ -295,6 +308,10 @@ onMounted(() => {
     .log-time {
       color: var(--n-text-color-3);
       flex-shrink: 0;
+      user-select: text;  /* Allow text selection */
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
     }
     
     .log-level {
@@ -326,32 +343,44 @@ onMounted(() => {
       background: var(--n-color-modal);
       border-radius: 2px;
       font-size: 10px;
+      user-select: text;  /* Allow text selection */
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
     }
     
     .log-message {
       flex: 1;
       word-break: break-all;
       white-space: pre-wrap;
+      user-select: text;  /* Allow text selection */
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
     }
   }
   
-  .no-logs {
-    padding: 20px;
-    text-align: center;
-    color: var(--n-text-color-3);
-  }
+.no-logs {
+  padding: 20px;
+  text-align: center;
+  color: var(--n-text-color-3);
+  user-select: text;  /* Allow text selection */
+}
   
-  .log-content {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 12px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-all;
-    padding: 12px;
-    background: var(--n-color-modal);
-    border-radius: 4px;
-    min-height: 200px;
-    margin: 0;
-  }
+.log-content {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 12px;
+  background: var(--n-color-modal);
+  border-radius: 4px;
+  min-height: 200px;
+  margin: 0;
+  user-select: text !important;  /* Force text selection */
+  -webkit-user-drag: text !important;  /* Force text dragging for copy */
+  user-drag: text !important;
+}
 }
 </style>

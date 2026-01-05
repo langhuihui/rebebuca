@@ -115,7 +115,7 @@
             <TerminalView
               v-for="tab in terminalStore.tabs"
               v-show="terminalStore.activeTabId === tab.id"
-              :key="tab.ptyId"
+              :key="tab.id"
               :pty-id="tab.ptyId"
               :theme="effectiveTheme"
               :cwd="getTabCwd(tab)"

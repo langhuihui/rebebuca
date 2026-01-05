@@ -643,10 +643,27 @@ export const useRunConfigStore = defineStore('runConfig', () => {
         
         await updateHistory(historyItem.id, updateData);
       } catch (error) {
-        const errorMessage = `停止进程失败: ${error instanceof Error ? error.message : String(error)}\n`;
-        console.error(`[STORE] Failed to close PTY:`, error);
-        appendConsoleOutput(errorMessage);
-        throw error;
+        // Ignore "PTY not found" errors - PTY was already closed
+        const errorMsg = String(error);
+        if (errorMsg.includes('PTY not found') || errorMsg.includes('not found')) {
+          console.log(`[STORE] PTY ${historyItem.ptyId} already closed`);
+          appendConsoleOutput('\n> 进程已停止\n');
+          
+          // Still update history
+          let updateData: Partial<RunHistory> = {
+            status: 'success'
+          };
+          if (historyItem.startTime) {
+            const duration = Date.now() - historyItem.startTime;
+            updateData.duration = duration;
+          }
+          await updateHistory(historyItem.id, updateData);
+        } else {
+          const errorMessage = `停止进程失败: ${error instanceof Error ? error.message : String(error)}\n`;
+          console.error(`[STORE] Failed to close PTY:`, error);
+          appendConsoleOutput(errorMessage);
+          throw error;
+        }
       }
     } else {
       // Legacy process-based execution

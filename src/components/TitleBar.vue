@@ -106,6 +106,23 @@
 
       <!-- Right buttons -->
       <div class="titlebar-right">
+        <!-- Notification bell button -->
+        <n-button
+          text
+          size="small"
+          @click="openNotificationDialog"
+          class="titlebar-button notification-button"
+          title="Notifications"
+          @mousedown.stop
+        >
+          <template #icon>
+            <n-icon size="18">
+              <NotificationsOutline />
+            </n-icon>
+            <span v-if="notificationCount > 0" class="notification-badge">{{ notificationCount > 99 ? '99+' : notificationCount }}</span>
+          </template>
+        </n-button>
+
         <n-dropdown
           :options="uiStore.themeOptions"
           @select="handleThemeSelect"
@@ -218,17 +235,51 @@
     v-model:show="showSettingsDialog"
     :initial-tab="initialSettingsTab"
   />
+
+  <!-- Notifications Dialog -->
+  <n-modal
+    v-model:show="showNotifications"
+    preset="card"
+    :title="t('notifications.title')"
+    style="width: 500px;"
+    to="body"
+    @after-leave="closeNotificationDialog"
+  >
+    <n-scrollbar style="max-height: 400px;">
+      <div v-if="notifications.length === 0" class="empty-notifications">
+        {{ t('notifications.empty') }}
+      </div>
+      <div v-else class="notifications-list">
+        <div
+          v-for="notification in notifications"
+          :key="notification.id"
+          class="notification-item"
+          :class="{ 'unread': !notification.read }"
+          @click="notificationStore.markAsReadInSnapshot(notification.id)"
+        >
+          <div class="notification-header">
+            <span class="notification-type">{{ notification.title || notification.type }}</span>
+            <span class="notification-time">{{ formatTime(notification.time) }}</span>
+          </div>
+          <div class="notification-message selectable-text">{{ notification.message }}</div>
+        </div>
+      </div>
+    </n-scrollbar>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
-import { NButton, NDropdown, useDialog } from "naive-ui";
+import { ref, onMounted, onUnmounted, computed } from "vue";
+import { NButton, NDropdown, NModal, NScrollbar, useDialog, NIcon } from "naive-ui";
 import { useI18n } from "vue-i18n";
+import { NotificationsOutline } from "@vicons/ionicons5";
 import { useUIStore } from "../stores/ui";
 import { useRunConfigStore } from "../stores/runConfig";
 import { useTerminalStore } from "../stores/terminal";
 import { useTheme } from "../composables/useTheme";
 import { useSettingsStore } from "../stores/settings";
+import { useUpdaterStore } from "../stores/updater";
+import { useNotificationStore } from "../stores/notification";
 import { iconComponents, svgIcons } from "../utils/icons";
 import {
   minimizeWindow,
@@ -250,11 +301,61 @@ const uiStore = useUIStore();
 const runConfigStore = useRunConfigStore();
 const settingsStore = useSettingsStore();
 const terminalStore = useTerminalStore();
+const updaterStore = useUpdaterStore();
+const notificationStore = useNotificationStore();
 const dialog = useDialog();
 const { setThemeMode } = useTheme();
 
 // Settings dialog state
 const showSettingsDialog = ref(false);
+
+// Notification dialog state
+const showNotifications = ref(false);
+
+// Computed: notification count (unread) - from store
+const notificationCount = computed(() => notificationStore.unreadCount);
+
+// Computed: notifications list for display - use displayNotifications from store
+const notifications = computed(() => notificationStore.displayNotifications);
+
+// Handle notification dialog open
+const openNotificationDialog = () => {
+  notificationStore.openDialog();
+  showNotifications.value = true;
+};
+
+// Handle notification dialog close
+const closeNotificationDialog = () => {
+  showNotifications.value = false;
+  notificationStore.closeDialog();
+};
+
+// Format time for display
+const formatTime = (date: Date): string => {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 1) return t('notifications.justNow');
+  if (minutes < 60) return `${minutes} ${t('notifications.minutesAgo')}`;
+  if (hours < 24) return `${hours} ${t('notifications.hoursAgo')}`;
+  if (days < 7) return `${days} ${t('notifications.daysAgo')}`;
+  return date.toLocaleDateString();
+};
+
+// Check for errors and add notifications
+const checkForErrors = () => {
+  // Check for update available
+  if (updaterStore.updateAvailable) {
+    notificationStore.addUpdate(
+      t('notifications.update'),
+      t('notifications.updateAvailable', { version: updaterStore.updateInfo?.version })
+    );
+  }
+};
+
 const settingsDialogRef = ref<InstanceType<typeof SettingsDialog> | null>(null);
 const initialSettingsTab = ref('general');
 
@@ -264,9 +365,12 @@ const openSettingsUpdate = () => {
   showSettingsDialog.value = true;
 };
 
-// Initialize settings
+// Initialize
 onMounted(async () => {
   await settingsStore.initialize();
+  
+  // Check for errors and notifications
+  checkForErrors();
   
   // Listen for open-settings-update event
   window.addEventListener('open-settings-update', openSettingsUpdate);
@@ -345,3 +449,119 @@ const openGitHub = async () => {
   }
 };
 </script>
+
+<style scoped>
+/* Notification button styles */
+.notification-button {
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background-color: #ff4d4f;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Light theme */
+:global(.n-config-provider--light) .notification-badge {
+  background-color: #f5222d;
+}
+
+/* Notification dialog styles */
+.notifications-list {
+  padding: 0;
+}
+
+.notification-item {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.notification-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.notification-item.unread {
+  background-color: rgba(0, 208, 132, 0.1);
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.notification-type {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.notification-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.notification-message {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+/* Allow text selection in notification messages */
+.selectable-text {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  cursor: text;
+}
+
+.empty-notifications {
+  text-align: center;
+  padding: 40px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
+/* Light theme notifications */
+:global(.n-config-provider--light) .notification-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:global(.n-config-provider--light) .notification-item.unread {
+  background-color: rgba(24, 160, 88, 0.1);
+}
+
+:global(.n-config-provider--light) .notification-type {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+:global(.n-config-provider--light) .notification-time {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+:global(.n-config-provider--light) .notification-message {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+:global(.n-config-provider--light) .empty-notifications {
+  color: rgba(0, 0, 0, 0.45);
+}
+</style>

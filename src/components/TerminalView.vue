@@ -17,14 +17,48 @@
  -->
 
 <template>
-  <div 
-    class="terminal-container" 
-    ref="terminalContainer"
-    @dragover.prevent="handleDragOver"
-    @dragleave="handleDragLeave"
-    @drop.prevent="handleDrop"
-    :class="{ 'drag-over': isDragOver }"
-  ></div>
+  <div class="terminal-wrapper" :class="{ 'drag-over': isDragOver }">
+    <!-- Search bar -->
+    <div v-if="showSearch" class="terminal-search-bar">
+      <input
+        ref="searchInput"
+        v-model="searchQuery"
+        type="text"
+        placeholder="Search..."
+        @keydown.enter="findNext"
+        @keydown.shift.enter="findPrevious"
+        @keydown.escape="closeSearch"
+        class="search-input"
+      />
+      <span v-if="searchResultCount !== null" class="search-count">
+        {{ searchResultIndex !== null ? searchResultIndex + 1 : 0 }}/{{ searchResultCount }}
+      </span>
+      <button @click="findPrevious" class="search-btn" title="Previous (Shift+Enter)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+      </button>
+      <button @click="findNext" class="search-btn" title="Next (Enter)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      <button @click="closeSearch" class="search-btn" title="Close (Esc)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <!-- Terminal container -->
+    <div 
+      class="terminal-container" 
+      ref="terminalContainer"
+      @dragover.prevent="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop.prevent="handleDrop"
+    ></div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -32,7 +66,10 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { SearchAddon } from '@xterm/addon-search';
 import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
+import { ShellIntegration, type CommandInfo } from '../utils/shellIntegration';
 import '@xterm/xterm/css/xterm.css';
 
 // Adapter instance
@@ -63,13 +100,24 @@ const emit = defineEmits<{
   (e: 'ready'): void;
   (e: 'exit', exitCode: number | null): void;
   (e: 'error', error: string): void;
+  (e: 'cwd-change', cwd: string): void;
+  (e: 'command-start', command: CommandInfo): void;
+  (e: 'command-end', command: CommandInfo): void;
 }>();
 
 const terminalContainer = ref<HTMLDivElement | null>(null);
+const searchInput = ref<HTMLInputElement | null>(null);
 const isDragOver = ref(false);
+const showSearch = ref(false);
+const searchQuery = ref('');
+const searchResultCount = ref<number | null>(null);
+const searchResultIndex = ref<number | null>(null);
 
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
+let webglAddon: WebglAddon | null = null;
+let searchAddon: SearchAddon | null = null;
+let shellIntegration: ShellIntegration | null = null;
 let unlistenOutput: (() => void) | null = null;
 let unlistenExit: (() => void) | null = null;
 let unlistenDragDrop: (() => void) | null = null;
@@ -157,8 +205,48 @@ const initTerminal = async () => {
   });
   terminal.loadAddon(webLinksAddon);
 
-  // Open terminal in container
+  // Add search addon
+  searchAddon = new SearchAddon();
+  terminal.loadAddon(searchAddon);
+
+  // Setup shell integration (for shell PTY only, not task PTY)
+  if (!props.attachOnly) {
+    shellIntegration = new ShellIntegration(terminal);
+    shellIntegration.setOnCwdChange((cwd) => {
+      emit('cwd-change', cwd);
+    });
+    shellIntegration.setOnCommandStart((command) => {
+      emit('command-start', command);
+    });
+    shellIntegration.setOnCommandEnd((command) => {
+      emit('command-end', command);
+    });
+  }
+
+  // Open terminal in container - check again as component might be unmounted during async operations
+  if (!terminalContainer.value) {
+    console.warn('[TerminalView] Container element not found, aborting terminal initialization');
+    terminal?.dispose();
+    terminal = null;
+    return;
+  }
+  
   terminal.open(terminalContainer.value);
+  
+  // Try to enable WebGL renderer for better performance
+  try {
+    webglAddon = new WebglAddon();
+    webglAddon.onContextLoss(() => {
+      // WebGL context lost, fall back to canvas renderer
+      console.warn('WebGL context lost, falling back to canvas renderer');
+      webglAddon?.dispose();
+      webglAddon = null;
+    });
+    terminal.loadAddon(webglAddon);
+    console.log('[Terminal] WebGL renderer enabled');
+  } catch (e) {
+    console.warn('[Terminal] WebGL not available, using canvas renderer:', e);
+  }
   
   // Fit terminal to container
   await nextTick();
@@ -205,7 +293,12 @@ const initTerminal = async () => {
     // Listen for PTY output - use global listener and filter by ptyId
     const outputUnlisten = adapterInstance.terminal.onData((event) => {
       if (event.ptyId === props.ptyId && terminal) {
-        terminal.write(event.data);
+        // Process data through shell integration if available
+        let data = event.data;
+        if (shellIntegration) {
+          data = shellIntegration.processData(data);
+        }
+        terminal.write(data);
       }
     });
     unlistenOutput = outputUnlisten;
@@ -246,6 +339,9 @@ const initTerminal = async () => {
     });
     resizeObserver.observe(terminalContainer.value);
 
+    // Setup keyboard shortcuts
+    setupKeyboardShortcuts();
+
     isInitialized = true;
     emit('ready');
   } catch (error) {
@@ -270,6 +366,20 @@ const dispose = async () => {
     resizeObserver = null;
   }
 
+  if (webglAddon) {
+    webglAddon.dispose();
+    webglAddon = null;
+  }
+
+  if (searchAddon) {
+    searchAddon = null;
+  }
+
+  if (shellIntegration) {
+    shellIntegration.dispose();
+    shellIntegration = null;
+  }
+
   if (terminal) {
     terminal.dispose();
     terminal = null;
@@ -283,7 +393,11 @@ const dispose = async () => {
         await invoke('close_pty', { ptyId: props.ptyId });
       }
     } catch (error) {
-      console.error('Failed to close PTY:', error);
+      // Ignore "PTY not found" errors - PTY was already closed
+      const errorMsg = String(error);
+      if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
+        console.error('Failed to close PTY:', error);
+      }
     }
   }
   isInitialized = false;
@@ -318,6 +432,115 @@ const write = (data: string) => {
 
 const writeln = (data: string) => {
   terminal?.writeln(data);
+};
+
+// Search functionality
+const openSearch = () => {
+  showSearch.value = true;
+  nextTick(() => {
+    searchInput.value?.focus();
+    searchInput.value?.select();
+  });
+};
+
+const closeSearch = () => {
+  showSearch.value = false;
+  searchQuery.value = '';
+  searchResultCount.value = null;
+  searchResultIndex.value = null;
+  searchAddon?.clearDecorations();
+  terminal?.focus();
+};
+
+const findNext = () => {
+  if (!searchAddon || !searchQuery.value) return;
+  const result = searchAddon.findNext(searchQuery.value, {
+    decorations: {
+      matchBackground: '#515c6a',
+      activeMatchBackground: '#00d084',
+      matchOverviewRuler: '#00d084',
+      activeMatchColorOverviewRuler: '#00d084',
+    }
+  });
+  updateSearchResults();
+  return result;
+};
+
+const findPrevious = () => {
+  if (!searchAddon || !searchQuery.value) return;
+  const result = searchAddon.findPrevious(searchQuery.value, {
+    decorations: {
+      matchBackground: '#515c6a',
+      activeMatchBackground: '#00d084',
+      matchOverviewRuler: '#00d084',
+      activeMatchColorOverviewRuler: '#00d084',
+    }
+  });
+  updateSearchResults();
+  return result;
+};
+
+const updateSearchResults = () => {
+  // Note: SearchAddon doesn't expose result count directly
+  // This is a limitation - we can only show if there are matches or not
+  if (searchQuery.value && searchAddon) {
+    // We'll just indicate search is active
+    searchResultCount.value = -1; // -1 means "searching"
+    searchResultIndex.value = null;
+  } else {
+    searchResultCount.value = null;
+    searchResultIndex.value = null;
+  }
+};
+
+// Watch search query changes
+watch(searchQuery, (newQuery) => {
+  if (newQuery) {
+    findNext();
+  } else {
+    searchAddon?.clearDecorations();
+    searchResultCount.value = null;
+    searchResultIndex.value = null;
+  }
+});
+
+// Setup keyboard shortcuts
+const setupKeyboardShortcuts = () => {
+  if (!terminal) return;
+  
+  // Add custom key handler for shortcuts
+  terminal.attachCustomKeyEventHandler((event) => {
+    // Cmd+F (Mac) or Ctrl+F (Windows/Linux) - open search
+    if ((event.metaKey || event.ctrlKey) && event.key === 'f') {
+      event.preventDefault();
+      openSearch();
+      return false;
+    }
+    
+    // Escape - close search if open
+    if (event.key === 'Escape' && showSearch.value) {
+      closeSearch();
+      return false;
+    }
+    
+    // Cmd/Ctrl+Up - navigate to previous command
+    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowUp' && event.type === 'keydown') {
+      if (shellIntegration?.navigateToPreviousCommand()) {
+        event.preventDefault();
+        return false;
+      }
+    }
+    
+    // Cmd/Ctrl+Down - navigate to next command
+    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowDown' && event.type === 'keydown') {
+      if (shellIntegration?.navigateToNextCommand()) {
+        event.preventDefault();
+        return false;
+      }
+    }
+    
+    return true;
+  });
 };
 
 // Escape path for shell (handle spaces and special characters)
@@ -442,17 +665,74 @@ const isDropOverElement = (position: { x: number; y: number }): boolean => {
   );
 };
 
+// Command navigation
+const navigateToPreviousCommand = () => {
+  return shellIntegration?.navigateToPreviousCommand() ?? false;
+};
+
+const navigateToNextCommand = () => {
+  return shellIntegration?.navigateToNextCommand() ?? false;
+};
+
+const getCommands = () => {
+  return shellIntegration?.getCommands() ?? [];
+};
+
+const getCwd = () => {
+  return shellIntegration?.getCwd();
+};
+
+const isShellIntegrationActive = () => {
+  return shellIntegration?.isActive() ?? false;
+};
+
 defineExpose({
   focus,
   fit,
   clear,
   write,
   writeln,
+  openSearch,
+  closeSearch,
+  findNext,
+  findPrevious,
+  navigateToPreviousCommand,
+  navigateToNextCommand,
+  getCommands,
+  getCwd,
+  isShellIntegrationActive,
 });
 
 onMounted(() => {
   initTerminal();
   setupDragDropListener();
+});
+
+// Watch for ptyId changes (restart task scenario)
+watch(() => props.ptyId, async (newPtyId, oldPtyId) => {
+  if (newPtyId && oldPtyId && newPtyId !== oldPtyId) {
+    // Task is being restarted - dispose old connection and reinitialize
+    console.log('[TerminalView] PTY ID changed, reinitializing:', oldPtyId, '->', newPtyId);
+
+    // Force close old PTY (even in attach mode)
+    if (isTauri()) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('close_pty', { ptyId: oldPtyId });
+        console.log('[TerminalView] Closed old PTY:', oldPtyId);
+      } catch (error) {
+        // Ignore "PTY not found" errors - PTY was already closed
+        const errorMsg = String(error);
+        if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
+          console.error('[TerminalView] Failed to close old PTY:', error);
+        }
+      }
+    }
+
+    await dispose();
+    await nextTick();
+    initTerminal();
+  }
 });
 
 onUnmounted(() => {
@@ -465,21 +745,89 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.terminal-container {
+.terminal-wrapper {
   width: 100%;
   height: 100%;
-  padding: 8px;
-  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   background-color: v-bind('props.theme === "dark" ? "#1a1a1a" : "#ffffff"');
   border-radius: 6px;
-  transition: box-shadow 0.2s, border-color 0.2s;
   border: 2px solid transparent;
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 /* Drag over visual feedback */
-.terminal-container.drag-over {
+.terminal-wrapper.drag-over {
   border-color: #00d084;
   box-shadow: inset 0 0 20px rgba(0, 208, 132, 0.2);
+}
+
+/* Search bar */
+.terminal-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background-color: v-bind('props.theme === "dark" ? "#2d2d2d" : "#f0f0f0"');
+  border-bottom: 1px solid v-bind('props.theme === "dark" ? "#404040" : "#d0d0d0"');
+  border-radius: 6px 6px 0 0;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 150px;
+  max-width: 300px;
+  padding: 4px 8px;
+  border: 1px solid v-bind('props.theme === "dark" ? "#404040" : "#c0c0c0"');
+  border-radius: 4px;
+  background-color: v-bind('props.theme === "dark" ? "#1a1a1a" : "#ffffff"');
+  color: v-bind('props.theme === "dark" ? "#c0c0c0" : "#333333"');
+  font-size: 13px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: #00d084;
+}
+
+.search-input::placeholder {
+  color: v-bind('props.theme === "dark" ? "#666" : "#999"');
+}
+
+.search-count {
+  font-size: 12px;
+  color: v-bind('props.theme === "dark" ? "#888" : "#666"');
+  min-width: 50px;
+  text-align: center;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background-color: transparent;
+  color: v-bind('props.theme === "dark" ? "#c0c0c0" : "#333333"');
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.search-btn:hover {
+  background-color: v-bind('props.theme === "dark" ? "#404040" : "#d0d0d0"');
+}
+
+.search-btn:active {
+  background-color: v-bind('props.theme === "dark" ? "#505050" : "#c0c0c0"');
+}
+
+.terminal-container {
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .terminal-container :deep(.xterm) {
@@ -488,6 +836,7 @@ onUnmounted(() => {
 
 .terminal-container :deep(.xterm-viewport) {
   overflow-y: auto;
+  padding-bottom: 28px;
 }
 
 /* Hide scrollbar but keep functionality */

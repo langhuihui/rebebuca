@@ -342,7 +342,8 @@ class TauriSystemAdapter implements SystemAdapter {
 
   async killProcess(pid: number): Promise<void> {
     await loadTauriModules();
-    await tauriCore!.invoke('kill_process', { pid });
+    // Use port::kill_process_by_pid for killing by PID, not process::kill_process_cmd
+    await tauriCore!.invoke('kill_process_by_pid', { pid });
   }
 
   async generateLogPath(): Promise<LogPathInfo> {

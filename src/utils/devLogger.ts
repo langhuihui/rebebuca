@@ -26,11 +26,17 @@ export interface LogEntry {
   data?: any;
 }
 
+// Callback type for error notifications
+export type ErrorCallback = (level: LogLevel, message: string, source: 'frontend' | 'tauri') => void;
+
 // Max logs to keep in memory
 const MAX_LOGS = 1000;
 
 // In-memory log storage
 const logEntries: LogEntry[] = [];
+
+// Error callback for notification integration
+let errorCallback: ErrorCallback | null = null;
 
 // Original console methods
 const originalConsole = {
@@ -82,6 +88,16 @@ function addLogEntry(level: LogLevel, source: 'frontend' | 'tauri', args: any[])
   // Keep only last MAX_LOGS entries
   while (logEntries.length > MAX_LOGS) {
     logEntries.shift();
+  }
+
+  // Trigger callback for errors and warnings
+  if ((level === 'error' || level === 'warn') && errorCallback) {
+    try {
+      errorCallback(level, entry.message, source);
+    } catch (e) {
+      // Avoid infinite loop if callback throws
+      originalConsole.error('[DevLogger] Error in callback:', e);
+    }
   }
 }
 
@@ -211,4 +227,19 @@ export function exportLogsAsText(): string {
  */
 export function logFromTauri(level: LogLevel, message: string) {
   addLogEntry(level, 'tauri', [message]);
+}
+
+/**
+ * Set a callback to be called when errors/warnings are logged.
+ * This is used to integrate with the notification system.
+ */
+export function setErrorCallback(callback: ErrorCallback | null) {
+  errorCallback = callback;
+}
+
+/**
+ * Get the current error callback
+ */
+export function getErrorCallback(): ErrorCallback | null {
+  return errorCallback;
 }

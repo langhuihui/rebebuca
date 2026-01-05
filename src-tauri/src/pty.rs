@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, OnceLock};
 use std::thread;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex;
 
 /// Global cache for shell environment variables
@@ -278,6 +278,9 @@ impl PtyManager {
 
         // Set TERM environment variable for proper terminal emulation
         cmd.env("TERM", "xterm-256color");
+        
+        // Set TERM_PROGRAM to identify Rebebuca for shell integration
+        cmd.env("TERM_PROGRAM", "rebebuca");
 
         // Spawn the shell process
         let child = pair
@@ -849,4 +852,31 @@ pub async fn get_pty_process_stats(
     }
     
     Err("PTY task not found".to_string())
+}
+
+/// Get the path to shell integration script for a specific shell
+#[tauri::command]
+pub fn get_shell_integration_path(
+    shell: String,
+    app_handle: AppHandle,
+) -> Result<String, String> {
+    let script_name = match shell.as_str() {
+        "bash" | "/bin/bash" | "/usr/bin/bash" => "bash.sh",
+        "zsh" | "/bin/zsh" | "/usr/bin/zsh" => "zsh.sh",
+        _ => return Err(format!("Unsupported shell for integration: {}", shell)),
+    };
+    
+    // Get the resource directory
+    let resource_path = app_handle
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    
+    let script_path = resource_path.join("shell-integration").join(script_name);
+    
+    if script_path.exists() {
+        Ok(script_path.to_string_lossy().to_string())
+    } else {
+        Err(format!("Shell integration script not found: {:?}", script_path))
+    }
 }

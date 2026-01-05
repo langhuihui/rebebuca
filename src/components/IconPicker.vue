@@ -69,10 +69,161 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, type Component } from 'vue';
 import { NPopover, NButton, NIcon, NInput, NTooltip } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../utils/icons';
+// Import xicons
+import {
+  Terminal,
+  Code,
+  Server,
+  Cloud,
+  Rocket,
+  Bug,
+  Hammer,
+  Cube,
+  Flask,
+  Cog,
+  Flash,
+  ServerOutline,
+  Globe,
+  Wifi,
+  LockClosed,
+  Key,
+  Eye,
+  Heart,
+  Star,
+  Flag,
+  Bookmark,
+  Pricetag,
+  Briefcase,
+  Calendar,
+  Time,
+  Timer,
+  Hourglass,
+  Pulse,
+  Analytics,
+  TrendingUp,
+  Speedometer,
+  Layers,
+  Apps,
+  GridOutline,
+  Menu,
+  Home,
+  Person,
+  People,
+  Mail,
+  Send,
+  Attach,
+  Link,
+  Share,
+  Download,
+  CloudUpload,
+  CloudDownload,
+  Sync,
+  Refresh,
+  Play,
+  Pause,
+  Stop,
+  Power,
+  Warning,
+  Alert,
+  InformationCircle,
+  CheckmarkCircle,
+  CloseCircle,
+  AddCircle,
+  RemoveCircle,
+  Create,
+  Trash,
+  Copy,
+  Cut,
+  Save,
+  DocumentText,
+  Folder,
+  FolderOpen,
+  Archive,
+  Image,
+  Camera,
+  Videocam,
+  Mic,
+  VolumeHigh,
+  Bluetooth,
+  Cellular,
+  BatteryFull,
+  Thermometer,
+  Water,
+  Flame,
+  Snow,
+  Sunny,
+  Moon,
+  Cloudy,
+  Rainy,
+  Thunderstorm,
+  Leaf,
+  Flower,
+  Earth,
+  Planet,
+  Telescope,
+  Compass,
+  Map,
+  Navigate,
+  Car,
+  Airplane,
+  Boat,
+  Train,
+  Bus,
+  Bicycle,
+  Walk,
+  Footsteps,
+  Fitness,
+  Barbell,
+  Football,
+  Basketball,
+  Baseball,
+  Golf,
+  GameController,
+  Dice,
+  Trophy,
+  Medal,
+  Ribbon,
+  Gift,
+  Cart,
+  Wallet,
+  Card,
+  Cash,
+  Calculator,
+  Print,
+  Scan,
+  QrCode,
+  Barcode,
+  HandLeft,
+  ThumbsUp,
+  Sparkles,
+  ColorPalette,
+  Brush,
+  Pencil,
+  Build,
+  Construct,
+  ExtensionPuzzle,
+  Pizza,
+  Cafe,
+  Beer,
+  Wine,
+  Restaurant,
+  Nutrition,
+  Medkit,
+  Bandage,
+  School,
+  Library,
+  Book,
+  Newspaper,
+  Reader,
+  Glasses,
+  Headset,
+  Watch,
+  Shirt
+} from '@vicons/ionicons5';
 
 const { t } = useI18n();
 
@@ -93,17 +244,184 @@ const emit = defineEmits<{
 
 const searchQuery = ref('');
 
+// xicons 图标集合
+const xicons: Record<string, Component> = {
+  terminal: Terminal,
+  code: Code,
+  server: Server,
+  cloud: Cloud,
+  rocket: Rocket,
+  bug: Bug,
+  hammer: Hammer,
+  cube: Cube,
+  flask: Flask,
+  cog: Cog,
+  flash: Flash,
+  database: ServerOutline,
+  globe: Globe,
+  wifi: Wifi,
+  lock: LockClosed,
+  key: Key,
+  eye: Eye,
+  heart: Heart,
+  star: Star,
+  flag: Flag,
+  bookmark: Bookmark,
+  tag: Pricetag,
+  briefcase: Briefcase,
+  calendar: Calendar,
+  clock: Time,
+  timer: Timer,
+  hourglass: Hourglass,
+  pulse: Pulse,
+  analytics: Analytics,
+  trendingUp: TrendingUp,
+  speedometer: Speedometer,
+  layers: Layers,
+  apps: Apps,
+  grid: GridOutline,
+  menu: Menu,
+  home: Home,
+  person: Person,
+  people: People,
+  mail: Mail,
+  send: Send,
+  attach: Attach,
+  link: Link,
+  share: Share,
+  download: Download,
+  cloudUpload: CloudUpload,
+  cloudDownload: CloudDownload,
+  sync: Sync,
+  refresh: Refresh,
+  play: Play,
+  pause: Pause,
+  stop: Stop,
+  power: Power,
+  warning: Warning,
+  alert: Alert,
+  info: InformationCircle,
+  checkmark: CheckmarkCircle,
+  close: CloseCircle,
+  add: AddCircle,
+  remove: RemoveCircle,
+  create: Create,
+  trash: Trash,
+  copy: Copy,
+  cut: Cut,
+  save: Save,
+  document: DocumentText,
+  folder: Folder,
+  folderOpen: FolderOpen,
+  archive: Archive,
+  image: Image,
+  camera: Camera,
+  videocam: Videocam,
+  mic: Mic,
+  volume: VolumeHigh,
+  bluetooth: Bluetooth,
+  cellular: Cellular,
+  battery: BatteryFull,
+  thermometer: Thermometer,
+  water: Water,
+  flame: Flame,
+  snow: Snow,
+  sunny: Sunny,
+  moon: Moon,
+  cloudy: Cloudy,
+  rainy: Rainy,
+  thunderstorm: Thunderstorm,
+  leaf: Leaf,
+  flower: Flower,
+  earth: Earth,
+  planet: Planet,
+  telescope: Telescope,
+  compass: Compass,
+  map: Map,
+  navigate: Navigate,
+  car: Car,
+  airplane: Airplane,
+  boat: Boat,
+  train: Train,
+  bus: Bus,
+  bicycle: Bicycle,
+  walk: Walk,
+  footsteps: Footsteps,
+  fitness: Fitness,
+  barbell: Barbell,
+  football: Football,
+  basketball: Basketball,
+  baseball: Baseball,
+  golf: Golf,
+  gameController: GameController,
+  dice: Dice,
+  trophy: Trophy,
+  medal: Medal,
+  ribbon: Ribbon,
+  gift: Gift,
+  cart: Cart,
+  pricetag: Pricetag,
+  wallet: Wallet,
+  card: Card,
+  cash: Cash,
+  calculator: Calculator,
+  print: Print,
+  scan: Scan,
+  qrCode: QrCode,
+  barcode: Barcode,
+  hand: HandLeft,
+  thumbsUp: ThumbsUp,
+  sparkles: Sparkles,
+  colorPalette: ColorPalette,
+  brush: Brush,
+  pencil: Pencil,
+  build: Build,
+  construct: Construct,
+  extension: ExtensionPuzzle,
+  pizza: Pizza,
+  cafe: Cafe,
+  beer: Beer,
+  wine: Wine,
+  restaurant: Restaurant,
+  nutrition: Nutrition,
+  medkit: Medkit,
+  bandage: Bandage,
+  school: School,
+  library: Library,
+  book: Book,
+  newspaper: Newspaper,
+  reader: Reader,
+  glasses: Glasses,
+  headset: Headset,
+  watch: Watch,
+  shirt: Shirt,
+};
+
+// 合并所有图标
+const allIcons = computed(() => {
+  return { ...svgIcons, ...xicons };
+});
+
 const currentIcon = computed(() => {
-  const iconName = props.modelValue as keyof typeof svgIcons;
-  return svgIcons[iconName] || svgIcons.task;
+  const iconName = props.modelValue;
+  // 先检查 xicons
+  if (iconName in xicons) {
+    return xicons[iconName as keyof typeof xicons];
+  }
+  // 再检查 svgIcons
+  if (iconName in svgIcons) {
+    return svgIcons[iconName as keyof typeof svgIcons];
+  }
+  return svgIcons.task;
 });
 
 const filteredIcons = computed(() => {
   const query = searchQuery.value.toLowerCase();
-  if (!query) return svgIcons;
+  const icons = allIcons.value;
+  if (!query) return icons;
   
   return Object.fromEntries(
-    Object.entries(svgIcons).filter(([name]) => 
+    Object.entries(icons).filter(([name]) => 
       name.toLowerCase().includes(query)
     )
   );
@@ -117,8 +435,8 @@ const selectIcon = (name: string) => {
 
 <style scoped>
 .icon-picker {
-  width: 280px;
-  max-height: 320px;
+  width: 320px;
+  max-height: 400px;
   display: flex;
   flex-direction: column;
 }
@@ -131,7 +449,7 @@ const selectIcon = (name: string) => {
 
 .icon-picker-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 4px;
   overflow-y: auto;
   padding: 4px;

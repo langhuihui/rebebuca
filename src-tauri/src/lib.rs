@@ -7,7 +7,7 @@ mod tray;
 mod types;
 
 use log::info;
-use pty::{close_pty, create_pty, execute_task, get_pty_process_stats, kill_task, resize_pty, write_pty, PtyManager};
+use pty::{close_pty, create_pty, execute_task, get_pty_process_stats, get_shell_integration_path, kill_task, resize_pty, write_pty, PtyManager};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
@@ -229,6 +229,7 @@ pub fn run() {
             execute_task,
             kill_task,
             get_pty_process_stats,
+            get_shell_integration_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
