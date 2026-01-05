@@ -37,6 +37,8 @@ pub fn get_shell_env() -> HashMap<String, String> {
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 for line in stdout.lines() {
+                    // Use splitn to handle values that contain '=' characters
+                    // e.g., VAR=key=value should parse as key='VAR' value='key=value'
                     if let Some((key, value)) = line.split_once('=') {
                         env_map.insert(key.to_string(), value.to_string());
                     }
@@ -54,8 +56,8 @@ pub fn get_shell_env() -> HashMap<String, String> {
             } else {
                 format!("{}:{}", current_path, default_path)
             };
-            env_map.insert("PATH".to_string(), combined_path);
-            println!("[SHELL_ENV] Using fallback PATH: {}", env_map.get("PATH").unwrap());
+            env_map.insert("PATH".to_string(), combined_path.clone());
+            println!("[SHELL_ENV] Using fallback PATH: {}", combined_path);
         }
         
         env_map
