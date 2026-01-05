@@ -57,7 +57,7 @@ export interface Task {
   group?: TaskGroup;
   
   // Command to execute (required for simple tasks, optional for macro tasks)
-  command: string;
+  command?: string;
   
   // Command arguments
   args?: string[];

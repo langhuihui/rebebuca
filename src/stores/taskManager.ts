@@ -128,6 +128,9 @@ export interface TaskRunStats {
 const DEFAULT_GROUP_ID = 'default';
 const DEFAULT_GROUP_NAME = 'Default';
 
+// Task execution timeout (1 hour)
+const TASK_EXECUTION_TIMEOUT_MS = 3600000;
+
 /**
  * Task Manager Store
  * 
@@ -1118,14 +1121,16 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * Resolve task dependencies recursively
    * Returns an array of task IDs in execution order
    */
-  function resolveTaskDependencies(taskId: string, visited: Set<string> = new Set()): string[] {
+  function resolveTaskDependencies(taskId: string, visited: Set<string> = new Set(), path: string[] = []): string[] {
     // Detect circular dependencies
     if (visited.has(taskId)) {
-      console.error(`[TaskManager] Circular dependency detected: ${taskId}`);
+      const cycle = [...path, taskId].join(' → ');
+      console.error(`[TaskManager] Circular dependency detected: ${cycle}`);
       return [];
     }
     
     visited.add(taskId);
+    const currentPath = [...path, taskId];
     
     const task = findTask(taskId);
     if (!task) {
@@ -1141,7 +1146,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     // Recursively resolve dependencies
     const resolvedDeps: string[] = [];
     for (const depId of task.dependsOn) {
-      const depResolved = resolveTaskDependencies(depId, new Set(visited));
+      const depResolved = resolveTaskDependencies(depId, new Set(visited), currentPath);
       // Add dependencies that aren't already in the list
       for (const id of depResolved) {
         if (!resolvedDeps.includes(id)) {
@@ -1193,7 +1198,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
             setTimeout(() => {
               clearInterval(checkInterval);
               resolve();
-            }, 3600000);
+            }, TASK_EXECUTION_TIMEOUT_MS);
           });
         }
       }
@@ -1246,8 +1251,11 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * If the task is not running, a new terminal tab will be created
    */
   async function executeTask(task: Task, options?: TaskExecutionOptions): Promise<void> {
-    // Handle macro tasks
-    if (task.type === 'macro' || task.dependsOn || task.subTasks) {
+    // Handle macro tasks (tasks that orchestrate other tasks, no command of their own)
+    // Only tasks explicitly marked as 'macro' or compound tasks without commands are macro tasks
+    const isMacroTask = task.type === 'macro' || (!task.command && (task.dependsOn || task.subTasks));
+    
+    if (isMacroTask) {
       console.log('[TaskManager] Executing macro task:', task.name);
       
       // Check if this is a parallel macro task
@@ -1267,6 +1275,14 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       return;
     }
     
+    // For regular tasks with dependencies, first execute dependencies, then the task itself
+    if (task.dependsOn && task.dependsOn.length > 0 && task.command) {
+      console.log('[TaskManager] Task has dependencies, resolving:', task.name);
+      const resolvedTasks = resolveTaskDependencies(task.id);
+      await executeTasksSerial(resolvedTasks, options);
+      return;
+    }
+    
     // Execute as a simple task
     await executeTaskInternal(task, options);
   }
@@ -1275,6 +1291,12 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * Internal function to execute a single task (non-macro)
    */
   async function executeTaskInternal(task: Task, options?: TaskExecutionOptions): Promise<void> {
+    // Guard: This function should only be called for tasks with commands
+    if (!task.command) {
+      console.error('[TaskManager] Cannot execute task without command:', task.name);
+      return;
+    }
+    
     const terminalStore = useTerminalStore();
     const runConfigStore = useRunConfigStore();
     await terminalStore.initListeners();
@@ -1317,7 +1339,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     // Check if command contains spaces and no args provided
     // This indicates the command is a full shell command string
     const hasArgs = task.args && task.args.length > 0;
-    const commandHasSpaces = task.command.includes(' ');
+    const commandHasSpaces = task.command && task.command.includes(' ');
     
     // Helper function to check if command needs shell execution
     // Commands with shell operators (&&, ||, |, ;, >, <, sudo, etc.) need shell
@@ -1579,6 +1601,12 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * Execute task in system terminal
    */
   async function executeInSystemTerminal(task: Task, cwd?: string): Promise<void> {
+    // Guard: Can only execute tasks with commands in system terminal
+    if (!task.command) {
+      console.error('[TaskManager] Cannot execute macro task in system terminal:', task.name);
+      return;
+    }
+    
     // Build the full command string
     const fullCommand = task.args && task.args.length > 0 
       ? `${task.command} ${task.args.join(' ')}` 

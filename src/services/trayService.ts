@@ -100,13 +100,15 @@ function setupWatchers() {
       if (!adapter || adapter.type !== 'tauri') return;
       
       try {
-        // Map favorite tasks to FavoriteTaskInfo
-        const favoriteInfos: FavoriteTaskInfo[] = favorites.map(task => ({
-          id: task.id,
-          name: task.name,
-          command: task.command,
-          cwd: task.cwd,
-        }));
+        // Map favorite tasks to FavoriteTaskInfo, filtering out macro tasks
+        const favoriteInfos: FavoriteTaskInfo[] = favorites
+          .filter(task => task.command) // Only include tasks with commands
+          .map(task => ({
+            id: task.id,
+            name: task.name,
+            command: task.command!,  // Non-null assertion is safe due to filter
+            cwd: task.cwd,
+          }));
         
         await adapter.tray.updateFavorites(favoriteInfos);
         console.log('[TrayService] Updated favorites:', favoriteInfos.length);
@@ -125,14 +127,16 @@ function setupWatchers() {
       if (!adapter || adapter.type !== 'tauri') return;
       
       try {
-        // Map recent tasks to RecentTaskInfo
-        const recentInfos: RecentTaskInfo[] = recent.map(task => ({
-          id: task.id,
-          name: task.name,
-          command: task.command,
-          cwd: task.cwd,
-          timestamp: task.timestamp,
-        }));
+        // Map recent tasks to RecentTaskInfo, filtering out macro tasks
+        const recentInfos: RecentTaskInfo[] = recent
+          .filter(task => task.command) // Only include tasks with commands
+          .map(task => ({
+            id: task.id,
+            name: task.name,
+            command: task.command!,  // Non-null assertion is safe due to filter
+            cwd: task.cwd,
+            timestamp: task.timestamp,
+          }));
         
         await adapter.tray.updateRecentTasks(recentInfos);
         console.log('[TrayService] Updated recent tasks:', recentInfos.length);

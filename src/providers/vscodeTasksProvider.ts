@@ -283,15 +283,19 @@ export class VSCodeTasksProvider implements TaskProvider {
     
     if (task.dependsOn) {
       if (typeof task.dependsOn === 'object' && !Array.isArray(task.dependsOn)) {
-        // New format with order specification
-        const depObj = task.dependsOn as { tasks: string[]; order?: 'sequence' | 'parallel' };
-        if (depObj.order === 'parallel') {
-          executionMode = 'parallel';
-          subTasks = depObj.tasks;
+        // New format with order specification - validate structure
+        const depObj = task.dependsOn as any;
+        if (depObj && typeof depObj === 'object' && Array.isArray(depObj.tasks)) {
+          if (depObj.order === 'parallel') {
+            executionMode = 'parallel';
+            subTasks = depObj.tasks;
+          } else {
+            // Default to serial execution
+            executionMode = 'serial';
+            dependsOn = depObj.tasks;
+          }
         } else {
-          // Default to serial execution
-          executionMode = 'serial';
-          dependsOn = depObj.tasks;
+          console.warn(`[VSCodeTasksProvider] Invalid dependsOn object format for task: ${task.label}`);
         }
       } else {
         // Legacy format: array or string (always serial)

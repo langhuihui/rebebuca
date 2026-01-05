@@ -185,7 +185,7 @@ defineEmits<{
 const settingsStore = useSettingsStore();
 
 const fullCommand = computed(() => {
-  let cmd = props.task.command;
+  let cmd = props.task.command || '';
   if (props.task.args && props.task.args.length > 0) {
     cmd += ' ' + props.task.args.join(' ');
   }
@@ -201,7 +201,7 @@ const taskIcon = computed(() => {
   }
   
   const customIcons = settingsStore.settings.commandIcons || {};
-  const iconName = getCommandIconName(props.task.command, customIcons);
+  const iconName = getCommandIconName(props.task.command || '', customIcons);
   if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {
     return svgIcons[iconName as keyof typeof svgIcons];
   }

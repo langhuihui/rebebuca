@@ -976,7 +976,7 @@ const handleTaskEditVisual = (task: Task) => {
   // Combine command and args into a single command string
   const fullCommand = task.args?.length 
     ? `${task.command} ${task.args.join(' ')}`
-    : task.command;
+    : task.command || '';  // Default to empty string for macro tasks
   
   editingTask.value = {
     id: task.id,
