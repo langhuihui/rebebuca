@@ -42,7 +42,7 @@
         </div>
         <!-- Action buttons -->
         <n-space :size="4">
-          <!-- Add folder/Quick Scan button -->
+          <!-- Quick Scan button (only shown when no folders) -->
           <n-tooltip v-if="!hasFolders" trigger="hover">
             <template #trigger>
               <n-button
@@ -60,8 +60,8 @@
             {{ t('task.quickScan') }}
           </n-tooltip>
           
-          <!-- Add folder/Open/Import button -->
-          <n-tooltip v-else trigger="hover">
+          <!-- Add folder/Open/Import button (always shown) -->
+          <n-tooltip trigger="hover">
             <template #trigger>
               <n-button
                 size="small"

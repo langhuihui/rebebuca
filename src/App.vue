@@ -148,6 +148,9 @@ let unlistenStarted: UnlistenFn | null = null;
 let unlistenStopped: UnlistenFn | null = null;
 let unlistenPtyExit: UnlistenFn | null = null;
 
+// Wheel event handler for preventing body scroll
+let preventBodyScrollHandler: ((e: WheelEvent) => void) | null = null;
+
 // Process monitoring
 let processStatsInterval: number | null = null;
 
@@ -482,11 +485,48 @@ onMounted(async () => {
   // Check platform for window controls styling
   uiStore.setWindowsPlatform(await isWindows());
 
-  // Suppress ResizeObserver errors
+    // Suppress ResizeObserver errors
   suppressResizeObserverError();
 
   // Add global error handler for ResizeObserver
   window.addEventListener("error", resizeObserverErrorHandler);
+
+  // Prevent body scroll on wheel events
+  preventBodyScrollHandler = (e: WheelEvent) => {
+    const target = e.target as HTMLElement;
+    // Check if the target or its ancestors have scrollable content
+    let element: HTMLElement | null = target;
+    let isScrollable = false;
+    
+    while (element && element !== document.body && element !== document.documentElement) {
+      const style = window.getComputedStyle(element);
+      const overflowY = style.overflowY;
+      const overflow = style.overflow;
+      
+      // Check if element is scrollable
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll') ||
+        (overflow === 'auto' || overflow === 'scroll')
+      ) {
+        const scrollHeight = element.scrollHeight;
+        const clientHeight = element.clientHeight;
+        if (scrollHeight > clientHeight) {
+          isScrollable = true;
+          break;
+        }
+      }
+      
+      element = element.parentElement;
+    }
+    
+    // Only prevent default if the event is on body/document and not on a scrollable element
+    if (!isScrollable && (target === document.body || target === document.documentElement)) {
+      e.preventDefault();
+    }
+  };
+  
+  document.body.addEventListener('wheel', preventBodyScrollHandler, { passive: false });
+  document.documentElement.addEventListener('wheel', preventBodyScrollHandler, { passive: false });
   
   // Get current version
   currentVersion.value = await updaterStore.getCurrentVersion();
@@ -705,6 +745,13 @@ onMounted(async () => {
 onUnmounted(() => {
   // Remove ResizeObserver error handler
   window.removeEventListener("error", resizeObserverErrorHandler);
+
+  // Remove wheel event listeners
+  if (preventBodyScrollHandler) {
+    document.body.removeEventListener('wheel', preventBodyScrollHandler);
+    document.documentElement.removeEventListener('wheel', preventBodyScrollHandler);
+    preventBodyScrollHandler = null;
+  }
 
   if (unlistenOutput) unlistenOutput();
   if (unlistenStarted) unlistenStarted();
