@@ -3,6 +3,7 @@ mod commands;
 mod port;
 mod process;
 mod pty;
+mod shell_env;
 mod tray;
 mod types;
 
