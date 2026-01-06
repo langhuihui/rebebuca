@@ -1,3 +1,4 @@
+use crate::shell_env::get_shell_env;
 use crate::types::{OutputEvent, OutputType, ProcessInfo, ProcessStats, ProcessStatus, RunConfig};
 use std::collections::HashMap;
 use std::fs;
@@ -122,7 +123,14 @@ pub async fn execute_command(
         }
     }
 
-    // Set environment variables if provided
+    // Load shell environment variables first (crucial for macOS/Linux GUI apps)
+    // This ensures commands like npm, node, etc. can be found in PATH
+    let shell_env = get_shell_env();
+    for (key, value) in &shell_env {
+        cmd.env(key, value);
+    }
+
+    // Set user-provided environment variables (override shell env if needed)
     if let Some(env_vars) = config.environment {
         for (key, value) in env_vars {
             cmd.env(key, value);
