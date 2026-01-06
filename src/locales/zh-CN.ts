@@ -273,6 +273,7 @@ export default {
     preferredTerminal: '首选终端',
     preferredTerminalPlaceholder: '使用系统默认',
     preferredTerminalHint: '选择在系统终端中打开命令时使用的终端',
+    default: '默认',
     commandIcons: '命令图标',
     searchIcons: '搜索图标...',
     commandPlaceholder: '输入命令 (如 npm, cargo)',

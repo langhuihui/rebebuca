@@ -272,6 +272,7 @@ export default {
     preferredTerminal: 'Preferred Terminal',
     preferredTerminalPlaceholder: 'Use system default',
     preferredTerminalHint: 'Select which terminal to use when opening commands in system terminal',
+    default: 'Default',
     commandIcons: 'Command Icons',
     searchIcons: 'Search icons...',
     commandPlaceholder: 'Enter command (e.g., npm, cargo)',

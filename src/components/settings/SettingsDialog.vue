@@ -224,7 +224,7 @@ const availableTerminals = ref<SystemTerminalInfo[]>([]);
 
 const terminalOptions = computed(() => {
   return availableTerminals.value.map(terminal => ({
-    label: `${terminal.name}${terminal.is_default ? ' (默认)' : ''}`,
+    label: terminal.is_default ? `${terminal.name} (${t('settings.default')})` : terminal.name,
     value: terminal.id,
   }));
 });
@@ -235,14 +235,6 @@ const loadAvailableTerminals = async () => {
     const adapter = await getAdapter();
     const terminals = await adapter.system.getAvailableTerminals();
     availableTerminals.value = terminals;
-    
-    // If no terminal is selected, use the default one
-    if (!settingsStore.settings.preferredTerminal && terminals.length > 0) {
-      const defaultTerminal = terminals.find(t => t.is_default);
-      if (defaultTerminal) {
-        settingsStore.settings.preferredTerminal = defaultTerminal.id;
-      }
-    }
   } catch (error) {
     console.error('Failed to load available terminals:', error);
   } finally {

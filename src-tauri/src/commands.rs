@@ -374,21 +374,14 @@ pub async fn get_available_terminals() -> Result<Vec<TerminalInfo>, String> {
         }
 
         // Check for iTerm2
-        let iterm_paths = [
-            "/Applications/iTerm.app",
-            "/Users/*/Applications/iTerm.app",
-        ];
-        for path in &iterm_paths {
-            if std::path::Path::new(path).exists() {
-                terminals.push(TerminalInfo {
-                    id: "iterm2".to_string(),
-                    name: "iTerm2".to_string(),
-                    path: path.to_string(),
-                    available: true,
-                    is_default: false,
-                });
-                break;
-            }
+        if std::path::Path::new("/Applications/iTerm.app").exists() {
+            terminals.push(TerminalInfo {
+                id: "iterm2".to_string(),
+                name: "iTerm2".to_string(),
+                path: "/Applications/iTerm.app".to_string(),
+                available: true,
+                is_default: false,
+            });
         }
 
         // Check for Warp
@@ -627,6 +620,9 @@ pub async fn open_in_specific_terminal(
             }
             "warp" | "alacritty" | "kitty" => {
                 // For other terminals, use open command with shell execution
+                // Note: The command string comes from user input in the UI, same as what would
+                // be executed in the PTY. We escape single quotes to prevent basic injection,
+                // but users should be aware they are running their own commands.
                 let app_name = match terminal_id.as_str() {
                     "warp" => "Warp",
                     "alacritty" => "Alacritty",
