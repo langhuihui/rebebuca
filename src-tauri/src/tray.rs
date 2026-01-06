@@ -91,7 +91,7 @@ pub fn update_tray_recent_tasks(
 }
 
 /// Check if a task is currently running by its task_id
-fn is_task_running(task_id: &str, running: &[RunningProcess]) -> Option<&RunningProcess> {
+fn is_task_running<'a>(task_id: &str, running: &'a [RunningProcess]) -> Option<&'a RunningProcess> {
     running.iter().find(|p| p.task_id.as_deref() == Some(task_id))
 }
 

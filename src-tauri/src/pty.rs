@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write, BufWriter};
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Arc;
 use std::thread;
 use tauri::{AppHandle, Emitter, Manager};
@@ -13,6 +12,8 @@ use tokio::sync::Mutex;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PtyOptions {
@@ -448,10 +449,28 @@ impl PtyManager {
         
         #[cfg(not(target_os = "windows"))]
         let mut cmd = {
-            let mut c = CommandBuilder::new(&command);
-            for arg in &args {
-                c.arg(arg);
-            }
+            // Use shell to execute the command to ensure proper TTY handling
+            // This is important for sudo password prompts on macOS
+            let shell = Self::get_default_shell();
+            let mut c = CommandBuilder::new(&shell);
+            c.arg("-c");
+            
+            // Build the full command string with proper escaping
+            let full_command = if args.is_empty() {
+                command.clone()
+            } else {
+                // Escape arguments and join them
+                let escaped_args: Vec<String> = args.iter().map(|arg| {
+                    // If arg contains spaces or special chars, quote it
+                    if arg.contains(' ') || arg.contains('"') || arg.contains('\'') || arg.contains('$') {
+                        format!("'{}'", arg.replace("'", "'\\''"))
+                    } else {
+                        arg.clone()
+                    }
+                }).collect();
+                format!("{} {}", command, escaped_args.join(" "))
+            };
+            c.arg(&full_command);
             c
         };
 
