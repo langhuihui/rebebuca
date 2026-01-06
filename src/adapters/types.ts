@@ -73,6 +73,15 @@ export interface LogPathInfo {
   logPath: string;
 }
 
+// System Terminal types
+export interface SystemTerminalInfo {
+  id: string;
+  name: string;
+  path: string;
+  available: boolean;
+  is_default: boolean;
+}
+
 /**
  * Terminal Adapter Interface
  */
@@ -132,6 +141,8 @@ export interface SystemAdapter {
   getArch(): Promise<string>;
   openExternal(url: string): Promise<void>;
   openInSystemTerminal(command: string, cwd?: string): Promise<void>;
+  openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void>;
+  getAvailableTerminals(): Promise<SystemTerminalInfo[]>;
   executeWithAdmin(command: string, args: string[]): Promise<AdminExecuteResult>;
   getProcessInfo(pid: number): Promise<ProcessInfo | null>;
   listPorts(): Promise<PortInfo[]>;

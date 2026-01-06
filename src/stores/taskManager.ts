@@ -1623,7 +1623,35 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     try {
       const adapterInstance = await initAdapter();
       if (adapterInstance) {
-        await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+        // Get the preferred terminal from settings
+        const settingsStore = useSettingsStore();
+        const preferredTerminal = settingsStore.settings.preferredTerminal;
+        
+        if (preferredTerminal) {
+          // Verify the preferred terminal is still available
+          try {
+            const availableTerminals = await adapterInstance.system.getAvailableTerminals();
+            const terminalExists = availableTerminals.some(t => t.id === preferredTerminal);
+            
+            if (terminalExists) {
+              // Use the specific terminal
+              await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined);
+            } else {
+              // Preferred terminal no longer available, clear preference and use default
+              console.warn(`[TaskManager] Preferred terminal '${preferredTerminal}' not found, using default`);
+              settingsStore.settings.preferredTerminal = null;
+              await settingsStore.saveSettings();
+              await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+            }
+          } catch (error) {
+            // If we can't check availability, try the preferred terminal anyway as fallback
+            console.warn('[TaskManager] Could not verify terminal availability, trying preferred terminal anyway:', error);
+            await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined);
+          }
+        } else {
+          // Use the default system terminal
+          await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+        }
       }
       console.log(`[TaskManager] Task opened in system terminal: ${task.name}`);
     } catch (error) {

@@ -28,6 +28,7 @@ import type {
   PortInfo,
   ProcessInfo,
   LogPathInfo,
+  SystemTerminalInfo,
 } from './types';
 
 // Lazy imports for Tauri APIs
@@ -327,6 +328,23 @@ class TauriSystemAdapter implements SystemAdapter {
   async openInSystemTerminal(command: string, cwd?: string): Promise<void> {
     await loadTauriModules();
     await tauriCore!.invoke('open_in_system_terminal', { command, cwd: cwd || null });
+  }
+
+  async openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('open_in_specific_terminal', { terminalId, command, cwd: cwd || null });
+  }
+
+  async getAvailableTerminals(): Promise<SystemTerminalInfo[]> {
+    await loadTauriModules();
+    const terminals = await tauriCore!.invoke<Array<{ id: string; name: string; path: string; available: boolean; is_default: boolean }>>('get_available_terminals');
+    return terminals.map(t => ({
+      id: t.id,
+      name: t.name,
+      path: t.path,
+      available: t.available,
+      is_default: t.is_default,
+    }));
   }
 
   async executeWithAdmin(command: string, args: string[]): Promise<AdminExecuteResult> {
