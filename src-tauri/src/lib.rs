@@ -208,6 +208,8 @@ pub fn run() {
             commands::open_app_log_folder,
             commands::list_app_log_files,
             commands::read_app_log_file,
+            commands::get_available_terminals,
+            commands::open_in_specific_terminal,
             // process module
             process::execute_command,
             process::kill_process_cmd,

@@ -29,6 +29,7 @@ import type {
   PortInfo,
   ProcessInfo,
   LogPathInfo,
+  SystemTerminalInfo,
 } from './types';
 
 // Simulated file system
@@ -464,6 +465,32 @@ class MockSystemAdapter implements SystemAdapter {
 
   async openInSystemTerminal(_command: string, _cwd?: string): Promise<void> {
     console.log('[Mock] openInSystemTerminal not available in browser');
+  }
+
+  async openInSpecificTerminal(_terminalId: string, _command: string, _cwd?: string): Promise<void> {
+    console.log('[Mock] openInSpecificTerminal not available in browser');
+  }
+
+  async getAvailableTerminals(): Promise<SystemTerminalInfo[]> {
+    // Return mock terminals based on detected platform
+    const platform = await this.getPlatform();
+    if (platform === 'darwin') {
+      return [
+        { id: 'terminal', name: 'Terminal', path: '/System/Applications/Utilities/Terminal.app', available: true, is_default: true },
+        { id: 'iterm2', name: 'iTerm2', path: '/Applications/iTerm.app', available: true, is_default: false },
+      ];
+    } else if (platform === 'windows') {
+      return [
+        { id: 'cmd', name: 'Command Prompt', path: 'cmd.exe', available: true, is_default: true },
+        { id: 'powershell', name: 'PowerShell', path: 'powershell.exe', available: true, is_default: false },
+        { id: 'windows-terminal', name: 'Windows Terminal', path: 'wt.exe', available: true, is_default: false },
+      ];
+    } else {
+      return [
+        { id: 'gnome-terminal', name: 'GNOME Terminal', path: 'gnome-terminal', available: true, is_default: true },
+        { id: 'konsole', name: 'Konsole', path: 'konsole', available: true, is_default: false },
+      ];
+    }
   }
 
   async executeWithAdmin(_command: string, _args: string[]): Promise<AdminExecuteResult> {

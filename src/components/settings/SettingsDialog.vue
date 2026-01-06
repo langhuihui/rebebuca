@@ -67,6 +67,17 @@
             />
             <span class="setting-hint">{{ t('settings.recentTasksCountHint') }}</span>
           </n-form-item>
+          <n-form-item :label="t('settings.preferredTerminal')">
+            <n-select
+              v-model:value="settingsStore.settings.preferredTerminal"
+              :options="terminalOptions"
+              :loading="loadingTerminals"
+              clearable
+              style="width: 280px;"
+              :placeholder="t('settings.preferredTerminalPlaceholder')"
+            />
+            <span class="setting-hint">{{ t('settings.preferredTerminalHint') }}</span>
+          </n-form-item>
         </n-form>
       </n-tab-pane>
       
@@ -169,6 +180,8 @@ import { useI18n } from 'vue-i18n';
 import { useSettingsStore } from '../../stores/settings';
 import { useUpdaterStore } from '../../stores/updater';
 import { useLocale } from '../../composables/useLocale';
+import { getAdapter } from '../../adapters';
+import type { SystemTerminalInfo } from '../../adapters/types';
 import CommandIconSettings from '../CommandIconSettings.vue';
 import DevLogViewer from '../DevLogViewer.vue';
 
@@ -205,6 +218,37 @@ const loadingReleaseNotes = ref(false);
 
 const currentLanguage = ref(localeMode.value);
 const languageOptions = computed(() => getLocalizedOptions());
+
+const loadingTerminals = ref(false);
+const availableTerminals = ref<SystemTerminalInfo[]>([]);
+
+const terminalOptions = computed(() => {
+  return availableTerminals.value.map(terminal => ({
+    label: `${terminal.name}${terminal.is_default ? ' (默认)' : ''}`,
+    value: terminal.id,
+  }));
+});
+
+const loadAvailableTerminals = async () => {
+  loadingTerminals.value = true;
+  try {
+    const adapter = await getAdapter();
+    const terminals = await adapter.system.getAvailableTerminals();
+    availableTerminals.value = terminals;
+    
+    // If no terminal is selected, use the default one
+    if (!settingsStore.settings.preferredTerminal && terminals.length > 0) {
+      const defaultTerminal = terminals.find(t => t.is_default);
+      if (defaultTerminal) {
+        settingsStore.settings.preferredTerminal = defaultTerminal.id;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load available terminals:', error);
+  } finally {
+    loadingTerminals.value = false;
+  }
+};
 
 const handleLanguageChange = (value: string) => {
   setLocale(value);
@@ -261,6 +305,7 @@ watch(showDialog, async (show) => {
 
 onMounted(async () => {
   currentVersion.value = await updaterStore.getCurrentVersion();
+  await loadAvailableTerminals();
 });
 
 // Expose method to set active tab

@@ -344,3 +344,408 @@ pub async fn read_app_log_file(app_handle: tauri::AppHandle, filename: String) -
     
     Ok(content)
 }
+
+/// Terminal information
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct TerminalInfo {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub available: bool,
+    pub is_default: bool,
+}
+
+/// Get available system terminals
+#[tauri::command]
+pub async fn get_available_terminals() -> Result<Vec<TerminalInfo>, String> {
+    let mut terminals = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        // Check for Terminal.app
+        if std::path::Path::new("/System/Applications/Utilities/Terminal.app").exists() {
+            terminals.push(TerminalInfo {
+                id: "terminal".to_string(),
+                name: "Terminal".to_string(),
+                path: "/System/Applications/Utilities/Terminal.app".to_string(),
+                available: true,
+                is_default: true,
+            });
+        }
+
+        // Check for iTerm2
+        let iterm_paths = [
+            "/Applications/iTerm.app",
+            "/Users/*/Applications/iTerm.app",
+        ];
+        for path in &iterm_paths {
+            if std::path::Path::new(path).exists() {
+                terminals.push(TerminalInfo {
+                    id: "iterm2".to_string(),
+                    name: "iTerm2".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+
+        // Check for Warp
+        if std::path::Path::new("/Applications/Warp.app").exists() {
+            terminals.push(TerminalInfo {
+                id: "warp".to_string(),
+                name: "Warp".to_string(),
+                path: "/Applications/Warp.app".to_string(),
+                available: true,
+                is_default: false,
+            });
+        }
+
+        // Check for Alacritty
+        if std::path::Path::new("/Applications/Alacritty.app").exists() {
+            terminals.push(TerminalInfo {
+                id: "alacritty".to_string(),
+                name: "Alacritty".to_string(),
+                path: "/Applications/Alacritty.app".to_string(),
+                available: true,
+                is_default: false,
+            });
+        }
+
+        // Check for Kitty
+        if std::path::Path::new("/Applications/kitty.app").exists() {
+            terminals.push(TerminalInfo {
+                id: "kitty".to_string(),
+                name: "Kitty".to_string(),
+                path: "/Applications/kitty.app".to_string(),
+                available: true,
+                is_default: false,
+            });
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Check for cmd.exe (always available)
+        if let Ok(comspec) = std::env::var("COMSPEC") {
+            terminals.push(TerminalInfo {
+                id: "cmd".to_string(),
+                name: "Command Prompt".to_string(),
+                path: comspec,
+                available: true,
+                is_default: true,
+            });
+        }
+
+        // Check for PowerShell
+        let powershell_paths = [
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe",
+        ];
+        for path in &powershell_paths {
+            if std::path::Path::new(path).exists() {
+                terminals.push(TerminalInfo {
+                    id: "powershell".to_string(),
+                    name: "PowerShell".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+
+        // Check for PowerShell 7+
+        let pwsh_paths = [
+            "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+            "C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe",
+        ];
+        for path in &pwsh_paths {
+            if std::path::Path::new(path).exists() {
+                terminals.push(TerminalInfo {
+                    id: "pwsh".to_string(),
+                    name: "PowerShell 7+".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+
+        // Check for Windows Terminal
+        // Windows Terminal is installed via Microsoft Store or Winget
+        // Check if wt.exe is in PATH
+        if Command::new("where")
+            .args(["wt.exe"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            terminals.push(TerminalInfo {
+                id: "windows-terminal".to_string(),
+                name: "Windows Terminal".to_string(),
+                path: "wt.exe".to_string(),
+                available: true,
+                is_default: false,
+            });
+        }
+
+        // Check for Git Bash
+        let git_bash_paths = [
+            "C:\\Program Files\\Git\\bin\\bash.exe",
+            "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+        ];
+        for path in &git_bash_paths {
+            if std::path::Path::new(path).exists() {
+                terminals.push(TerminalInfo {
+                    id: "git-bash".to_string(),
+                    name: "Git Bash".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Check for common Linux terminal emulators
+        let terminals_to_check = [
+            ("gnome-terminal", "GNOME Terminal"),
+            ("konsole", "Konsole"),
+            ("xfce4-terminal", "Xfce Terminal"),
+            ("mate-terminal", "MATE Terminal"),
+            ("lxterminal", "LXTerminal"),
+            ("xterm", "XTerm"),
+            ("alacritty", "Alacritty"),
+            ("kitty", "Kitty"),
+            ("tilix", "Tilix"),
+            ("terminator", "Terminator"),
+        ];
+
+        let mut found_default = false;
+        for (cmd, name) in &terminals_to_check {
+            // Check if the terminal is available in PATH
+            if Command::new("which")
+                .arg(cmd)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
+                let is_default = !found_default;
+                if is_default {
+                    found_default = true;
+                }
+                
+                terminals.push(TerminalInfo {
+                    id: cmd.to_string(),
+                    name: name.to_string(),
+                    path: cmd.to_string(),
+                    available: true,
+                    is_default,
+                });
+            }
+        }
+    }
+
+    if terminals.is_empty() {
+        return Err("No system terminals found".to_string());
+    }
+
+    Ok(terminals)
+}
+
+/// Open a command in a specific system terminal
+#[tauri::command]
+pub async fn open_in_specific_terminal(
+    terminal_id: String,
+    command: String,
+    cwd: Option<String>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        match terminal_id.as_str() {
+            "terminal" => {
+                // Use AppleScript to open Terminal.app
+                let script = if let Some(ref dir) = cwd {
+                    format!(
+                        r#"tell application "Terminal"
+                            activate
+                            do script "cd '{}' && {}"
+                        end tell"#,
+                        dir.replace("'", "'\\''"),
+                        command.replace("\"", "\\\"")
+                    )
+                } else {
+                    format!(
+                        r#"tell application "Terminal"
+                            activate
+                            do script "{}"
+                        end tell"#,
+                        command.replace("\"", "\\\"")
+                    )
+                };
+                
+                Command::new("osascript")
+                    .args(["-e", &script])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open Terminal: {}", e))?;
+            }
+            "iterm2" => {
+                // Use AppleScript to open iTerm2
+                let script = if let Some(ref dir) = cwd {
+                    format!(
+                        r#"tell application "iTerm"
+                            create window with default profile
+                            tell current session of current window
+                                write text "cd '{}' && {}"
+                            end tell
+                        end tell"#,
+                        dir.replace("'", "'\\''"),
+                        command.replace("\"", "\\\"")
+                    )
+                } else {
+                    format!(
+                        r#"tell application "iTerm"
+                            create window with default profile
+                            tell current session of current window
+                                write text "{}"
+                            end tell
+                        end tell"#,
+                        command.replace("\"", "\\\"")
+                    )
+                };
+                
+                Command::new("osascript")
+                    .args(["-e", &script])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open iTerm2: {}", e))?;
+            }
+            "warp" | "alacritty" | "kitty" => {
+                // For other terminals, use open command with shell execution
+                let app_name = match terminal_id.as_str() {
+                    "warp" => "Warp",
+                    "alacritty" => "Alacritty",
+                    "kitty" => "kitty",
+                    _ => return Err("Unknown terminal".to_string()),
+                };
+                
+                let exec_command = if let Some(ref dir) = cwd {
+                    format!("cd '{}' && {}", dir.replace("'", "'\\''"), command)
+                } else {
+                    command.clone()
+                };
+                
+                Command::new("open")
+                    .args(["-a", app_name, "--args", "-e", &exec_command])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open {}: {}", app_name, e))?;
+            }
+            _ => return Err(format!("Unknown terminal: {}", terminal_id)),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        match terminal_id.as_str() {
+            "cmd" => {
+                let full_command = if let Some(ref dir) = cwd {
+                    format!("cd /d \"{}\" && {}", dir, command)
+                } else {
+                    command.clone()
+                };
+                
+                Command::new("cmd")
+                    .args(["/k", &full_command])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open Command Prompt: {}", e))?;
+            }
+            "powershell" | "pwsh" => {
+                let ps_exe = if terminal_id == "pwsh" { "pwsh" } else { "powershell" };
+                let full_command = if let Some(ref dir) = cwd {
+                    format!("Set-Location '{}'; {}", dir.replace("'", "''"), command)
+                } else {
+                    command.clone()
+                };
+                
+                Command::new(ps_exe)
+                    .args(["-NoExit", "-Command", &full_command])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open PowerShell: {}", e))?;
+            }
+            "windows-terminal" => {
+                // Windows Terminal uses wt.exe
+                let mut cmd = Command::new("wt");
+                if let Some(ref dir) = cwd {
+                    cmd.args(["-d", dir]);
+                }
+                cmd.arg("cmd").args(["/k", &command]);
+                cmd.spawn()
+                    .map_err(|e| format!("Failed to open Windows Terminal: {}", e))?;
+            }
+            "git-bash" => {
+                let git_bash_path = if std::path::Path::new("C:\\Program Files\\Git\\bin\\bash.exe").exists() {
+                    "C:\\Program Files\\Git\\bin\\bash.exe"
+                } else {
+                    "C:\\Program Files (x86)\\Git\\bin\\bash.exe"
+                };
+                
+                let exec_command = if let Some(ref dir) = cwd {
+                    format!("cd '{}' && {}", dir.replace("\\", "/"), command)
+                } else {
+                    command.clone()
+                };
+                
+                Command::new(git_bash_path)
+                    .args(["-c", &format!("{}; exec bash", exec_command)])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open Git Bash: {}", e))?;
+            }
+            _ => return Err(format!("Unknown terminal: {}", terminal_id)),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        match terminal_id.as_str() {
+            "gnome-terminal" => {
+                let mut cmd = Command::new("gnome-terminal");
+                cmd.arg("--");
+                if let Some(ref dir) = cwd {
+                    cmd.args(["bash", "-c", &format!("cd '{}' && {} ; exec bash", dir, command)]);
+                } else {
+                    cmd.args(["bash", "-c", &format!("{} ; exec bash", command)]);
+                }
+                cmd.spawn()
+                    .map_err(|e| format!("Failed to open GNOME Terminal: {}", e))?;
+            }
+            "konsole" => {
+                let mut cmd = Command::new("konsole");
+                if let Some(ref dir) = cwd {
+                    cmd.args(["--workdir", dir]);
+                }
+                cmd.args(["-e", "bash", "-c", &format!("{} ; exec bash", command)]);
+                cmd.spawn()
+                    .map_err(|e| format!("Failed to open Konsole: {}", e))?;
+            }
+            other => {
+                // Generic approach for other terminals
+                let mut cmd = Command::new(other);
+                cmd.args(["-e", "bash", "-c"]);
+                if let Some(ref dir) = cwd {
+                    cmd.arg(&format!("cd '{}' && {} ; exec bash", dir, command));
+                } else {
+                    cmd.arg(&format!("{} ; exec bash", command));
+                }
+                cmd.spawn()
+                    .map_err(|e| format!("Failed to open {}: {}", other, e))?;
+            }
+        }
+    }
+
+    Ok(())
+}

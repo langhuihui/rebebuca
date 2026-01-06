@@ -50,6 +50,9 @@ export interface AppSettings {
   showTaskIcons: boolean;
   recentTasksCount: number;  // Number of recent tasks to show (0 to disable)
   
+  // Terminal settings
+  preferredTerminal: string | null;  // Terminal ID to use when opening in system terminal
+  
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
   commandIcons: Record<string, string>;
@@ -63,6 +66,7 @@ const defaultSettings: AppSettings = {
   closeButtonBehavior: 'exit',
   showTaskIcons: true,
   recentTasksCount: 5,
+  preferredTerminal: null,
   commandIcons: {},
 };
 

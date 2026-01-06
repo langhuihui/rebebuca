@@ -1623,7 +1623,17 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     try {
       const adapterInstance = await initAdapter();
       if (adapterInstance) {
-        await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+        // Get the preferred terminal from settings
+        const settingsStore = useSettingsStore();
+        const preferredTerminal = settingsStore.settings.preferredTerminal;
+        
+        if (preferredTerminal) {
+          // Use the specific terminal
+          await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined);
+        } else {
+          // Use the default system terminal
+          await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+        }
       }
       console.log(`[TaskManager] Task opened in system terminal: ${task.name}`);
     } catch (error) {
