@@ -106,6 +106,21 @@
 
       <!-- Right buttons -->
       <div class="titlebar-right">
+        <!-- Version and Update indicator -->
+        <div class="version-update-group">
+          <span class="version-text">v{{ updaterStore.currentVersion }}</span>
+          <n-tooltip v-if="updaterStore.updateAvailable" trigger="hover">
+            <template #trigger>
+              <span class="update-indicator" @click="openSettingsUpdate" @mousedown.stop>
+                <n-icon size="12">
+                  <component :is="svgIcons.refresh" />
+                </n-icon>
+              </span>
+            </template>
+            {{ t('settings.updateAvailable') }}: v{{ updaterStore.updateInfo?.version }}
+          </n-tooltip>
+        </div>
+
         <!-- Notification bell button -->
         <n-button
           text
@@ -312,6 +327,9 @@ const showSettingsDialog = ref(false);
 // Notification dialog state
 const showNotifications = ref(false);
 
+// Update check interval (every minute)
+let updateCheckInterval: ReturnType<typeof setInterval> | null = null;
+
 // Computed: notification count (unread) - from store
 const notificationCount = computed(() => notificationStore.unreadCount);
 
@@ -369,16 +387,33 @@ const openSettingsUpdate = () => {
 onMounted(async () => {
   await settingsStore.initialize();
   
+  // Get current version
+  await updaterStore.getCurrentVersion();
+  
+  // Check for updates immediately
+  await updaterStore.autoCheckForUpdates();
+  
   // Check for errors and notifications
   checkForErrors();
   
   // Listen for open-settings-update event
   window.addEventListener('open-settings-update', openSettingsUpdate);
+  
+  // Setup periodic update check (every minute)
+  updateCheckInterval = setInterval(async () => {
+    await updaterStore.checkForUpdates();
+  }, 60 * 1000); // 60 seconds
 });
 
 // Cleanup
 onUnmounted(() => {
   window.removeEventListener('open-settings-update', openSettingsUpdate);
+  
+  // Clear update check interval
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
+  }
 });
 
 const handleThemeSelect = (key: string) => {
@@ -451,6 +486,57 @@ const openGitHub = async () => {
 </script>
 
 <style scoped>
+/* Version and update group */
+.version-update-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  padding-right: 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.version-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.update-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #18a058;
+  color: white;
+  cursor: pointer;
+  animation: pulse 2s infinite;
+}
+
+.update-indicator:hover {
+  background: #36ad6a;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(24, 160, 88, 0);
+  }
+}
+
+/* Light theme */
+:global(.n-config-provider--light) .version-update-group {
+  border-right-color: rgba(0, 0, 0, 0.1);
+}
+
+:global(.n-config-provider--light) .version-text {
+  color: rgba(0, 0, 0, 0.45);
+}
+
 /* Notification button styles */
 .notification-button {
   position: relative;

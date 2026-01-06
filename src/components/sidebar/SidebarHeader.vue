@@ -20,25 +20,14 @@
   <div class="task-header-container">
     <div class="task-header-content">
       <div class="header-row">
-        <!-- Logo with version -->
-        <div class="logo-version">
+        <!-- Logo -->
+        <div class="logo-container">
           <img
             :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
             alt="Logo"
             class="logo-image logo-clickable"
             @click="openOfficialWebsite"
           />
-          <span class="version-text">v{{ currentVersion }}</span>
-          <n-tooltip v-if="updateAvailable" trigger="hover">
-            <template #trigger>
-              <span class="update-indicator" @click="$emit('show-update')">
-                <n-icon size="14">
-                  <component :is="svgIcons.refresh" />
-                </n-icon>
-              </span>
-            </template>
-            {{ t('settings.updateAvailable') }}: v{{ updateVersion }}
-          </n-tooltip>
         </div>
         <!-- Action buttons -->
         <n-space :size="4">
@@ -127,13 +116,9 @@ import { getAdapter } from '../../adapters';
 
 defineProps<{
   effectiveTheme: string;
-  currentVersion: string;
-  updateAvailable: boolean;
-  updateVersion?: string;
 }>();
 
 defineEmits<{
-  (e: 'show-update'): void;
   (e: 'add-folder'): void;
   (e: 'add-task'): void;
   (e: 'ai-generate'): void;
@@ -169,6 +154,11 @@ const openOfficialWebsite = async () => {
   gap: 16px;
 }
 
+.logo-container {
+  display: flex;
+  align-items: center;
+}
+
 .logo-image {
   width: 24px;
   height: 24px;
@@ -184,52 +174,9 @@ const openOfficialWebsite = async () => {
   opacity: 0.8;
 }
 
-.logo-version {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.version-text {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 500;
-}
-
-.update-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #18a058;
-  color: white;
-  cursor: pointer;
-  animation: pulse 2s infinite;
-}
-
-.update-indicator:hover {
-  background: #36ad6a;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(24, 160, 88, 0);
-  }
-}
-
 /* Light theme */
 :global(.n-config-provider--light) .task-header-content,
 :global(.sidebar-layout.light-theme) .task-header-content {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-:global(.n-config-provider--light) .version-text,
-:global(.sidebar-layout.light-theme) .version-text {
-  color: rgba(0, 0, 0, 0.45);
 }
 </style>

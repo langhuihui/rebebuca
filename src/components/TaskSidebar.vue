@@ -28,10 +28,6 @@
       <!-- Header -->
       <SidebarHeader
         :effective-theme="effectiveTheme"
-        :current-version="currentVersion"
-        :update-available="updaterStore.updateAvailable"
-        :update-version="updaterStore.updateInfo?.version"
-        @show-update="handleShowUpdateDialog"
         @add-folder="handleAddFolder"
         @add-task="handleAddTask"
         @ai-generate="showAIDialog = true"
@@ -527,9 +523,6 @@ const taskManager = useTaskManagerStore();
 const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const { effectiveTheme } = useTheme();
-
-// Current version
-const currentVersion = ref('');
 
 // Expanded nodes state
 const expandedNodes = ref<Set<string>>(new Set());
@@ -1092,14 +1085,8 @@ const handleToggleFavorite = async (task: Task) => {
   await taskManager.toggleFavorite(task.id);
 };
 
-// Handle show update dialog
-const handleShowUpdateDialog = () => {
-  window.dispatchEvent(new CustomEvent('open-settings-update'));
-};
-
 // Initialize
 onMounted(async () => {
-  currentVersion.value = await updaterStore.getCurrentVersion();
   await updaterStore.autoCheckForUpdates();
   taskManager.scanRecursively = true;
   await taskManager.initialize();
