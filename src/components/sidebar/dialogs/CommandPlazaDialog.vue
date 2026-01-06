@@ -86,7 +86,7 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../../utils/icons';
-import { useAIToolsStore } from '../../../stores/aiTools';
+import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
 import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 
 // Command item interface
@@ -149,7 +149,7 @@ const commands = computed<CommandItem[]>(() => {
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {
     if (config.enabled) {
-      const launchTask = createAIToolQuickLaunchTask(toolType as any, config);
+      const launchTask = createAIToolQuickLaunchTask(toolType as AIToolType, config);
       baseCommands.push({
         id: `${toolType}-launch`,
         name: launchTask.name,

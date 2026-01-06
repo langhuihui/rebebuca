@@ -21,6 +21,15 @@ import { ref } from 'vue';
 import { getAdapter, type BackendAdapter } from '../adapters';
 
 // AI Tool types supported
+/**
+ * Supported AI CLI programming tools
+ * - claude-code: Anthropic's Claude Code CLI
+ * - codex: OpenAI's Codex CLI tool
+ * - gemini-cli: Google's Gemini CLI
+ * - opencode: OpenCode AI assistant
+ * - codebuddy: CodeBuddy programming assistant
+ * - qoder-cli: Qoder CLI programming assistant
+ */
 export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli';
 
 // Provider presets
@@ -165,7 +174,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
         providerKeys.value = savedKeys;
       }
     } catch (error) {
-      console.error('Failed to load AI tool configurations:', error);
+      console.error('Failed to load AI tool configurations from storage. Settings will use defaults:', error);
     }
   };
 
@@ -179,7 +188,8 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       await storage.set('provider_keys', providerKeys.value);
       await storage.save();
     } catch (error) {
-      console.error('Failed to save AI tool configurations:', error);
+      console.error('Failed to save AI tool configurations to storage. Your changes may not persist:', error);
+      throw error; // Re-throw to allow caller to handle
     }
   };
 

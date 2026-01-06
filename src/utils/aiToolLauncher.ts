@@ -150,11 +150,16 @@ export function getAIToolLaunchConfig(
  * Get command with Python environment activation
  * @param command - Original command
  * @param pythonEnv - Python environment name (Conda/Anaconda)
- * @param platform - Platform ('windows', 'macos', 'linux')
+ * @param platform - Platform ('windows', 'macos', 'linux') - should be detected from system
  * @returns Command with environment activation prepended
  */
 export function wrapWithPythonEnv(command: string, pythonEnv: string, platform?: string): string {
-  // Use provided platform or default to windows for safety
+  if (!platform) {
+    console.warn('Platform not specified for Python environment wrapper, using generic approach');
+    // Use generic conda/source activate that works on most systems
+    return `conda activate ${pythonEnv} && ${command}`;
+  }
+  
   const isWindows = platform === 'windows';
   
   if (isWindows) {
