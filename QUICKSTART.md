@@ -206,6 +206,25 @@ chmod +x test_scripts/*.sh
 **原因**: 指定的目录不存在或无权限  
 **解决**: 检查目录路径是否正确，确保有访问权限
 
+## ⚙️ 设置
+
+### 选择系统终端
+
+Rebebuca 支持在系统终端中打开命令。你可以在设置中选择首选的终端程序：
+
+1. 点击设置按钮打开设置面板
+2. 在"常规"选项卡中找到"首选终端"选项
+3. 从下拉列表中选择你想使用的终端
+4. 应用会自动检测系统中可用的终端
+
+**支持的终端：**
+
+- **macOS**: Terminal.app, iTerm2, Warp, Alacritty, Kitty
+- **Windows**: Command Prompt, PowerShell, PowerShell 7+, Windows Terminal, Git Bash
+- **Linux**: GNOME Terminal, Konsole, Xfce Terminal, MATE Terminal, LXTerminal, XTerm, Alacritty, Kitty, Tilix, Terminator
+
+如果不选择，将使用系统默认终端。
+
 ## 📖 更多信息
 
 - 详细实现说明: [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md)

@@ -27,6 +27,7 @@
 - 🎨 **Modern UI** - Beautiful dark theme interface built with Naive UI
 - 💾 **Persistent Storage** - Configurations and history data are automatically saved and persist across restarts
 - 🖥️ **Cross-platform** - Supports Windows, macOS, and Linux
+- 🖥️ **Terminal Selection** - Choose your preferred system terminal for running commands externally
 
 ## 📸 Preview
 
