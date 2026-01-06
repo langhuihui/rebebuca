@@ -175,6 +175,7 @@ import {
   NAlert,
   NDivider,
   NSpin,
+  useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { useSettingsStore } from '../../stores/settings';
@@ -201,6 +202,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const message = useMessage();
 const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const { localeMode, getLocalizedOptions, setLocale } = useLocale();
@@ -235,8 +237,13 @@ const loadAvailableTerminals = async () => {
     const adapter = await getAdapter();
     const terminals = await adapter.system.getAvailableTerminals();
     availableTerminals.value = terminals;
+    
+    if (terminals.length === 0) {
+      message.warning(t('settings.noTerminalsFound'));
+    }
   } catch (error) {
     console.error('Failed to load available terminals:', error);
+    message.error(t('settings.failedToLoadTerminals'));
   } finally {
     loadingTerminals.value = false;
   }
