@@ -826,7 +826,7 @@ onUnmounted(() => {
 .terminal-container {
   flex: 1;
   min-height: 0;
-  padding: 8px;
+  padding: 0 8px 12px 8px;
   box-sizing: border-box;
 }
 
@@ -836,7 +836,7 @@ onUnmounted(() => {
 
 .terminal-container :deep(.xterm-viewport) {
   overflow-y: auto;
-  padding-bottom: 28px;
+  padding-bottom: 40px;
 }
 
 /* Hide scrollbar but keep functionality */

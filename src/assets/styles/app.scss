@@ -527,10 +527,12 @@ html, body, #app, .n-layout, .n-layout-content {
   display: flex;
   flex-direction: column;
   padding: 16px;
+  padding-bottom: 24px;
   background-color: #080808;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 6px;
-  margin-top: 8px;
+  margin-top: 0;
+  margin-bottom: 8px;
   overflow: hidden;
   min-height: 0;
   position: relative;

@@ -1598,6 +1598,14 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   }
   
   /**
+   * Update running tasks when a task starts (used for restart scenario)
+   */
+  function onTaskStart(taskId: string, tabId: string): void {
+    runningTasks.value.set(taskId, tabId);
+    console.log('[TaskManager] Task started/restarted:', taskId, 'tabId:', tabId);
+  }
+  
+  /**
    * Execute task in system terminal
    */
   async function executeInSystemTerminal(task: Task, cwd?: string): Promise<void> {
@@ -1748,6 +1756,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     isTaskRunning,
     getTaskTabId,
     onTaskExit,
+    onTaskStart,
     runBuildTask,
     runTestTask,
     shouldRescan,

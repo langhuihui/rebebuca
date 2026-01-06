@@ -232,6 +232,17 @@ export const useTerminalStore = defineStore('terminal', () => {
         tab.pid = result.pid;
       }
       
+      // Notify taskManager to update running status (important for restart scenario)
+      if (tab.taskId) {
+        try {
+          const { useTaskManagerStore } = await import('./taskManager');
+          const taskManager = useTaskManagerStore();
+          taskManager.onTaskStart(tab.taskId, tab.id);
+        } catch (error) {
+          console.warn('[Terminal Store] Failed to notify taskManager of task start:', error);
+        }
+      }
+      
       console.log('[Terminal Store] Task started:', tab.ptyId, command);
     } catch (error) {
       console.error('[Terminal Store] Failed to execute task:', error);
