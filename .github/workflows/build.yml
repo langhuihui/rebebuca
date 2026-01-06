@@ -269,8 +269,11 @@ jobs:
           NOTES_ESCAPED=$(echo "$NOTES" | jq -Rs .)
           
           # Download existing releases.json or create empty one
-          if ! rclone copyto r2:monibuca/rb/releases.json releases.json 2>/dev/null; then
-            echo "No existing releases.json found, creating new one"
+          rclone copyto r2:monibuca/rb/releases.json releases.json 2>/dev/null || true
+          
+          # Check if file exists and is valid JSON, otherwise create empty one
+          if [ ! -f releases.json ] || ! jq empty releases.json 2>/dev/null; then
+            echo "No valid releases.json found, creating new one"
             echo '{"latest":"","releases":[]}' > releases.json
           fi
           
