@@ -117,24 +117,23 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                         .find_map(|line| {
                                             line.trim()
                                                 .strip_prefix("CommandLine=")
-                                                .map(|c| c.trim())
-                                                .filter(|c| !c.is_empty())
-                                                .map(|c| c.to_string())
+                                                .and_then(|c| {
+                                                    let trimmed = c.trim();
+                                                    if trimmed.is_empty() {
+                                                        None
+                                                    } else {
+                                                        Some(trimmed.to_string())
+                                                    }
+                                                })
                                         })
                                 })
                                 .unwrap_or_default();
                             
-                            // Use command line as display name if available, otherwise fall back to short process name
-                            let display_name = if !command.is_empty() {
-                                &command
-                            } else {
-                                &name
-                            };
-                            
                             result.push(PortProcess {
                                 port,
                                 pid,
-                                name: display_name.to_string(),
+                                // Use command line as display name if available, otherwise fall back to short process name
+                                name: if !command.is_empty() { &command } else { &name }.to_string(),
                                 command,
                             });
                         }
