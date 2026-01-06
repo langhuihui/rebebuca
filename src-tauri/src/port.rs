@@ -101,11 +101,40 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                 })
                                 .unwrap_or_else(|| format!("PID:{}", pid));
                             
+                            // Get full command line using WMIC
+                            let cmd_output = Command::new("cmd")
+                                .args(["/c", &format!("wmic process where \"ProcessId={}\" get CommandLine /format:list", pid)])
+                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                                .output()
+                                .ok();
+                            
+                            let command = cmd_output
+                                .and_then(|o| {
+                                    let s = String::from_utf8_lossy(&o.stdout);
+                                    // WMIC output format: "CommandLine=<full command>"
+                                    // Find and extract the command line from the output
+                                    s.lines()
+                                        .find_map(|line| {
+                                            line.trim()
+                                                .strip_prefix("CommandLine=")
+                                                .and_then(|c| {
+                                                    let trimmed = c.trim();
+                                                    if trimmed.is_empty() {
+                                                        None
+                                                    } else {
+                                                        Some(trimmed.to_string())
+                                                    }
+                                                })
+                                        })
+                                })
+                                .unwrap_or_default();
+                            
                             result.push(PortProcess {
                                 port,
                                 pid,
-                                name,
-                                command: String::new(),
+                                // Use command line as display name if available, otherwise fall back to short process name
+                                name: if !command.is_empty() { &command } else { &name }.to_string(),
+                                command,
                             });
                         }
                     }
