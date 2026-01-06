@@ -130,17 +130,18 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                 })
                                 .unwrap_or_default();
                             
-                            // Use command line as name if available, otherwise use the short process name
+                            // Use command line for display name if available and more informative than the short name
+                            // This provides better context about what the process is actually running
                             let display_name = if !command.is_empty() {
-                                command.clone()
+                                &command
                             } else {
-                                name
+                                &name
                             };
                             
                             result.push(PortProcess {
                                 port,
                                 pid,
-                                name: display_name,
+                                name: display_name.to_string(),
                                 command,
                             });
                         }
