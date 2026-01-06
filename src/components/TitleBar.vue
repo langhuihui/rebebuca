@@ -509,22 +509,47 @@ const openGitHub = async () => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #18a058;
+  background: linear-gradient(135deg, #18a058, #36ad6a);
   color: white;
   cursor: pointer;
-  animation: pulse 2s infinite;
+  animation: pulse-glow 2s ease-in-out infinite, bounce 1s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(24, 160, 88, 0.6);
+}
+
+.update-indicator :deep(.n-icon) {
+  animation: spin 3s linear infinite;
 }
 
 .update-indicator:hover {
-  background: #36ad6a;
+  background: linear-gradient(135deg, #36ad6a, #18a058);
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(24, 160, 88, 0.8);
 }
 
-@keyframes pulse {
+@keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.4);
+    box-shadow: 0 0 4px rgba(24, 160, 88, 0.4), 0 0 8px rgba(24, 160, 88, 0.3);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(24, 160, 88, 0);
+    box-shadow: 0 0 8px rgba(24, 160, 88, 0.8), 0 0 16px rgba(24, 160, 88, 0.5), 0 0 24px rgba(24, 160, 88, 0.3);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
