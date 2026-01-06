@@ -90,6 +90,11 @@ pub fn update_tray_recent_tasks(
     Ok(())
 }
 
+/// Check if a task is currently running by its task_id
+fn is_task_running(task_id: &str, running: &[RunningProcess]) -> Option<&RunningProcess> {
+    running.iter().find(|p| p.task_id.as_deref() == Some(task_id))
+}
+
 /// Rebuild the tray menu with current state
 pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Result<(), String> {
     let tray = app.tray_by_id("rust-tray")
@@ -113,46 +118,6 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
         .map_err(|e| e.to_string())?;
     menu.append(&sep1).map_err(|e| e.to_string())?;
     
-    // Running processes section
-    if !running.is_empty() {
-        let running_label = MenuItem::with_id(app, "running_label", "▶ 运行中的进程", false, None::<&str>)
-            .map_err(|e| e.to_string())?;
-        menu.append(&running_label).map_err(|e| e.to_string())?;
-        
-        for process in &running {
-            // Create submenu for each running process with restart/stop options
-            let restart_item = MenuItem::with_id(
-                app, 
-                &format!("restart:{}", process.id), 
-                "⟳ 重启", 
-                true, 
-                None::<&str>
-            ).map_err(|e| e.to_string())?;
-            
-            let stop_item = MenuItem::with_id(
-                app, 
-                &format!("stop:{}", process.id), 
-                "■ 停止", 
-                true, 
-                None::<&str>
-            ).map_err(|e| e.to_string())?;
-            
-            let process_submenu = Submenu::with_items(
-                app,
-                &process.name,
-                true,
-                &[&restart_item, &stop_item]
-            ).map_err(|e| e.to_string())?;
-            
-            menu.append(&process_submenu).map_err(|e| e.to_string())?;
-        }
-        
-        // Separator after running processes
-        let sep2 = PredefinedMenuItem::separator(app)
-            .map_err(|e| e.to_string())?;
-        menu.append(&sep2).map_err(|e| e.to_string())?;
-    }
-    
     // Recent tasks section (like VSCode's recent projects in dock)
     if !recent.is_empty() {
         let recent_label = MenuItem::with_id(app, "recent_label", "⏱ 最近运行", false, None::<&str>)
@@ -161,14 +126,54 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
         
         // Show at most 10 recent tasks
         for task in recent.iter().take(10) {
-            let task_item = MenuItem::with_id(
-                app, 
-                &format!("run_recent:{}", task.id), 
-                &task.name, 
-                true, 
-                None::<&str>
-            ).map_err(|e| e.to_string())?;
-            menu.append(&task_item).map_err(|e| e.to_string())?;
+            // Check if this task is currently running
+            if let Some(process) = is_task_running(&task.id, &running) {
+                // Task is running - show with indicator and submenu for restart/stop
+                let run_item = MenuItem::with_id(
+                    app, 
+                    &format!("run_recent:{}", task.id), 
+                    "▶ 运行", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
+                let restart_item = MenuItem::with_id(
+                    app, 
+                    &format!("restart:{}", process.id), 
+                    "⟳ 重启", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
+                let stop_item = MenuItem::with_id(
+                    app, 
+                    &format!("stop:{}", process.id), 
+                    "■ 停止", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
+                // Display name with running indicator
+                let display_name = format!("● {}", task.name);
+                let task_submenu = Submenu::with_items(
+                    app,
+                    &display_name,
+                    true,
+                    &[&run_item, &restart_item, &stop_item]
+                ).map_err(|e| e.to_string())?;
+                
+                menu.append(&task_submenu).map_err(|e| e.to_string())?;
+            } else {
+                // Task is not running - simple menu item
+                let task_item = MenuItem::with_id(
+                    app, 
+                    &format!("run_recent:{}", task.id), 
+                    &task.name, 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                menu.append(&task_item).map_err(|e| e.to_string())?;
+            }
         }
         
         // Separator after recent tasks
@@ -184,14 +189,54 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
         menu.append(&favorites_label).map_err(|e| e.to_string())?;
         
         for task in &favorites {
-            let task_item = MenuItem::with_id(
-                app, 
-                &format!("run_favorite:{}", task.id), 
-                &task.name, 
-                true, 
-                None::<&str>
-            ).map_err(|e| e.to_string())?;
-            menu.append(&task_item).map_err(|e| e.to_string())?;
+            // Check if this task is currently running
+            if let Some(process) = is_task_running(&task.id, &running) {
+                // Task is running - show with indicator and submenu for restart/stop
+                let run_item = MenuItem::with_id(
+                    app, 
+                    &format!("run_favorite:{}", task.id), 
+                    "▶ 运行", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
+                let restart_item = MenuItem::with_id(
+                    app, 
+                    &format!("restart:{}", process.id), 
+                    "⟳ 重启", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
+                let stop_item = MenuItem::with_id(
+                    app, 
+                    &format!("stop:{}", process.id), 
+                    "■ 停止", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
+                // Display name with running indicator
+                let display_name = format!("● {}", task.name);
+                let task_submenu = Submenu::with_items(
+                    app,
+                    &display_name,
+                    true,
+                    &[&run_item, &restart_item, &stop_item]
+                ).map_err(|e| e.to_string())?;
+                
+                menu.append(&task_submenu).map_err(|e| e.to_string())?;
+            } else {
+                // Task is not running - simple menu item
+                let task_item = MenuItem::with_id(
+                    app, 
+                    &format!("run_favorite:{}", task.id), 
+                    &task.name, 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                menu.append(&task_item).map_err(|e| e.to_string())?;
+            }
         }
         
         // Separator after favorites

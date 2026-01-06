@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write, BufWriter};
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 use std::thread;
 use tauri::{AppHandle, Emitter, Manager};
