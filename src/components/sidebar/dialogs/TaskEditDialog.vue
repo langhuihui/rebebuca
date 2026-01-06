@@ -78,6 +78,32 @@
       <n-form-item :label="t('task.useSystemTerminal')">
         <n-switch v-model:value="editingTask.useSystemTerminal" />
       </n-form-item>
+      
+      <!-- Python Environment (Windows/macOS/Linux) -->
+      <n-form-item :label="t('task.pythonEnv')">
+        <n-input 
+          v-model:value="editingTask.pythonEnv" 
+          :placeholder="t('task.pythonEnvPlaceholder')"
+        >
+          <template #suffix>
+            <n-tooltip trigger="hover">
+              <template #trigger>
+                <n-icon size="16" style="cursor: help;">
+                  <component :is="svgIcons.info" />
+                </n-icon>
+              </template>
+              {{ t('task.pythonEnvHint') }}
+            </n-tooltip>
+          </template>
+        </n-input>
+      </n-form-item>
+      
+      <!-- Run as Administrator (Windows only) -->
+      <n-form-item v-if="isWindowsPlatform" :label="t('task.runAsAdmin')">
+        <n-switch v-model:value="editingTask.runAsAdmin" />
+        <span class="form-hint">{{ t('task.runAsAdminHint') }}</span>
+      </n-form-item>
+      
       <n-form-item v-if="isUserTask" :label="t('task.group')">
         <n-select
           v-model:value="selectedGroupId"
@@ -98,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import {
   NModal,
   NForm,
@@ -115,6 +141,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
 import { svgIcons } from '../../../utils/icons';
+import { isWindows } from '../../../utils/platform';
 import type { TaskGroup } from '../../../providers/types';
 import CommandPlazaDialog from './CommandPlazaDialog.vue';
 
@@ -128,6 +155,8 @@ interface EditingTask {
   sourceFile: string;
   useSystemTerminal: boolean;
   envStr: string;
+  pythonEnv?: string;
+  runAsAdmin?: boolean;
 }
 
 const props = defineProps<{
@@ -151,6 +180,12 @@ const { t } = useI18n();
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');
 const showCommandPlaza = ref(false);
+const isWindowsPlatform = ref(false);
+
+// Check platform on mount
+onMounted(async () => {
+  isWindowsPlatform.value = await isWindows();
+});
 
 const showDialog = computed({
   get: () => props.show,

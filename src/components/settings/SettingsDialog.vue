@@ -142,6 +142,10 @@
       <n-tab-pane name="devlog" :tab="t('settings.devLog')">
         <DevLogViewer />
       </n-tab-pane>
+      
+      <n-tab-pane name="aitools" :tab="t('settings.aiTools')">
+        <AIToolsPanel />
+      </n-tab-pane>
     </n-tabs>
   </n-modal>
 </template>
@@ -171,6 +175,7 @@ import { useUpdaterStore } from '../../stores/updater';
 import { useLocale } from '../../composables/useLocale';
 import CommandIconSettings from '../CommandIconSettings.vue';
 import DevLogViewer from '../DevLogViewer.vue';
+import AIToolsPanel from './AIToolsPanel.vue';
 
 interface ReleaseNote {
   tag: string;
