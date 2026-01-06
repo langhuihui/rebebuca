@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue';
+import { ref, computed, h, onMounted } from 'vue';
 import {
   NModal,
   NInput,
@@ -86,6 +86,8 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../../utils/icons';
+import { useAIToolsStore } from '../../../stores/aiTools';
+import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 
 // Command item interface
 interface CommandItem {
@@ -106,6 +108,12 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const aiToolsStore = useAIToolsStore();
+
+// Load AI tool configurations on mount
+onMounted(async () => {
+  await aiToolsStore.loadConfigurations();
+});
 
 const showDialog = computed({
   get: () => props.show,
@@ -124,8 +132,36 @@ const categories = computed(() => [
 ]);
 
 // Predefined commands - AI programming tools CLI update commands
-const commands = computed<CommandItem[]>(() => [
-  // AI Programming Tools
+const commands = computed<CommandItem[]>(() => {
+  const baseCommands: CommandItem[] = [
+  // AI Programming Tools - Launch Commands (dynamically added based on enabled tools)
+  ];
+  
+  // Add AI tool launch commands for enabled tools
+  const toolDescKeys: Record<string, string> = {
+    'claude-code': 'claudeCodeLaunch',
+    'codex': 'codexLaunch',
+    'gemini-cli': 'geminiCliLaunch',
+    'opencode': 'opencodeLaunch',
+    'codebuddy': 'codebuddyLaunch',
+    'qoder-cli': 'qoderLaunch',
+  };
+  
+  for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {
+    if (config.enabled) {
+      const launchTask = createAIToolQuickLaunchTask(toolType as any, config);
+      baseCommands.push({
+        id: `${toolType}-launch`,
+        name: launchTask.name,
+        command: launchTask.command,
+        category: 'ai-tools',
+        description: t(`commandPlaza.desc.${toolDescKeys[toolType]}`),
+      });
+    }
+  }
+  
+  // AI update commands
+  baseCommands.push(
   {
     id: 'cursor-update',
     name: 'Cursor Update',
@@ -283,8 +319,10 @@ const commands = computed<CommandItem[]>(() => [
     command: 'python --version',
     category: 'dev-tools',
     description: t('commandPlaza.desc.pythonVersion'),
-  },
-]);
+  });
+  
+  return baseCommands;
+});
 
 // Filtered commands based on search and category
 const filteredCommands = computed(() => {
