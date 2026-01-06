@@ -153,13 +153,21 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
                     None::<&str>
                 ).map_err(|e| e.to_string())?;
                 
+                let force_stop_item = MenuItem::with_id(
+                    app, 
+                    &format!("force_stop:{}", process.id), 
+                    "✖ 强制停止", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
                 // Display name with running indicator
                 let display_name = format!("● {}", task.name);
                 let task_submenu = Submenu::with_items(
                     app,
                     &display_name,
                     true,
-                    &[&run_item, &restart_item, &stop_item]
+                    &[&run_item, &restart_item, &stop_item, &force_stop_item]
                 ).map_err(|e| e.to_string())?;
                 
                 menu.append(&task_submenu).map_err(|e| e.to_string())?;
@@ -216,13 +224,21 @@ pub fn rebuild_tray_menu(app: &tauri::AppHandle, tray_state: &TrayState) -> Resu
                     None::<&str>
                 ).map_err(|e| e.to_string())?;
                 
+                let force_stop_item = MenuItem::with_id(
+                    app, 
+                    &format!("force_stop:{}", process.id), 
+                    "✖ 强制停止", 
+                    true, 
+                    None::<&str>
+                ).map_err(|e| e.to_string())?;
+                
                 // Display name with running indicator
                 let display_name = format!("● {}", task.name);
                 let task_submenu = Submenu::with_items(
                     app,
                     &display_name,
                     true,
-                    &[&run_item, &restart_item, &stop_item]
+                    &[&run_item, &restart_item, &stop_item, &force_stop_item]
                 ).map_err(|e| e.to_string())?;
                 
                 menu.append(&task_submenu).map_err(|e| e.to_string())?;

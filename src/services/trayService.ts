@@ -158,6 +158,19 @@ function setupEventListeners() {
   const taskManager = useTaskManagerStore();
   const terminalStore = useTerminalStore();
   
+  // Helper function to wait for process to exit
+  const waitForProcessExit = async (ptyId: string, timeout: number = 5000): Promise<boolean> => {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeout) {
+      const isRunning = await adapter!.terminal.isRunning(ptyId);
+      if (!isRunning) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    return false;
+  };
+  
   // Listen for restart process events
   const cleanupRestart = adapter.tray.onRestartProcess(async (processId: string) => {
     console.log('[TrayService] Restart process requested:', processId);
@@ -171,8 +184,15 @@ function setupEventListeners() {
         try {
           // Stop the current process
           await terminalStore.stopTask(tab.id);
-          // Wait a bit for the process to stop
-          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Wait for process to actually exit (up to 5 seconds)
+          const exited = await waitForProcessExit(processId, 5000);
+          if (!exited) {
+            console.log('[TrayService] Process did not exit gracefully, force killing...');
+            await adapter!.terminal.forceKill(processId);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
           // Re-execute the task
           await taskManager.executeTask(task);
           console.log('[TrayService] Task restarted:', task.name);
@@ -200,6 +220,24 @@ function setupEventListeners() {
     }
   });
   cleanupFns.push(cleanupStop);
+  
+  // Listen for force stop process events
+  const cleanupForceStop = adapter.tray.onForceStopProcess(async (processId: string) => {
+    console.log('[TrayService] Force stop process requested:', processId);
+    
+    // Find the tab by ptyId
+    const tab = terminalStore.findTabByPtyId(processId);
+    if (tab) {
+      try {
+        await adapter!.terminal.forceKill(processId);
+        tab.status = 'error'; // Mark as stopped
+        console.log('[TrayService] Task force stopped:', tab.label);
+      } catch (error) {
+        console.error('[TrayService] Failed to force stop task:', error);
+      }
+    }
+  });
+  cleanupFns.push(cleanupForceStop);
   
   // Listen for run favorite events
   const cleanupFavorite = adapter.tray.onRunFavorite(async (taskId: string) => {

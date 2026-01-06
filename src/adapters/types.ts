@@ -81,6 +81,8 @@ export interface TerminalAdapter {
   write(ptyId: string, data: string): Promise<void>;
   resize(ptyId: string, cols: number, rows: number): Promise<void>;
   kill(ptyId: string): Promise<void>;
+  forceKill(ptyId: string): Promise<void>;
+  isRunning(ptyId: string): Promise<boolean>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
 }
@@ -203,6 +205,7 @@ export interface TrayAdapter {
   // Event listeners for tray menu actions
   onRestartProcess(callback: (processId: string) => void): () => void;
   onStopProcess(callback: (processId: string) => void): () => void;
+  onForceStopProcess(callback: (processId: string) => void): () => void;
   onRunFavorite(callback: (taskId: string) => void): () => void;
   onRunRecent(callback: (taskId: string) => void): () => void;
 }

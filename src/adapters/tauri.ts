@@ -110,6 +110,25 @@ class TauriTerminalAdapter implements TerminalAdapter {
     }
   }
 
+  async forceKill(ptyId: string): Promise<void> {
+    await loadTauriModules();
+    try {
+      await tauriCore!.invoke('force_kill_task', { ptyId });
+    } catch {
+      // Fallback to close_pty for shell PTYs
+      await tauriCore!.invoke('close_pty', { ptyId });
+    }
+  }
+
+  async isRunning(ptyId: string): Promise<boolean> {
+    await loadTauriModules();
+    try {
+      return await tauriCore!.invoke('is_task_running', { ptyId });
+    } catch {
+      return false;
+    }
+  }
+
   onData(callback: (event: TerminalDataEvent) => void): () => void {
     const id = Math.random().toString(36).slice(2);
     let unlisten: (() => void) | null = null;
@@ -559,6 +578,26 @@ class TauriTrayAdapter implements TrayAdapter {
 
     loadTauriModules().then(async () => {
       unlisten = await tauriEvent!.listen<string>('tray-stop-process', (e) => {
+        callback(e.payload);
+      });
+      this.stopListeners.set(id, unlisten);
+    });
+
+    return () => {
+      const fn = this.stopListeners.get(id);
+      if (fn) {
+        fn();
+        this.stopListeners.delete(id);
+      }
+    };
+  }
+
+  onForceStopProcess(callback: (processId: string) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    let unlisten: (() => void) | null = null;
+
+    loadTauriModules().then(async () => {
+      unlisten = await tauriEvent!.listen<string>('tray-force-stop-process', (e) => {
         callback(e.payload);
       });
       this.stopListeners.set(id, unlisten);

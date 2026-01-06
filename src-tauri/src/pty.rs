@@ -698,6 +698,91 @@ impl PtyManager {
             Err(format!("Task PTY not found: {}", pty_id))
         }
     }
+    
+    /// Force kill a task process using SIGKILL (Unix) or forceful termination (Windows)
+    pub async fn force_kill_task(&self, pty_id: &str) -> Result<(), String> {
+        let mut task_instances = self.task_instances.lock().await;
+        
+        if let Some(task_instance) = task_instances.remove(pty_id) {
+            let child = task_instance.child.lock().await;
+            
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(pid) = child.process_id() {
+                    println!("[PTY] Force killing process tree for PID: {} (PTY: {})", pid, pty_id);
+                    let output = Command::new("taskkill")
+                        .args(["/F", "/T", "/PID", &pid.to_string()])
+                        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                        .output();
+                    
+                    match output {
+                        Ok(result) => {
+                            if result.status.success() {
+                                println!("[PTY] Successfully force killed process tree for PID: {}", pid);
+                            } else {
+                                let stderr = String::from_utf8_lossy(&result.stderr);
+                                println!("[PTY] taskkill warning for PID {}: {}", pid, stderr);
+                            }
+                        }
+                        Err(e) => {
+                            println!("[PTY] Failed to run taskkill for PID {}: {}", pid, e);
+                        }
+                    }
+                }
+            }
+            
+            #[cfg(not(target_os = "windows"))]
+            {
+                if let Some(pid) = child.process_id() {
+                    println!("[PTY] Force killing process with SIGKILL for PID: {} (PTY: {})", pid, pty_id);
+                    // Use kill -9 (SIGKILL) to force kill the process and its children
+                    let _ = std::process::Command::new("kill")
+                        .args(["-9", &pid.to_string()])
+                        .output();
+                    
+                    // Also try to kill the process group
+                    let _ = std::process::Command::new("kill")
+                        .args(["-9", &format!("-{}", pid)])
+                        .output();
+                    
+                    println!("[PTY] Force killed process with SIGKILL for PID: {}", pid);
+                } else {
+                    // Fallback to normal kill
+                    drop(child);
+                    let mut child = task_instance.child.lock().await;
+                    let _ = child.kill();
+                }
+            }
+            
+            println!("[PTY] Force killed task PTY: {}", pty_id);
+            Ok(())
+        } else {
+            drop(task_instances);
+            Err(format!("Task PTY not found: {}", pty_id))
+        }
+    }
+    
+    /// Check if a task process is still running
+    pub async fn is_task_running(&self, pty_id: &str) -> Result<bool, String> {
+        let task_instances = self.task_instances.lock().await;
+        
+        if let Some(task_instance) = task_instances.get(pty_id) {
+            let child = task_instance.child.lock().await;
+            
+            if let Some(pid) = child.process_id() {
+                // Check if process is still running using sysinfo
+                let mut sys = sysinfo::System::new();
+                sys.refresh_processes();
+                
+                let is_running = sys.process(sysinfo::Pid::from_u32(pid)).is_some();
+                Ok(is_running)
+            } else {
+                Ok(false)
+            }
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 // Tauri commands
@@ -762,6 +847,24 @@ pub async fn kill_task(
     pty_manager: tauri::State<'_, PtyManager>,
 ) -> Result<(), String> {
     pty_manager.kill_task(&pty_id).await
+}
+
+/// Force kill a task process (SIGKILL on Unix, forceful termination on Windows)
+#[tauri::command]
+pub async fn force_kill_task(
+    pty_id: String,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<(), String> {
+    pty_manager.force_kill_task(&pty_id).await
+}
+
+/// Check if a task process is still running
+#[tauri::command]
+pub async fn is_task_running(
+    pty_id: String,
+    pty_manager: tauri::State<'_, PtyManager>,
+) -> Result<bool, String> {
+    pty_manager.is_task_running(&pty_id).await
 }
 
 /// Process stats structure

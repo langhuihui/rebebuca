@@ -8,7 +8,7 @@ mod tray;
 mod types;
 
 use log::info;
-use pty::{close_pty, create_pty, execute_task, get_pty_process_stats, get_shell_integration_path, kill_task, resize_pty, write_pty, PtyManager};
+use pty::{close_pty, create_pty, execute_task, force_kill_task, get_pty_process_stats, get_shell_integration_path, is_task_running, kill_task, resize_pty, write_pty, PtyManager};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
@@ -150,11 +150,15 @@ pub fn run() {
                             }
                         }
                         _ => {
-                            // Handle dynamic menu items (restart, stop, run_favorite, run_recent)
+                            // Handle dynamic menu items (restart, stop, force_stop, run_favorite, run_recent)
                             if event_id.starts_with("restart:") {
                                 let process_id = event_id.strip_prefix("restart:").unwrap_or("");
                                 info!("[TRAY] Restart process: {}", process_id);
                                 let _ = app.emit("tray-restart-process", process_id.to_string());
+                            } else if event_id.starts_with("force_stop:") {
+                                let process_id = event_id.strip_prefix("force_stop:").unwrap_or("");
+                                info!("[TRAY] Force stop process: {}", process_id);
+                                let _ = app.emit("tray-force-stop-process", process_id.to_string());
                             } else if event_id.starts_with("stop:") {
                                 let process_id = event_id.strip_prefix("stop:").unwrap_or("");
                                 info!("[TRAY] Stop process: {}", process_id);
@@ -229,6 +233,8 @@ pub fn run() {
             close_pty,
             execute_task,
             kill_task,
+            force_kill_task,
+            is_task_running,
             get_pty_process_stats,
             get_shell_integration_path,
         ])

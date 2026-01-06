@@ -255,6 +255,15 @@ class MockTerminalAdapter implements TerminalAdapter {
     }
   }
 
+  async forceKill(ptyId: string): Promise<void> {
+    // Same as kill for mock
+    await this.kill(ptyId);
+  }
+
+  async isRunning(ptyId: string): Promise<boolean> {
+    return activeTerminals.has(ptyId);
+  }
+
   onData(callback: (event: TerminalDataEvent) => void): () => void {
     // Add callback to all active terminals
     activeTerminals.forEach(terminal => {
@@ -585,6 +594,9 @@ class MockTrayAdapter implements TrayAdapter {
     return () => {};
   }
   onStopProcess(_callback: (processId: string) => void): () => void {
+    return () => {};
+  }
+  onForceStopProcess(_callback: (processId: string) => void): () => void {
     return () => {};
   }
   onRunFavorite(_callback: (taskId: string) => void): () => void {
