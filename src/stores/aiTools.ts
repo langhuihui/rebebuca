@@ -29,8 +29,11 @@ import { getAdapter, type BackendAdapter } from '../adapters';
  * - opencode: OpenCode AI assistant
  * - codebuddy: CodeBuddy programming assistant
  * - qoder-cli: Qoder CLI programming assistant
+ * - copilot-cli: GitHub Copilot CLI
+ * - droid: Droid AI assistant
+ * - augment-cli: Augment Code CLI (Auggie)
  */
-export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli';
+export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli';
 
 // Provider presets
 export interface ProviderPreset {
@@ -46,52 +49,52 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   original: {
     id: 'original',
     name: 'Original',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli'],
   },
   glm: {
     id: 'glm',
     name: 'GLM (智谱AI)',
     getKeyUrl: 'https://open.bigmodel.cn/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   kimi: {
     id: 'kimi',
     name: 'Kimi (月之暗面)',
     getKeyUrl: 'https://platform.moonshot.cn/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   doubao: {
     id: 'doubao',
     name: 'Doubao (豆包)',
     getKeyUrl: 'https://console.volcengine.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   minimax: {
     id: 'minimax',
     name: 'MiniMax',
     getKeyUrl: 'https://www.minimaxi.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   deepseek: {
     id: 'deepseek',
     name: 'DeepSeek',
     getKeyUrl: 'https://platform.deepseek.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   aigocode: {
     id: 'aigocode',
     name: 'AIgoCode',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   aicodemirror: {
     id: 'aicodemirror',
     name: 'AiCodeMirror',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
   },
   custom: {
     id: 'custom',
     name: 'Custom',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli'],
   },
 };
 
@@ -103,6 +106,113 @@ export interface AIToolConfig {
   customEndpoint?: string;
   enabled: boolean;
 }
+
+// AI Tool installation info
+export interface AIToolInstallInfo {
+  name: string;
+  website: string;
+  installMethods: {
+    id: string;
+    name: string;
+    command: string;
+    platform?: 'macos' | 'linux' | 'windows' | 'all';
+  }[];
+  versionCommand: string;
+  launchCommand: string;
+}
+
+// AI Tool metadata with installation info
+export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
+  'claude-code': {
+    name: 'Claude Code',
+    website: 'https://github.com/anthropics/claude-code',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @anthropic-ai/claude-code', platform: 'all' },
+    ],
+    versionCommand: 'claude --version',
+    launchCommand: 'claude',
+  },
+  'codex': {
+    name: 'OpenAI Codex',
+    website: 'https://github.com/openai/codex',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @openai/codex', platform: 'all' },
+    ],
+    versionCommand: 'codex --version',
+    launchCommand: 'codex',
+  },
+  'gemini-cli': {
+    name: 'Google Gemini CLI',
+    website: 'https://github.com/google-gemini/gemini-cli',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @google/gemini-cli', platform: 'all' },
+    ],
+    versionCommand: 'gemini --version',
+    launchCommand: 'gemini',
+  },
+  'opencode': {
+    name: 'OpenCode',
+    website: 'https://github.com/opencode-ai/opencode',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g opencode', platform: 'all' },
+    ],
+    versionCommand: 'opencode --version',
+    launchCommand: 'opencode',
+  },
+  'codebuddy': {
+    name: 'CodeBuddy',
+    website: 'https://copilot.tencent.com/docs/cli/installation',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @tencent-ai/codebuddy-code', platform: 'all' },
+      { id: 'brew', name: 'Homebrew', command: 'brew tap Tencent-CodeBuddy/tap && brew install codebuddy-code', platform: 'macos' },
+      { id: 'brew-linux', name: 'Homebrew', command: 'brew tap Tencent-CodeBuddy/tap && brew install codebuddy-code', platform: 'linux' },
+      { id: 'script', name: 'Install Script', command: 'curl -fsSL https://copilot.tencent.com/cli/install.sh | bash', platform: 'macos' },
+      { id: 'script-linux', name: 'Install Script', command: 'curl -fsSL https://copilot.tencent.com/cli/install.sh | bash', platform: 'linux' },
+    ],
+    versionCommand: 'codebuddy --version',
+    launchCommand: 'codebuddy',
+  },
+  'qoder-cli': {
+    name: 'Qoder CLI',
+    website: 'https://github.com/qodo-ai/qoder',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g qoder-cli', platform: 'all' },
+    ],
+    versionCommand: 'qoder --version',
+    launchCommand: 'qoder',
+  },
+  'copilot-cli': {
+    name: 'GitHub Copilot CLI',
+    website: 'https://github.com/github/copilot-cli',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @github/copilot', platform: 'all' },
+      { id: 'brew', name: 'Homebrew', command: 'brew install copilot-cli', platform: 'macos' },
+      { id: 'winget', name: 'WinGet', command: 'winget install GitHub.Copilot', platform: 'windows' },
+      { id: 'script', name: 'Install Script', command: 'curl -fsSL https://gh.io/copilot-install | bash', platform: 'macos' },
+    ],
+    versionCommand: 'copilot --version',
+    launchCommand: 'copilot',
+  },
+  'droid': {
+    name: 'Droid (Factory AI)',
+    website: 'https://factory.ai/product/cli',
+    installMethods: [
+      { id: 'script-mac', name: 'Install Script (macOS/Linux)', command: 'curl -fsSL https://app.factory.ai/cli | sh', platform: 'macos' },
+      { id: 'script-linux', name: 'Install Script (Linux)', command: 'curl -fsSL https://app.factory.ai/cli | sh', platform: 'linux' },
+    ],
+    versionCommand: 'droid --version',
+    launchCommand: 'droid',
+  },
+  'augment-cli': {
+    name: 'Augment CLI (Auggie)',
+    website: 'https://www.augmentcode.com/product/CLI',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @augmentcode/auggie', platform: 'all' },
+    ],
+    versionCommand: 'auggie --version',
+    launchCommand: 'auggie',
+  },
+};
 
 // Provider API Key storage (for syncing across tools)
 export interface ProviderKeys {
@@ -139,6 +249,21 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     },
     'qoder-cli': {
       toolType: 'qoder-cli',
+      provider: 'original',
+      enabled: false,
+    },
+    'copilot-cli': {
+      toolType: 'copilot-cli',
+      provider: 'original',
+      enabled: false,
+    },
+    'droid': {
+      toolType: 'droid',
+      provider: 'original',
+      enabled: false,
+    },
+    'augment-cli': {
+      toolType: 'augment-cli',
       provider: 'original',
       enabled: false,
     },
@@ -247,6 +372,8 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'opencode': 'OpenCode',
       'codebuddy': 'CodeBuddy',
       'qoder-cli': 'Qoder CLI',
+      'copilot-cli': 'GitHub Copilot CLI',
+      'droid': 'Droid',
     };
     return names[toolType];
   };

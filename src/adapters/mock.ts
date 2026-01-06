@@ -30,6 +30,7 @@ import type {
   ProcessInfo,
   LogPathInfo,
   SystemTerminalInfo,
+  ShellInfo,
 } from './types';
 
 // Simulated file system
@@ -489,6 +490,31 @@ class MockSystemAdapter implements SystemAdapter {
       return [
         { id: 'gnome-terminal', name: 'GNOME Terminal', path: 'gnome-terminal', available: true, is_default: true },
         { id: 'konsole', name: 'Konsole', path: 'konsole', available: true, is_default: false },
+      ];
+    }
+  }
+
+  async getAvailableShells(): Promise<ShellInfo[]> {
+    // Return mock shells based on detected platform
+    const platform = await this.getPlatform();
+    if (platform === 'darwin') {
+      return [
+        { id: 'zsh', name: 'Zsh', path: '/bin/zsh', available: true, is_default: true },
+        { id: 'bash', name: 'Bash', path: '/bin/bash', available: true, is_default: false },
+        { id: 'fish', name: 'Fish', path: '/usr/local/bin/fish', available: true, is_default: false },
+      ];
+    } else if (platform === 'windows') {
+      return [
+        { id: 'cmd', name: 'Command Prompt', path: 'cmd.exe', available: true, is_default: true },
+        { id: 'powershell', name: 'Windows PowerShell', path: 'powershell.exe', available: true, is_default: false },
+        { id: 'pwsh', name: 'PowerShell 7+', path: 'pwsh.exe', available: true, is_default: false },
+        { id: 'git-bash', name: 'Git Bash', path: 'bash.exe', available: true, is_default: false },
+      ];
+    } else {
+      return [
+        { id: 'bash', name: 'Bash', path: '/bin/bash', available: true, is_default: true },
+        { id: 'zsh', name: 'Zsh', path: '/bin/zsh', available: true, is_default: false },
+        { id: 'fish', name: 'Fish', path: '/usr/bin/fish', available: true, is_default: false },
       ];
     }
   }

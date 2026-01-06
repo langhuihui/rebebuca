@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { useI18n } from "vue-i18n";
+import i18n from "../locales";
 import { iconComponents } from "../utils/icons";
 import type { RunHistory } from "./runConfig";
 
@@ -13,7 +13,7 @@ export const useUIStore = defineStore("ui", () => {
 
   // Computed properties
   const themeOptions = computed(() => {
-    const { t } = useI18n();
+    const t = i18n.global.t;
     return [
       {
         label: t("theme.light"),

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useI18n } from 'vue-i18n';
 import { computed, ref } from 'vue';
+import i18n from '../locales';
 
 // Detect system language
 function getSystemLocale(): string {
@@ -29,9 +29,10 @@ function getSystemLocale(): string {
   return 'en';
 }
 
-export function useLocale() {
-  const { locale } = useI18n();
+// Get the global locale from i18n instance
+const locale = i18n.global.locale;
 
+export function useLocale() {
   // Store the locale mode ('system' | 'en' | 'zh-CN')
   const localeMode = ref<string>(localStorage.getItem('app-locale-mode') || 'system');
 

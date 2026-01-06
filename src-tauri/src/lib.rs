@@ -210,6 +210,7 @@ pub fn run() {
             commands::read_app_log_file,
             commands::get_available_terminals,
             commands::open_in_specific_terminal,
+            commands::get_available_shells,
             // process module
             process::execute_command,
             process::kill_process_cmd,

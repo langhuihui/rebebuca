@@ -89,6 +89,7 @@
             </template>
           </n-button>
           <n-button
+            v-if="showFavorite"
             size="tiny"
             quaternary
             :class="['action-btn', 'favorite-btn', { active: isFavorite }]"
@@ -163,12 +164,25 @@ const props = defineProps<{
   showIcon?: boolean;
   showDelete?: boolean;
   showEdit?: boolean;
+  showFavorite?: boolean;
   draggable?: boolean;
   isDragging?: boolean;
   dragPosition?: 'top' | 'bottom' | null;
   nodeClass?: string;
   folderHint?: string | null;
 }>();
+
+// Determine if favorite button should be shown
+// Default: show for non-favorites (to add to favorites)
+// In favorites section: always show (to remove from favorites)
+// In other sections: hide for already favorited tasks
+const showFavorite = computed(() => {
+  if (props.showFavorite !== undefined) {
+    return props.showFavorite;
+  }
+  // Default behavior: show if not already favorited
+  return !props.isFavorite;
+});
 
 defineEmits<{
   (e: 'click', task: Task): void;
@@ -234,7 +248,7 @@ const canEdit = computed(() => {
 .tree-node {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 4px 12px;
   cursor: pointer;
   border-radius: 4px;
   transition: background-color 0.2s;

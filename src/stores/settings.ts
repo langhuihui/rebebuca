@@ -52,6 +52,7 @@ export interface AppSettings {
   
   // Terminal settings
   preferredTerminal: string | null;  // Terminal ID to use when opening in system terminal
+  preferredShell: string | null;  // Shell path to use for internal PTY terminal (e.g., /bin/zsh, /bin/bash)
   
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
@@ -67,6 +68,7 @@ const defaultSettings: AppSettings = {
   showTaskIcons: true,
   recentTasksCount: 5,
   preferredTerminal: null,
+  preferredShell: null,
   commandIcons: {},
 };
 

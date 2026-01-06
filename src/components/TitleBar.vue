@@ -109,16 +109,30 @@
         <!-- Version and Update indicator -->
         <div class="version-update-group">
           <span class="version-text">v{{ updaterStore.currentVersion }}</span>
-          <n-tooltip v-if="updaterStore.updateAvailable" trigger="hover">
-            <template #trigger>
-              <span class="update-indicator" @click="openSettingsUpdate" @mousedown.stop>
-                <n-icon size="12">
+          <template v-if="updaterStore.updateAvailable">
+            <span class="update-arrow">→</span>
+            <span class="new-version-text">v{{ updaterStore.updateInfo?.version }}</span>
+            <n-button
+              type="success"
+              size="tiny"
+              class="update-button"
+              :class="{ 'updating': updaterStore.downloading }"
+              :style="updaterStore.downloading ? { '--progress': updaterStore.downloadProgress + '%' } : {}"
+              :disabled="updaterStore.downloading"
+              @click="handleDirectUpdate"
+              @mousedown.stop
+            >
+              <template #icon>
+                <n-icon size="12" v-if="!updaterStore.downloading">
                   <component :is="svgIcons.refresh" />
                 </n-icon>
+              </template>
+              <span v-if="updaterStore.downloading" class="progress-text">
+                {{ updaterStore.downloadProgress }}%
               </span>
-            </template>
-            {{ t('settings.updateAvailable') }}: v{{ updaterStore.updateInfo?.version }}
-          </n-tooltip>
+              <span v-else>{{ t('settings.update') }}</span>
+            </n-button>
+          </template>
         </div>
 
         <!-- Notification bell button -->
@@ -264,13 +278,13 @@
       <div v-if="notifications.length === 0" class="empty-notifications">
         {{ t('notifications.empty') }}
       </div>
-      <div v-else class="notifications-list">
+      <div v-else ref="notificationsListRef" class="notifications-list">
         <div
           v-for="notification in notifications"
           :key="notification.id"
+          :data-notification-id="notification.id"
           class="notification-item"
           :class="{ 'unread': !notification.read }"
-          @click="notificationStore.markAsReadInSnapshot(notification.id)"
         >
           <div class="notification-header">
             <span class="notification-type">{{ notification.title || notification.type }}</span>
@@ -284,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { NButton, NDropdown, NModal, NScrollbar, useDialog, NIcon } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { NotificationsOutline } from "@vicons/ionicons5";
@@ -327,6 +341,10 @@ const showSettingsDialog = ref(false);
 // Notification dialog state
 const showNotifications = ref(false);
 
+// Notification list ref for Intersection Observer
+const notificationsListRef = ref<HTMLElement | null>(null);
+let notificationObserver: IntersectionObserver | null = null;
+
 // Update check interval (every minute)
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -335,6 +353,64 @@ const notificationCount = computed(() => notificationStore.unreadCount);
 
 // Computed: notifications list for display - use displayNotifications from store
 const notifications = computed(() => notificationStore.displayNotifications);
+
+// Setup Intersection Observer for auto-marking notifications as read
+const setupNotificationObserver = () => {
+  if (notificationObserver) {
+    notificationObserver.disconnect();
+  }
+  
+  notificationObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const notificationId = (entry.target as HTMLElement).dataset.notificationId;
+          if (notificationId) {
+            notificationStore.markAsReadInSnapshot(notificationId);
+          }
+        }
+      });
+    },
+    {
+      threshold: 0.5, // 50% visible to mark as read
+    }
+  );
+  
+  // Observe all notification items
+  if (notificationsListRef.value) {
+    const items = notificationsListRef.value.querySelectorAll('.notification-item');
+    items.forEach((item) => {
+      notificationObserver?.observe(item);
+    });
+  }
+};
+
+// Cleanup observer
+const cleanupNotificationObserver = () => {
+  if (notificationObserver) {
+    notificationObserver.disconnect();
+    notificationObserver = null;
+  }
+};
+
+// Watch for showNotifications changes to setup/cleanup observer
+watch(showNotifications, async (newValue) => {
+  if (newValue) {
+    // Wait for DOM to update
+    await nextTick();
+    setupNotificationObserver();
+  } else {
+    cleanupNotificationObserver();
+  }
+});
+
+// Watch for notifications list changes to re-observe new items
+watch(notifications, async () => {
+  if (showNotifications.value) {
+    await nextTick();
+    setupNotificationObserver();
+  }
+}, { deep: true });
 
 // Handle notification dialog open
 const openNotificationDialog = () => {
@@ -383,6 +459,20 @@ const openSettingsUpdate = () => {
   showSettingsDialog.value = true;
 };
 
+// Handle direct update from titlebar
+const handleDirectUpdate = async () => {
+  if (updaterStore.downloading) return;
+  
+  try {
+    await updaterStore.downloadAndInstall();
+  } catch (error) {
+    console.error('Update failed:', error);
+    // If update fails, open settings dialog to show error
+    initialSettingsTab.value = 'update';
+    showSettingsDialog.value = true;
+  }
+};
+
 // Initialize
 onMounted(async () => {
   await settingsStore.initialize();
@@ -408,6 +498,9 @@ onMounted(async () => {
 // Cleanup
 onUnmounted(() => {
   window.removeEventListener('open-settings-update', openSettingsUpdate);
+  
+  // Cleanup notification observer
+  cleanupNotificationObserver();
   
   // Clear update check interval
   if (updateCheckInterval) {
@@ -500,6 +593,66 @@ const openGitHub = async () => {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
   font-weight: 500;
+}
+
+.update-arrow {
+  font-size: 10px;
+  color: #18a058;
+  font-weight: bold;
+}
+
+.new-version-text {
+  font-size: 11px;
+  color: #18a058;
+  font-weight: 600;
+}
+
+.update-button {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  animation: pulse-button 2s ease-in-out infinite;
+  min-width: 50px;
+  transition: all 0.3s ease;
+}
+
+.update-button.updating {
+  animation: none;
+  background: linear-gradient(90deg, #18a058 var(--progress, 0%), #36ad6a var(--progress, 0%));
+  position: relative;
+  overflow: hidden;
+}
+
+.update-button.updating::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--progress, 0%);
+  background: rgba(255, 255, 255, 0.2);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-weight: 600;
+  font-size: 11px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.update-button :deep(.n-icon) {
+  animation: spin 3s linear infinite;
+}
+
+@keyframes pulse-button {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(24, 160, 88, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(24, 160, 88, 0.8), 0 0 16px rgba(24, 160, 88, 0.4);
+  }
 }
 
 .update-indicator {

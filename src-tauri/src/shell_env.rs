@@ -12,7 +12,39 @@ use std::sync::OnceLock;
 #[cfg(not(target_os = "windows"))]
 static SHELL_ENV_CACHE: OnceLock<HashMap<String, String>> = OnceLock::new();
 
-/// Get shell environment variables by running a login shell
+/// Try to load environment from shell with given arguments
+#[cfg(not(target_os = "windows"))]
+fn try_load_env_from_shell(shell: &str, args: &[&str]) -> Option<HashMap<String, String>> {
+    let result = Command::new(shell)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output();
+    
+    if let Ok(output) = result {
+        if output.status.success() {
+            let mut env_map = HashMap::new();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                // Use split_once to handle values that contain '=' characters
+                // e.g., VAR=key=value should parse as key='VAR' value='key=value'
+                if let Some((key, value)) = line.split_once('=') {
+                    // Skip shell internal variables that can cause issues
+                    if !key.starts_with('_') && !key.is_empty() {
+                        env_map.insert(key.to_string(), value.to_string());
+                    }
+                }
+            }
+            if env_map.contains_key("PATH") && !env_map.get("PATH").map_or(true, |p| p.is_empty()) {
+                return Some(env_map);
+            }
+        }
+    }
+    None
+}
+
+/// Get shell environment variables by running a login/interactive shell
 /// This is crucial for macOS and Linux GUI apps which don't inherit shell PATH
 /// The result is cached to prevent repeated permission dialogs on macOS
 #[cfg(not(target_os = "windows"))]
@@ -21,46 +53,203 @@ pub fn get_shell_env() -> HashMap<String, String> {
     // This prevents repeated macOS permission dialogs when shell profile
     // accesses protected directories (Documents, Desktop, etc.)
     SHELL_ENV_CACHE.get_or_init(|| {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-        let mut env_map = HashMap::new();
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let shell_name = std::path::Path::new(&shell)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("bash");
         
-        // Try to get environment from a login shell
-        // Use -l for login shell (but NOT -i to avoid interactive prompts and reduce permission requests)
-        let result = Command::new(&shell)
-            .args(["-l", "-c", "env"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output();
+        println!("[SHELL_ENV] Attempting to load environment from shell: {} ({})", shell, shell_name);
         
-        if let Ok(output) = result {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines() {
-                    // Use splitn to handle values that contain '=' characters
-                    // e.g., VAR=key=value should parse as key='VAR' value='key=value'
-                    if let Some((key, value)) = line.split_once('=') {
-                        env_map.insert(key.to_string(), value.to_string());
-                    }
-                }
-                println!("[SHELL_ENV] Loaded {} environment variables from login shell (cached)", env_map.len());
+        // Try multiple strategies to load environment variables
+        // Strategy 1: Interactive login shell (-l -i) - most complete but may have side effects
+        // Strategy 2: Login shell only (-l) - loads .profile, .bash_profile, .zprofile
+        // Strategy 3: Source common config files directly
+        
+        let mut env_map: Option<HashMap<String, String>> = None;
+        
+        // Strategy 1: Try login + interactive shell (sources both login and rc files)
+        // This is most likely to have the complete PATH including tools like nvm, rbenv, etc.
+        if env_map.is_none() {
+            // For zsh, use -l -i which sources .zshenv, .zprofile, .zshrc, .zlogin
+            // For bash, use -l -i which sources .bash_profile/.profile and .bashrc
+            env_map = try_load_env_from_shell(&shell, &["-l", "-i", "-c", "env"]);
+            if env_map.is_some() {
+                println!("[SHELL_ENV] Loaded environment using interactive login shell (-l -i)");
             }
         }
         
-        // If we couldn't get env from shell, use basic fallback
-        if env_map.is_empty() || !env_map.contains_key("PATH") {
-            let default_path = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-            let current_path = std::env::var("PATH").unwrap_or_default();
-            let combined_path = if current_path.is_empty() {
-                default_path.to_string()
-            } else {
-                format!("{}:{}", current_path, default_path)
-            };
-            env_map.insert("PATH".to_string(), combined_path.clone());
-            println!("[SHELL_ENV] Using fallback PATH: {}", combined_path);
+        // Strategy 2: Try login shell only (less intrusive)
+        if env_map.is_none() {
+            env_map = try_load_env_from_shell(&shell, &["-l", "-c", "env"]);
+            if env_map.is_some() {
+                println!("[SHELL_ENV] Loaded environment using login shell (-l)");
+            }
         }
         
-        env_map
+        // Strategy 3: Try sourcing common config files directly
+        if env_map.is_none() {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
+            
+            // Build a command that sources common shell config files
+            let source_cmd = match shell_name {
+                "zsh" => format!(
+                    "[ -f /etc/zshenv ] && source /etc/zshenv; \
+                     [ -f \"{}/.zshenv\" ] && source \"{}/.zshenv\"; \
+                     [ -f /etc/zprofile ] && source /etc/zprofile; \
+                     [ -f \"{}/.zprofile\" ] && source \"{}/.zprofile\"; \
+                     [ -f \"{}/.zshrc\" ] && source \"{}/.zshrc\"; \
+                     env",
+                    home, home, home, home, home, home
+                ),
+                "bash" => format!(
+                    "[ -f /etc/profile ] && source /etc/profile; \
+                     [ -f \"{}/.bash_profile\" ] && source \"{}/.bash_profile\"; \
+                     [ -f \"{}/.bashrc\" ] && source \"{}/.bashrc\"; \
+                     env",
+                    home, home, home, home
+                ),
+                _ => format!(
+                    "[ -f /etc/profile ] && source /etc/profile; \
+                     [ -f \"{}/.profile\" ] && source \"{}/.profile\"; \
+                     env",
+                    home, home
+                ),
+            };
+            
+            env_map = try_load_env_from_shell(&shell, &["-c", &source_cmd]);
+            if env_map.is_some() {
+                println!("[SHELL_ENV] Loaded environment by sourcing config files directly");
+            }
+        }
+        
+        // Strategy 4: Try /etc/paths and /etc/paths.d (macOS specific)
+        #[cfg(target_os = "macos")]
+        if env_map.is_none() || env_map.as_ref().map_or(true, |m| !m.contains_key("PATH")) {
+            let mut macos_path = String::new();
+            
+            // Read /etc/paths
+            if let Ok(paths) = std::fs::read_to_string("/etc/paths") {
+                for line in paths.lines() {
+                    let line = line.trim();
+                    if !line.is_empty() && !macos_path.contains(line) {
+                        if !macos_path.is_empty() {
+                            macos_path.push(':');
+                        }
+                        macos_path.push_str(line);
+                    }
+                }
+            }
+            
+            // Read /etc/paths.d/*
+            if let Ok(entries) = std::fs::read_dir("/etc/paths.d") {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                        for line in content.lines() {
+                            let line = line.trim();
+                            if !line.is_empty() && !macos_path.contains(line) {
+                                if !macos_path.is_empty() {
+                                    macos_path.push(':');
+                                }
+                                macos_path.push_str(line);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if !macos_path.is_empty() {
+                println!("[SHELL_ENV] Adding macOS system paths from /etc/paths and /etc/paths.d");
+                if let Some(ref mut map) = env_map {
+                    if let Some(existing_path) = map.get("PATH") {
+                        // Merge macOS paths with existing PATH
+                        let merged = format!("{}:{}", existing_path, macos_path);
+                        map.insert("PATH".to_string(), merged);
+                    } else {
+                        map.insert("PATH".to_string(), macos_path.clone());
+                    }
+                } else {
+                    let mut map = HashMap::new();
+                    map.insert("PATH".to_string(), macos_path);
+                    env_map = Some(map);
+                }
+            }
+        }
+        
+        // Finalize the environment map
+        let mut final_map = env_map.unwrap_or_default();
+        
+        // Ensure common paths are included
+        let common_paths = vec![
+            "/opt/homebrew/bin",      // Apple Silicon Homebrew
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",          // Intel Homebrew & common tools
+            "/usr/local/sbin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ];
+        
+        // Also check for user-specific tool paths
+        if let Ok(home) = std::env::var("HOME") {
+            let user_paths = vec![
+                format!("{}/.cargo/bin", home),           // Rust
+                format!("{}/.local/bin", home),           // pip, pipx
+                format!("{}/go/bin", home),               // Go
+                format!("{}/.bun/bin", home),             // Bun
+                format!("{}/.deno/bin", home),            // Deno
+                format!("{}/Library/pnpm", home),         // pnpm (macOS)
+                format!("{}/.pnpm", home),                // pnpm (Linux)
+                format!("{}/.nvm/versions/node", home),   // nvm base path
+                format!("{}/.volta/bin", home),           // Volta
+                format!("{}/.rbenv/shims", home),         // rbenv
+                format!("{}/.pyenv/shims", home),         // pyenv
+            ];
+            
+            if let Some(existing_path) = final_map.get("PATH") {
+                let mut path_parts: Vec<&str> = existing_path.split(':').collect();
+                
+                // Add user tool paths if they exist and are not already in PATH
+                for user_path in &user_paths {
+                    if std::path::Path::new(user_path).exists() && !path_parts.contains(&user_path.as_str()) {
+                        path_parts.insert(0, user_path);
+                    }
+                }
+                
+                // Add common paths if not already present
+                for common_path in &common_paths {
+                    if !path_parts.contains(common_path) {
+                        path_parts.push(common_path);
+                    }
+                }
+                
+                final_map.insert("PATH".to_string(), path_parts.join(":"));
+            } else {
+                // No PATH at all, build one from scratch
+                let mut path_parts: Vec<String> = Vec::new();
+                
+                for user_path in &user_paths {
+                    if std::path::Path::new(user_path).exists() {
+                        path_parts.push(user_path.clone());
+                    }
+                }
+                
+                for common_path in common_paths {
+                    path_parts.push(common_path.to_string());
+                }
+                
+                final_map.insert("PATH".to_string(), path_parts.join(":"));
+            }
+        }
+        
+        // Log the final PATH for debugging
+        if let Some(path) = final_map.get("PATH") {
+            println!("[SHELL_ENV] Final PATH ({} entries): {}", path.split(':').count(), path);
+        }
+        println!("[SHELL_ENV] Loaded {} environment variables total (cached)", final_map.len());
+        
+        final_map
     }).clone()
 }
 

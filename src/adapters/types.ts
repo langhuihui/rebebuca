@@ -82,6 +82,15 @@ export interface SystemTerminalInfo {
   is_default: boolean;
 }
 
+// Shell Program types (for internal PTY terminal)
+export interface ShellInfo {
+  id: string;
+  name: string;
+  path: string;
+  available: boolean;
+  is_default: boolean;
+}
+
 /**
  * Terminal Adapter Interface
  */
@@ -143,6 +152,7 @@ export interface SystemAdapter {
   openInSystemTerminal(command: string, cwd?: string): Promise<void>;
   openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void>;
   getAvailableTerminals(): Promise<SystemTerminalInfo[]>;
+  getAvailableShells(): Promise<ShellInfo[]>;
   executeWithAdmin(command: string, args: string[]): Promise<AdminExecuteResult>;
   getProcessInfo(pid: number): Promise<ProcessInfo | null>;
   listPorts(): Promise<PortInfo[]>;

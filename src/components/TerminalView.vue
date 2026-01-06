@@ -70,6 +70,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { SearchAddon } from '@xterm/addon-search';
 import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
 import { ShellIntegration, type CommandInfo } from '../utils/shellIntegration';
+import { useSettingsStore } from '../stores/settings';
 import '@xterm/xterm/css/xterm.css';
 
 // Adapter instance
@@ -265,6 +266,7 @@ const initTerminal = async () => {
       // For shell PTY, we need to use invoke directly since adapter.terminal.create is for task execution
       if (isTauri()) {
         const { invoke } = await import('@tauri-apps/api/core');
+        const settingsStore = useSettingsStore();
         await invoke('create_pty', {
           ptyId: props.ptyId,
           options: {
@@ -272,6 +274,7 @@ const initTerminal = async () => {
             cols,
             cwd: props.cwd,
             env: props.env,
+            shell: settingsStore.settings.preferredShell || null,  // Use preferred shell if set
           },
         });
       }

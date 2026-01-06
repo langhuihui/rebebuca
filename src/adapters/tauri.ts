@@ -29,6 +29,7 @@ import type {
   ProcessInfo,
   LogPathInfo,
   SystemTerminalInfo,
+  ShellInfo,
 } from './types';
 
 // Lazy imports for Tauri APIs
@@ -344,6 +345,18 @@ class TauriSystemAdapter implements SystemAdapter {
       path: t.path,
       available: t.available,
       is_default: t.is_default,
+    }));
+  }
+
+  async getAvailableShells(): Promise<ShellInfo[]> {
+    await loadTauriModules();
+    const shells = await tauriCore!.invoke<Array<{ id: string; name: string; path: string; available: boolean; is_default: boolean }>>('get_available_shells');
+    return shells.map(s => ({
+      id: s.id,
+      name: s.name,
+      path: s.path,
+      available: s.available,
+      is_default: s.is_default,
     }));
   }
 

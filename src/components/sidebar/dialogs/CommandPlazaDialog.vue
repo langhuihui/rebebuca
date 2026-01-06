@@ -145,6 +145,8 @@ const commands = computed<CommandItem[]>(() => {
     'opencode': 'opencodeLaunch',
     'codebuddy': 'codebuddyLaunch',
     'qoder-cli': 'qoderLaunch',
+    'copilot-cli': 'copilotCliLaunch',
+    'droid': 'droidLaunch',
   };
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {

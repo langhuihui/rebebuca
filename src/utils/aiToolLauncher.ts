@@ -85,6 +85,21 @@ export function getAIToolLaunchConfig(
       args: ['qoder-cli'],
       useSystemTerminal: true,
     },
+    'copilot-cli': {
+      command: 'npx',
+      args: ['@githubnext/github-copilot-cli'],
+      useSystemTerminal: true,
+    },
+    'droid': {
+      command: 'npx',
+      args: ['droid-cli'],
+      useSystemTerminal: true,
+    },
+    'augment-cli': {
+      command: 'auggie',
+      args: [],
+      useSystemTerminal: true,
+    },
   };
   
   const launchConfig = { ...baseConfigs[toolType] };
@@ -122,6 +137,9 @@ export function getAIToolLaunchConfig(
       case 'opencode':
       case 'codebuddy':
       case 'qoder-cli':
+      case 'copilot-cli':
+      case 'droid':
+      case 'augment-cli':
         launchConfig.env['API_KEY'] = apiKey;
         break;
     }
@@ -199,6 +217,9 @@ export function createAIToolQuickLaunchTask(
     'opencode': 'OpenCode',
     'codebuddy': 'CodeBuddy',
     'qoder-cli': 'Qoder CLI',
+    'copilot-cli': 'GitHub Copilot CLI',
+    'droid': 'Droid',
+    'augment-cli': 'Auggie (Augment CLI)',
   };
   
   return {

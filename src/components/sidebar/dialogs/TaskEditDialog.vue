@@ -42,6 +42,24 @@
           />
           <n-tooltip trigger="hover">
             <template #trigger>
+              <n-dropdown
+                trigger="click"
+                :options="aiToolOptions"
+                @select="handleAIToolSelect"
+              >
+                <n-button>
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.ai" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </n-dropdown>
+            </template>
+            {{ t('aiTools.selectTool') }}
+          </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
               <n-button @click="showCommandPlaza = true">
                 <template #icon>
                   <n-icon size="16">
@@ -76,7 +94,29 @@
         />
       </n-form-item>
       <n-form-item :label="t('task.useSystemTerminal')">
-        <n-switch v-model:value="editingTask.useSystemTerminal" />
+        <n-space align="center" :size="12">
+          <n-switch v-model:value="editingTask.useSystemTerminal" />
+          <!-- Terminal selection when using system terminal -->
+          <n-select
+            v-if="editingTask.useSystemTerminal && terminalOptions.length > 0"
+            v-model:value="editingTask.systemTerminalId"
+            :options="terminalOptions"
+            :placeholder="t('settings.preferredTerminalPlaceholder')"
+            :loading="loadingTerminals"
+            clearable
+            style="min-width: 180px;"
+          />
+          <!-- Shell selection for built-in terminal -->
+          <n-select
+            v-if="!editingTask.useSystemTerminal"
+            v-model:value="editingTask.shellPath"
+            :options="shellOptions"
+            :placeholder="t('settings.preferredShellPlaceholder')"
+            :loading="loadingShells"
+            clearable
+            style="min-width: 180px;"
+          />
+        </n-space>
       </n-form-item>
       
       <!-- Python Environment (Windows/macOS/Linux) -->
@@ -136,14 +176,19 @@ import {
   NButton,
   NIcon,
   NTooltip,
+  NDropdown,
+  NSpace,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
+import type { SystemTerminalInfo, ShellInfo } from '../../../adapters/types';
 import { svgIcons } from '../../../utils/icons';
 import { isWindows } from '../../../utils/platform';
 import type { TaskGroup } from '../../../providers/types';
 import CommandPlazaDialog from './CommandPlazaDialog.vue';
+import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
+import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 
 interface EditingTask {
   id: string;
@@ -154,6 +199,8 @@ interface EditingTask {
   type: 'shell' | 'process';
   sourceFile: string;
   useSystemTerminal: boolean;
+  systemTerminalId?: string | null;  // Selected terminal ID for system terminal
+  shellPath?: string | null;  // Selected shell path for built-in terminal
   envStr: string;
   pythonEnv?: string;
   runAsAdmin?: boolean;
@@ -176,15 +223,89 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const aiToolsStore = useAIToolsStore();
 
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');
 const showCommandPlaza = ref(false);
 const isWindowsPlatform = ref(false);
 
+// Terminal selection
+const loadingTerminals = ref(false);
+const availableTerminals = ref<SystemTerminalInfo[]>([]);
+
+const terminalOptions = computed(() => {
+  return availableTerminals.value.map(terminal => ({
+    label: terminal.is_default ? `${terminal.name} (${t('settings.default')})` : terminal.name,
+    value: terminal.id,
+  }));
+});
+
+const loadAvailableTerminals = async () => {
+  loadingTerminals.value = true;
+  try {
+    const adapter = await getAdapter();
+    const terminals = await adapter.system.getAvailableTerminals();
+    availableTerminals.value = terminals;
+  } catch (error) {
+    console.error('[TaskEditDialog] Failed to load available terminals:', error);
+  } finally {
+    loadingTerminals.value = false;
+  }
+};
+
+// Shell selection for built-in terminal
+const loadingShells = ref(false);
+const availableShells = ref<ShellInfo[]>([]);
+
+const shellOptions = computed(() => {
+  return availableShells.value.map(shell => ({
+    label: shell.is_default ? `${shell.name} (${t('settings.default')})` : shell.name,
+    value: shell.path,
+  }));
+});
+
+const loadAvailableShells = async () => {
+  loadingShells.value = true;
+  try {
+    const adapter = await getAdapter();
+    const shells = await adapter.system.getAvailableShells();
+    availableShells.value = shells;
+  } catch (error) {
+    console.error('[TaskEditDialog] Failed to load available shells:', error);
+  } finally {
+    loadingShells.value = false;
+  }
+};
+
+// AI Tool options for dropdown
+const aiToolOptions = computed(() => {
+  const allTools: AIToolType[] = ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid'];
+  return allTools.map(toolType => ({
+    label: aiToolsStore.getToolDisplayName(toolType),
+    key: toolType,
+  }));
+});
+
+// Handle AI tool selection
+const handleAIToolSelect = (key: string) => {
+  const toolType = key as AIToolType;
+  const config = aiToolsStore.toolConfigs[toolType];
+  const launchTask = createAIToolQuickLaunchTask(toolType, config);
+  editingTask.value.command = launchTask.command;
+  if (!editingTask.value.name.trim()) {
+    editingTask.value.name = launchTask.name;
+  }
+};
+
 // Check platform on mount
 onMounted(async () => {
   isWindowsPlatform.value = await isWindows();
+  await Promise.all([
+    aiToolsStore.loadConfigurations(),
+    loadAvailableTerminals(),
+    loadAvailableShells(),
+  ]);
 });
 
 const showDialog = computed({

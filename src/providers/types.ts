@@ -74,6 +74,12 @@ export interface Task {
   // Whether to use system terminal to run the task
   useSystemTerminal?: boolean;
   
+  // Specific system terminal ID to use (overrides global preference)
+  systemTerminalId?: string | null;
+  
+  // Specific shell path to use for built-in terminal (overrides global preference)
+  shellPath?: string | null;
+  
   // Whether this task depends on other tasks (for serial execution)
   dependsOn?: string[];
   

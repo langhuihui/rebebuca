@@ -745,3 +745,212 @@ pub async fn open_in_specific_terminal(
 
     Ok(())
 }
+
+/// Shell program information
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct ShellInfo {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub available: bool,
+    pub is_default: bool,
+}
+
+/// Get available shell programs (bash, zsh, fish, etc.)
+#[tauri::command]
+pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
+    let mut shells = Vec::new();
+    
+    // Get the user's default shell
+    let default_shell = std::env::var("SHELL").unwrap_or_default();
+    let default_shell_name = std::path::Path::new(&default_shell)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Common Unix shells to check - using Vec to allow different path counts
+        let shells_to_check: Vec<(&str, &str, Vec<&str>)> = vec![
+            ("bash", "Bash", vec!["/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash", "/opt/homebrew/bin/bash"]),
+            ("zsh", "Zsh", vec!["/bin/zsh", "/usr/bin/zsh", "/usr/local/bin/zsh", "/opt/homebrew/bin/zsh"]),
+            ("fish", "Fish", vec!["/usr/bin/fish", "/usr/local/bin/fish", "/opt/homebrew/bin/fish"]),
+            ("sh", "Sh", vec!["/bin/sh", "/usr/bin/sh"]),
+            ("dash", "Dash", vec!["/bin/dash", "/usr/bin/dash"]),
+            ("tcsh", "Tcsh", vec!["/bin/tcsh", "/usr/bin/tcsh"]),
+            ("csh", "Csh", vec!["/bin/csh", "/usr/bin/csh"]),
+            ("ksh", "Ksh", vec!["/bin/ksh", "/usr/bin/ksh"]),
+            ("nushell", "Nushell", vec!["/usr/bin/nu", "/usr/local/bin/nu", "/opt/homebrew/bin/nu"]),
+            ("pwsh", "PowerShell", vec!["/usr/local/bin/pwsh", "/opt/homebrew/bin/pwsh"]),
+        ];
+
+        for (id, name, paths) in shells_to_check {
+            for path in paths.iter() {
+                if std::path::Path::new(path).exists() {
+                    let is_default = default_shell_name == id;
+                    shells.push(ShellInfo {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                        path: path.to_string(),
+                        available: true,
+                        is_default,
+                    });
+                    break;
+                }
+            }
+        }
+        
+        // Also check PATH using 'which' for shells not found in standard locations
+        let additional_shells = ["bash", "zsh", "fish", "nu", "pwsh"];
+        for shell_name in additional_shells {
+            // Skip if already found
+            if shells.iter().any(|s| s.id == shell_name || (shell_name == "nu" && s.id == "nushell") || (shell_name == "pwsh" && s.id == "pwsh")) {
+                continue;
+            }
+            
+            if let Ok(output) = Command::new("which").arg(shell_name).output() {
+                if output.status.success() {
+                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !path.is_empty() {
+                        let (id, name) = match shell_name {
+                            "nu" => ("nushell", "Nushell"),
+                            "pwsh" => ("pwsh", "PowerShell"),
+                            _ => (shell_name, match shell_name {
+                                "bash" => "Bash",
+                                "zsh" => "Zsh",
+                                "fish" => "Fish",
+                                _ => shell_name,
+                            }),
+                        };
+                        let is_default = default_shell_name == shell_name;
+                        shells.push(ShellInfo {
+                            id: id.to_string(),
+                            name: name.to_string(),
+                            path,
+                            available: true,
+                            is_default,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows shells
+        // Check for cmd.exe
+        if let Ok(comspec) = std::env::var("COMSPEC") {
+            shells.push(ShellInfo {
+                id: "cmd".to_string(),
+                name: "Command Prompt".to_string(),
+                path: comspec,
+                available: true,
+                is_default: true,
+            });
+        }
+
+        // Check for PowerShell 5.x (Windows PowerShell)
+        let powershell_paths = [
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe",
+        ];
+        for path in &powershell_paths {
+            if std::path::Path::new(path).exists() {
+                shells.push(ShellInfo {
+                    id: "powershell".to_string(),
+                    name: "Windows PowerShell".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+
+        // Check for PowerShell 7+ (pwsh)
+        let pwsh_paths = [
+            "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+            "C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe",
+        ];
+        for path in &pwsh_paths {
+            if std::path::Path::new(path).exists() {
+                shells.push(ShellInfo {
+                    id: "pwsh".to_string(),
+                    name: "PowerShell 7+".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+
+        // Check for Git Bash
+        let git_bash_paths = [
+            "C:\\Program Files\\Git\\bin\\bash.exe",
+            "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+        ];
+        for path in &git_bash_paths {
+            if std::path::Path::new(path).exists() {
+                shells.push(ShellInfo {
+                    id: "git-bash".to_string(),
+                    name: "Git Bash".to_string(),
+                    path: path.to_string(),
+                    available: true,
+                    is_default: false,
+                });
+                break;
+            }
+        }
+
+        // Check for WSL bash
+        if std::path::Path::new("C:\\Windows\\System32\\wsl.exe").exists() {
+            shells.push(ShellInfo {
+                id: "wsl".to_string(),
+                name: "WSL (Windows Subsystem for Linux)".to_string(),
+                path: "C:\\Windows\\System32\\wsl.exe".to_string(),
+                available: true,
+                is_default: false,
+            });
+        }
+
+        // Check for Nushell
+        if let Ok(output) = Command::new("where").arg("nu.exe").output() {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if !path.is_empty() {
+                    shells.push(ShellInfo {
+                        id: "nushell".to_string(),
+                        name: "Nushell".to_string(),
+                        path,
+                        available: true,
+                        is_default: false,
+                    });
+                }
+            }
+        }
+    }
+
+    // Sort to put default first, then alphabetically
+    shells.sort_by(|a, b| {
+        if a.is_default && !b.is_default {
+            std::cmp::Ordering::Less
+        } else if !a.is_default && b.is_default {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
+
+    if shells.is_empty() {
+        return Err("No shell programs found".to_string());
+    }
+
+    Ok(shells)
+}

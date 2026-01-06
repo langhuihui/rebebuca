@@ -41,7 +41,17 @@
       />
     </n-form-item>
     <n-form-item :label="labels.useSystemTerminal">
-      <n-switch v-model:value="formData.useSystemTerminal" />
+      <n-space align="center" :size="12">
+        <n-switch v-model:value="formData.useSystemTerminal" />
+        <n-select
+          v-if="formData.useSystemTerminal && terminalOptions.length > 0"
+          v-model:value="formData.systemTerminalId"
+          :options="terminalOptions"
+          :placeholder="terminalPlaceholder"
+          clearable
+          style="min-width: 180px;"
+        />
+      </n-space>
     </n-form-item>
     <n-form-item v-if="showGroup" :label="labels.group">
       <n-select
@@ -63,6 +73,7 @@ import {
   NButton,
   NSwitch,
   NSelect,
+  NSpace,
   type FormRules,
 } from 'naive-ui';
 
@@ -74,6 +85,7 @@ export interface TaskFormData {
   envStr: string;
   group: string;
   useSystemTerminal: boolean;
+  systemTerminalId?: string | null;  // Selected terminal ID for system terminal
 }
 
 export interface TaskFormLabels {
@@ -97,6 +109,8 @@ interface Props {
   labels?: Partial<TaskFormLabels>;
   placeholders?: Partial<TaskFormPlaceholders>;
   groupOptions?: Array<{ label: string; value: string }>;
+  terminalOptions?: Array<{ label: string; value: string }>;
+  terminalPlaceholder?: string;
   showGroup?: boolean;
   showEnv?: boolean;
   showFolderButton?: boolean;
@@ -113,6 +127,8 @@ const props = withDefaults(defineProps<Props>(), {
     { label: 'Test', value: 'test' },
     { label: 'Clean', value: 'clean' },
   ],
+  terminalOptions: () => [],
+  terminalPlaceholder: 'Use global setting',
   showGroup: true,
   showEnv: true,
   showFolderButton: true,
@@ -158,6 +174,7 @@ const formData = reactive<TaskFormData>({
   envStr: props.modelValue.envStr || '',
   group: props.modelValue.group || 'none',
   useSystemTerminal: props.modelValue.useSystemTerminal || false,
+  systemTerminalId: props.modelValue.systemTerminalId || null,
 });
 
 // Watch for external changes
@@ -169,6 +186,7 @@ watch(() => props.modelValue, (newVal) => {
   formData.envStr = newVal.envStr || '';
   formData.group = newVal.group || 'none';
   formData.useSystemTerminal = newVal.useSystemTerminal || false;
+  formData.systemTerminalId = newVal.systemTerminalId || null;
 }, { deep: true });
 
 // Watch for internal changes and emit

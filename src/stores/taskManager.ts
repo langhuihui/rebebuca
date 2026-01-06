@@ -1623,9 +1623,12 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     try {
       const adapterInstance = await initAdapter();
       if (adapterInstance) {
-        // Get the preferred terminal from settings
+        // Check if task has a specific terminal set
+        const taskTerminalId = (task as any).systemTerminalId;
+        
+        // Get the preferred terminal from settings as fallback
         const settingsStore = useSettingsStore();
-        const preferredTerminal = settingsStore.settings.preferredTerminal;
+        const preferredTerminal = taskTerminalId || settingsStore.settings.preferredTerminal;
         
         if (preferredTerminal) {
           // Verify the preferred terminal is still available

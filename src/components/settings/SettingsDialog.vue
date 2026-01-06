@@ -30,12 +30,18 @@
       <n-tab-pane name="general" :tab="t('settings.general')">
         <n-form label-placement="left" label-width="auto" class="compact-settings-form">
           <n-form-item :label="t('settings.language')">
-            <n-select
+            <n-radio-group
               v-model:value="currentLanguage"
-              :options="languageOptions"
-              style="width: 180px;"
               @update:value="handleLanguageChange"
-            />
+            >
+              <n-radio
+                v-for="option in languageOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </n-radio>
+            </n-radio-group>
           </n-form-item>
           <n-form-item :label="t('settings.saveLogs')">
             <n-switch v-model:value="settingsStore.settings.saveLogs" />
@@ -77,6 +83,17 @@
               :placeholder="t('settings.preferredTerminalPlaceholder')"
             />
             <span class="setting-hint">{{ t('settings.preferredTerminalHint') }}</span>
+          </n-form-item>
+          <n-form-item :label="t('settings.preferredShell')">
+            <n-select
+              v-model:value="settingsStore.settings.preferredShell"
+              :options="shellOptions"
+              :loading="loadingShells"
+              clearable
+              style="width: 280px;"
+              :placeholder="t('settings.preferredShellPlaceholder')"
+            />
+            <span class="setting-hint">{{ t('settings.preferredShellHint') }}</span>
           </n-form-item>
         </n-form>
       </n-tab-pane>
@@ -186,7 +203,7 @@ import { useSettingsStore } from '../../stores/settings';
 import { useUpdaterStore } from '../../stores/updater';
 import { useLocale } from '../../composables/useLocale';
 import { getAdapter } from '../../adapters';
-import type { SystemTerminalInfo } from '../../adapters/types';
+import type { SystemTerminalInfo, ShellInfo } from '../../adapters/types';
 import CommandIconSettings from '../CommandIconSettings.vue';
 import DevLogViewer from '../DevLogViewer.vue';
 import AIToolsPanel from './AIToolsPanel.vue';
@@ -236,6 +253,16 @@ const terminalOptions = computed(() => {
   }));
 });
 
+const loadingShells = ref(false);
+const availableShells = ref<ShellInfo[]>([]);
+
+const shellOptions = computed(() => {
+  return availableShells.value.map(shell => ({
+    label: shell.is_default ? `${shell.name} (${t('settings.default')})` : shell.name,
+    value: shell.path,  // Use path as value for PTY creation
+  }));
+});
+
 const loadAvailableTerminals = async () => {
   loadingTerminals.value = true;
   try {
@@ -251,6 +278,24 @@ const loadAvailableTerminals = async () => {
     message.error(t('settings.failedToLoadTerminals'));
   } finally {
     loadingTerminals.value = false;
+  }
+};
+
+const loadAvailableShells = async () => {
+  loadingShells.value = true;
+  try {
+    const adapter = await getAdapter();
+    const shells = await adapter.system.getAvailableShells();
+    availableShells.value = shells;
+    
+    if (shells.length === 0) {
+      message.warning(t('settings.noShellsFound'));
+    }
+  } catch (error) {
+    console.error('Failed to load available shells:', error);
+    message.error(t('settings.failedToLoadShells'));
+  } finally {
+    loadingShells.value = false;
   }
 };
 
@@ -309,7 +354,10 @@ watch(showDialog, async (show) => {
 
 onMounted(async () => {
   currentVersion.value = await updaterStore.getCurrentVersion();
-  await loadAvailableTerminals();
+  await Promise.all([
+    loadAvailableTerminals(),
+    loadAvailableShells(),
+  ]);
 });
 
 // Expose method to set active tab

@@ -136,6 +136,7 @@
                   :is-favorite="true"
                   :show-icon="settingsStore.settings.showTaskIcons"
                   :show-edit="true"
+                  :show-favorite="true"
                   :folder-hint="getFavoriteFolderLabel(task)"
                   :is-dragging="isDraggingFavorite && favoriteDraggedIndex === index"
                   :drag-position="favoriteDragOverIndex === index ? favoriteDragPosition : null"
@@ -1174,7 +1175,7 @@ watch(() => taskManager.folders.length, () => {
 .tree-node {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 4px 12px;
   cursor: pointer;
   border-radius: 4px;
   transition: background-color 0.2s;

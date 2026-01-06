@@ -84,6 +84,19 @@
     "updater:allow-check",
     "updater:allow-download",
     "updater:allow-download-and-install",
-    "process:default"
+    "process:default",
+    "shell:allow-execute",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write",
+    "shell:allow-kill",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "exec-sh", "cmd": "sh", "args": ["-c", { "validator": ".+" }] },
+        { "name": "exec-bash", "cmd": "bash", "args": ["-c", { "validator": ".+" }] },
+        { "name": "exec-zsh", "cmd": "zsh", "args": ["-c", { "validator": ".+" }] }
+      ]
+    }
   ]
 }
