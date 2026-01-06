@@ -112,26 +112,19 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                 .and_then(|o| {
                                     let s = String::from_utf8_lossy(&o.stdout);
                                     // WMIC output format: "CommandLine=<full command>"
-                                    // Extract command line from the output
-                                    for line in s.lines() {
-                                        let trimmed = line.trim();
-                                        if trimmed.starts_with("CommandLine=") {
-                                            let cmd = trimmed.strip_prefix("CommandLine=")
-                                                .map(|c| c.trim().to_string());
-                                            // Return the command if it's not empty
-                                            if let Some(c) = cmd {
-                                                if !c.is_empty() {
-                                                    return Some(c);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    None
+                                    // Find and extract the command line from the output
+                                    s.lines()
+                                        .find_map(|line| {
+                                            line.trim()
+                                                .strip_prefix("CommandLine=")
+                                                .map(|c| c.trim())
+                                                .filter(|c| !c.is_empty())
+                                                .map(|c| c.to_string())
+                                        })
                                 })
                                 .unwrap_or_default();
                             
-                            // Use command line for display name if available and more informative than the short name
-                            // This provides better context about what the process is actually running
+                            // Use command line as display name if available, otherwise fall back to short process name
                             let display_name = if !command.is_empty() {
                                 &command
                             } else {
