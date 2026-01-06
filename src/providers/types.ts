@@ -96,6 +96,15 @@ export interface Task {
   
   // Is this a default build/test task
   isDefault?: boolean;
+  
+  // Python environment (Conda/Anaconda environment name)
+  pythonEnv?: string;
+  
+  // Run with administrator privileges (Windows)
+  runAsAdmin?: boolean;
+  
+  // AI tool configuration
+  aiTool?: string;  // AI tool type (e.g., 'claude-code', 'codex', etc.)
 }
 
 /**

@@ -251,6 +251,11 @@ export default {
     adminSuccess: '管理员命令执行成功',
     adminFailed: '管理员命令执行失败',
     adminCancelled: '用户取消了管理员权限请求',
+    pythonEnv: 'Python 环境',
+    pythonEnvPlaceholder: '例如: myenv 或 conda_env',
+    pythonEnvHint: '输入 Conda/Anaconda 环境名称，运行时将自动激活该环境',
+    runAsAdmin: '管理员权限',
+    runAsAdminHint: '以管理员权限运行此任务（仅 Windows）',
   },
   settings: {
     general: '常规',
@@ -295,6 +300,8 @@ export default {
     downloading: '下载中',
     // Dev log settings
     devLog: '开发日志',
+    // AI Tools settings
+    aiTools: 'AI 工具',
     // Release notes
     releaseNotes: '更新日志',
     loadReleaseNotes: '加载更新日志',
@@ -371,6 +378,12 @@ export default {
       tabbyUpdate: '更新 Tabby AI 代码补全服务器',
       ollamaUpdate: '拉取/更新 Ollama 模型',
       llmCliUpdate: '更新 LLM 命令行工具',
+      claudeCodeLaunch: '启动 Claude Code CLI 工具',
+      codexLaunch: '启动 OpenAI Codex CLI 工具',
+      geminiCliLaunch: '启动 Google Gemini CLI 工具',
+      opencodeLaunch: '启动 OpenCode AI 助手',
+      codebuddyLaunch: '启动 CodeBuddy 编程助手',
+      qoderLaunch: '启动 Qoder CLI 编程助手',
       npmGlobalUpdate: '更新所有全局安装的 NPM 包',
       pnpmGlobalUpdate: '更新所有全局安装的 PNPM 包',
       yarnGlobalUpgrade: '更新所有全局安装的 Yarn 包',
@@ -541,6 +554,18 @@ export default {
       processKilled: '进程已终止（演示）',
       portsRefreshed: '端口列表已刷新（演示）',
     },
+  },
+  aiTools: {
+    description: '配置 AI 编程辅助工具，支持 Claude Code、Codex、Gemini CLI 等多种工具',
+    provider: '服务提供商',
+    apiKey: 'API Key',
+    apiKeyPlaceholder: '输入 API Key',
+    getKey: '获取 Key',
+    customEndpoint: '自定义端点',
+    customEndpointPlaceholder: '输入 API 端点地址',
+    originalModeNotice: '原厂模式将使用官方默认配置，启动时自动清理自定义代理设置',
+    enableTool: '启用此工具',
+    keySyncNotice: '同一服务商的 API Key 会在不同工具间自动同步',
   },
 };
 

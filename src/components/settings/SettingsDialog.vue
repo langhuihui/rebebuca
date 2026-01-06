@@ -153,6 +153,10 @@
       <n-tab-pane name="devlog" :tab="t('settings.devLog')">
         <DevLogViewer />
       </n-tab-pane>
+      
+      <n-tab-pane name="aitools" :tab="t('settings.aiTools')">
+        <AIToolsPanel />
+      </n-tab-pane>
     </n-tabs>
   </n-modal>
 </template>
@@ -185,6 +189,7 @@ import { getAdapter } from '../../adapters';
 import type { SystemTerminalInfo } from '../../adapters/types';
 import CommandIconSettings from '../CommandIconSettings.vue';
 import DevLogViewer from '../DevLogViewer.vue';
+import AIToolsPanel from './AIToolsPanel.vue';
 
 interface ReleaseNote {
   tag: string;

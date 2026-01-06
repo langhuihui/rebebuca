@@ -250,6 +250,11 @@ export default {
     adminSuccess: 'Admin command completed successfully',
     adminFailed: 'Admin command failed',
     adminCancelled: 'Admin execution was cancelled by user',
+    pythonEnv: 'Python Environment',
+    pythonEnvPlaceholder: 'e.g.: myenv or conda_env',
+    pythonEnvHint: 'Enter Conda/Anaconda environment name, will be automatically activated on run',
+    runAsAdmin: 'Administrator Privileges',
+    runAsAdminHint: 'Run this task with administrator privileges (Windows only)',
   },
   settings: {
     general: 'General',
@@ -294,6 +299,7 @@ export default {
     downloading: 'Downloading',
     // Dev log settings
     devLog: 'Dev Logs',
+    aiTools: 'AI Tools',
     // Release notes
     releaseNotes: 'Release Notes',
     loadReleaseNotes: 'Load Release Notes',
@@ -370,6 +376,12 @@ export default {
       tabbyUpdate: 'Update Tabby AI code completion server',
       ollamaUpdate: 'Pull/Update Ollama model',
       llmCliUpdate: 'Update LLM command line tool',
+      claudeCodeLaunch: 'Launch Claude Code CLI tool',
+      codexLaunch: 'Launch OpenAI Codex CLI tool',
+      geminiCliLaunch: 'Launch Google Gemini CLI tool',
+      opencodeLaunch: 'Launch OpenCode AI assistant',
+      codebuddyLaunch: 'Launch CodeBuddy programming assistant',
+      qoderLaunch: 'Launch Qoder CLI programming assistant',
       npmGlobalUpdate: 'Update all globally installed NPM packages',
       pnpmGlobalUpdate: 'Update all globally installed PNPM packages',
       yarnGlobalUpgrade: 'Upgrade all globally installed Yarn packages',
@@ -540,6 +552,18 @@ export default {
       processKilled: 'Process killed (demo)',
       portsRefreshed: 'Ports refreshed (demo)',
     },
+  },
+  aiTools: {
+    description: 'Configure AI programming assistant tools, supporting Claude Code, Codex, Gemini CLI, and more',
+    provider: 'Service Provider',
+    apiKey: 'API Key',
+    apiKeyPlaceholder: 'Enter API Key',
+    getKey: 'Get Key',
+    customEndpoint: 'Custom Endpoint',
+    customEndpointPlaceholder: 'Enter API endpoint URL',
+    originalModeNotice: 'Original mode will use official default configuration and automatically clear custom proxy settings on launch',
+    enableTool: 'Enable this tool',
+    keySyncNotice: 'API Keys from the same provider will automatically sync across different tools',
   },
 };
 
