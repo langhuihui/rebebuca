@@ -49,6 +49,18 @@ const initStorage = async () => {
   }
 };
 
+// SSH configuration types
+export interface SshConfig {
+  host: string;
+  port: number;
+  username: string;
+  auth: SshAuthMethod;
+}
+
+export type SshAuthMethod = 
+  | { type: 'password'; password: string }
+  | { type: 'privateKey'; key_path: string; passphrase?: string };
+
 export interface RunConfig {
   id: string;
   name: string;
@@ -58,6 +70,9 @@ export interface RunConfig {
   arguments?: string[];
   createdAt: Date;
   updatedAt: Date;
+  // SSH remote execution config
+  useSsh?: boolean;
+  sshConfig?: SshConfig;
 }
 
 export interface TauriRunConfig {
@@ -506,7 +521,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     currentRun.value = run;
   };
 
-  // Execute command using PTY terminal
+  // Execute command using PTY terminal or SSH remote
   const executeCommand = async (config: RunConfig): Promise<{ processId: string; historyId: string; ptyId: string; }> => {
     // Create run record
     const startTime = Date.now();
@@ -528,7 +543,44 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     uiStore.setSelectedHistoryItem(newHistory);
 
     try {
-      // Use terminal store to execute task
+      // Check if SSH execution is enabled
+      if (config.useSsh && config.sshConfig) {
+        console.log('[FRONTEND] Executing command via SSH');
+        
+        // Execute via SSH
+        const execId = await safeInvoke<string>('execute_ssh_command', {
+          config: config.sshConfig,
+          taskId: config.id,
+          command: config.command,
+          args: config.arguments,
+          cwd: config.workingDirectory,
+          env: config.environment,
+        });
+        
+        if (!execId) {
+          throw new Error('Failed to start SSH execution');
+        }
+        
+        console.log(`[FRONTEND] SSH execution started with id: ${execId}`);
+        
+        // Update history with SSH execution ID
+        const index = history.value.findIndex(h => h.id === newHistory.id);
+        if (index !== -1) {
+          history.value[index] = {
+            ...history.value[index],
+            ptyId: execId,
+          };
+          await saveHistory();
+        }
+        
+        return {
+          processId: execId,
+          historyId: newHistory.id,
+          ptyId: execId,
+        };
+      }
+      
+      // Use terminal store to execute task (local execution)
       const { useTerminalStore } = await import('./terminal');
       const terminalStore = useTerminalStore();
       

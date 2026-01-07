@@ -10,6 +10,54 @@ pub struct RunConfig {
     pub arguments: Option<Vec<String>>,
 }
 
+// SSH configuration for remote execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SshConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub auth: SshAuthMethod,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum SshAuthMethod {
+    Password { password: String },
+    PrivateKey { key_path: String, passphrase: Option<String> },
+}
+
+// Remote agent communication protocol
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AgentMessage {
+    Execute {
+        id: String,
+        command: String,
+        args: Option<Vec<String>>,
+        cwd: Option<String>,
+        env: Option<HashMap<String, String>>,
+    },
+    Output {
+        id: String,
+        output_type: OutputType,
+        content: String,
+    },
+    ProcessStarted {
+        id: String,
+        pid: u32,
+    },
+    ProcessFinished {
+        id: String,
+        exit_code: Option<i32>,
+    },
+    Error {
+        id: String,
+        message: String,
+    },
+    Ping,
+    Pong,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessInfo {
     pub internal_id: String,  // 内部UUID，用于前端查找历史记录
