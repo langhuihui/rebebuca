@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::path::Path;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
@@ -137,15 +138,17 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                     // Handle both quoted and unquoted paths
                                     let exe_path = if command.starts_with('"') {
                                         // Quoted path: extract until closing quote
+                                        // Split by '"' and get the second element (first is empty, second is the quoted path)
                                         command.split('"').nth(1).unwrap_or(&command)
                                     } else {
-                                        // Unquoted path: extract until first space
+                                        // Unquoted path: extract until first space (the executable part)
                                         command.split_whitespace().next().unwrap_or(&command)
                                     };
                                     
-                                    // Get just the filename from the path
-                                    exe_path.split('\\').last()
-                                        .or_else(|| exe_path.split('/').last())
+                                    // Use std::path::Path for proper cross-platform path handling
+                                    Path::new(exe_path)
+                                        .file_name()
+                                        .and_then(|os_str| os_str.to_str())
                                         .unwrap_or(exe_path)
                                         .to_string()
                                 } else {
