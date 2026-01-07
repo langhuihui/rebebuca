@@ -263,7 +263,6 @@ import CommandPlazaDialog from './CommandPlazaDialog.vue';
 import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
 import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 import { useTaskManagerStore } from '../../../stores/taskManager';
-import type { Task } from '../../../providers/types';
 
 interface EditingTask {
   id: string;

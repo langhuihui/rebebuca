@@ -534,13 +534,26 @@ const showTaskDialog = ref(false);
 const isEditMode = ref(false);
 const isUserTask = ref(false);
 const editingTaskGroupId = ref('default');
-const editingTask = ref({
+const editingTask = ref<{
+  id: string;
+  name: string;
+  command: string;
+  cwd: string;
+  group: TaskGroup;
+  type: 'shell' | 'process' | 'macro';
+  sourceFile: string;
+  useSystemTerminal: boolean;
+  envStr: string;
+  executionMode?: 'serial' | 'parallel';
+  dependsOn?: string[];
+  subTasks?: string[];
+}>({
   id: '',
   name: '',
   command: '',
   cwd: '',
   group: 'none' as TaskGroup,
-  type: 'shell' as 'shell' | 'process',
+  type: 'shell',
   sourceFile: '',
   useSystemTerminal: false,
   envStr: '',
