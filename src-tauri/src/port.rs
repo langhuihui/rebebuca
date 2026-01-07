@@ -129,11 +129,38 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                 })
                                 .unwrap_or_default();
                             
+                            // Determine the best display name
+                            let display_name = if name.starts_with("PID:") {
+                                // tasklist failed, try to extract name from command line
+                                if !command.is_empty() {
+                                    // Extract executable name from command line
+                                    // Handle both quoted and unquoted paths
+                                    let exe_path = if command.starts_with('"') {
+                                        // Quoted path: extract until closing quote
+                                        command.split('"').nth(1).unwrap_or(&command)
+                                    } else {
+                                        // Unquoted path: extract until first space
+                                        command.split_whitespace().next().unwrap_or(&command)
+                                    };
+                                    
+                                    // Get just the filename from the path
+                                    exe_path.split('\\').last()
+                                        .or_else(|| exe_path.split('/').last())
+                                        .unwrap_or(exe_path)
+                                        .to_string()
+                                } else {
+                                    // Both tasklist and WMIC failed, use PID fallback
+                                    name.clone()
+                                }
+                            } else {
+                                // tasklist succeeded, use its result
+                                name.clone()
+                            };
+                            
                             result.push(PortProcess {
                                 port,
                                 pid,
-                                // Use command line as display name if available, otherwise fall back to short process name
-                                name: if !command.is_empty() { &command } else { &name }.to_string(),
+                                name: display_name,
                                 command,
                             });
                         }
