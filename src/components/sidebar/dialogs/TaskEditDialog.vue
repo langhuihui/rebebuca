@@ -226,14 +226,14 @@
         
         <n-form-item :label="t('task.sshHost')" path="sshConfig.host">
           <n-input 
-            v-model:value="editingTask.sshConfig.host" 
+            v-model:value="editingTask.sshConfig!.host" 
             :placeholder="t('task.sshHostPlaceholder')"
           />
         </n-form-item>
         
         <n-form-item :label="t('task.sshPort')" path="sshConfig.port">
           <n-input-number 
-            v-model:value="editingTask.sshConfig.port" 
+            v-model:value="editingTask.sshConfig!.port" 
             :min="1" 
             :max="65535"
             style="width: 100%;"
@@ -242,7 +242,7 @@
         
         <n-form-item :label="t('task.sshUsername')" path="sshConfig.username">
           <n-input 
-            v-model:value="editingTask.sshConfig.username" 
+            v-model:value="editingTask.sshConfig!.username" 
             :placeholder="t('task.sshUsernamePlaceholder')"
           />
         </n-form-item>
@@ -668,6 +668,18 @@ const testSshConnection = async () => {
 const handleSave = async () => {
   try {
     await taskFormRef.value?.validate();
+    
+    // Build SSH auth object if SSH is enabled
+    if (editingTask.value.useSsh && editingTask.value.sshConfig) {
+      editingTask.value.sshConfig.auth = editingTask.value.sshAuthType === 'password'
+        ? { type: 'password', password: editingTask.value.sshPassword || '' }
+        : { 
+            type: 'privateKey', 
+            key_path: editingTask.value.sshKeyPath || '',
+            passphrase: editingTask.value.sshPassphrase || undefined,
+          };
+    }
+    
     emit('save', editingTask.value, selectedGroupId.value, newGroupName.value);
     return true;
   } catch (error) {

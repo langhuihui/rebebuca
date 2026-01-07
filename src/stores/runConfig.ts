@@ -557,6 +557,10 @@ export const useRunConfigStore = defineStore('runConfig', () => {
           env: config.environment,
         });
         
+        if (!execId) {
+          throw new Error('Failed to start SSH execution');
+        }
+        
         console.log(`[FRONTEND] SSH execution started with id: ${execId}`);
         
         // Update history with SSH execution ID
