@@ -4,6 +4,7 @@ mod port;
 mod process;
 mod pty;
 mod shell_env;
+mod ssh;
 mod tray;
 mod types;
 
@@ -241,6 +242,10 @@ pub fn run() {
             is_task_running,
             get_pty_process_stats,
             get_shell_integration_path,
+            // ssh module
+            ssh::test_ssh_connection,
+            ssh::execute_ssh_command,
+            ssh::close_ssh_connection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
