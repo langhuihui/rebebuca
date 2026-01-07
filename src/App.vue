@@ -18,7 +18,12 @@
 
 <template>
   <!-- In embedded mode, skip config-provider to avoid nesting issues with NModal teleport -->
-  <component :is="props.embedded ? 'div' : NConfigProvider" :theme="currentTheme" :hljs="hljs" :key="themeMode">
+  <component
+    :is="props.embedded ? 'div' : NConfigProvider"
+    :theme="currentTheme"
+    :hljs="hljs"
+    :key="themeMode"
+  >
     <n-message-provider>
       <n-dialog-provider>
         <!-- About dialog -->
@@ -26,7 +31,7 @@
           v-model:show="showAboutDialog"
           preset="card"
           :title="t('about.title')"
-          style="width: 400px;"
+          style="width: 400px"
           class="about-modal"
           to="body"
         >
@@ -34,22 +39,36 @@
             <img src="/logo.svg" alt="Rebebuca" class="about-logo" />
             <h2 class="about-name">Rebebuca</h2>
             <div class="about-version">v{{ currentVersion }}</div>
-            <p class="about-description">{{ t('about.description') }}</p>
+            <p class="about-description">{{ t("about.description") }}</p>
             <div class="about-links">
-              <n-button text tag="a" href="https://rebebuca.com" target="_blank" type="primary">
-                {{ t('about.website') }}
+              <n-button
+                text
+                tag="a"
+                href="https://rebebuca.com"
+                target="_blank"
+                type="primary"
+              >
+                {{ t("about.website") }}
               </n-button>
-              <n-button text tag="a" href="https://github.com/langhuihui/rebebuca" target="_blank">
+              <n-button
+                text
+                tag="a"
+                href="https://github.com/langhuihui/rebebuca"
+                target="_blank"
+              >
                 GitHub
               </n-button>
             </div>
             <div class="about-copyright">
-              {{ t('about.copyright') }}
+              {{ t("about.copyright") }}
             </div>
           </div>
         </n-modal>
-        
-        <n-layout class="h-screen app-window" :class="{ 'embedded-mode': props.embedded }">
+
+        <n-layout
+          class="h-screen app-window"
+          :class="{ 'embedded-mode': props.embedded }"
+        >
           <!-- Custom Title Bar (hidden in embedded mode) -->
           <TitleBar v-if="!props.embedded" :effective-theme="effectiveTheme" />
 
@@ -88,7 +107,6 @@ import { useRunConfigStore } from "./stores/runConfig";
 import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
 import { useUpdaterStore } from "./stores/updater";
-import { useNotificationStore } from "./stores/notification";
 import TitleBar from "./components/TitleBar.vue";
 import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
@@ -97,7 +115,6 @@ import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
-import { setErrorCallback } from "./utils/devLogger";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -123,11 +140,10 @@ const runConfigStore = useRunConfigStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
-const notificationStore = useNotificationStore();
 
 // About dialog state
 const showAboutDialog = ref(false);
-const currentVersion = ref('');
+const currentVersion = ref("");
 
 // Process stats interface
 interface ProcessStats {
@@ -150,10 +166,6 @@ let unlistenOutput: UnlistenFn | null = null;
 let unlistenStarted: UnlistenFn | null = null;
 let unlistenStopped: UnlistenFn | null = null;
 let unlistenPtyExit: UnlistenFn | null = null;
-
-// Wheel event handler for preventing body scroll
-let preventBodyScrollHandler: ((e: WheelEvent) => void) | null = null;
-let preventTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
 
 // Process monitoring
 let processStatsInterval: number | null = null;
@@ -489,120 +501,20 @@ onMounted(async () => {
   // Check platform for window controls styling
   uiStore.setWindowsPlatform(await isWindows());
 
-  // Setup devLogger error callback to send errors to notification store
-  setErrorCallback((level, message, source) => {
-    if (level === 'error') {
-      // Truncate long messages
-      const truncatedMessage = message.length > 200 ? message.substring(0, 200) + '...' : message;
-      notificationStore.addError(
-        source === 'frontend' ? 'Frontend Error' : 'Tauri Error',
-        truncatedMessage,
-        source
-      );
-    }
-  });
-
-    // Suppress ResizeObserver errors
+  // Suppress ResizeObserver errors
   suppressResizeObserverError();
 
   // Add global error handler for ResizeObserver
   window.addEventListener("error", resizeObserverErrorHandler);
 
-  // Prevent body scroll on wheel events (prevent macOS rubber band effect)
-  preventBodyScrollHandler = (e: WheelEvent) => {
-    const target = e.target as HTMLElement;
-    
-    // Check if the target is inside a terminal (xterm.js)
-    if (target.closest('.xterm') || target.closest('.terminal-container')) {
-      // Let xterm handle its own scrolling
-      return;
-    }
-    
-    // Check if the target or its ancestors have scrollable content
-    let element: HTMLElement | null = target;
-    let foundScrollableElement: HTMLElement | null = null;
-    
-    while (element && element !== document.body && element !== document.documentElement) {
-      const style = window.getComputedStyle(element);
-      const overflowY = style.overflowY;
-      const overflow = style.overflow;
-      
-      // Check if element is scrollable
-      const isScrollableStyle = 
-        overflowY === 'auto' || overflowY === 'scroll' ||
-        overflow === 'auto' || overflow === 'scroll';
-      
-      if (isScrollableStyle) {
-        const scrollHeight = element.scrollHeight;
-        const clientHeight = element.clientHeight;
-        
-        // If element has scrollable content
-        if (scrollHeight > clientHeight) {
-          foundScrollableElement = element;
-          break;
-        }
-      }
-      
-      element = element.parentElement;
-    }
-    
-    if (foundScrollableElement) {
-      const scrollTop = foundScrollableElement.scrollTop;
-      const scrollHeight = foundScrollableElement.scrollHeight;
-      const clientHeight = foundScrollableElement.clientHeight;
-      
-      // Check if we're at the boundary and trying to scroll further
-      const isAtTop = scrollTop <= 0;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
-      const scrollingUp = e.deltaY < 0;
-      const scrollingDown = e.deltaY > 0;
-      
-      // If at boundary and trying to scroll past it, prevent default
-      if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      
-      // Allow scroll within the scrollable element
-      return;
-    }
-    
-    // No scrollable ancestor found - prevent default to avoid body/window scroll
-    e.preventDefault();
-    e.stopPropagation();
-  };
-  
-  // Use capture phase to intercept events early
-  document.addEventListener('wheel', preventBodyScrollHandler, { passive: false, capture: true });
-  
-  // Also prevent touchmove on document level (for touch devices)
-  preventTouchMoveHandler = (e: TouchEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('.xterm') || target.closest('.terminal-container')) {
-      return;
-    }
-    // Only prevent if touching non-scrollable areas
-    let element: HTMLElement | null = target;
-    while (element && element !== document.body) {
-      const style = window.getComputedStyle(element);
-      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        return;
-      }
-      element = element.parentElement;
-    }
-    e.preventDefault();
-  };
-  document.addEventListener('touchmove', preventTouchMoveHandler, { passive: false });
-  
   // Get current version
   currentVersion.value = await updaterStore.getCurrentVersion();
-  
+
   // Listen for show-about-dialog event from Rust menu
   await appStore.safeListen("show-about-dialog", () => {
     showAboutDialog.value = true;
   });
-  
+
   // Check for what's new dialog (after update)
   await updaterStore.checkWhatsNew();
 
@@ -813,21 +725,6 @@ onUnmounted(() => {
   // Remove ResizeObserver error handler
   window.removeEventListener("error", resizeObserverErrorHandler);
 
-  // Clear devLogger error callback
-  setErrorCallback(null);
-
-  // Remove wheel event listeners
-  if (preventBodyScrollHandler) {
-    document.removeEventListener('wheel', preventBodyScrollHandler, { capture: true });
-    preventBodyScrollHandler = null;
-  }
-  
-  // Remove touch event listeners
-  if (preventTouchMoveHandler) {
-    document.removeEventListener('touchmove', preventTouchMoveHandler);
-    preventTouchMoveHandler = null;
-  }
-
   if (unlistenOutput) unlistenOutput();
   if (unlistenStarted) unlistenStarted();
   if (unlistenStopped) unlistenStopped();
@@ -835,7 +732,7 @@ onUnmounted(() => {
 
   // Stop process monitoring
   stopProcessMonitoring();
-  
+
   // Cleanup tray service
   cleanupTrayService();
 });

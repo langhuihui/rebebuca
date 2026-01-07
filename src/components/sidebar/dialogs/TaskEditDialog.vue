@@ -46,6 +46,7 @@
                 trigger="click"
                 :options="aiToolOptions"
                 @select="handleAIToolSelect"
+                to="body"
               >
                 <n-button>
                   <template #icon>
@@ -280,12 +281,19 @@ const loadAvailableShells = async () => {
 
 // AI Tool options for dropdown - get from store to keep consistent with AI tools configuration
 const aiToolOptions = computed(() => {
+  // Ensure toolConfigs exists and is not empty
+  if (!aiToolsStore.toolConfigs || Object.keys(aiToolsStore.toolConfigs).length === 0) {
+    return [];
+  }
+  
   // Get all tools from store's toolConfigs to ensure consistency
   const allTools = Object.keys(aiToolsStore.toolConfigs) as AIToolType[];
-  return allTools.map(toolType => ({
-    label: aiToolsStore.getToolDisplayName(toolType),
-    key: toolType,
-  }));
+  return allTools
+    .filter(toolType => aiToolsStore.toolConfigs[toolType]) // Filter out any null/undefined configs
+    .map(toolType => ({
+      label: aiToolsStore.getToolDisplayName(toolType),
+      key: toolType,
+    }));
 });
 
 // Handle AI tool selection

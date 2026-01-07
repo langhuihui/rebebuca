@@ -832,6 +832,7 @@ const handleFavoriteMouseMove = (event: MouseEvent) => {
   let position: 'top' | 'bottom' | null = null;
   
   favoriteNodes.forEach((node, idx) => {
+    if (!node || !(node instanceof Element)) return;
     const rect = node.getBoundingClientRect();
     if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
       foundIndex = idx;
