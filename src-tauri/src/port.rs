@@ -137,9 +137,9 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                     // Extract executable name from command line
                                     // Handle both quoted and unquoted paths
                                     let exe_path = if command.starts_with('"') {
-                                        // Quoted path: extract until closing quote
-                                        // Split by '"' and get the second element (first is empty, second is the quoted path)
-                                        command.split('"').nth(1).unwrap_or(&command)
+                                        // Quoted path: extract between quotes
+                                        // For "C:\path\to\app.exe" args, we want C:\path\to\app.exe
+                                        command.splitn(3, '"').nth(1).unwrap_or(&command)
                                     } else {
                                         // Unquoted path: extract until first space (the executable part)
                                         command.split_whitespace().next().unwrap_or(&command)
@@ -149,8 +149,14 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                     Path::new(exe_path)
                                         .file_name()
                                         .and_then(|os_str| os_str.to_str())
-                                        .unwrap_or(exe_path)
-                                        .to_string()
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| {
+                                            // Fallback: manually extract filename if Path fails
+                                            exe_path.split(&['\\', '/'][..])
+                                                .last()
+                                                .unwrap_or(exe_path)
+                                                .to_string()
+                                        })
                                 } else {
                                     // Both tasklist and WMIC failed, use PID fallback
                                     name.clone()
