@@ -33,7 +33,17 @@
 
       <!-- Title center for Windows platform -->
       <div class="titlebar-center" v-if="uiStore.isWindowsPlatform">
-        <span v-if="uiStore.selectedHistoryItem" class="history-title-display">
+        <!-- Show text logo in mini mode, otherwise show history title -->
+        <img
+          v-if="uiStore.miniMode"
+          :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
+          alt="Rebebuca"
+          :class="
+            effectiveTheme === 'light' ? 'text-logo-light' : 'text-logo-dark'
+          "
+          class="title-logo"
+        />
+        <span v-else-if="uiStore.selectedHistoryItem" class="history-title-display">
           {{ uiStore.selectedHistoryItem.name }}
         </span>
       </div>
@@ -88,8 +98,17 @@
         </button>
       </div>
 
+      <!-- Logo after window controls (macOS) -->
+      <div v-if="!uiStore.isWindowsPlatform && uiStore.miniMode" class="titlebar-logo-left">
+        <img
+          :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
+          alt="Rebebuca"
+          class="title-logo-icon"
+        />
+      </div>
+
       <!-- Title only for non-Windows -->
-      <div class="titlebar-center" v-if="!uiStore.isWindowsPlatform">
+      <div class="titlebar-center" v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode">
         <img
           v-if="!uiStore.selectedHistoryItem"
           :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"

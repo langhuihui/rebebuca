@@ -26,6 +26,7 @@ export default {
     toggleView: '切换视图',
     toggleSidebar: '切换侧边栏',
     toggleTheme: '切换主题',
+    toggleMiniMode: '切换迷你模式',
     notifications: '通知',
   },
   sidebar: {

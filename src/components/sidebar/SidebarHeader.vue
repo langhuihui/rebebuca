@@ -20,9 +20,28 @@
   <div class="task-header-container">
     <div class="task-header-content">
       <div class="header-row">
-        <!-- Logo -->
+        <!-- Logo or toggle button -->
         <div class="logo-container">
+          <!-- Toggle button in mini mode -->
+          <n-tooltip v-if="uiStore.miniMode" trigger="hover">
+            <template #trigger>
+              <n-button
+                size="small"
+                quaternary
+                @click="uiStore.toggleMiniMode()"
+              >
+                <template #icon>
+                  <n-icon size="18">
+                    <component :is="svgIcons.expand" />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            {{ t('titlebar.toggleMiniMode') }}
+          </n-tooltip>
+          <!-- Logo in normal mode -->
           <img
+            v-else
             :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
             alt="Logo"
             class="logo-image logo-clickable"
@@ -113,6 +132,9 @@ import { NTooltip, NButton, NSpace, NIcon } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../utils/icons';
 import { getAdapter } from '../../adapters';
+import { useUIStore } from '../../stores/ui';
+
+const uiStore = useUIStore();
 
 defineProps<{
   effectiveTheme: string;

@@ -7,6 +7,7 @@ import type { RunHistory } from "./runConfig";
 export const useUIStore = defineStore("ui", () => {
   // UI state
   const sidebarVisible = ref(true);
+  const miniMode = ref(false);
   const isWindowsPlatform = ref(false);
   const selectedHistoryItem = ref<RunHistory | null>(null);
   const consoleScrollbarRef = ref<any>(null);
@@ -38,6 +39,14 @@ export const useUIStore = defineStore("ui", () => {
     sidebarVisible.value = !sidebarVisible.value;
   };
 
+  const toggleMiniMode = () => {
+    miniMode.value = !miniMode.value;
+    // When entering mini mode, ensure sidebar is visible
+    if (miniMode.value) {
+      sidebarVisible.value = true;
+    }
+  };
+
   const setWindowsPlatform = (value: boolean) => {
     isWindowsPlatform.value = value;
   };
@@ -53,6 +62,7 @@ export const useUIStore = defineStore("ui", () => {
   return {
     // State
     sidebarVisible,
+    miniMode,
     isWindowsPlatform,
     selectedHistoryItem,
     consoleScrollbarRef,
@@ -62,6 +72,7 @@ export const useUIStore = defineStore("ui", () => {
 
     // Actions
     toggleSidebar,
+    toggleMiniMode,
     setWindowsPlatform,
     setSelectedHistoryItem,
     setConsoleScrollbarRef,

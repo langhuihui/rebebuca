@@ -664,4 +664,12 @@ export const svgIcons = {
     h('line', { x1: '12', y1: '16', x2: '12', y2: '12' }),
     h('line', { x1: '12', y1: '8', x2: '12.01', y2: '8' })
   ]),
+  
+  // Expand icon (arrows pointing out)
+  expand: createSvgIcon([
+    h('polyline', { points: '15 3 21 3 21 9' }),
+    h('polyline', { points: '9 21 3 21 3 15' }),
+    h('line', { x1: '21', y1: '3', x2: '14', y2: '10' }),
+    h('line', { x1: '3', y1: '21', x2: '10', y2: '14' })
+  ]),
 };

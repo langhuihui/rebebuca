@@ -57,15 +57,15 @@
             <!-- Left sidebar - Task Explorer -->
             <TaskSidebar />
 
-            <!-- Main content -->
-            <n-layout-content class="main-content">
+            <!-- Main content (hidden in mini mode) -->
+            <n-layout-content v-if="!uiStore.miniMode" class="main-content">
               <!-- Console output area -->
               <ConsoleArea />
             </n-layout-content>
           </n-layout>
 
-          <!-- Status Bar (hidden in embedded mode) -->
-          <StatusBar v-if="!props.embedded" />
+          <!-- Status Bar (hidden in embedded mode or mini mode) -->
+          <StatusBar v-if="!props.embedded && !uiStore.miniMode" />
         </n-layout>
       </n-dialog-provider>
     </n-message-provider>

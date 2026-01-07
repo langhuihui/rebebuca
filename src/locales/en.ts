@@ -26,6 +26,7 @@ export default {
     toggleView: 'Toggle View',
     toggleSidebar: 'Toggle Sidebar',
     toggleTheme: 'Toggle Theme',
+    toggleMiniMode: 'Toggle Mini Mode',
   },
   sidebar: {
     newConfig: 'New Configuration',
