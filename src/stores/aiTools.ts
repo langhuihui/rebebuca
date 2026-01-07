@@ -200,6 +200,7 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     installMethods: [
       { id: 'script-mac', name: 'Install Script (macOS/Linux)', command: 'curl -fsSL https://app.factory.ai/cli | sh', platform: 'macos' },
       { id: 'script-linux', name: 'Install Script (Linux)', command: 'curl -fsSL https://app.factory.ai/cli | sh', platform: 'linux' },
+      { id: 'script-windows', name: 'Install Script (Windows)', command: 'irm https://app.factory.ai/cli/windows | iex', platform: 'windows' },
     ],
     versionCommand: 'droid --version',
     launchCommand: 'droid',

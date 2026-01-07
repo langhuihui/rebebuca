@@ -601,11 +601,16 @@ const runInstallCommand = async (
 
   let installCommand = method.command;
   
-  // Check if this is an install script (curl/wget) that should run in system terminal
+  // Check if this is an install script (curl/wget/irm/iex) that should run in system terminal
   // These scripts often require user interaction and proper shell environment
   const isInstallScript = method.id.includes('script') || 
     installCommand.includes('curl') || 
-    installCommand.includes('wget');
+    installCommand.includes('wget') ||
+    installCommand.includes('irm') ||
+    installCommand.includes('iex');
+
+  // Check if this is a PowerShell command (for Windows)
+  const isPowerShellCommand = installCommand.includes('irm') || installCommand.includes('iex');
 
   // Helper function to execute the install command in system terminal
   const executeInSystemTerminal = async () => {
@@ -613,8 +618,15 @@ const runInstallCommand = async (
       const { getAdapter } = await import("../../adapters");
       const adapter = await getAdapter();
       
+      // For PowerShell commands on Windows, wrap with PowerShell
+      let terminalCommand = installCommand;
+      if (currentPlatform.value === 'windows' && isPowerShellCommand) {
+        // PowerShell commands need to be executed in PowerShell, not cmd
+        terminalCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${installCommand.replace(/"/g, '`"')}"`;
+      }
+      
       // Open in system terminal for interactive installation
-      await adapter.system.openInSystemTerminal(installCommand);
+      await adapter.system.openInSystemTerminal(terminalCommand);
       
       message.info(t("aiTools.installingInTerminal"));
       
@@ -633,7 +645,19 @@ const runInstallCommand = async (
   const executeInstallCommand = async () => {
     try {
       const shell = await import("@tauri-apps/plugin-shell");
-      const command = shell.Command.create("exec-sh", ["-c", installCommand]);
+      
+      // For PowerShell commands on Windows, use PowerShell
+      let command;
+      if (currentPlatform.value === 'windows' && isPowerShellCommand) {
+        command = shell.Command.create("powershell", [
+          "-NoProfile",
+          "-ExecutionPolicy", "Bypass",
+          "-Command",
+          installCommand
+        ]);
+      } else {
+        command = shell.Command.create("exec-sh", ["-c", installCommand]);
+      }
 
       message.loading(t("aiTools.installing"));
       const output = await command.execute();
@@ -744,8 +768,6 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  margin: -16px; /* Offset parent padding */
-  padding: 0;
 }
 
 .ai-tools-layout {
@@ -756,8 +778,8 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
   flex-direction: row;
   flex: 1;
   min-height: 0;
+  height: calc(100% - 32px);
   margin: 16px;
-  height: 100%;
 }
 
 .tools-sidebar {
