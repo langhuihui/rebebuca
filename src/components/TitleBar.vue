@@ -209,6 +209,20 @@
         <n-button
           text
           size="small"
+          @click="toggleMiniMode"
+          class="titlebar-button"
+          :title="t('titlebar.toggleMiniMode')"
+          @mousedown.stop
+        >
+          <template #icon>
+            <n-icon size="18">
+              <component :is="svgIcons.expand" />
+            </n-icon>
+          </template>
+        </n-button>
+        <n-button
+          text
+          size="small"
           @click="openLogsFolder"
           class="titlebar-button"
           :title="t('history.openLogsFolder')"
@@ -534,6 +548,10 @@ const handleThemeSelect = (key: string) => {
 
 const toggleSidebar = () => {
   uiStore.toggleSidebar();
+};
+
+const toggleMiniMode = () => {
+  uiStore.toggleMiniMode();
 };
 
 // Handle close window with setting check
