@@ -374,6 +374,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'qoder-cli': 'Qoder CLI',
       'copilot-cli': 'GitHub Copilot CLI',
       'droid': 'Droid',
+      'augment-cli': 'Augment CLI (Auggie)',
     };
     return names[toolType];
   };
