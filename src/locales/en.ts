@@ -588,6 +588,10 @@ export default {
     noUpdateAvailable: 'Already up to date',
     actions: 'Actions',
     recheckInstall: 'Recheck installation status',
+    sudoPromptTitle: 'Use sudo?',
+    sudoPromptMessage: 'This command requires administrator privileges. Do you want to use sudo?',
+    useSudo: 'Use sudo',
+    withoutSudo: 'Without sudo',
   },
 };
 

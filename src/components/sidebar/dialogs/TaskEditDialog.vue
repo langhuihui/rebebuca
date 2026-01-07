@@ -278,9 +278,10 @@ const loadAvailableShells = async () => {
   }
 };
 
-// AI Tool options for dropdown
+// AI Tool options for dropdown - get from store to keep consistent with AI tools configuration
 const aiToolOptions = computed(() => {
-  const allTools: AIToolType[] = ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid'];
+  // Get all tools from store's toolConfigs to ensure consistency
+  const allTools = Object.keys(aiToolsStore.toolConfigs) as AIToolType[];
   return allTools.map(toolType => ({
     label: aiToolsStore.getToolDisplayName(toolType),
     key: toolType,
@@ -291,6 +292,13 @@ const aiToolOptions = computed(() => {
 const handleAIToolSelect = (key: string) => {
   const toolType = key as AIToolType;
   const config = aiToolsStore.toolConfigs[toolType];
+  
+  // Check if config exists
+  if (!config) {
+    console.warn(`[TaskEditDialog] Config not found for tool type: ${toolType}`);
+    return;
+  }
+  
   const launchTask = createAIToolQuickLaunchTask(toolType, config);
   editingTask.value.command = launchTask.command;
   if (!editingTask.value.name.trim()) {

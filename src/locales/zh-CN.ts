@@ -590,6 +590,10 @@ export default {
     noUpdateAvailable: '已是最新版本',
     actions: '操作',
     recheckInstall: '重新检测安装状态',
+    sudoPromptTitle: '使用 sudo？',
+    sudoPromptMessage: '此命令需要管理员权限。是否使用 sudo？',
+    useSudo: '使用 sudo',
+    withoutSudo: '不使用 sudo',
   },
 };
 

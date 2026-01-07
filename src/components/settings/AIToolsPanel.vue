@@ -258,6 +258,7 @@ import {
   NDivider,
   NSpin,
   useMessage,
+  useDialog,
 } from 'naive-ui';
 import { useAIToolsStore, AI_TOOL_METADATA, PROVIDER_PRESETS, type AIToolType, type AIToolConfig } from '../../stores/aiTools';
 import { isTauri } from '../../adapters';
@@ -265,6 +266,7 @@ import { svgIcons } from '../../utils/icons';
 
 const { t } = useI18n();
 const message = useMessage();
+const dialog = useDialog();
 const aiToolsStore = useAIToolsStore();
 
 // Available AI tools
@@ -483,24 +485,56 @@ const runInstallCommand = async (toolType: AIToolType, method: { command: string
     return;
   }
 
-  try {
-    const shell = await import('@tauri-apps/plugin-shell');
-    const command = shell.Command.create('exec-sh', ['-c', method.command]);
-    
-    message.loading(t('aiTools.installing'));
-    const output = await command.execute();
-    
-    if (output.code === 0) {
-      message.success(t('aiTools.installSuccess'));
-      // Recheck the specific tool's installation status
-      await checkSingleTool(toolType);
-    } else {
-      message.error(t('aiTools.installFailed') + ': ' + output.stderr);
+  let installCommand = method.command;
+  
+  // Helper function to execute the install command
+  const executeInstallCommand = async () => {
+    try {
+      const shell = await import('@tauri-apps/plugin-shell');
+      const command = shell.Command.create('exec-sh', ['-c', installCommand]);
+      
+      message.loading(t('aiTools.installing'));
+      const output = await command.execute();
+      
+      if (output.code === 0) {
+        message.success(t('aiTools.installSuccess'));
+        // Recheck the specific tool's installation status
+        await checkSingleTool(toolType);
+      } else {
+        message.error(t('aiTools.installFailed') + ': ' + output.stderr);
+      }
+    } catch (error) {
+      message.error(t('aiTools.installFailed'));
+      console.error('Install failed:', error);
     }
-  } catch (error) {
-    message.error(t('aiTools.installFailed'));
-    console.error('Install failed:', error);
+  };
+  
+  // Check if we should ask for sudo (non-Windows platforms with global npm install)
+  if (currentPlatform.value !== 'windows' && installCommand.includes('npm install -g')) {
+    return new Promise<void>((resolve) => {
+      dialog.warning({
+        title: t('aiTools.sudoPromptTitle'),
+        content: t('aiTools.sudoPromptMessage'),
+        positiveText: t('aiTools.useSudo'),
+        negativeText: t('aiTools.withoutSudo'),
+        autoFocus: false,
+        onPositiveClick: async () => {
+          installCommand = `sudo ${installCommand}`;
+          await executeInstallCommand();
+          resolve();
+        },
+        onNegativeClick: async () => {
+          await executeInstallCommand();
+          resolve();
+        },
+        onClose: () => {
+          resolve();
+        },
+      });
+    });
   }
+  
+  await executeInstallCommand();
 };
 
 // Get provider options for a tool

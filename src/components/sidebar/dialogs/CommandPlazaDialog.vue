@@ -150,7 +150,8 @@ const commands = computed<CommandItem[]>(() => {
   };
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {
-    if (config.enabled) {
+    // Check if config exists and is enabled
+    if (config && config.enabled) {
       const launchTask = createAIToolQuickLaunchTask(toolType as AIToolType, config);
       baseCommands.push({
         id: `${toolType}-launch`,

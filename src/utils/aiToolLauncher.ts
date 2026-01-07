@@ -17,6 +17,7 @@
  */
 
 import type { AIToolType, AIToolConfig } from '../stores/aiTools';
+import { AI_TOOL_METADATA } from '../stores/aiTools';
 
 /**
  * AI Tool Launch Templates
@@ -48,55 +49,61 @@ export interface AIToolLaunchConfig {
  */
 export function getAIToolLaunchConfig(
   toolType: AIToolType,
-  config: AIToolConfig,
+  config: AIToolConfig | null | undefined,
   projectPath?: string
 ): AIToolLaunchConfig {
+  // Handle null/undefined config
+  if (!config) {
+    throw new Error(`AI tool configuration is missing for ${toolType}`);
+  }
+  
   const { provider, apiKey, customEndpoint } = config;
   
   // Base configurations for each tool
+  // Use the launch command directly from metadata (no npx)
   const baseConfigs: Record<AIToolType, AIToolLaunchConfig> = {
     'claude-code': {
-      command: 'npx',
-      args: ['@anthropic/claude-code'],
+      command: AI_TOOL_METADATA['claude-code'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'codex': {
-      command: 'npx',
-      args: ['openai-codex'],
+      command: AI_TOOL_METADATA['codex'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'gemini-cli': {
-      command: 'npx',
-      args: ['@google/gemini-cli'],
+      command: AI_TOOL_METADATA['gemini-cli'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'opencode': {
-      command: 'npx',
-      args: ['opencode'],
+      command: AI_TOOL_METADATA['opencode'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'codebuddy': {
-      command: 'npx',
-      args: ['codebuddy'],
+      command: AI_TOOL_METADATA['codebuddy'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'qoder-cli': {
-      command: 'npx',
-      args: ['qoder-cli'],
+      command: AI_TOOL_METADATA['qoder-cli'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'copilot-cli': {
-      command: 'npx',
-      args: ['@githubnext/github-copilot-cli'],
+      command: AI_TOOL_METADATA['copilot-cli'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'droid': {
-      command: 'npx',
-      args: ['droid-cli'],
+      command: AI_TOOL_METADATA['droid'].launchCommand,
+      args: [],
       useSystemTerminal: true,
     },
     'augment-cli': {
-      command: 'auggie',
+      command: AI_TOOL_METADATA['augment-cli'].launchCommand,
       args: [],
       useSystemTerminal: true,
     },
@@ -198,7 +205,7 @@ export function wrapWithPythonEnv(command: string, pythonEnv: string, platform?:
  */
 export function createAIToolQuickLaunchTask(
   toolType: AIToolType,
-  config: AIToolConfig,
+  config: AIToolConfig | null | undefined,
   projectPath?: string
 ): { name: string; command: string; env?: Record<string, string>; useSystemTerminal: boolean } {
   const launchConfig = getAIToolLaunchConfig(toolType, config, projectPath);
