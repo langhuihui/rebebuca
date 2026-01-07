@@ -105,6 +105,18 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   margin: 0;
 }
 
+.title-logo-icon {
+  height: 24px;
+  width: 24px;
+  margin: 0;
+}
+
+.titlebar-logo-left {
+  margin-left: 12px;
+  display: flex;
+  align-items: center;
+}
+
 .logo-image {
   width: 24px;
   height: 24px;
