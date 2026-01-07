@@ -107,6 +107,11 @@ export function getAIToolLaunchConfig(
       args: [],
       useSystemTerminal: true,
     },
+    'cursor-cli': {
+      command: AI_TOOL_METADATA['cursor-cli'].launchCommand,
+      args: [],
+      useSystemTerminal: true,
+    },
   };
   
   const launchConfig = { ...baseConfigs[toolType] };
@@ -227,6 +232,7 @@ export function createAIToolQuickLaunchTask(
     'copilot-cli': 'GitHub Copilot CLI',
     'droid': 'Droid',
     'augment-cli': 'Auggie (Augment CLI)',
+    'cursor-cli': 'Cursor CLI',
   };
   
   return {

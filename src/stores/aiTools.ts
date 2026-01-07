@@ -32,8 +32,9 @@ import { getAdapter, type BackendAdapter } from '../adapters';
  * - copilot-cli: GitHub Copilot CLI
  * - droid: Droid AI assistant
  * - augment-cli: Augment Code CLI (Auggie)
+ * - cursor-cli: Cursor CLI (cursor-agent)
  */
-export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli';
+export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli';
 
 // Provider presets
 export interface ProviderPreset {
@@ -49,7 +50,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   original: {
     id: 'original',
     name: 'Original',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli'],
   },
   glm: {
     id: 'glm',
@@ -212,6 +213,17 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     versionCommand: 'auggie --version',
     launchCommand: 'auggie',
   },
+  'cursor-cli': {
+    name: 'Cursor CLI',
+    website: 'https://cursor.com/cn/cli',
+    installMethods: [
+      { id: 'script-macos', name: 'Install Script', command: 'curl https://cursor.com/install -fsS | bash', platform: 'macos' },
+      { id: 'script-linux', name: 'Install Script', command: 'curl https://cursor.com/install -fsS | bash', platform: 'linux' },
+      { id: 'website-win', name: 'Website', command: 'echo "Please visit https://cursor.com/cn/cli"', platform: 'windows' },
+    ],
+    versionCommand: 'cursor-agent --version',
+    launchCommand: 'cursor-agent',
+  },
 };
 
 // Provider API Key storage (for syncing across tools)
@@ -264,6 +276,11 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     },
     'augment-cli': {
       toolType: 'augment-cli',
+      provider: 'original',
+      enabled: false,
+    },
+    'cursor-cli': {
+      toolType: 'cursor-cli',
       provider: 'original',
       enabled: false,
     },
@@ -375,6 +392,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'copilot-cli': 'GitHub Copilot CLI',
       'droid': 'Droid',
       'augment-cli': 'Augment CLI (Auggie)',
+      'cursor-cli': 'Cursor CLI',
     };
     return names[toolType];
   };

@@ -895,6 +895,10 @@ const handleAddTask = () => {
     sourceFile: '',
     useSystemTerminal: false,
     envStr: '',
+    // Macro task fields (initialized for new tasks)
+    executionMode: undefined,
+    dependsOn: undefined,
+    subTasks: undefined,
   };
   showTaskDialog.value = true;
 };
@@ -979,10 +983,14 @@ const handleTaskEditVisual = (task: Task) => {
     command: fullCommand,
     cwd: task.cwd || '',
     group: task.group || 'none',
-    type: (task.type || 'shell') as 'shell' | 'process',
+    type: (task.type || 'shell') as 'shell' | 'process' | 'macro',
     sourceFile: task.sourceFile || '',
     useSystemTerminal: task.useSystemTerminal || false,
     envStr,
+    // Macro task fields
+    executionMode: task.executionMode,
+    dependsOn: task.dependsOn,
+    subTasks: task.subTasks,
   };
   showTaskDialog.value = true;
 };
@@ -1013,44 +1021,42 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       targetGroupId = newGroup.id;
     }
     
+    // Prepare task data with macro task support
+    const taskData: any = {
+      name: task.name,
+      command: task.command,
+      args: undefined, // Clear args since command now contains full command line
+      group: task.group,
+      type: task.type,
+      cwd: task.cwd,
+      useSystemTerminal: task.useSystemTerminal,
+      env,
+    };
+    
+    // Add macro task fields if it's a macro task
+    if (task.type === 'macro') {
+      taskData.executionMode = task.executionMode;
+      if (task.executionMode === 'parallel') {
+        taskData.subTasks = task.subTasks;
+        taskData.dependsOn = undefined;
+      } else {
+        taskData.dependsOn = task.dependsOn;
+        taskData.subTasks = undefined;
+      }
+    }
+    
     if (isEditMode.value && isUserTask.value && task.id) {
-      await taskManager.updateTaskInGroup(task.id, {
-        name: task.name,
-        command: task.command,
-        args: undefined, // Clear args since command now contains full command line
-        group: task.group,
-        type: task.type,
-        cwd: task.cwd,
-        useSystemTerminal: task.useSystemTerminal,
-        env,
-      });
+      await taskManager.updateTaskInGroup(task.id, taskData);
       const currentGroup = taskManager.userGroups.find(g => g.tasks.some(t => t.id === task.id));
       if (currentGroup && currentGroup.id !== targetGroupId) {
         await taskManager.moveTaskToGroup(task.id, targetGroupId);
       }
     } else if (isUserTask.value) {
-      await taskManager.addTaskToGroup(targetGroupId, {
-        name: task.name,
-        command: task.command,
-        args: undefined, // No separate args, command contains full command line
-        group: task.group,
-        type: task.type,
-        cwd: task.cwd,
-        useSystemTerminal: task.useSystemTerminal,
-        env,
-      });
+      await taskManager.addTaskToGroup(targetGroupId, taskData);
       expandedNodes.value.add(`group:${targetGroupId}`);
     } else if (taskManager.folders.length > 0) {
       const folderPath = task.cwd || taskManager.folders[0].path;
-      await taskManager.addUserTask(folderPath, {
-        name: task.name,
-        command: task.command,
-        group: task.group,
-        type: task.type,
-        cwd: task.cwd,
-        useSystemTerminal: task.useSystemTerminal,
-        env,
-      });
+      await taskManager.addUserTask(folderPath, taskData);
     }
     
     showTaskDialog.value = false;

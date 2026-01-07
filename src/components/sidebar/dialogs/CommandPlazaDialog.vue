@@ -147,6 +147,7 @@ const commands = computed<CommandItem[]>(() => {
     'qoder-cli': 'qoderLaunch',
     'copilot-cli': 'copilotCliLaunch',
     'droid': 'droidLaunch',
+    'cursor-cli': 'cursorCliLaunch',
   };
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {

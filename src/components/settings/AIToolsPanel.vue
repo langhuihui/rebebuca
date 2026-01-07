@@ -32,31 +32,29 @@
           {{ AI_TOOL_METADATA[toolType].name }}
         </div>
       </div>
-      
+
       <!-- Right content area -->
       <div class="tools-content">
-        <template
-          v-for="toolType in availableTools"
-          :key="toolType"
-        >
-          <div
-            v-if="activeToolTab === toolType"
-            class="tool-panel"
-          >
+        <template v-for="toolType in availableTools" :key="toolType">
+          <div v-if="activeToolTab === toolType" class="tool-panel">
             <!-- Tool Header -->
             <div class="tool-header-section">
               <div class="tool-status">
                 <n-spin v-if="checkingInstall[toolType]" :size="14" />
-                <n-tag v-else-if="toolVersions[toolType]" type="success" size="small">
+                <n-tag
+                  v-else-if="toolVersions[toolType]"
+                  type="success"
+                  size="small"
+                >
                   v{{ toolVersions[toolType] }}
                 </n-tag>
                 <n-tag v-else type="warning" size="small">
-                  {{ t('aiTools.notInstalled') }}
+                  {{ t("aiTools.notInstalled") }}
                 </n-tag>
-                <n-button 
-                  text 
+                <n-button
+                  text
                   size="tiny"
-                  @click="checkSingleTool(toolType)"
+                  @click="() => checkSingleTool(toolType, true)"
                   :loading="checkingInstall[toolType]"
                   :title="t('aiTools.recheckInstall')"
                 >
@@ -72,32 +70,123 @@
             <!-- Website Link -->
             <div class="tool-info">
               <span class="website-link" @click="openWebsite(toolType)">
-                <n-icon size="12" style="margin-right: 4px; vertical-align: middle;">
+                <n-icon
+                  size="12"
+                  style="margin-right: 4px; vertical-align: middle"
+                >
                   <component :is="svgIcons.externalLink" />
                 </n-icon>
                 {{ AI_TOOL_METADATA[toolType].website }}
               </span>
             </div>
 
+            <!-- Installation Section (when not installed) -->
+            <div v-if="!toolVersions[toolType]" class="install-section">
+              <n-divider style="margin: 16px 0 12px 0">
+                {{ t("aiTools.installOptions") }}
+              </n-divider>
+
+              <!-- Install Methods Tabs -->
+              <n-tabs
+                v-if="getAvailableInstallMethods(toolType).length > 1"
+                v-model:value="selectedInstallMethod[toolType]"
+                type="line"
+                size="small"
+                style="margin-bottom: 12px"
+              >
+                <n-tab-pane
+                  v-for="method in getAvailableInstallMethods(toolType)"
+                  :key="method.id"
+                  :name="method.id"
+                  :tab="method.name"
+                >
+                  <div class="install-command">
+                    <n-input-group>
+                      <n-input
+                        :value="method.command"
+                        readonly
+                        size="small"
+                        style="font-family: monospace; font-size: 12px"
+                      />
+                      <n-button
+                        size="small"
+                        @click="copyCommand(method.command)"
+                      >
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.copy" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                      <n-button
+                        size="small"
+                        type="primary"
+                        @click="runInstallCommand(toolType, method)"
+                      >
+                        {{ t("aiTools.install") }}
+                      </n-button>
+                    </n-input-group>
+                  </div>
+                </n-tab-pane>
+              </n-tabs>
+
+              <!-- Single Install Method (no tabs needed) -->
+              <div v-else class="install-command">
+                <div
+                  v-for="method in getAvailableInstallMethods(toolType)"
+                  :key="method.id"
+                >
+                  <div class="method-label">{{ method.name }}</div>
+                  <n-input-group>
+                    <n-input
+                      :value="method.command"
+                      readonly
+                      size="small"
+                      style="font-family: monospace; font-size: 12px"
+                    />
+                    <n-button size="small" @click="copyCommand(method.command)">
+                      <template #icon>
+                        <n-icon size="14">
+                          <component :is="svgIcons.copy" />
+                        </n-icon>
+                      </template>
+                    </n-button>
+                    <n-button
+                      size="small"
+                      type="primary"
+                      @click="runInstallCommand(toolType, method)"
+                    >
+                      {{ t("aiTools.install") }}
+                    </n-button>
+                  </n-input-group>
+                </div>
+              </div>
+            </div>
+
             <!-- Configuration Section -->
-            <n-divider style="margin: 16px 0 12px 0;">
-              {{ t('aiTools.configuration') }}
+            <n-divider style="margin: 16px 0 12px 0">
+              {{ t("aiTools.configuration") }}
             </n-divider>
-            
+
             <n-space vertical :size="12">
               <!-- Provider Selection -->
-              <n-form-item :label="t('aiTools.provider')" :show-feedback="false" label-placement="left" label-width="100">
+              <n-form-item
+                :label="t('aiTools.provider')"
+                :show-feedback="false"
+                label-placement="left"
+                label-width="100"
+              >
                 <n-select
                   v-model:value="toolConfigsLocal[toolType].provider"
                   :options="getProviderOptions(toolType)"
                   size="small"
-                  style="width: 200px;"
+                  style="width: 200px"
                   @update:value="saveToolConfig(toolType)"
                 />
               </n-form-item>
 
               <!-- API Key Input (not for 'original' mode) -->
-              <n-form-item 
+              <n-form-item
                 v-if="toolConfigsLocal[toolType].provider !== 'original'"
                 :label="t('aiTools.apiKey')"
                 :show-feedback="false"
@@ -111,7 +200,7 @@
                     :placeholder="t('aiTools.apiKeyPlaceholder')"
                     show-password-on="click"
                     size="small"
-                    style="width: 200px;"
+                    style="width: 200px"
                     @blur="saveToolConfig(toolType)"
                   />
                   <n-button
@@ -119,7 +208,7 @@
                     size="small"
                     @click="openGetKeyUrl(toolType)"
                   >
-                    {{ t('aiTools.getKey') }}
+                    {{ t("aiTools.getKey") }}
                   </n-button>
                 </n-input-group>
               </n-form-item>
@@ -136,7 +225,7 @@
                   v-model:value="toolConfigsLocal[toolType].customEndpoint"
                   :placeholder="t('aiTools.customEndpointPlaceholder')"
                   size="small"
-                  style="width: 280px;"
+                  style="width: 280px"
                   @blur="saveToolConfig(toolType)"
                 />
               </n-form-item>
@@ -148,7 +237,7 @@
                 :bordered="false"
                 size="small"
               >
-                {{ t('aiTools.originalModeNotice') }}
+                {{ t("aiTools.originalModeNotice") }}
               </n-alert>
 
               <!-- Key Sync Notice -->
@@ -158,89 +247,9 @@
                 :bordered="false"
                 size="small"
               >
-                {{ t('aiTools.keySyncNotice') }}
+                {{ t("aiTools.keySyncNotice") }}
               </n-alert>
             </n-space>
-
-            <!-- Installation Section (when not installed) -->
-            <div v-if="!toolVersions[toolType]" class="install-section">
-              <n-divider style="margin: 16px 0 12px 0;">
-                {{ t('aiTools.installOptions') }}
-              </n-divider>
-              
-              <!-- Install Methods Tabs -->
-              <n-tabs 
-                v-if="getAvailableInstallMethods(toolType).length > 1"
-                v-model:value="selectedInstallMethod[toolType]"
-                type="line"
-                size="small"
-                style="margin-bottom: 12px;"
-              >
-                <n-tab-pane
-                  v-for="method in getAvailableInstallMethods(toolType)"
-                  :key="method.id"
-                  :name="method.id"
-                  :tab="method.name"
-                >
-                  <div class="install-command">
-                    <n-input-group>
-                      <n-input
-                        :value="method.command"
-                        readonly
-                        size="small"
-                        style="font-family: monospace; font-size: 12px;"
-                      />
-                      <n-button size="small" @click="copyCommand(method.command)">
-                        <template #icon>
-                          <n-icon size="14">
-                            <component :is="svgIcons.copy" />
-                          </n-icon>
-                        </template>
-                      </n-button>
-                      <n-button 
-                        size="small" 
-                        type="primary"
-                        @click="runInstallCommand(toolType, method)"
-                      >
-                        {{ t('aiTools.install') }}
-                      </n-button>
-                    </n-input-group>
-                  </div>
-                </n-tab-pane>
-              </n-tabs>
-
-              <!-- Single Install Method (no tabs needed) -->
-              <div v-else class="install-command">
-                <div 
-                  v-for="method in getAvailableInstallMethods(toolType)" 
-                  :key="method.id"
-                >
-                  <div class="method-label">{{ method.name }}</div>
-                  <n-input-group>
-                    <n-input
-                      :value="method.command"
-                      readonly
-                      size="small"
-                      style="font-family: monospace; font-size: 12px;"
-                    />
-                    <n-button size="small" @click="copyCommand(method.command)">
-                      <template #icon>
-                        <n-icon size="14">
-                          <component :is="svgIcons.copy" />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                    <n-button 
-                      size="small" 
-                      type="primary"
-                      @click="runInstallCommand(toolType, method)"
-                    >
-                      {{ t('aiTools.install') }}
-                    </n-button>
-                  </n-input-group>
-                </div>
-              </div>
-            </div>
           </div>
         </template>
       </div>
@@ -249,8 +258,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { ref, reactive, onMounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   NSpace,
   NTabs,
@@ -267,10 +276,16 @@ import {
   NSpin,
   useMessage,
   useDialog,
-} from 'naive-ui';
-import { useAIToolsStore, AI_TOOL_METADATA, PROVIDER_PRESETS, type AIToolType, type AIToolConfig } from '../../stores/aiTools';
-import { isTauri } from '../../adapters';
-import { svgIcons } from '../../utils/icons';
+} from "naive-ui";
+import {
+  useAIToolsStore,
+  AI_TOOL_METADATA,
+  PROVIDER_PRESETS,
+  type AIToolType,
+  type AIToolConfig,
+} from "../../stores/aiTools";
+import { isTauri } from "../../adapters";
+import { svgIcons } from "../../utils/icons";
 
 const { t } = useI18n();
 const message = useMessage();
@@ -279,19 +294,20 @@ const aiToolsStore = useAIToolsStore();
 
 // Available AI tools
 const availableTools: AIToolType[] = [
-  'claude-code',
-  'codex',
-  'gemini-cli',
-  'opencode',
-  'codebuddy',
-  'qoder-cli',
-  'copilot-cli',
-  'droid',
-  'augment-cli',
+  "claude-code",
+  "codex",
+  "gemini-cli",
+  "opencode",
+  "codebuddy",
+  "qoder-cli",
+  "copilot-cli",
+  "droid",
+  "augment-cli",
+  "cursor-cli",
 ];
 
 // Active tool tab
-const activeToolTab = ref<AIToolType>('claude-code');
+const activeToolTab = ref<AIToolType>("claude-code");
 
 // Selected install method for each tool
 const selectedInstallMethod = ref<Record<string, string>>({});
@@ -302,21 +318,25 @@ const toolVersions = ref<Record<string, string>>({});
 // Install check state
 const checkingInstall = ref<Record<string, boolean>>({});
 
+// Track which tools have been checked to avoid repeated checks
+const checkedTools = ref<Record<string, boolean>>({});
+
 // Local tool configs for inline editing - initialize with defaults
 const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
-  'claude-code': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'codex': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'gemini-cli': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'opencode': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'codebuddy': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'qoder-cli': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'copilot-cli': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'droid': { provider: 'original', apiKey: '', customEndpoint: '' },
-  'augment-cli': { provider: 'original', apiKey: '', customEndpoint: '' },
+  "claude-code": { provider: "original", apiKey: "", customEndpoint: "" },
+  codex: { provider: "original", apiKey: "", customEndpoint: "" },
+  "gemini-cli": { provider: "original", apiKey: "", customEndpoint: "" },
+  opencode: { provider: "original", apiKey: "", customEndpoint: "" },
+  codebuddy: { provider: "original", apiKey: "", customEndpoint: "" },
+  "qoder-cli": { provider: "original", apiKey: "", customEndpoint: "" },
+  "copilot-cli": { provider: "original", apiKey: "", customEndpoint: "" },
+  droid: { provider: "original", apiKey: "", customEndpoint: "" },
+  "augment-cli": { provider: "original", apiKey: "", customEndpoint: "" },
+  "cursor-cli": { provider: "original", apiKey: "", customEndpoint: "" },
 });
 
 // Current platform
-const currentPlatform = ref<'macos' | 'linux' | 'windows'>('macos');
+const currentPlatform = ref<"macos" | "linux" | "windows">("macos");
 
 onMounted(async () => {
   await aiToolsStore.loadConfigurations();
@@ -327,9 +347,13 @@ onMounted(async () => {
 });
 
 // Watch for store changes and sync to local
-watch(() => aiToolsStore.toolConfigs, () => {
-  initLocalConfigs();
-}, { deep: true });
+watch(
+  () => aiToolsStore.toolConfigs,
+  () => {
+    initLocalConfigs();
+  },
+  { deep: true }
+);
 
 // Handle tool tab click
 const selectTool = (toolType: AIToolType) => {
@@ -339,7 +363,8 @@ const selectTool = (toolType: AIToolType) => {
 // Watch for tab changes and auto-check installation status
 watch(activeToolTab, (newTool) => {
   // Auto-check if not already checked or checking
-  if (!toolVersions.value[newTool] && !checkingInstall.value[newTool]) {
+  // This prevents repeated checks and permission dialogs on macOS
+  if (!checkedTools.value[newTool] && !checkingInstall.value[newTool]) {
     checkSingleTool(newTool);
   }
 });
@@ -351,16 +376,16 @@ const initLocalConfigs = () => {
     // Handle case where config might be undefined (e.g., older stored data)
     if (config) {
       toolConfigsLocal[toolType] = {
-        provider: config.provider || 'original',
-        apiKey: config.apiKey || '',
-        customEndpoint: config.customEndpoint || '',
+        provider: config.provider || "original",
+        apiKey: config.apiKey || "",
+        customEndpoint: config.customEndpoint || "",
       };
     } else {
       // Use default values if config is undefined
       toolConfigsLocal[toolType] = {
-        provider: 'original',
-        apiKey: '',
-        customEndpoint: '',
+        provider: "original",
+        apiKey: "",
+        customEndpoint: "",
       };
     }
   }
@@ -380,27 +405,27 @@ const initSelectedInstallMethods = () => {
 const detectPlatform = async () => {
   if (isTauri()) {
     try {
-      const os = await import('@tauri-apps/plugin-os');
+      const os = await import("@tauri-apps/plugin-os");
       const platform = os.platform();
-      if (platform === 'macos') {
-        currentPlatform.value = 'macos';
-      } else if (platform === 'windows') {
-        currentPlatform.value = 'windows';
+      if (platform === "macos") {
+        currentPlatform.value = "macos";
+      } else if (platform === "windows") {
+        currentPlatform.value = "windows";
       } else {
-        currentPlatform.value = 'linux';
+        currentPlatform.value = "linux";
       }
     } catch {
-      currentPlatform.value = 'macos';
+      currentPlatform.value = "macos";
     }
   } else {
     // Web mode - detect from user agent
     const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes('win')) {
-      currentPlatform.value = 'windows';
-    } else if (ua.includes('mac')) {
-      currentPlatform.value = 'macos';
+    if (ua.includes("win")) {
+      currentPlatform.value = "windows";
+    } else if (ua.includes("mac")) {
+      currentPlatform.value = "macos";
     } else {
-      currentPlatform.value = 'linux';
+      currentPlatform.value = "linux";
     }
   }
 };
@@ -408,62 +433,93 @@ const detectPlatform = async () => {
 // Get install methods available for current platform
 const getAvailableInstallMethods = (toolType: AIToolType) => {
   const methods = AI_TOOL_METADATA[toolType].installMethods;
-  return methods.filter(m => m.platform === 'all' || m.platform === currentPlatform.value);
+  return methods.filter(
+    (m) => m.platform === "all" || m.platform === currentPlatform.value
+  );
 };
 
 // Check which tools are installed
 const checkInstalledTools = async () => {
   if (!isTauri()) return;
-  
+
   // Check all tools in parallel
-  const checkPromises = availableTools.map(toolType => checkSingleTool(toolType));
+  const checkPromises = availableTools.map((toolType) =>
+    checkSingleTool(toolType)
+  );
   await Promise.allSettled(checkPromises);
 };
 
 // Check if a single tool is installed
-const checkSingleTool = async (toolType: AIToolType) => {
-  if (!isTauri()) return;
-  
+// force: if true, force recheck even if already checked
+const checkSingleTool = async (toolType: AIToolType, force = false) => {
+  if (!isTauri()) {
+    checkedTools.value[toolType] = true;
+    return;
+  }
+
+  // Skip if already checking to avoid duplicate requests
+  if (checkingInstall.value[toolType]) return;
+
+  // Skip if already checked and not forcing
+  if (!force && checkedTools.value[toolType]) return;
+
   checkingInstall.value[toolType] = true;
-  
+
   try {
     const metadata = AI_TOOL_METADATA[toolType];
-    const shell = await import('@tauri-apps/plugin-shell');
-    
-    // Use login shell to get proper PATH including user-installed tools
-    // This ensures tools installed in ~/.local/bin, ~/.opencode/bin etc are found
+    const shell = await import("@tauri-apps/plugin-shell");
+
+    // Use login shell (-l) instead of sourcing .zshrc directly
+    // This avoids triggering macOS permission dialogs when .zshrc accesses Desktop folder
+    // Login shell loads .zprofile which typically sets PATH without interactive commands
     const launchCmd = metadata.launchCommand;
-    const whichCommand = shell.Command.create('exec-zsh', ['-c', `source ~/.zshrc 2>/dev/null; which ${launchCmd} || command -v ${launchCmd}`]);
+    // Use -l flag for login shell, which loads .zprofile but not .zshrc
+    // This prevents permission dialogs while still getting proper PATH
+    const whichCommand = shell.Command.create("exec-zsh", [
+      "-l",
+      "-c",
+      `which ${launchCmd} || command -v ${launchCmd}`,
+    ]);
     const whichOutput = await whichCommand.execute();
-    
+
     if (whichOutput.code !== 0 || !whichOutput.stdout.trim()) {
       // Command not found in PATH
-      toolVersions.value[toolType] = '';
+      toolVersions.value[toolType] = "";
+      checkedTools.value[toolType] = true;
       return;
     }
-    
+
     // Command exists, now try to get version
-    const command = shell.Command.create('exec-zsh', ['-c', `source ~/.zshrc 2>/dev/null; ${metadata.versionCommand}`]);
+    // Use -l flag for login shell to avoid permission dialogs
+    const command = shell.Command.create("exec-zsh", [
+      "-l",
+      "-c",
+      metadata.versionCommand,
+    ]);
     const output = await command.execute();
-    
+
     if (output.code === 0) {
-      const outputText = output.stdout || output.stderr || '';
+      const outputText = output.stdout || output.stderr || "";
       // Extract version number from output (handles various formats)
       const versionMatch = outputText.match(/v?(\d+\.\d+\.?\d*(?:-[\w.]+)?)/i);
       if (versionMatch) {
         toolVersions.value[toolType] = versionMatch[1];
       } else {
         // Tool is installed but version format is unknown
-        toolVersions.value[toolType] = 'installed';
+        toolVersions.value[toolType] = "installed";
       }
     } else {
       // Version command failed but tool might still be installed
-      toolVersions.value[toolType] = '';
+      toolVersions.value[toolType] = "";
     }
+
+    // Mark as checked
+    checkedTools.value[toolType] = true;
   } catch (error) {
     // Tool not installed or command failed
     console.error(`Failed to check ${toolType}:`, error);
-    toolVersions.value[toolType] = '';
+    toolVersions.value[toolType] = "";
+    checkedTools.value[toolType] = true;
   } finally {
     checkingInstall.value[toolType] = false;
   }
@@ -473,10 +529,10 @@ const checkSingleTool = async (toolType: AIToolType) => {
 const openWebsite = async (toolType: AIToolType) => {
   const url = AI_TOOL_METADATA[toolType].website;
   if (isTauri()) {
-    const opener = await import('@tauri-apps/plugin-opener');
+    const opener = await import("@tauri-apps/plugin-opener");
     await opener.openUrl(url);
   } else {
-    window.open(url, '_blank');
+    window.open(url, "_blank");
   }
 };
 
@@ -484,52 +540,58 @@ const openWebsite = async (toolType: AIToolType) => {
 const copyCommand = async (command: string) => {
   try {
     await navigator.clipboard.writeText(command);
-    message.success(t('common.copied'));
+    message.success(t("common.copied"));
   } catch {
-    message.error(t('common.copyFailed'));
+    message.error(t("common.copyFailed"));
   }
 };
 
 // Run install command
-const runInstallCommand = async (toolType: AIToolType, method: { command: string }) => {
+const runInstallCommand = async (
+  toolType: AIToolType,
+  method: { command: string }
+) => {
   if (!isTauri()) {
-    message.info(t('aiTools.copyAndRunManually'));
+    message.info(t("aiTools.copyAndRunManually"));
     await copyCommand(method.command);
     return;
   }
 
   let installCommand = method.command;
-  
+
   // Helper function to execute the install command
   const executeInstallCommand = async () => {
     try {
-      const shell = await import('@tauri-apps/plugin-shell');
-      const command = shell.Command.create('exec-sh', ['-c', installCommand]);
-      
-      message.loading(t('aiTools.installing'));
+      const shell = await import("@tauri-apps/plugin-shell");
+      const command = shell.Command.create("exec-sh", ["-c", installCommand]);
+
+      message.loading(t("aiTools.installing"));
       const output = await command.execute();
-      
+
       if (output.code === 0) {
-        message.success(t('aiTools.installSuccess'));
-        // Recheck the specific tool's installation status
-        await checkSingleTool(toolType);
+        message.success(t("aiTools.installSuccess"));
+        // Recheck the specific tool's installation status (force recheck after install)
+        await checkSingleTool(toolType, true);
       } else {
-        message.error(t('aiTools.installFailed') + ': ' + output.stderr);
+        message.error(t("aiTools.installFailed") + ": " + output.stderr);
       }
     } catch (error) {
-      message.error(t('aiTools.installFailed'));
-      console.error('Install failed:', error);
+      message.error(t("aiTools.installFailed"));
+      console.error("Install failed:", error);
     }
   };
-  
+
   // Check if we should ask for sudo (non-Windows platforms with global npm install)
-  if (currentPlatform.value !== 'windows' && installCommand.includes('npm install -g')) {
+  if (
+    currentPlatform.value !== "windows" &&
+    installCommand.includes("npm install -g")
+  ) {
     return new Promise<void>((resolve) => {
       dialog.warning({
-        title: t('aiTools.sudoPromptTitle'),
-        content: t('aiTools.sudoPromptMessage'),
-        positiveText: t('aiTools.useSudo'),
-        negativeText: t('aiTools.withoutSudo'),
+        title: t("aiTools.sudoPromptTitle"),
+        content: t("aiTools.sudoPromptMessage"),
+        positiveText: t("aiTools.useSudo"),
+        negativeText: t("aiTools.withoutSudo"),
         autoFocus: false,
         onPositiveClick: async () => {
           installCommand = `sudo ${installCommand}`;
@@ -546,13 +608,13 @@ const runInstallCommand = async (toolType: AIToolType, method: { command: string
       });
     });
   }
-  
+
   await executeInstallCommand();
 };
 
 // Get provider options for a tool
 const getProviderOptions = (toolType: AIToolType) => {
-  return aiToolsStore.getProvidersForTool(toolType).map(preset => ({
+  return aiToolsStore.getProvidersForTool(toolType).map((preset) => ({
     label: preset.name,
     value: preset.id,
   }));
@@ -561,17 +623,20 @@ const getProviderOptions = (toolType: AIToolType) => {
 // Save tool configuration (inline)
 const saveToolConfig = async (toolType: AIToolType) => {
   const localConfig = toolConfigsLocal[toolType];
-  
+
   await aiToolsStore.updateToolConfig(toolType, {
     provider: localConfig.provider,
     apiKey: localConfig.apiKey,
     customEndpoint: localConfig.customEndpoint,
     enabled: true, // Auto-enable when configured
   });
-  
+
   // Sync API key to provider
-  if (localConfig.provider !== 'original' && localConfig.apiKey) {
-    await aiToolsStore.setProviderKey(localConfig.provider!, localConfig.apiKey);
+  if (localConfig.provider !== "original" && localConfig.apiKey) {
+    await aiToolsStore.setProviderKey(
+      localConfig.provider!,
+      localConfig.apiKey
+    );
   }
 };
 
@@ -588,10 +653,10 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
   const url = getKeyUrl(toolType);
   if (url) {
     if (isTauri()) {
-      const opener = await import('@tauri-apps/plugin-opener');
+      const opener = await import("@tauri-apps/plugin-opener");
       await opener.openUrl(url);
     } else {
-      window.open(url, '_blank');
+      window.open(url, "_blank");
     }
   }
 };
@@ -662,7 +727,7 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
 }
 
 .tool-panel {
-  padding: 16px;
+  padding: 16px 24px 16px 16px;
   width: 100%;
   box-sizing: border-box;
 }

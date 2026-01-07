@@ -365,12 +365,21 @@ watch(
   () => terminalStore.activeTabId,
   (newTabId) => {
     if (newTabId) {
-      // Use nextTick to ensure the terminal is visible before focusing
-      nextTick(() => {
-        const ref = terminalRefs.value.get(newTabId);
-        ref?.focus();
-        ref?.fit();
-      });
+      const activeTab = terminalStore.activeTab;
+      // Only handle terminal tabs (task or shell), not special tabs like port-management
+      if (activeTab && (activeTab.type === 'task' || activeTab.type === 'shell')) {
+        // Use nextTick with a small delay to ensure the terminal is visible and DOM is updated
+        nextTick(() => {
+          // Add a small delay to ensure v-show has taken effect and terminal container is visible
+          setTimeout(() => {
+            const ref = terminalRefs.value.get(newTabId);
+            if (ref) {
+              ref.fit();
+              ref.focus();
+            }
+          }, 50);
+        });
+      }
     }
   }
 );

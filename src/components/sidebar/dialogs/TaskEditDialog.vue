@@ -31,7 +31,25 @@
       <n-form-item :label="t('task.name')" path="name">
         <n-input v-model:value="editingTask.name" :placeholder="t('task.namePlaceholder')" />
       </n-form-item>
-      <n-form-item :label="t('task.command')" path="command">
+      
+      <!-- Task Type Selection (only for user tasks) -->
+      <n-form-item v-if="isUserTask" :label="t('task.type')">
+        <n-radio-group v-model:value="editingTask.type">
+          <n-radio value="shell">{{ t('task.typeShell') }}</n-radio>
+          <n-radio value="macro">{{ t('task.typeMacro') }}</n-radio>
+        </n-radio-group>
+        <n-tooltip v-if="editingTask.type === 'macro'" trigger="hover" placement="top">
+          <template #trigger>
+            <n-icon size="16" style="margin-left: 8px; cursor: help; vertical-align: middle;">
+              <component :is="svgIcons.info" />
+            </n-icon>
+          </template>
+          {{ t('task.macroTaskHelp') }}
+        </n-tooltip>
+      </n-form-item>
+      
+      <!-- Command field (hidden for macro tasks) -->
+      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.command')" path="command">
         <n-input-group>
           <n-input 
             v-model:value="editingTask.command" 
@@ -73,7 +91,59 @@
           </n-tooltip>
         </n-input-group>
       </n-form-item>
-      <n-form-item :label="t('task.cwd')">
+      
+      <!-- Macro Task Configuration -->
+      <template v-if="editingTask.type === 'macro'">
+        <n-form-item :label="t('task.executionMode')" path="executionMode">
+          <n-radio-group v-model:value="editingTask.executionMode">
+            <n-space vertical :size="8">
+              <n-radio value="serial">
+                <n-space :size="8">
+                  <span>{{ t('task.executionModeSerial') }}</span>
+                  <n-tooltip trigger="hover" placement="right">
+                    <template #trigger>
+                      <n-icon size="14" style="cursor: help;">
+                        <component :is="svgIcons.info" />
+                      </n-icon>
+                    </template>
+                    {{ t('task.executionModeSerialDesc') }}
+                  </n-tooltip>
+                </n-space>
+              </n-radio>
+              <n-radio value="parallel">
+                <n-space :size="8">
+                  <span>{{ t('task.executionModeParallel') }}</span>
+                  <n-tooltip trigger="hover" placement="right">
+                    <template #trigger>
+                      <n-icon size="14" style="cursor: help;">
+                        <component :is="svgIcons.info" />
+                      </n-icon>
+                    </template>
+                    {{ t('task.executionModeParallelDesc') }}
+                  </n-tooltip>
+                </n-space>
+              </n-radio>
+            </n-space>
+          </n-radio-group>
+        </n-form-item>
+        
+        <n-form-item :label="t('task.subTasks')" path="subTasks">
+          <n-select
+            v-model:value="selectedSubTaskIds"
+            multiple
+            filterable
+            :options="availableTaskOptions"
+            :placeholder="t('task.selectSubTasks')"
+            :max-tag-count="3"
+            style="width: 100%;"
+          />
+          <div v-if="selectedSubTaskIds.length === 0" style="margin-top: 8px; color: var(--n-text-color-3); font-size: 12px;">
+            {{ t('task.noSubTasksSelected') }}
+          </div>
+        </n-form-item>
+      </template>
+      
+      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.cwd')">
         <n-input-group>
           <n-input v-model:value="editingTask.cwd" :placeholder="t('task.cwdPlaceholder')" />
           <n-button @click="selectWorkingDirectory">
@@ -85,7 +155,7 @@
           </n-button>
         </n-input-group>
       </n-form-item>
-      <n-form-item :label="t('task.env')">
+      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.env')">
         <n-input 
           v-model:value="editingTask.envStr" 
           type="textarea"
@@ -94,7 +164,7 @@
           class="env-textarea"
         />
       </n-form-item>
-      <n-form-item :label="t('task.useSystemTerminal')">
+      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.useSystemTerminal')">
         <n-space align="center" :size="12">
           <n-switch v-model:value="editingTask.useSystemTerminal" />
           <!-- Terminal selection when using system terminal -->
@@ -121,7 +191,7 @@
       </n-form-item>
       
       <!-- Python Environment (Windows/macOS/Linux) -->
-      <n-form-item :label="t('task.pythonEnv')">
+      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.pythonEnv')">
         <n-input 
           v-model:value="editingTask.pythonEnv" 
           :placeholder="t('task.pythonEnvPlaceholder')"
@@ -140,7 +210,7 @@
       </n-form-item>
       
       <!-- Run as Administrator (Windows only) -->
-      <n-form-item v-if="isWindowsPlatform" :label="t('task.runAsAdmin')">
+      <n-form-item v-if="isWindowsPlatform && editingTask.type !== 'macro'" :label="t('task.runAsAdmin')">
         <n-switch v-model:value="editingTask.runAsAdmin" />
         <span class="form-hint">{{ t('task.runAsAdminHint') }}</span>
       </n-form-item>
@@ -179,6 +249,8 @@ import {
   NTooltip,
   NDropdown,
   NSpace,
+  NRadio,
+  NRadioGroup,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -190,6 +262,8 @@ import type { TaskGroup } from '../../../providers/types';
 import CommandPlazaDialog from './CommandPlazaDialog.vue';
 import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
 import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
+import { useTaskManagerStore } from '../../../stores/taskManager';
+import type { Task } from '../../../providers/types';
 
 interface EditingTask {
   id: string;
@@ -197,7 +271,7 @@ interface EditingTask {
   command: string;
   cwd: string;
   group: TaskGroup;
-  type: 'shell' | 'process';
+  type: 'shell' | 'process' | 'macro';
   sourceFile: string;
   useSystemTerminal: boolean;
   systemTerminalId?: string | null;  // Selected terminal ID for system terminal
@@ -205,6 +279,10 @@ interface EditingTask {
   envStr: string;
   pythonEnv?: string;
   runAsAdmin?: boolean;
+  // Macro task fields
+  executionMode?: 'serial' | 'parallel';
+  dependsOn?: string[];
+  subTasks?: string[];
 }
 
 const props = defineProps<{
@@ -225,6 +303,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const aiToolsStore = useAIToolsStore();
+const taskManager = useTaskManagerStore();
 
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');
@@ -344,10 +423,71 @@ const groupOptionsWithNew = computed(() => [
   { label: t('task.createNewGroup'), value: '__new__' },
 ]);
 
-const taskRules: FormRules = {
-  name: [{ required: true, message: () => t('task.nameRequired') }],
-  command: [{ required: true, message: () => t('task.commandRequired') }],
-};
+// Get available tasks for sub-task selection (exclude macro tasks and current task)
+const availableTaskOptions = computed(() => {
+  const allTasks = taskManager.allTasks;
+  return allTasks
+    .filter(task => {
+      // Exclude macro tasks and current task being edited
+      return task.type !== 'macro' && task.id !== editingTask.value.id;
+    })
+    .map(task => ({
+      label: `${task.name} (${task.source})`,
+      value: task.id,
+    }));
+});
+
+// Handle sub-task selection
+const selectedSubTaskIds = computed({
+  get: () => {
+    if (editingTask.value.executionMode === 'parallel') {
+      return editingTask.value.subTasks || [];
+    } else {
+      return editingTask.value.dependsOn || [];
+    }
+  },
+  set: (value: string[]) => {
+    if (editingTask.value.executionMode === 'parallel') {
+      editingTask.value.subTasks = value;
+      editingTask.value.dependsOn = undefined;
+    } else {
+      editingTask.value.dependsOn = value;
+      editingTask.value.subTasks = undefined;
+    }
+  },
+});
+
+// Dynamic form rules based on task type
+const taskRules = computed<FormRules>(() => {
+  const rules: FormRules = {
+    name: [{ required: true, message: () => t('task.nameRequired') }],
+  };
+  
+  // Only require command for non-macro tasks
+  if (editingTask.value.type !== 'macro') {
+    rules.command = [{ required: true, message: () => t('task.commandRequired') }];
+  }
+  
+  // Require execution mode for macro tasks
+  if (editingTask.value.type === 'macro') {
+    rules.executionMode = [{ required: true, message: () => t('task.executionMode') + ' ' + (t('task.nameRequired').includes('必填') ? '必填' : 'is required') }];
+    rules.subTasks = [
+      { 
+        required: true, 
+        message: () => t('task.subTasks') + ' ' + (t('task.nameRequired').includes('必填') ? '必填' : 'is required'),
+        validator: () => {
+          const hasSubTasks = editingTask.value.executionMode === 'parallel' 
+            ? (editingTask.value.subTasks?.length || 0) > 0
+            : (editingTask.value.dependsOn?.length || 0) > 0;
+          return hasSubTasks;
+        },
+        trigger: 'change'
+      }
+    ];
+  }
+  
+  return rules;
+});
 
 const selectWorkingDirectory = async () => {
   try {
@@ -388,6 +528,39 @@ const handleCommandSelect = (command: string, name: string) => {
 watch(showDialog, (show) => {
   if (!show) {
     newGroupName.value = '';
+  }
+});
+
+// Watch task type changes to reset macro-specific fields
+watch(() => editingTask.value.type, (newType, oldType) => {
+  if (newType !== 'macro' && oldType === 'macro') {
+    // Switching from macro to regular task
+    editingTask.value.executionMode = undefined;
+    editingTask.value.dependsOn = undefined;
+    editingTask.value.subTasks = undefined;
+  } else if (newType === 'macro' && oldType !== 'macro') {
+    // Switching to macro task
+    editingTask.value.command = '';
+    editingTask.value.executionMode = 'serial'; // Default to serial
+    editingTask.value.dependsOn = [];
+    editingTask.value.subTasks = undefined;
+  }
+});
+
+// Watch execution mode changes to sync dependsOn/subTasks
+watch(() => editingTask.value.executionMode, (newMode, oldMode) => {
+  if (editingTask.value.type === 'macro' && newMode !== oldMode) {
+    const currentIds = newMode === 'parallel' 
+      ? (editingTask.value.subTasks || [])
+      : (editingTask.value.dependsOn || []);
+    
+    if (newMode === 'parallel') {
+      editingTask.value.subTasks = currentIds;
+      editingTask.value.dependsOn = undefined;
+    } else {
+      editingTask.value.dependsOn = currentIds;
+      editingTask.value.subTasks = undefined;
+    }
   }
 });
 </script>
