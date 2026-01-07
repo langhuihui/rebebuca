@@ -1522,7 +1522,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         try {
           const adapterInstance = await initAdapter();
           if (adapterInstance) {
-            const logInfo = await adapterInstance.system.generateLogPath();
+            // Generate log path with task id, pid will be 0 initially
+            const logInfo = await adapterInstance.system.generateLogPath(task.id, 0);
             logPath = logInfo.logPath;
             logFilename = logInfo.logFilename;
             console.log('[TaskManager] Generated log path:', logPath);
@@ -1550,6 +1551,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       await updateTaskRunStats(task.id);
       
       // Update history with PTY ID, terminal tab ID, and log filename
+      // Note: Log file will be renamed in terminal store when PID is available
       await runConfigStore.updateHistory(historyRecord.id, {
         ptyId: tab.ptyId,
         terminalTabId: tab.id,

@@ -55,20 +55,20 @@ export const defaultCommandIcons: Record<string, string> = {
  */
 export const getCommandIconName = (command: string, customIcons?: Record<string, string>): string => {
   const cmd = command.toLowerCase().trim();
-  
+
   // 合并自定义图标配置（优先级更高）
   const allIcons = { ...defaultCommandIcons, ...customIcons };
-  
+
   // 按命令长度降序排序，确保更具体的匹配优先
   const sortedPatterns = Object.keys(allIcons).sort((a, b) => b.length - a.length);
-  
+
   for (const pattern of sortedPatterns) {
     const lowerPattern = pattern.toLowerCase();
     if (cmd === lowerPattern || cmd.startsWith(lowerPattern + ' ')) {
       return allIcons[pattern];
     }
   }
-  
+
   // 默认返回 task 图标
   return 'task';
 };
@@ -358,68 +358,68 @@ export const svgIcons = {
     h('path', { d: 'M2 11.5a10 10 0 0 1 18.8-4.3' }),
     h('path', { d: 'M22 12.5a10 10 0 0 1-18.8 4.3' })
   ]),
-  
+
   folderOpen: createSvgIcon([
     h('path', { d: 'M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9L12 6h7a2 2 0 0 1 2 2v2' })
   ]),
-  
+
   folderPlus: createSvgIcon([
     h('path', { d: 'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z' }),
     h('line', { x1: '12', y1: '10', x2: '12', y2: '16' }),
     h('line', { x1: '9', y1: '13', x2: '15', y2: '13' })
   ]),
-  
+
   plus: createSvgIcon([
     h('line', { x1: '12', y1: '5', x2: '12', y2: '19' }),
     h('line', { x1: '5', y1: '12', x2: '19', y2: '12' })
   ]),
-  
+
   task: createSvgIcon([
     h('path', { d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2' }),
     h('rect', { x: '9', y: '3', width: '6', height: '4', rx: '1' }),
     h('path', { d: 'M9 12l2 2 4-4' })
   ]),
-  
+
   folder: createSvgIcon([
     h('path', { d: 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z' })
   ]),
-  
+
   chevronDown: createSvgIcon([
     h('polyline', { points: '6 9 12 15 18 9' })
   ]),
-  
+
   chevronRight: createSvgIcon([
     h('polyline', { points: '9 18 15 12 9 6' })
   ]),
-  
+
   play: createSvgIcon([
     h('polygon', { points: '5 3 19 12 5 21 5 3' })
   ]),
-  
+
   close: createSvgIcon([
     h('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
     h('line', { x1: '6', y1: '6', x2: '18', y2: '18' })
   ]),
-  
+
   edit: createSvgIcon([
     h('path', { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' }),
     h('path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' })
   ]),
-  
+
   star: createSvgIcon([
     h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2', fill: 'none' })
   ]),
-  
+
   starFilled: createSvgIcon([
     h('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2', fill: 'currentColor' })
   ]),
-  
+
   vscode: createSvgIcon([
     h('path', { d: 'M17.583 3.894c.583-.308 1.292-.308 1.875 0l2.25 1.188c.583.308.917.923.917 1.577v10.682c0 .654-.334 1.269-.917 1.577l-2.25 1.188c-.583.308-1.292.308-1.875 0L15 18.694 9.75 21.5c-.292.154-.625.231-.958.231s-.667-.077-.958-.231l-2.25-1.188c-.584-.308-.917-.923-.917-1.577V8.053c0-.654.333-1.269.917-1.577l2.25-1.188c.583-.308 1.291-.308 1.875 0L12 6.694l5.583-2.8z', fill: 'none' }),
     h('path', { d: 'M9 16l-4-4 4-4', 'stroke-width': '2' }),
     h('path', { d: 'M15 8l4 4-4 4', 'stroke-width': '2' })
   ]),
-  
+
   npm: createSvgIcon([
     h('rect', { x: '2', y: '8', width: '20', height: '8', rx: '1' }),
     h('path', { d: 'M6 11v2' }),
@@ -427,17 +427,17 @@ export const svgIcons = {
     h('path', { d: 'M14 11v2' }),
     h('path', { d: 'M18 11v2' })
   ]),
-  
+
   build: createSvgIcon([
     h('path', { d: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' })
   ]),
-  
+
   test: createSvgIcon([
     h('path', { d: 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z' }),
     h('polyline', { points: '14 2 14 8 20 8' }),
     h('path', { d: 'M9 15l2 2 4-4' })
   ]),
-  
+
   clean: createSvgIcon([
     h('path', { d: 'M3 6h18' }),
     h('path', { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }),
@@ -445,12 +445,12 @@ export const svgIcons = {
     h('line', { x1: '10', y1: '11', x2: '10', y2: '17' }),
     h('line', { x1: '14', y1: '11', x2: '14', y2: '17' })
   ]),
-  
+
   settings: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '3' }),
     h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' })
   ]),
-  
+
   import: createSvgIcon([
     h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
     h('polyline', { points: '17 8 12 3 7 8' }),
@@ -461,30 +461,30 @@ export const svgIcons = {
     h('rect', { x: '9', y: '9', width: '13', height: '13', rx: '2', ry: '2' }),
     h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
   ]),
-  
+
   // Go 语言图标
   go: createSvgIcon([
     h('path', { d: 'M3 12h4l2-4 3 8 2-4h7', fill: 'none', stroke: '#00ADD8', 'stroke-width': '2' }),
   ]),
-  
+
   // Rust/Cargo 图标
   cargo: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '9', fill: 'none', stroke: '#DEA584', 'stroke-width': '2' }),
     h('path', { d: 'M12 7v10M7 12h10', stroke: '#DEA584', 'stroke-width': '2' }),
   ]),
-  
+
   // Python 图标
   python: createSvgIcon([
     h('path', { d: 'M12 3c-1.5 0-3 .5-3 2v2h6v1H7c-2 0-3 1.5-3 3.5S5 15 7 15h2v-2c0-1 1-2 2-2h4c1 0 2-1 2-2V5c0-1.5-1.5-2-3-2h-2z', fill: '#3776AB' }),
     h('path', { d: 'M12 21c1.5 0 3-.5 3-2v-2h-6v-1h8c2 0 3-1.5 3-3.5S19 9 17 9h-2v2c0 1-1 2-2 2H9c-1 0-2 1-2 2v4c0 1.5 1.5 2 3 2h2z', fill: '#FFD43B' }),
   ]),
-  
+
   // Docker 图标
   docker: createSvgIcon([
     h('path', { d: 'M4 11h3v3H4zM8 11h3v3H8zM12 11h3v3h-3zM8 7h3v3H8zM12 7h3v3h-3zM16 11h3v3h-3z', fill: '#2496ED', stroke: '#2496ED' }),
     h('path', { d: 'M21 12c-.5-1-1.5-1.5-3-1.5-.3 0-.5 0-.8.1-.3-1.5-1.5-2.5-3-2.5-1 0-2 .5-2.5 1.5-.5-1-1.5-1.5-2.7-1.5-2 0-3.5 1.5-3.5 3.5 0 .3 0 .7.1 1H3c-1 0-2 1-2 2v2c0 1 1 2 2 2h16c2 0 4-2 4-4 0-1.5-1-2.5-2-3z', fill: 'none', stroke: '#2496ED', 'stroke-width': '1.5' }),
   ]),
-  
+
   // Git 图标
   git: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '3', fill: '#F05032' }),
@@ -492,13 +492,13 @@ export const svgIcons = {
     h('circle', { cx: '18', cy: '18', r: '2', fill: '#F05032' }),
     h('path', { d: 'M8 8l2 2M14 14l2 2', stroke: '#F05032', 'stroke-width': '2' }),
   ]),
-  
+
   // Yarn 图标
   yarn: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '10', fill: 'none', stroke: '#2C8EBB', 'stroke-width': '2' }),
     h('path', { d: 'M12 6c-1 2-2 3-2 5 0 1 1 2 2 2s2-1 2-2c0-2-1-3-2-5zM8 14c1 1 2 2 4 2s3-1 4-2', fill: 'none', stroke: '#2C8EBB', 'stroke-width': '1.5' }),
   ]),
-  
+
   // pnpm 图标
   pnpm: createSvgIcon([
     h('rect', { x: '3', y: '3', width: '5', height: '5', fill: '#F9AD00' }),
@@ -506,30 +506,30 @@ export const svgIcons = {
     h('rect', { x: '10', y: '10', width: '5', height: '5', fill: '#F9AD00' }),
     h('rect', { x: '10', y: '17', width: '5', height: '5', fill: '#4a4a4a' }),
   ]),
-  
+
   // Make 图标
   make: createSvgIcon([
     h('path', { d: 'M4 4h16v16H4z', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
     h('path', { d: 'M8 8l4 4-4 4M12 16h4', stroke: 'currentColor', 'stroke-width': '2' }),
   ]),
-  
+
   // Shell/Bash 图标
   shell: createSvgIcon([
     h('rect', { x: '3', y: '4', width: '18', height: '16', rx: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
     h('path', { d: 'M7 9l3 3-3 3M12 15h5', stroke: 'currentColor', 'stroke-width': '2' }),
   ]),
-  
+
   // Gradle 图标
   gradle: createSvgIcon([
     h('path', { d: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', fill: 'none', stroke: '#02303A', 'stroke-width': '2' }),
   ]),
-  
+
   // Maven 图标
   maven: createSvgIcon([
     h('path', { d: 'M3 6l9-4 9 4v12l-9 4-9-4z', fill: 'none', stroke: '#C71A36', 'stroke-width': '2' }),
     h('path', { d: 'M3 6l9 4 9-4M12 22V10', fill: 'none', stroke: '#C71A36', 'stroke-width': '2' }),
   ]),
-  
+
   // AI/Magic 图标 (sparkles/闪光)
   ai: createSvgIcon([
     // 大星星
@@ -539,68 +539,68 @@ export const svgIcons = {
     // 小星星左下
     h('path', { d: 'M6 14l.75 2.25L9 17l-2.25.75L6 20l-.75-2.25L3 17l2.25-.75L6 14z', fill: '#A78BFA', stroke: 'none' }),
   ]),
-  
+
   // FFmpeg 图标 (视频/音频处理)
   ffmpeg: createSvgIcon([
     h('rect', { x: '2', y: '4', width: '20', height: '16', rx: '2', fill: 'none', stroke: '#5CB85C', 'stroke-width': '2' }),
     h('polygon', { points: '10 8 16 12 10 16 10 8', fill: '#5CB85C', stroke: 'none' }),
   ]),
-  
+
   // Node.js 图标
   nodejs: createSvgIcon([
     h('path', { d: 'M12 2l8.5 5v10L12 22l-8.5-5V7L12 2z', fill: 'none', stroke: '#68A063', 'stroke-width': '2' }),
     h('path', { d: 'M12 7v10', stroke: '#68A063', 'stroke-width': '2' }),
   ]),
-  
+
   // Java 图标
   java: createSvgIcon([
     h('path', { d: 'M8 6c2-2 6-2 8 0s2 6 0 8-6 2-8 0', fill: 'none', stroke: '#E76F00', 'stroke-width': '2' }),
     h('path', { d: 'M8 14c-2 2-2 4 0 6 4 1 8-1 8-4', fill: 'none', stroke: '#5382A1', 'stroke-width': '2' }),
   ]),
-  
+
   // Ruby 图标
   ruby: createSvgIcon([
     h('polygon', { points: '12 2 20 8 16 22 8 22 4 8 12 2', fill: 'none', stroke: '#CC342D', 'stroke-width': '2' }),
     h('polygon', { points: '12 6 16 8 14 16 10 16 8 8 12 6', fill: '#CC342D', stroke: 'none' }),
   ]),
-  
+
   // PHP 图标
   php: createSvgIcon([
     h('ellipse', { cx: '12', cy: '12', rx: '10', ry: '6', fill: 'none', stroke: '#777BB4', 'stroke-width': '2' }),
     h('path', { d: 'M8 10v4M8 12h2c1 0 2-.5 2-1.5S11 9 10 9H8', stroke: '#777BB4', 'stroke-width': '1.5', fill: 'none' }),
   ]),
-  
+
   // Swift 图标
   swift: createSvgIcon([
     h('path', { d: 'M20 6c-4 8-12 12-16 10 6-2 10-6 10-6s-6 4-12 2c8-4 14-10 14-10s2 8-4 14c4-2 8-10 8-10z', fill: '#F05138', stroke: 'none' }),
   ]),
-  
+
   // Kotlin 图标
   kotlin: createSvgIcon([
     h('polygon', { points: '3 3 12 3 3 12 3 3', fill: '#7F52FF' }),
     h('polygon', { points: '3 21 12 12 21 21 3 21', fill: '#7F52FF' }),
     h('polygon', { points: '12 3 21 3 12 12 3 21 3 12 12 3', fill: '#C711E1' }),
   ]),
-  
+
   // C/C++ 图标
   cpp: createSvgIcon([
     h('path', { d: 'M18 12c0 3.3-2.7 6-6 6s-6-2.7-6-6 2.7-6 6-6c1.7 0 3.2.7 4.3 1.8', fill: 'none', stroke: '#00599C', 'stroke-width': '2' }),
     h('path', { d: 'M16 10h4M18 8v4', stroke: '#00599C', 'stroke-width': '1.5' }),
     h('path', { d: 'M20 10h2M21 9v2', stroke: '#00599C', 'stroke-width': '1' }),
   ]),
-  
+
   // 停止图标
   stop: createSvgIcon([
     h('rect', { x: '6', y: '6', width: '12', height: '12', rx: '1', fill: 'currentColor' }),
   ]),
-  
+
   // 外部链接/在文件管理器中打开
   externalLink: createSvgIcon([
     h('path', { d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }),
     h('polyline', { points: '15 3 21 3 21 9' }),
     h('line', { x1: '10', y1: '14', x2: '21', y2: '3' })
   ]),
-  
+
   // 网络/端口图标
   network: createSvgIcon([
     h('rect', { x: '16', y: '16', width: '6', height: '6', rx: '1' }),
@@ -609,13 +609,13 @@ export const svgIcons = {
     h('path', { d: 'M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3' }),
     h('line', { x1: '12', y1: '12', x2: '12', y2: '8' })
   ]),
-  
+
   // 搜索图标
   search: createSvgIcon([
     h('circle', { cx: '11', cy: '11', r: '8' }),
     h('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' })
   ]),
-  
+
   // 网格图标（命令广场）
   grid: createSvgIcon([
     h('rect', { x: '3', y: '3', width: '7', height: '7' }),
@@ -623,20 +623,20 @@ export const svgIcons = {
     h('rect', { x: '14', y: '14', width: '7', height: '7' }),
     h('rect', { x: '3', y: '14', width: '7', height: '7' })
   ]),
-  
+
   // 时钟图标（按时间排序）
   clock: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '10' }),
     h('polyline', { points: '12 6 12 12 16 14' })
   ]),
-  
+
   // 图表图标（按频率排序）
   chart: createSvgIcon([
     h('line', { x1: '18', y1: '20', x2: '18', y2: '10' }),
     h('line', { x1: '12', y1: '20', x2: '12', y2: '4' }),
     h('line', { x1: '6', y1: '20', x2: '6', y2: '14' })
   ]),
-  
+
   // 列表图标
   list: createSvgIcon([
     h('line', { x1: '8', y1: '6', x2: '21', y2: '6' }),
@@ -646,30 +646,38 @@ export const svgIcons = {
     h('line', { x1: '3', y1: '12', x2: '3.01', y2: '12' }),
     h('line', { x1: '3', y1: '18', x2: '3.01', y2: '18' })
   ]),
-  
+
   // 文件图标
   file: createSvgIcon([
     h('path', { d: 'M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z' }),
     h('polyline', { points: '13 2 13 9 20 9' })
   ]),
-  
+
   // GitHub 图标
   github: createSvgIcon([
     h('path', { d: 'M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22' })
   ]),
-  
+
   // Info icon
   info: createSvgIcon([
     h('circle', { cx: '12', cy: '12', r: '10' }),
     h('line', { x1: '12', y1: '16', x2: '12', y2: '12' }),
     h('line', { x1: '12', y1: '8', x2: '12.01', y2: '8' })
   ]),
-  
+
   // Expand icon (arrows pointing out)
   expand: createSvgIcon([
     h('polyline', { points: '15 3 21 3 21 9' }),
     h('polyline', { points: '9 21 3 21 3 15' }),
     h('line', { x1: '21', y1: '3', x2: '14', y2: '10' }),
     h('line', { x1: '3', y1: '21', x2: '10', y2: '14' })
+  ]),
+
+  // Collapse icon (arrows pointing in)
+  collapse: createSvgIcon([
+    h('polyline', { points: '9 3 3 3 3 9' }),
+    h('polyline', { points: '15 21 21 21 21 15' }),
+    h('line', { x1: '3', y1: '3', x2: '10', y2: '10' }),
+    h('line', { x1: '21', y1: '21', x2: '14', y2: '14' })
   ]),
 };

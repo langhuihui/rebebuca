@@ -20,10 +20,9 @@
   <div class="task-header-container">
     <div class="task-header-content">
       <div class="header-row">
-        <!-- Logo or toggle button -->
+        <!-- Toggle button (always shown) -->
         <div class="logo-container">
-          <!-- Toggle button in mini mode -->
-          <n-tooltip v-if="uiStore.miniMode" trigger="hover">
+          <n-tooltip trigger="hover">
             <template #trigger>
               <n-button
                 size="small"
@@ -32,25 +31,17 @@
               >
                 <template #icon>
                   <n-icon size="18">
-                    <component :is="svgIcons.expand" />
+                    <component :is="uiStore.miniMode ? svgIcons.expand : svgIcons.collapse" />
                   </n-icon>
                 </template>
               </n-button>
             </template>
             {{ t('titlebar.toggleMiniMode') }}
           </n-tooltip>
-          <!-- Logo in normal mode -->
-          <img
-            v-else
-            :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
-            alt="Logo"
-            class="logo-image logo-clickable"
-            @click="openOfficialWebsite"
-          />
         </div>
-        <!-- Action buttons -->
-        <n-space :size="4">
-          <!-- Add folder/Open/Import button (always shown) -->
+        <!-- Action buttons (hidden in mini mode) -->
+        <n-space v-if="!uiStore.miniMode" :size="4">
+          <!-- Add folder/Open/Import button -->
           <n-tooltip trigger="hover">
             <template #trigger>
               <n-button
@@ -131,7 +122,6 @@
 import { NTooltip, NButton, NSpace, NIcon } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../utils/icons';
-import { getAdapter } from '../../adapters';
 import { useUIStore } from '../../stores/ui';
 
 const uiStore = useUIStore();
@@ -148,15 +138,6 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
-
-const openOfficialWebsite = async () => {
-  try {
-    const adapter = await getAdapter();
-    await adapter.system.openExternal('https://rebebuca.com');
-  } catch (error) {
-    console.error('Failed to open official website:', error);
-  }
-};
 </script>
 
 <style scoped>

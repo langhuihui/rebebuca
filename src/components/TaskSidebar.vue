@@ -31,7 +31,7 @@
         @add-folder="handleAddFolder"
         @add-task="handleAddTask"
         @ai-generate="showAIDialog = true"
-        @port-management="showPortDialog = true"
+        @port-management="handlePortManagement"
       />
       
       <!-- Task tree -->
@@ -480,9 +480,6 @@
     @edit-result="handleEditAIResult"
   />
   
-  <PortManagementDialog
-    v-model:show="showPortDialog"
-  />
 </template>
 
 <script setup lang="ts">
@@ -501,6 +498,7 @@ import { useUIStore } from '../stores/ui';
 import { useTaskManagerStore } from '../stores/taskManager';
 import { useSettingsStore } from '../stores/settings';
 import { useUpdaterStore } from '../stores/updater';
+import { useTerminalStore } from '../stores/terminal';
 import { useTheme } from '../composables/useTheme';
 import { svgIcons } from '../utils/icons';
 import type { Task, TaskGroup, TaskTreeItem } from '../providers/types';
@@ -511,7 +509,6 @@ import TaskNode from './sidebar/TaskNode.vue';
 import {
   TaskEditDialog,
   AIGenerateDialog,
-  PortManagementDialog,
   AddFolderDialog,
   TaskSelectionDialog,
   RenameGroupDialog,
@@ -523,6 +520,7 @@ const uiStore = useUIStore();
 const taskManager = useTaskManagerStore();
 const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
+const terminalStore = useTerminalStore();
 const { effectiveTheme } = useTheme();
 
 // Expanded nodes state
@@ -550,9 +548,6 @@ const editingTask = ref({
 
 // AI dialog state
 const showAIDialog = ref(false);
-
-// Port management dialog state
-const showPortDialog = ref(false);
 
 // Add folder dialog state
 const showAddFolderDialog = ref(false);
@@ -902,6 +897,11 @@ const handleAddTask = () => {
     envStr: '',
   };
   showTaskDialog.value = true;
+};
+
+// Handle port management - create tab instead of dialog
+const handlePortManagement = () => {
+  terminalStore.createPortManagementTab();
 };
 
 // Handle AI result

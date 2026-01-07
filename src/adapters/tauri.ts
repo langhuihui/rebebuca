@@ -396,10 +396,23 @@ class TauriSystemAdapter implements SystemAdapter {
     await tauriCore!.invoke('kill_process_by_pid', { pid });
   }
 
-  async generateLogPath(): Promise<LogPathInfo> {
+  async generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo> {
     await loadTauriModules();
-    const result = await tauriCore!.invoke<{ log_filename: string; log_path: string }>('generate_log_path');
+    const result = await tauriCore!.invoke<{ log_filename: string; log_path: string }>('generate_log_path', {
+      taskId,
+      pid: pid || null,
+    });
     return { logFilename: result.log_filename, logPath: result.log_path };
+  }
+
+  async renameLogFile(oldFilename: string, taskId: string, pid: number): Promise<string> {
+    await loadTauriModules();
+    const newFilename = await tauriCore!.invoke<string>('rename_log_file', {
+      oldFilename,
+      taskId,
+      pid,
+    });
+    return newFilename;
   }
 }
 

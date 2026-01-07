@@ -18,23 +18,31 @@
 
 <template>
   <div class="ai-tools-panel">
-    <!-- AI Tools Tabs - Vertical Layout -->
+    <!-- AI Tools Layout - Left sidebar + Right content -->
     <div class="ai-tools-layout">
-      <n-tabs 
-        v-model:value="activeToolTab" 
-        type="line" 
-        size="small"
-        placement="left"
-        :tabs-padding="12"
-        style="min-height: 400px;"
-      >
-        <n-tab-pane 
-          v-for="toolType in availableTools" 
+      <!-- Left sidebar with tool list -->
+      <div class="tools-sidebar">
+        <div
+          v-for="toolType in availableTools"
           :key="toolType"
-          :name="toolType"
-          :tab="AI_TOOL_METADATA[toolType].name"
+          class="tool-tab-item"
+          :class="{ active: activeToolTab === toolType }"
+          @click="selectTool(toolType)"
         >
-          <div class="tool-panel">
+          {{ AI_TOOL_METADATA[toolType].name }}
+        </div>
+      </div>
+      
+      <!-- Right content area -->
+      <div class="tools-content">
+        <template
+          v-for="toolType in availableTools"
+          :key="toolType"
+        >
+          <div
+            v-if="activeToolTab === toolType"
+            class="tool-panel"
+          >
             <!-- Tool Header -->
             <div class="tool-header-section">
               <div class="tool-status">
@@ -234,8 +242,8 @@
               </div>
             </div>
           </div>
-        </n-tab-pane>
-      </n-tabs>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -322,6 +330,11 @@ onMounted(async () => {
 watch(() => aiToolsStore.toolConfigs, () => {
   initLocalConfigs();
 }, { deep: true });
+
+// Handle tool tab click
+const selectTool = (toolType: AIToolType) => {
+  activeToolTab.value = toolType;
+};
 
 // Watch for tab changes and auto-check installation status
 watch(activeToolTab, (newTool) => {
@@ -586,26 +599,72 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
 
 <style scoped>
 .ai-tools-panel {
-  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: -16px; /* Offset parent padding */
+  padding: 0;
 }
 
 .ai-tools-layout {
   border: 1px solid var(--n-border-color);
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  margin: 16px;
+  height: 100%;
 }
 
-.ai-tools-layout :deep(.n-tabs-nav) {
+.tools-sidebar {
+  width: 180px;
+  min-width: 180px;
   background-color: var(--n-color-modal);
-  min-width: 160px;
+  border-right: 1px solid var(--n-border-color);
+  padding: 12px 0;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
-.ai-tools-layout :deep(.n-tabs-pane-wrapper) {
-  padding: 0;
+.tool-tab-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--n-text-color);
+  transition: all 0.2s;
+  border-left: 2px solid transparent;
+}
+
+.tool-tab-item:hover {
+  background-color: var(--n-color-hover);
+}
+
+.tool-tab-item.active {
+  background-color: var(--n-color-hover);
+  border-left-color: var(--n-primary-color);
+  color: var(--n-primary-color);
+  font-weight: 500;
+}
+
+.tools-content {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.ai-tools-layout :deep(.n-tab-pane) {
+  display: block;
+  height: auto;
 }
 
 .tool-panel {
   padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tool-header-section {

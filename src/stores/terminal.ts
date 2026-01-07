@@ -21,7 +21,7 @@ import { ref, computed } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management';
 
 export interface TaskExecutionParams {
   command: string;
@@ -35,7 +35,7 @@ export interface TerminalTab {
   id: string;
   type: TerminalType;
   label: string;
-  ptyId: string;
+  ptyId: string;        // 对于 settings 和 notifications 类型，ptyId 可以为空字符串
   taskId?: string;      // 关联的任务配置 ID
   historyId?: string;   // 关联的历史记录 ID
   status: TerminalStatus;
@@ -46,6 +46,7 @@ export interface TerminalTab {
   cpuUsage?: string;    // CPU 使用率
   memoryUsage?: string; // 内存使用
   pid?: number;         // 进程 PID
+  initialTab?: string;  // 对于 settings 类型，可以指定初始 tab
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -243,6 +244,31 @@ export const useTerminalStore = defineStore('terminal', () => {
         }
       }
       
+      // If we have a PID and historyId, try to rename the log file
+      if (result.pid && tab.historyId) {
+        try {
+          const { useRunConfigStore } = await import('./runConfig');
+          const runConfigStore = useRunConfigStore();
+          const historyItem = runConfigStore.history.find(h => h.id === tab.historyId);
+          if (historyItem?.logFilename && tab.taskId) {
+            const { getAdapter } = await import('../adapters');
+            const adapter = await getAdapter();
+            const newLogFilename = await adapter.system.renameLogFile(
+              historyItem.logFilename,
+              tab.taskId,
+              result.pid
+            );
+            console.log('[Terminal Store] Renamed log file:', historyItem.logFilename, '->', newLogFilename);
+            // Update history with new log filename
+            await runConfigStore.updateHistory(tab.historyId, {
+              logFilename: newLogFilename,
+            });
+          }
+        } catch (error) {
+          console.warn('[Terminal Store] Failed to rename log file:', error);
+        }
+      }
+      
       console.log('[Terminal Store] Task started:', tab.ptyId, command);
     } catch (error) {
       console.error('[Terminal Store] Failed to execute task:', error);
@@ -390,6 +416,82 @@ export const useTerminalStore = defineStore('terminal', () => {
     tabs.value = tabs.value.filter(t => t.status !== 'closed');
   };
   
+  // Create a settings tab
+  const createSettingsTab = (initialTab?: string): TerminalTab => {
+    // Check if settings tab already exists
+    const existingTab = tabs.value.find(t => t.type === 'settings');
+    if (existingTab) {
+      activeTabId.value = existingTab.id;
+      if (initialTab && existingTab.initialTab !== initialTab) {
+        existingTab.initialTab = initialTab;
+      }
+      return existingTab;
+    }
+    
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'settings',
+      label: 'Settings',
+      ptyId: '', // No PTY for settings tab
+      status: 'running',
+      startTime: Date.now(),
+      initialTab,
+    };
+    
+    tabs.value.push(tab);
+    activeTabId.value = id;
+    return tab;
+  };
+  
+  // Create a notifications tab
+  const createNotificationsTab = (): TerminalTab => {
+    // Check if notifications tab already exists
+    const existingTab = tabs.value.find(t => t.type === 'notifications');
+    if (existingTab) {
+      activeTabId.value = existingTab.id;
+      return existingTab;
+    }
+    
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'notifications',
+      label: 'Notifications',
+      ptyId: '', // No PTY for notifications tab
+      status: 'running',
+      startTime: Date.now(),
+    };
+    
+    tabs.value.push(tab);
+    activeTabId.value = id;
+    return tab;
+  };
+  
+  // Create a port management tab
+  const createPortManagementTab = (): TerminalTab => {
+    // Check if port management tab already exists
+    const existingTab = tabs.value.find(t => t.type === 'port-management');
+    if (existingTab) {
+      activeTabId.value = existingTab.id;
+      return existingTab;
+    }
+    
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'port-management',
+      label: 'Port Management',
+      ptyId: '', // No PTY for port management tab
+      status: 'running',
+      startTime: Date.now(),
+    };
+    
+    tabs.value.push(tab);
+    activeTabId.value = id;
+    return tab;
+  };
+  
   return {
     // State
     tabs,
@@ -416,5 +518,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     updateTabStats,
     getTabProcessStats,
     clearClosedTabs,
+    createSettingsTab,
+    createNotificationsTab,
+    createPortManagementTab,
   };
 });

@@ -157,7 +157,8 @@ export interface SystemAdapter {
   getProcessInfo(pid: number): Promise<ProcessInfo | null>;
   listPorts(): Promise<PortInfo[]>;
   killProcess(pid: number): Promise<void>;
-  generateLogPath(): Promise<LogPathInfo>;
+  generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo>;
+  renameLogFile(oldFilename: string, taskId: string, pid: number): Promise<string>;
 }
 
 /**

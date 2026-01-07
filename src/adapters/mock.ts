@@ -542,12 +542,21 @@ class MockSystemAdapter implements SystemAdapter {
     console.log('[Mock] killProcess:', _pid);
   }
 
-  async generateLogPath(): Promise<LogPathInfo> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  async generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19).replace('T', '_');
+    const pidStr = pid ? pid.toString() : '0';
     return {
-      logFilename: `task-${timestamp}.log`,
-      logPath: `/mock/logs/task-${timestamp}.log`,
+      logFilename: `${taskId}_${pidStr}_${timestamp}.log`,
+      logPath: `/mock/logs/${taskId}_${pidStr}_${timestamp}.log`,
     };
+  }
+
+  async renameLogFile(oldFilename: string, taskId: string, pid: number): Promise<string> {
+    // Extract timestamp from old filename
+    const parts = oldFilename.replace('.log', '').split('_');
+    const timestamp = parts.length >= 3 ? parts[parts.length - 1] : new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19).replace('T', '_');
+    const newFilename = `${taskId}_${pid}_${timestamp}.log`;
+    return newFilename;
   }
 }
 

@@ -56,7 +56,7 @@
               <span class="tab-icon">
                 <component :is="getTabIcon(tab)" />
               </span>
-              <span class="tab-label">{{ tab.label }}</span>
+              <span class="tab-label">{{ getTabLabel(tab) }}</span>
               <span 
                 class="tab-close" 
                 @click.stop="closeTab(tab.id)"
@@ -76,56 +76,74 @@
       <!-- Active terminal content -->
       <div class="terminal-content">
         <template v-if="terminalStore.activeTab">
-          <!-- Terminal toolbar -->
-          <n-space class="console-toolbar" size="small">
-            <!-- 停止按钮 (仅运行中显示) -->
-            <n-button
-              v-if="terminalStore.activeTab.status === 'running'"
-              size="small"
-              text
-              @click="handleStopTask"
-            >
-              <template #icon>
-                <component :is="iconComponents.stop(true)" />
-              </template>
-            </n-button>
+          <!-- Settings tab -->
+          <template v-if="terminalStore.activeTab.type === 'settings'">
+            <SettingsPanel :initial-tab="terminalStore.activeTab.initialTab" />
+          </template>
+          
+          <!-- Notifications tab -->
+          <template v-else-if="terminalStore.activeTab.type === 'notifications'">
+            <NotificationsPanel />
+          </template>
+          
+          <!-- Port Management tab -->
+          <template v-else-if="terminalStore.activeTab.type === 'port-management'">
+            <PortManagementPanel />
+          </template>
+          
+          <!-- Terminal tabs (task or shell) -->
+          <template v-else>
+            <!-- Terminal toolbar -->
+            <n-space class="console-toolbar" size="small">
+              <!-- 停止按钮 (仅运行中显示) -->
+              <n-button
+                v-if="terminalStore.activeTab.status === 'running'"
+                size="small"
+                text
+                @click="handleStopTask"
+              >
+                <template #icon>
+                  <component :is="iconComponents.stop(true)" />
+                </template>
+              </n-button>
 
-            <!-- 重启按钮 (仅任务类型显示) -->
-            <n-button
-              v-if="terminalStore.activeTab.type === 'task'"
-              size="small"
-              text
-              @click="handleRestartTask"
-            >
-              <template #icon>
-                <component :is="iconComponents.replay" />
-              </template>
-            </n-button>
+              <!-- 重启按钮 (仅任务类型显示) -->
+              <n-button
+                v-if="terminalStore.activeTab.type === 'task'"
+                size="small"
+                text
+                @click="handleRestartTask"
+              >
+                <template #icon>
+                  <component :is="iconComponents.replay" />
+                </template>
+              </n-button>
 
-            <!-- 清空按钮 -->
-            <n-button size="small" text @click="handleClearTerminal">
-              <template #icon>
-                <component :is="iconComponents.clear" />
-              </template>
-            </n-button>
-          </n-space>
+              <!-- 清空按钮 -->
+              <n-button size="small" text @click="handleClearTerminal">
+                <template #icon>
+                  <component :is="iconComponents.clear" />
+                </template>
+              </n-button>
+            </n-space>
 
-          <!-- Terminal view - render all tabs, show only active one -->
-          <div class="console-output-container terminal-wrapper">
-            <TerminalView
-              v-for="tab in terminalStore.tabs"
-              v-show="terminalStore.activeTabId === tab.id"
-              :key="tab.id"
-              :pty-id="tab.ptyId"
-              :theme="effectiveTheme"
-              :cwd="getTabCwd(tab)"
-              :attach-only="tab.type === 'task'"
-              :ref="(el) => setTerminalRef(tab.id, el)"
-              @ready="() => onTerminalReady(tab.id)"
-              @exit="(code) => onTerminalExit(tab.id, code)"
-              @error="onTerminalError"
-            />
-          </div>
+            <!-- Terminal view - render all tabs, show only active one -->
+            <div class="console-output-container terminal-wrapper">
+              <TerminalView
+                v-for="tab in terminalStore.tabs"
+                v-show="terminalStore.activeTabId === tab.id && (tab.type === 'task' || tab.type === 'shell')"
+                :key="tab.id"
+                :pty-id="tab.ptyId"
+                :theme="effectiveTheme"
+                :cwd="getTabCwd(tab)"
+                :attach-only="tab.type === 'task'"
+                :ref="(el) => setTerminalRef(tab.id, el)"
+                @ready="() => onTerminalReady(tab.id)"
+                @exit="(code) => onTerminalExit(tab.id, code)"
+                @error="onTerminalError"
+              />
+            </div>
+          </template>
         </template>
 
         <!-- History output view (when history selected but no terminal tab) -->
@@ -181,6 +199,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { NSpace, NButton, NScrollbar, NText, NTag, NEmpty, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
+import { NotificationsOutline } from "@vicons/ionicons5";
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
@@ -190,6 +209,9 @@ import { iconComponents, svgIcons, getCommandIconName } from "../utils/icons";
 import { ansiToHtml } from "../utils/ansiUtils";
 import WelcomeScreen from "./WelcomeScreen.vue";
 import TerminalView from "./TerminalView.vue";
+import SettingsPanel from "./settings/SettingsPanel.vue";
+import NotificationsPanel from "./NotificationsPanel.vue";
+import PortManagementPanel from "./PortManagementPanel.vue";
 
 const { t } = useI18n();
 const message = useMessage();
@@ -370,6 +392,22 @@ watch(
 
 // Get icon for tab based on type, command, and status
 const getTabIcon = (tab: TerminalTab) => {
+  // For settings tab
+  if (tab.type === 'settings') {
+    return svgIcons.settings;
+  }
+  
+  // For notifications tab
+  if (tab.type === 'notifications') {
+    // Return a component that renders NotificationsOutline
+    return NotificationsOutline;
+  }
+  
+  // For port management tab
+  if (tab.type === 'port-management') {
+    return svgIcons.network;
+  }
+  
   // For task tabs, use command-based icon
   if (tab.type === 'task' && tab.execParams?.command) {
     const settingsStore = useSettingsStore();
@@ -389,6 +427,20 @@ const getTabIcon = (tab: TerminalTab) => {
     return iconComponents.error;
   }
   return iconComponents.terminal;
+};
+
+// Get translated label for tab
+const getTabLabel = (tab: TerminalTab): string => {
+  if (tab.type === 'settings') {
+    return t('task.settings');
+  }
+  if (tab.type === 'notifications') {
+    return t('notifications.title');
+  }
+  if (tab.type === 'port-management') {
+    return t('task.portManagement');
+  }
+  return tab.label;
 };
 
 // Get working directory for a tab

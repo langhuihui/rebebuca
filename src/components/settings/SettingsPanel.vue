@@ -17,15 +17,7 @@
  -->
 
 <template>
-  <n-modal 
-    v-model:show="showDialog"
-    preset="card"
-    :title="t('task.settings')"
-    style="width: 680px;"
-    :segmented="{ content: true }"
-    class="compact-modal"
-    to="body"
-  >
+  <div class="settings-panel">
     <n-tabs v-model:value="activeTab" type="line" animated>
       <n-tab-pane name="general" :tab="t('settings.general')">
         <n-form label-placement="left" label-width="auto" class="compact-settings-form">
@@ -190,13 +182,12 @@
         <AIToolsPanel />
       </n-tab-pane>
     </n-tabs>
-  </n-modal>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import {
-  NModal,
   NTabs,
   NTabPane,
   NForm,
@@ -233,12 +224,7 @@ interface ReleaseNote {
 }
 
 const props = defineProps<{
-  show: boolean;
   initialTab?: string;
-}>();
-
-const emit = defineEmits<{
-  (e: 'update:show', value: boolean): void;
 }>();
 
 const { t } = useI18n();
@@ -248,12 +234,7 @@ const updaterStore = useUpdaterStore();
 const runConfigStore = useRunConfigStore();
 const { localeMode, getLocalizedOptions, setLocale } = useLocale();
 
-const showDialog = computed({
-  get: () => props.show,
-  set: (value) => emit('update:show', value),
-});
-
-const activeTab = ref('general');
+const activeTab = ref(props.initialTab || 'general');
 const currentVersion = ref('');
 const updateChecked = ref(false);
 const releaseNotes = ref<ReleaseNote[] | null>(null);
@@ -373,12 +354,12 @@ watch(
   { deep: true }
 );
 
-// Set initial tab when dialog opens
-watch(showDialog, async (show) => {
-  if (show && props.initialTab) {
-    activeTab.value = props.initialTab;
+// Watch for initialTab changes
+watch(() => props.initialTab, (newTab) => {
+  if (newTab) {
+    activeTab.value = newTab;
   }
-});
+}, { immediate: true });
 
 onMounted(async () => {
   currentVersion.value = await updaterStore.getCurrentVersion();
@@ -387,16 +368,37 @@ onMounted(async () => {
     loadAvailableShells(),
   ]);
 });
-
-// Expose method to set active tab
-defineExpose({
-  setActiveTab: (tab: string) => {
-    activeTab.value = tab;
-  },
-});
 </script>
 
 <style scoped lang="scss">
+.settings-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  :deep(.n-tabs) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    
+    .n-tabs-nav {
+      flex-shrink: 0;
+      padding: 0 16px;
+    }
+    
+    .n-tab-pane {
+      flex: 1;
+      overflow: hidden;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+  }
+}
+
 .compact-settings-form {
   padding: 8px 0;
   
@@ -410,16 +412,6 @@ defineExpose({
   
   :deep(.n-form-item:last-child) {
     margin-bottom: 0;
-  }
-}
-
-.compact-modal {
-  :deep(.n-card-header) {
-    padding: 12px 20px;
-  }
-  
-  :deep(.n-card__content) {
-    padding: 12px 20px 20px;
   }
 }
 
@@ -499,3 +491,4 @@ defineExpose({
   color: rgba(0, 0, 0, 0.45);
 }
 </style>
+

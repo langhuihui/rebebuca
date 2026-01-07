@@ -203,6 +203,7 @@ pub fn run() {
             commands::open_in_system_terminal,
             commands::delete_log_file,
             commands::generate_log_path,
+            commands::rename_log_file,
             commands::read_log_file,
             commands::get_app_log_dir,
             commands::open_app_log_folder,

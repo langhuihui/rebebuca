@@ -17,15 +17,8 @@
  -->
 
 <template>
-  <n-modal 
-    v-model:show="showDialog"
-    preset="dialog"
-    :title="t('task.portManagement')"
-    style="width: 700px;"
-    :show-icon="false"
-    to="body"
-  >
-    <div class="port-dialog-content">
+  <div class="port-management-panel">
+    <div class="port-panel-content">
       <!-- Filter Input -->
       <div class="port-filter">
         <n-input
@@ -54,59 +47,61 @@
       </div>
       
       <!-- Port List -->
-      <div v-if="filteredGroupedProcesses.length > 0" class="port-list">
-        <div class="port-header">
-          <span class="name-col">{{ t('task.processName') }}</span>
-          <span class="pid-col">{{ t('task.pid') }}</span>
-          <span class="port-col">{{ t('task.port') }}</span>
-          <span class="action-col"></span>
+      <n-scrollbar class="port-list-scrollbar">
+        <div v-if="filteredGroupedProcesses.length > 0" class="port-list">
+          <div class="port-header">
+            <span class="name-col">{{ t('task.processName') }}</span>
+            <span class="pid-col">{{ t('task.pid') }}</span>
+            <span class="port-col">{{ t('task.port') }}</span>
+            <span class="action-col"></span>
+          </div>
+          <div 
+            v-for="proc in filteredGroupedProcesses" 
+            :key="proc.pid"
+            class="port-item"
+          >
+            <span class="name-col" :title="proc.command || proc.name">{{ proc.name }}</span>
+            <span class="pid-col">{{ proc.pid }}</span>
+            <span class="port-col port-numbers">
+              <n-tag 
+                v-for="port in proc.ports" 
+                :key="port" 
+                size="small" 
+                type="info"
+                class="port-tag"
+              >
+                {{ port }}
+              </n-tag>
+            </span>
+            <span class="action-col">
+              <n-button
+                size="small"
+                type="error"
+                quaternary
+                @click="handleKillProcess(proc.pid)"
+              >
+                {{ t('task.killProcess') }}
+              </n-button>
+            </span>
+          </div>
         </div>
-        <div 
-          v-for="proc in filteredGroupedProcesses" 
-          :key="proc.pid"
-          class="port-item"
-        >
-          <span class="name-col" :title="proc.command || proc.name">{{ proc.name }}</span>
-          <span class="pid-col">{{ proc.pid }}</span>
-          <span class="port-col port-numbers">
-            <n-tag 
-              v-for="port in proc.ports" 
-              :key="port" 
-              size="small" 
-              type="info"
-              class="port-tag"
-            >
-              {{ port }}
-            </n-tag>
-          </span>
-          <span class="action-col">
-            <n-button
-              size="small"
-              type="error"
-              quaternary
-              @click="handleKillProcess(proc.pid)"
-            >
-              {{ t('task.killProcess') }}
-            </n-button>
-          </span>
+        <div v-else class="no-ports">
+          <n-icon size="48" :depth="3">
+            <component :is="svgIcons.network" />
+          </n-icon>
+          <p>{{ t('task.noPortsFound') }}</p>
         </div>
-      </div>
-      <div v-else class="no-ports">
-        <n-icon size="48" :depth="3">
-          <component :is="svgIcons.network" />
-        </n-icon>
-        <p>{{ t('task.noPortsFound') }}</p>
-      </div>
+      </n-scrollbar>
     </div>
-  </n-modal>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { NModal, NInput, NButton, NIcon, NTag } from 'naive-ui';
+import { ref, computed, onMounted } from 'vue';
+import { NInput, NButton, NIcon, NTag, NScrollbar, useMessage, useDialog } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
-import { svgIcons } from '../../../utils/icons';
-import { getAdapter } from '../../../adapters';
+import { svgIcons } from '../utils/icons';
+import { getAdapter } from '../adapters';
 
 interface PortProcess {
   port: number;
@@ -122,20 +117,9 @@ interface GroupedProcess {
   ports: number[];
 }
 
-const props = defineProps<{
-  show: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'update:show', value: boolean): void;
-}>();
-
 const { t } = useI18n();
-
-const showDialog = computed({
-  get: () => props.show,
-  set: (value) => emit('update:show', value),
-});
+const message = useMessage();
+const dialog = useDialog();
 
 const portFilter = ref('');
 const loading = ref(false);
@@ -187,51 +171,76 @@ const loadPortProcesses = async () => {
       command: p.process,
     }));
   } catch (error) {
-    console.error('[PortManagementDialog] Failed to load port processes:', error);
+    console.error('[PortManagementPanel] Failed to load port processes:', error);
   } finally {
     loading.value = false;
   }
 };
 
 const handleKillProcess = async (pid: number) => {
-  try {
-    const adapter = await getAdapter();
-    await adapter.system.killProcess(pid);
-    await loadPortProcesses();
-  } catch (error) {
-    console.error('[PortManagementDialog] Failed to kill process:', pid, error);
-  }
+  const process = filteredGroupedProcesses.value.find(p => p.pid === pid);
+  const processName = process?.name || `PID ${pid}`;
+  
+  dialog.warning({
+    title: t('task.killProcess'),
+    content: t('task.confirmKillProcess', { name: processName, pid }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        const adapter = await getAdapter();
+        await adapter.system.killProcess(pid);
+        message.success(t('task.processKilled', { name: processName }));
+        await loadPortProcesses();
+      } catch (error) {
+        console.error('[PortManagementPanel] Failed to kill process:', pid, error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        message.error(t('task.failedToKillProcess', { name: processName, error: errorMsg }));
+      }
+    },
+  });
 };
 
-// Load ports when dialog opens
-watch(() => props.show, async (show) => {
-  if (show) {
-    await loadPortProcesses();
-  }
-}, { immediate: true });
+// Load ports when panel mounts
+onMounted(async () => {
+  await loadPortProcesses();
+});
 </script>
 
 <style scoped>
-.port-dialog-content {
-  min-height: 300px;
+.port-management-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.port-panel-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 16px;
 }
 
 .port-filter {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
 .port-filter .n-input {
   flex: 1;
 }
 
+.port-list-scrollbar {
+  flex: 1;
+  height: 100%;
+}
+
 .port-list {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   overflow: hidden;
-  max-height: 400px;
-  overflow-y: auto;
 }
 
 .port-header {
@@ -335,3 +344,4 @@ watch(() => props.show, async (show) => {
   color: rgba(0, 0, 0, 0.3);
 }
 </style>
+

@@ -13,27 +13,57 @@
     "core:window:allow-unmaximize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
+    "core:window:allow-set-size",
+    "core:window:allow-set-min-size",
+    "core:window:allow-set-max-size",
+    "core:window:allow-inner-size",
+    "core:window:allow-outer-size",
+    "core:window:allow-scale-factor",
     "opener:default",
     {
       "identifier": "opener:allow-open-path",
       "allow": [
-        { "path": "$HOME" },
-        { "path": "$HOME/**" },
-        { "path": "$DOCUMENT" },
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DESKTOP" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$DOWNLOAD" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$DATA" },
-        { "path": "$DATA/**" }
+        {
+          "path": "$HOME"
+        },
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DOCUMENT"
+        },
+        {
+          "path": "$DOCUMENT/**"
+        },
+        {
+          "path": "$DESKTOP"
+        },
+        {
+          "path": "$DESKTOP/**"
+        },
+        {
+          "path": "$DOWNLOAD"
+        },
+        {
+          "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$DATA"
+        },
+        {
+          "path": "$DATA/**"
+        }
       ]
     },
     {
       "identifier": "opener:allow-open-url",
       "allow": [
-        { "url": "https://**" },
-        { "url": "http://**" }
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        }
       ]
     },
     "store:default",
@@ -76,8 +106,12 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$HOME" },
-        { "path": "$HOME/**" }
+        {
+          "path": "$HOME"
+        },
+        {
+          "path": "$HOME/**"
+        }
       ]
     },
     "updater:default",
@@ -93,9 +127,36 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        { "name": "exec-sh", "cmd": "sh", "args": ["-c", { "validator": ".+" }] },
-        { "name": "exec-bash", "cmd": "bash", "args": ["-c", { "validator": ".+" }] },
-        { "name": "exec-zsh", "cmd": "zsh", "args": ["-c", { "validator": ".+" }] }
+        {
+          "name": "exec-sh",
+          "cmd": "sh",
+          "args": [
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        },
+        {
+          "name": "exec-bash",
+          "cmd": "bash",
+          "args": [
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        },
+        {
+          "name": "exec-zsh",
+          "cmd": "zsh",
+          "args": [
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        }
       ]
     }
   ]

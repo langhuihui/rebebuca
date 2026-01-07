@@ -188,14 +188,59 @@ pub async fn delete_log_file(app_handle: tauri::AppHandle, log_filename: String)
     Ok(())
 }
 
+/// Rename a log file to include the actual PID
+/// Format: {task_id}_{pid}_{timestamp}.log
+#[tauri::command]
+pub async fn rename_log_file(
+    app_handle: tauri::AppHandle,
+    old_filename: String,
+    task_id: String,
+    pid: u32,
+) -> Result<String, String> {
+    let logs_dir = get_logs_dir(&app_handle)?;
+    let old_path = logs_dir.join(&old_filename);
+    
+    if !old_path.exists() {
+        return Err("Log file does not exist".to_string());
+    }
+    
+    // Extract timestamp from old filename (format: {task_id}_{old_pid}_{timestamp}.log)
+    // If old filename doesn't match expected format, use current timestamp
+    let timestamp = if let Some(parts) = old_filename.strip_suffix(".log") {
+        let parts_vec: Vec<&str> = parts.split('_').collect();
+        if parts_vec.len() >= 3 {
+            // Get the last part as timestamp
+            parts_vec.last().unwrap().to_string()
+        } else {
+            chrono::Local::now().format("%Y%m%d_%H%M%S").to_string()
+        }
+    } else {
+        chrono::Local::now().format("%Y%m%d_%H%M%S").to_string()
+    };
+    
+    let new_filename = format!("{}_{}_{}.log", task_id, pid, timestamp);
+    let new_path = logs_dir.join(&new_filename);
+    
+    // Rename the file
+    fs::rename(&old_path, &new_path)
+        .map_err(|e| format!("Failed to rename log file: {}", e))?;
+    
+    Ok(new_filename)
+}
+
 /// Generate a log file path for a task execution
 /// Returns { log_filename: String, log_path: String }
+/// Format: {task_id}_{pid}_{timestamp}.log
 #[tauri::command]
-pub async fn generate_log_path(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
+pub async fn generate_log_path(
+    app_handle: tauri::AppHandle,
+    task_id: String,
+    pid: Option<u32>,
+) -> Result<serde_json::Value, String> {
     let logs_dir = get_logs_dir(&app_handle)?;
-    let uuid = Uuid::new_v4().to_string();
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let log_filename = format!("{}_{}.log", timestamp, &uuid[0..8]);
+    let pid_str = pid.map(|p| p.to_string()).unwrap_or_else(|| "0".to_string());
+    let log_filename = format!("{}_{}_{}.log", task_id, pid_str, timestamp);
     let log_path = logs_dir.join(&log_filename);
     
     Ok(serde_json::json!({

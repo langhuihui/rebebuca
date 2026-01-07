@@ -543,7 +543,11 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       
       if (settingsStore.settings.saveLogs) {
         try {
-          const logInfo = await safeInvoke<{ log_filename: string; log_path: string }>('generate_log_path');
+          // Generate log path with config id, pid will be 0 initially
+          const logInfo = await safeInvoke<{ log_filename: string; log_path: string }>('generate_log_path', {
+            taskId: config.id,
+            pid: null,
+          });
           if (logInfo) {
             logPath = logInfo.log_path;
             logFilename = logInfo.log_filename;
@@ -572,6 +576,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       console.log(`[FRONTEND] executeCommand via PTY - ptyId: ${tab.ptyId}, historyId: ${newHistory.id}`);
 
       // Update history with PTY ID, terminal tab ID, and log filename
+      // Note: Log file will be renamed in terminal store when PID is available
       const index = history.value.findIndex(h => h.id === newHistory.id);
       if (index !== -1) {
         history.value[index] = {

@@ -17,8 +17,15 @@
  -->
 
 <template>
-  <div class="custom-titlebar" :class="{ 'light-theme': effectiveTheme === 'light' }" @mousedown="startDrag">
-    <div class="titlebar-content" :class="{ 'windows-layout': uiStore.isWindowsPlatform }">
+  <div
+    class="custom-titlebar"
+    :class="{ 'light-theme': effectiveTheme === 'light' }"
+    @mousedown="startDrag"
+  >
+    <div
+      class="titlebar-content"
+      :class="{ 'windows-layout': uiStore.isWindowsPlatform }"
+    >
       <!-- Left side for Windows title logo -->
       <div class="titlebar-left" v-if="uiStore.isWindowsPlatform">
         <img
@@ -43,16 +50,16 @@
           "
           class="title-logo"
         />
-        <span v-else-if="uiStore.selectedHistoryItem" class="history-title-display">
+        <span
+          v-else-if="uiStore.selectedHistoryItem"
+          class="history-title-display"
+        >
           {{ uiStore.selectedHistoryItem.name }}
         </span>
       </div>
 
       <!-- Window controls - macOS style on the left -->
-      <div
-        v-if="!uiStore.isWindowsPlatform"
-        class="window-controls"
-      >
+      <div v-if="!uiStore.isWindowsPlatform" class="window-controls">
         <button
           class="window-control-button close-btn"
           @click="handleCloseWindow"
@@ -99,7 +106,10 @@
       </div>
 
       <!-- Logo after window controls (macOS) -->
-      <div v-if="!uiStore.isWindowsPlatform && uiStore.miniMode" class="titlebar-logo-left">
+      <div
+        v-if="!uiStore.isWindowsPlatform && uiStore.miniMode"
+        class="titlebar-logo-left"
+      >
         <img
           :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
           alt="Rebebuca"
@@ -108,7 +118,10 @@
       </div>
 
       <!-- Title only for non-Windows -->
-      <div class="titlebar-center" v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode">
+      <div
+        class="titlebar-center"
+        v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode"
+      >
         <img
           v-if="!uiStore.selectedHistoryItem"
           :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
@@ -130,13 +143,19 @@
           <span class="version-text">v{{ updaterStore.currentVersion }}</span>
           <template v-if="updaterStore.updateAvailable">
             <span class="update-arrow">→</span>
-            <span class="new-version-text">v{{ updaterStore.updateInfo?.version }}</span>
+            <span class="new-version-text"
+              >v{{ updaterStore.updateInfo?.version }}</span
+            >
             <n-button
               type="success"
               size="tiny"
               class="update-button"
-              :class="{ 'updating': updaterStore.downloading }"
-              :style="updaterStore.downloading ? { '--progress': updaterStore.downloadProgress + '%' } : {}"
+              :class="{ updating: updaterStore.downloading }"
+              :style="
+                updaterStore.downloading
+                  ? { '--progress': updaterStore.downloadProgress + '%' }
+                  : {}
+              "
               :disabled="updaterStore.downloading"
               @click="handleDirectUpdate"
               @mousedown.stop
@@ -149,25 +168,28 @@
               <span v-if="updaterStore.downloading" class="progress-text">
                 {{ updaterStore.downloadProgress }}%
               </span>
-              <span v-else>{{ t('settings.update') }}</span>
+              <span v-else>{{ t("settings.update") }}</span>
             </n-button>
           </template>
         </div>
 
-        <!-- Notification bell button -->
+        <!-- Notification bell button (hidden in mini mode) -->
         <n-button
+          v-if="!uiStore.miniMode"
           text
           size="small"
           @click="openNotificationDialog"
           class="titlebar-button notification-button"
-          title="Notifications"
+          :title="t('notifications.title')"
           @mousedown.stop
         >
           <template #icon>
             <n-icon size="18">
               <NotificationsOutline />
             </n-icon>
-            <span v-if="notificationCount > 0" class="notification-badge">{{ notificationCount > 99 ? '99+' : notificationCount }}</span>
+            <span v-if="notificationCount > 0" class="notification-badge">{{
+              notificationCount > 99 ? "99+" : notificationCount
+            }}</span>
           </template>
         </n-button>
 
@@ -197,44 +219,6 @@
         <n-button
           text
           size="small"
-          @click="toggleSidebar"
-          class="titlebar-button"
-          :title="t('titlebar.toggleSidebar')"
-          @mousedown.stop
-        >
-          <template #icon>
-            <component :is="iconComponents.sidebar" />
-          </template>
-        </n-button>
-        <n-button
-          text
-          size="small"
-          @click="toggleMiniMode"
-          class="titlebar-button"
-          :title="t('titlebar.toggleMiniMode')"
-          @mousedown.stop
-        >
-          <template #icon>
-            <n-icon size="18">
-              <component :is="svgIcons.expand" />
-            </n-icon>
-          </template>
-        </n-button>
-        <n-button
-          text
-          size="small"
-          @click="openLogsFolder"
-          class="titlebar-button"
-          :title="t('history.openLogsFolder')"
-          @mousedown.stop
-        >
-          <template #icon>
-            <component :is="svgIcons.folderOpen" />
-          </template>
-        </n-button>
-        <n-button
-          text
-          size="small"
           @click="openGitHub"
           class="titlebar-button"
           title="GitHub"
@@ -245,9 +229,10 @@
           </template>
         </n-button>
         <n-button
+          v-if="!uiStore.miniMode"
           text
           size="small"
-          @click="showSettingsDialog = true"
+          @click="() => openSettingsTab()"
           class="titlebar-button"
           :title="t('task.settings')"
           @mousedown.stop
@@ -290,7 +275,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Settings Dialog -->
   <SettingsDialog
     ref="settingsDialogRef"
@@ -303,13 +288,13 @@
     v-model:show="showNotifications"
     preset="card"
     :title="t('notifications.title')"
-    style="width: 500px;"
+    style="width: 500px"
     to="body"
     @after-leave="closeNotificationDialog"
   >
-    <n-scrollbar style="max-height: 400px;">
+    <n-scrollbar style="max-height: 400px">
       <div v-if="notifications.length === 0" class="empty-notifications">
-        {{ t('notifications.empty') }}
+        {{ t("notifications.empty") }}
       </div>
       <div v-else ref="notificationsListRef" class="notifications-list">
         <div
@@ -317,13 +302,19 @@
           :key="notification.id"
           :data-notification-id="notification.id"
           class="notification-item"
-          :class="{ 'unread': !notification.read }"
+          :class="{ unread: !notification.read }"
         >
           <div class="notification-header">
-            <span class="notification-type">{{ notification.title || notification.type }}</span>
-            <span class="notification-time">{{ formatTime(notification.time) }}</span>
+            <span class="notification-type">{{
+              notification.title || notification.type
+            }}</span>
+            <span class="notification-time">{{
+              formatTime(notification.time)
+            }}</span>
           </div>
-          <div class="notification-message selectable-text">{{ notification.message }}</div>
+          <div class="notification-message selectable-text">
+            {{ notification.message }}
+          </div>
         </div>
       </div>
     </n-scrollbar>
@@ -332,11 +323,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
-import { NButton, NDropdown, NModal, NScrollbar, useDialog, NIcon } from "naive-ui";
+import {
+  NButton,
+  NDropdown,
+  NModal,
+  NScrollbar,
+  useDialog,
+  NIcon,
+} from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { NotificationsOutline } from "@vicons/ionicons5";
 import { useUIStore } from "../stores/ui";
-import { useRunConfigStore } from "../stores/runConfig";
 import { useTerminalStore } from "../stores/terminal";
 import { useTheme } from "../composables/useTheme";
 import { useSettingsStore } from "../stores/settings";
@@ -360,7 +357,6 @@ defineProps<Props>();
 
 const { t } = useI18n();
 const uiStore = useUIStore();
-const runConfigStore = useRunConfigStore();
 const settingsStore = useSettingsStore();
 const terminalStore = useTerminalStore();
 const updaterStore = useUpdaterStore();
@@ -392,12 +388,13 @@ const setupNotificationObserver = () => {
   if (notificationObserver) {
     notificationObserver.disconnect();
   }
-  
+
   notificationObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          const notificationId = (entry.target as HTMLElement).dataset.notificationId;
+          const notificationId = (entry.target as HTMLElement).dataset
+            .notificationId;
           if (notificationId) {
             notificationStore.markAsReadInSnapshot(notificationId);
           }
@@ -408,10 +405,11 @@ const setupNotificationObserver = () => {
       threshold: 0.5, // 50% visible to mark as read
     }
   );
-  
+
   // Observe all notification items
   if (notificationsListRef.value) {
-    const items = notificationsListRef.value.querySelectorAll('.notification-item');
+    const items =
+      notificationsListRef.value.querySelectorAll(".notification-item");
     items.forEach((item) => {
       notificationObserver?.observe(item);
     });
@@ -438,17 +436,20 @@ watch(showNotifications, async (newValue) => {
 });
 
 // Watch for notifications list changes to re-observe new items
-watch(notifications, async () => {
-  if (showNotifications.value) {
-    await nextTick();
-    setupNotificationObserver();
-  }
-}, { deep: true });
+watch(
+  notifications,
+  async () => {
+    if (showNotifications.value) {
+      await nextTick();
+      setupNotificationObserver();
+    }
+  },
+  { deep: true }
+);
 
-// Handle notification dialog open
+// Handle notification dialog open - create tab instead
 const openNotificationDialog = () => {
-  notificationStore.openDialog();
-  showNotifications.value = true;
+  terminalStore.createNotificationsTab();
 };
 
 // Handle notification dialog close
@@ -465,10 +466,10 @@ const formatTime = (date: Date): string => {
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-  if (minutes < 1) return t('notifications.justNow');
-  if (minutes < 60) return `${minutes} ${t('notifications.minutesAgo')}`;
-  if (hours < 24) return `${hours} ${t('notifications.hoursAgo')}`;
-  if (days < 7) return `${days} ${t('notifications.daysAgo')}`;
+  if (minutes < 1) return t("notifications.justNow");
+  if (minutes < 60) return `${minutes} ${t("notifications.minutesAgo")}`;
+  if (hours < 24) return `${hours} ${t("notifications.hoursAgo")}`;
+  if (days < 7) return `${days} ${t("notifications.daysAgo")}`;
   return date.toLocaleDateString();
 };
 
@@ -477,51 +478,55 @@ const checkForErrors = () => {
   // Check for update available
   if (updaterStore.updateAvailable) {
     notificationStore.addUpdate(
-      t('notifications.update'),
-      t('notifications.updateAvailable', { version: updaterStore.updateInfo?.version })
+      t("notifications.update"),
+      t("notifications.updateAvailable", {
+        version: updaterStore.updateInfo?.version,
+      })
     );
   }
 };
 
-const settingsDialogRef = ref<InstanceType<typeof SettingsDialog> | null>(null);
-const initialSettingsTab = ref('general');
+const initialSettingsTab = ref("general");
+
+// Open settings tab
+const openSettingsTab = (tab?: string) => {
+  terminalStore.createSettingsTab(tab || initialSettingsTab.value);
+};
 
 // Open settings to update tab
 const openSettingsUpdate = () => {
-  initialSettingsTab.value = 'update';
-  showSettingsDialog.value = true;
+  terminalStore.createSettingsTab("update");
 };
 
 // Handle direct update from titlebar
 const handleDirectUpdate = async () => {
   if (updaterStore.downloading) return;
-  
+
   try {
     await updaterStore.downloadAndInstall();
   } catch (error) {
-    console.error('Update failed:', error);
-    // If update fails, open settings dialog to show error
-    initialSettingsTab.value = 'update';
-    showSettingsDialog.value = true;
+    console.error("Update failed:", error);
+    // If update fails, open settings tab to show error
+    terminalStore.createSettingsTab("update");
   }
 };
 
 // Initialize
 onMounted(async () => {
   await settingsStore.initialize();
-  
+
   // Get current version
   await updaterStore.getCurrentVersion();
-  
+
   // Check for updates immediately
   await updaterStore.autoCheckForUpdates();
-  
+
   // Check for errors and notifications
   checkForErrors();
-  
+
   // Listen for open-settings-update event
-  window.addEventListener('open-settings-update', openSettingsUpdate);
-  
+  window.addEventListener("open-settings-update", openSettingsUpdate);
+
   // Setup periodic update check (every minute)
   updateCheckInterval = setInterval(async () => {
     await updaterStore.checkForUpdates();
@@ -530,11 +535,11 @@ onMounted(async () => {
 
 // Cleanup
 onUnmounted(() => {
-  window.removeEventListener('open-settings-update', openSettingsUpdate);
-  
+  window.removeEventListener("open-settings-update", openSettingsUpdate);
+
   // Cleanup notification observer
   cleanupNotificationObserver();
-  
+
   // Clear update check interval
   if (updateCheckInterval) {
     clearInterval(updateCheckInterval);
@@ -546,46 +551,40 @@ const handleThemeSelect = (key: string) => {
   setThemeMode(key as "light" | "dark" | "system");
 };
 
-const toggleSidebar = () => {
-  uiStore.toggleSidebar();
-};
-
-const toggleMiniMode = () => {
-  uiStore.toggleMiniMode();
-};
-
 // Handle close window with setting check
 const handleCloseWindow = async () => {
-  const behavior = settingsStore.settings.closeButtonBehavior || 'exit';
+  const behavior = settingsStore.settings.closeButtonBehavior || "exit";
   const confirmBeforeClose = settingsStore.settings.confirmBeforeClose;
-  
+
   // Check if there are running tasks and confirmBeforeClose is enabled
   if (confirmBeforeClose && terminalStore.runningTabs.length > 0) {
     dialog.warning({
-      title: t('settings.confirmCloseTitle'),
-      content: t('settings.confirmCloseContent', { count: terminalStore.runningTabs.length }),
-      positiveText: t('common.confirm'),
-      negativeText: t('common.cancel'),
+      title: t("settings.confirmCloseTitle"),
+      content: t("settings.confirmCloseContent", {
+        count: terminalStore.runningTabs.length,
+      }),
+      positiveText: t("common.confirm"),
+      negativeText: t("common.cancel"),
       onPositiveClick: async () => {
         await performClose(behavior);
       },
     });
     return;
   }
-  
+
   await performClose(behavior);
 };
 
 // Perform the actual close action
-const performClose = async (behavior: 'hide' | 'exit') => {
-  if (behavior === 'hide') {
+const performClose = async (behavior: "hide" | "exit") => {
+  if (behavior === "hide") {
     // Hide window (minimize to tray)
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const appWindow = getCurrentWindow();
       await appWindow.hide();
     } catch (error) {
-      console.error('Failed to hide window:', error);
+      console.error("Failed to hide window:", error);
       // Fallback to close
       await closeWindow();
     }
@@ -595,22 +594,13 @@ const performClose = async (behavior: 'hide' | 'exit') => {
   }
 };
 
-// Open logs folder
-const openLogsFolder = async () => {
-  try {
-    await runConfigStore.openLogsFolder();
-  } catch (error) {
-    console.error('Failed to open logs folder:', error);
-  }
-};
-
 // Open GitHub
 const openGitHub = async () => {
   try {
     const adapter = await getAdapter();
-    await adapter.system.openExternal('https://github.com/langhuihui/rebebuca');
+    await adapter.system.openExternal("https://github.com/langhuihui/rebebuca");
   } catch (error) {
-    console.error('Failed to open GitHub:', error);
+    console.error("Failed to open GitHub:", error);
   }
 };
 </script>
@@ -656,13 +646,17 @@ const openGitHub = async () => {
 
 .update-button.updating {
   animation: none;
-  background: linear-gradient(90deg, #18a058 var(--progress, 0%), #36ad6a var(--progress, 0%));
+  background: linear-gradient(
+    90deg,
+    #18a058 var(--progress, 0%),
+    #36ad6a var(--progress, 0%)
+  );
   position: relative;
   overflow: hidden;
 }
 
 .update-button.updating::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -684,7 +678,8 @@ const openGitHub = async () => {
 }
 
 @keyframes pulse-button {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 4px rgba(24, 160, 88, 0.4);
   }
   50% {
@@ -717,16 +712,19 @@ const openGitHub = async () => {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 4px rgba(24, 160, 88, 0.4), 0 0 8px rgba(24, 160, 88, 0.3);
   }
   50% {
-    box-shadow: 0 0 8px rgba(24, 160, 88, 0.8), 0 0 16px rgba(24, 160, 88, 0.5), 0 0 24px rgba(24, 160, 88, 0.3);
+    box-shadow: 0 0 8px rgba(24, 160, 88, 0.8), 0 0 16px rgba(24, 160, 88, 0.5),
+      0 0 24px rgba(24, 160, 88, 0.3);
   }
 }
 
 @keyframes bounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
