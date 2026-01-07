@@ -15,6 +15,7 @@ use uuid::Uuid;
 pub struct SshConnection {
     config: SshConfig,
     agent_deployed: bool,
+    agent_path: Option<String>,
 }
 
 // Store active SSH connections
@@ -28,6 +29,7 @@ impl SshConnection {
         Self {
             config,
             agent_deployed: false,
+            agent_path: None,
         }
     }
 
@@ -111,6 +113,7 @@ impl SshConnection {
 
         info!("Agent deployed successfully to {}", remote_path);
         self.agent_deployed = true;
+        self.agent_path = Some(remote_path);
 
         Ok(())
     }
@@ -127,6 +130,9 @@ impl SshConnection {
         // Deploy agent if not already deployed
         self.deploy_agent(app_handle).await?;
 
+        let agent_path = self.agent_path.as_ref()
+            .ok_or("Agent path not available")?;
+
         let session = self.create_session()?;
         let exec_id = Uuid::new_v4().to_string();
 
@@ -136,7 +142,7 @@ impl SshConnection {
             .map_err(|e| format!("Failed to open channel: {}", e))?;
 
         channel
-            .exec("/tmp/rebebuca-remote-agent-*")
+            .exec(agent_path)
             .map_err(|e| format!("Failed to execute agent: {}", e))?;
 
         // Send execute command to agent
@@ -159,7 +165,8 @@ impl SshConnection {
             .flush()
             .map_err(|e| format!("Failed to flush channel: {}", e))?;
 
-        // Read responses from agent
+        // Read responses from agent in a background task
+        // The channel will be properly closed when the reader finishes or encounters an error
         let app_handle_clone = app_handle.clone();
         let task_id_clone = task_id.clone();
         let reader = BufReader::new(channel);
@@ -221,6 +228,7 @@ impl SshConnection {
                     }
                 }
             }
+            // Channel is automatically closed when BufReader is dropped
         });
 
         Ok(exec_id)
