@@ -139,6 +139,7 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                     let exe_path = if command.starts_with('"') {
                                         // Quoted path: extract between quotes
                                         // For "C:\path\to\app.exe" args, we want C:\path\to\app.exe
+                                        // splitn(3, '"') splits into: ["", "path", "args..."], so we take index 1
                                         command.splitn(3, '"').nth(1).unwrap_or(&command)
                                     } else {
                                         // Unquoted path: extract until first space (the executable part)
@@ -151,7 +152,8 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                         .and_then(|os_str| os_str.to_str())
                                         .map(|s| s.to_string())
                                         .unwrap_or_else(|| {
-                                            // Fallback: manually extract filename if Path fails
+                                            // Fallback: manually extract filename if Path fails (e.g., non-UTF8 paths)
+                                            // Split by both Windows (\) and Unix (/) path separators
                                             exe_path.split(&['\\', '/'][..])
                                                 .last()
                                                 .unwrap_or(exe_path)
