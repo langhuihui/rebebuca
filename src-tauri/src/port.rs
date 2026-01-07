@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::path::Path;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
@@ -129,11 +130,51 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                                 })
                                 .unwrap_or_default();
                             
+                            // Determine the best display name
+                            let display_name = if name.starts_with("PID:") {
+                                // tasklist failed, try to extract name from command line
+                                if !command.is_empty() {
+                                    // Extract executable name from command line
+                                    // Handle both quoted and unquoted paths
+                                    let exe_path = if command.starts_with('"') {
+                                        // Quoted path: extract between quotes
+                                        // For "C:\path\to\app.exe" args, we want C:\path\to\app.exe
+                                        // splitn(3, '"') splits into: ["", "path", "args..."], so we take index 1
+                                        command.splitn(3, '"').nth(1).unwrap_or_else(|| {
+                                            // If quote is not closed, fall back to unquoted parsing
+                                            command.split_whitespace().next().unwrap_or(&command)
+                                        })
+                                    } else {
+                                        // Unquoted path: extract until first space (the executable part)
+                                        command.split_whitespace().next().unwrap_or(&command)
+                                    };
+                                    
+                                    // Use std::path::Path for proper cross-platform path handling
+                                    Path::new(exe_path)
+                                        .file_name()
+                                        .and_then(|os_str| os_str.to_str())
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| {
+                                            // Fallback: manually extract filename if Path fails (e.g., non-UTF8 paths)
+                                            // Split by both Windows (\) and Unix (/) path separators
+                                            exe_path.split(&['\\', '/'])
+                                                .last()
+                                                .unwrap_or(exe_path)
+                                                .to_string()
+                                        })
+                                } else {
+                                    // Both tasklist and WMIC failed, use PID fallback
+                                    name.clone()
+                                }
+                            } else {
+                                // tasklist succeeded, use its result
+                                name.clone()
+                            };
+                            
                             result.push(PortProcess {
                                 port,
                                 pid,
-                                // Use command line as display name if available, otherwise fall back to short process name
-                                name: if !command.is_empty() { &command } else { &name }.to_string(),
+                                name: display_name,
                                 command,
                             });
                         }
