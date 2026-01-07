@@ -601,16 +601,13 @@ const runInstallCommand = async (
 
   let installCommand = method.command;
   
-  // Check if this is an install script (curl/wget/irm/iex) that should run in system terminal
+  // Check if this is a PowerShell command (for Windows)
+  const isPowerShellCommand = /\b(irm|iex)\b/i.test(installCommand);
+  
+  // Check if this is an install script that should run in system terminal
   // These scripts often require user interaction and proper shell environment
   const isInstallScript = method.id.includes('script') || 
-    installCommand.includes('curl') || 
-    installCommand.includes('wget') ||
-    installCommand.includes('irm') ||
-    installCommand.includes('iex');
-
-  // Check if this is a PowerShell command (for Windows)
-  const isPowerShellCommand = installCommand.includes('irm') || installCommand.includes('iex');
+    /\b(curl|wget|irm|iex)\b/i.test(installCommand);
 
   // Helper function to execute the install command in system terminal
   const executeInSystemTerminal = async () => {
@@ -621,8 +618,9 @@ const runInstallCommand = async (
       // For PowerShell commands on Windows, wrap with PowerShell
       let terminalCommand = installCommand;
       if (currentPlatform.value === 'windows' && isPowerShellCommand) {
-        // PowerShell commands need to be executed in PowerShell, not cmd
-        terminalCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${installCommand.replace(/"/g, '`"')}"`;
+        // Use PowerShell with the command directly (no string wrapping to avoid escaping issues)
+        // The adapter will handle the terminal opening with proper command passing
+        terminalCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command ${installCommand}`;
       }
       
       // Open in system terminal for interactive installation
