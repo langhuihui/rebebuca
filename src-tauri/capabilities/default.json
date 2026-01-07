@@ -148,9 +148,53 @@
           ]
         },
         {
+          "name": "exec-bash",
+          "cmd": "bash",
+          "args": [
+            "-l",
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        },
+        {
+          "name": "exec-bash",
+          "cmd": "bash",
+          "args": [
+            "-i",
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        },
+        {
           "name": "exec-zsh",
           "cmd": "zsh",
           "args": [
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        },
+        {
+          "name": "exec-zsh",
+          "cmd": "zsh",
+          "args": [
+            "-l",
+            "-c",
+            {
+              "validator": ".+"
+            }
+          ]
+        },
+        {
+          "name": "exec-zsh",
+          "cmd": "zsh",
+          "args": [
+            "-i",
             "-c",
             {
               "validator": ".+"

@@ -594,6 +594,7 @@ export default {
     installOptions: 'Installation Options',
     install: 'Install',
     installing: 'Installing...',
+    installingInTerminal: 'Installing in system terminal, please complete the installation there',
     installSuccess: 'Installation successful',
     installFailed: 'Installation failed',
     copyAndRunManually: 'Please copy the command and run it manually in terminal',

@@ -276,10 +276,15 @@ const removeMapping = (command: string) => {
   flex-direction: column;
   gap: 12px;
   padding-top: 12px;
+  height: 100%;
+  overflow: hidden;
 }
 
 .command-icon-table {
   margin-bottom: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .command-icon-table :deep(.n-data-table-th) {
@@ -315,10 +320,13 @@ const removeMapping = (command: string) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .help-text {
   font-size: 12px;
   color: var(--n-text-color-3);
+  flex-shrink: 0;
 }
 </style>

@@ -52,7 +52,7 @@
             </n-button>
           </n-space>
         </div>
-        <n-scrollbar ref="consoleScrollbarRef" style="max-height: 400px">
+        <n-scrollbar ref="consoleScrollbarRef" class="log-scrollbar">
           <div class="log-entries">
             <div
               v-for="(entry, index) in filteredConsoleLogs"
@@ -93,7 +93,7 @@
             </n-button>
           </n-space>
         </div>
-        <n-scrollbar style="max-height: 400px">
+        <n-scrollbar class="log-scrollbar">
           <n-spin :show="loadingLogContent">
             <pre class="log-content">{{ logFileContent || t('devLog.selectFileToView') }}</pre>
           </n-spin>
@@ -269,15 +269,55 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .dev-log-viewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  :deep(.n-tabs) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    
+    .n-tabs-nav {
+      flex-shrink: 0;
+    }
+    
+    .n-tabs-pane-wrapper {
+      flex: 1;
+      overflow: hidden;
+    }
+    
+    .n-tab-pane {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+  }
+
 .log-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
   padding: 8px;
   background: var(--n-color-modal);
   border-radius: 4px;
-  user-select: text;  /* Allow text selection in toolbar */
+  user-select: text;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  
+  :deep(.n-space) {
+    flex-wrap: wrap;
+  }
+}
+
+.log-scrollbar {
+  flex: 1;
+  min-height: 0;
 }
   
 .log-entries {
