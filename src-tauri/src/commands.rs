@@ -865,7 +865,7 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
     
     // Get the user's default shell
     let default_shell = std::env::var("SHELL").unwrap_or_default();
-    let _default_shell_name = std::path::Path::new(&default_shell)
+    let default_shell_name = std::path::Path::new(&default_shell)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("");
