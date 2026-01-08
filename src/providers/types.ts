@@ -28,7 +28,8 @@ export type TaskSource =
   | 'vscode'      // .vscode/tasks.json
   | 'npm'         // package.json scripts
   | 'user'        // User-defined tasks (stored in app config)
-  | 'workspace';  // Workspace-specific tasks
+  | 'workspace'   // Workspace-specific tasks
+  | 'script';     // Executable script files (.sh, .bat, .ps1, .py, etc.)
 
 // Task group types (similar to VSCode)
 export type TaskGroup = 
