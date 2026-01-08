@@ -144,9 +144,15 @@ jobs:
           cd src-tauri
           cargo build --release --target aarch64-apple-darwin --bin rebebuca-remote-agent
 
-      - name: Copy multi-arch remote agent binaries
+      - name: Create universal rebebuca-remote-agent binary
         if: matrix.platform == 'macos-latest'
         run: |
+          mkdir -p src-tauri/target/universal-apple-darwin/release
+          lipo -create \
+            src-tauri/target/x86_64-apple-darwin/release/rebebuca-remote-agent \
+            src-tauri/target/aarch64-apple-darwin/release/rebebuca-remote-agent \
+            -output src-tauri/target/universal-apple-darwin/release/rebebuca-remote-agent
+          # Also copy to build directory for resources
           mkdir -p src-tauri/build
           cp src-tauri/target/x86_64-apple-darwin/release/rebebuca-remote-agent src-tauri/build/rebebuca-remote-agent-x86_64-apple-darwin
           cp src-tauri/target/aarch64-apple-darwin/release/rebebuca-remote-agent src-tauri/build/rebebuca-remote-agent-aarch64-apple-darwin
