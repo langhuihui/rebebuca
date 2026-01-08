@@ -102,6 +102,18 @@ jobs:
           echo "Generated release notes:"
           echo "$NOTES"
 
+      - name: Build rebebuca-remote-agent for x86_64
+        if: matrix.platform == 'macos-latest'
+        run: |
+          cd src-tauri
+          cargo build --release --target x86_64-apple-darwin --bin rebebuca-remote-agent
+
+      - name: Build rebebuca-remote-agent for aarch64
+        if: matrix.platform == 'macos-latest'
+        run: |
+          cd src-tauri
+          cargo build --release --target aarch64-apple-darwin --bin rebebuca-remote-agent
+
       - name: Copy multi-arch remote agent binaries
         if: matrix.platform == 'macos-latest'
         run: |
