@@ -26,8 +26,8 @@
       class="titlebar-content"
       :class="{ 'windows-layout': uiStore.isWindowsPlatform }"
     >
-      <!-- Left side for Windows title logo -->
-      <div class="titlebar-left" v-if="uiStore.isWindowsPlatform">
+      <!-- Left side for Windows title logo (hidden in mini mode) -->
+      <div class="titlebar-left" v-if="uiStore.isWindowsPlatform && !uiStore.miniMode">
         <img
           :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
           alt="Rebebuca"
@@ -38,28 +38,28 @@
         />
       </div>
 
-      <!-- Title center for Windows platform -->
-      <div class="titlebar-center" v-if="uiStore.isWindowsPlatform">
-        <!-- Show text logo in mini mode, otherwise show history title -->
+      <!-- Logo in mini mode for Windows (centered) -->
+      <div class="titlebar-center" v-if="uiStore.isWindowsPlatform && uiStore.miniMode">
         <img
-          v-if="uiStore.miniMode"
-          :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
+          :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
           alt="Rebebuca"
-          :class="
-            effectiveTheme === 'light' ? 'text-logo-light' : 'text-logo-dark'
-          "
-          class="title-logo"
+          class="title-logo-icon"
         />
+      </div>
+
+      <!-- Title center for Windows platform -->
+      <div class="titlebar-center" v-if="uiStore.isWindowsPlatform && !uiStore.miniMode">
+        <!-- Show history title -->
         <span
-          v-else-if="uiStore.selectedHistoryItem"
+          v-if="uiStore.selectedHistoryItem"
           class="history-title-display"
         >
           {{ uiStore.selectedHistoryItem.name }}
         </span>
       </div>
 
-      <!-- Window controls - macOS style on the left -->
-      <div v-if="!uiStore.isWindowsPlatform" class="window-controls">
+      <!-- Window controls - macOS style on the left (hidden in mini mode) -->
+      <div v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode" class="window-controls">
         <button
           class="window-control-button close-btn"
           @click="handleCloseWindow"
@@ -105,9 +105,9 @@
         </button>
       </div>
 
-      <!-- Logo after window controls (macOS) -->
+      <!-- Logo after window controls (macOS, hidden in mini mode) -->
       <div
-        v-if="!uiStore.isWindowsPlatform && uiStore.miniMode"
+        v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode"
         class="titlebar-logo-left"
       >
         <img
@@ -117,7 +117,7 @@
         />
       </div>
 
-      <!-- Title only for non-Windows -->
+      <!-- Title only for non-Windows (hidden in mini mode) -->
       <div
         class="titlebar-center"
         v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode"
@@ -136,8 +136,8 @@
         </span>
       </div>
 
-      <!-- Right buttons -->
-      <div class="titlebar-right">
+      <!-- Right buttons (hidden in mini mode) -->
+      <div class="titlebar-right" v-if="!uiStore.miniMode">
         <!-- Version and Update indicator -->
         <div class="version-update-group">
           <span class="version-text">v{{ updaterStore.currentVersion }}</span>
@@ -173,9 +173,8 @@
           </template>
         </div>
 
-        <!-- Notification bell button (hidden in mini mode) -->
+        <!-- Notification bell button -->
         <n-button
-          v-if="!uiStore.miniMode"
           text
           size="small"
           @click="openNotificationDialog"

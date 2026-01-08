@@ -689,6 +689,7 @@ export default {
     install: '安装',
     installing: '正在安装...',
     installingInTerminal: '正在系统终端中安装，请在终端中完成安装',
+    installationOutput: '安装输出',
     installSuccess: '安装成功',
     installFailed: '安装失败',
     copyAndRunManually: '请复制命令并在终端中手动运行',

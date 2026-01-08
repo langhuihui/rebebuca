@@ -667,6 +667,7 @@ export default {
     install: 'Install',
     installing: 'Installing...',
     installingInTerminal: 'Installing in system terminal, please complete the installation there',
+    installationOutput: 'Installation Output',
     installSuccess: 'Installation successful',
     installFailed: 'Installation failed',
     copyAndRunManually: 'Please copy the command and run it manually in terminal',

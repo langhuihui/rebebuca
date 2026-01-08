@@ -245,6 +245,18 @@
               </div>
             </div>
 
+            <!-- Installation Terminal (for Windows PTY-based installation) -->
+            <div v-if="installingTerminal === toolType" class="install-terminal-section">
+              <n-divider style="margin: 16px 0 12px 0">
+                {{ t("aiTools.installationOutput") }}
+              </n-divider>
+              <div class="install-terminal-container" ref="installTerminalRef">
+                <div class="install-terminal-output">
+                  <pre class="terminal-text">{{ installOutput.join('') }}</pre>
+                </div>
+              </div>
+            </div>
+
             <!-- Configuration Section -->
             <n-divider style="margin: 16px 0 12px 0">
               {{ t("aiTools.configuration") }}
@@ -417,6 +429,12 @@ const updating = ref<Record<string, boolean>>({});
 
 // Track which tools have been checked to avoid repeated checks
 const checkedTools = ref<Record<string, boolean>>({});
+
+// Installation terminal state (for Windows PTY-based installation)
+const installingTerminal = ref<AIToolType | null>(null);
+const installPtyId = ref<string | null>(null);
+const installOutput = ref<string[]>([]);
+const installTerminalRef = ref<HTMLDivElement | null>(null);
 
 // Local tool configs for inline editing - initialize with defaults
 const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
@@ -912,25 +930,84 @@ const runInstallCommand = async (
   // Inject sudo password if useSudo is true and password is stored
   let installCommand = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
 
+  // For Windows, use PTY (pseudo-terminal) to show output in the UI
+  if (currentPlatform.value === 'windows') {
+    try {
+      installingTerminal.value = toolType; // Show installing terminal
+      installOutput.value = []; // Clear previous output
+
+      const { getAdapter } = await import("../../adapters");
+      const adapter = await getAdapter();
+
+      // For Windows, execute in PowerShell via PTY
+      // Parse command to extract the actual command and args
+      const parts = installCommand.trim().split(/\s+/);
+      const command = parts[0];
+      const args = parts.slice(1);
+
+      // Create a unique ptyId for this installation
+      const installPtyId = `install-${toolType}-${Date.now()}`;
+
+      // Execute the command in PTY
+      const result = await adapter.terminal.create({
+        command,
+        args,
+        cwd: undefined,
+        env: undefined,
+        logPath: undefined,
+        shellPath: 'powershell', // Use PowerShell for Windows
+      });
+
+      installPtyId.value = result.ptyId;
+
+      // Listen for PTY output
+      const unlistenOutput = adapter.terminal.onData((event) => {
+        if (event.ptyId === result.ptyId) {
+          installOutput.value.push(event.data);
+          // Scroll to bottom
+          setTimeout(() => {
+            const container = installTerminalRef.value;
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+            }
+          }, 10);
+        }
+      });
+
+      // Listen for PTY exit
+      const unlistenExit = adapter.terminal.onExit((event) => {
+        if (event.ptyId === result.ptyId) {
+          unlistenOutput();
+          unlistenExit();
+          installPtyId.value = null;
+          installingTerminal.value = null;
+
+          // Check installation status after completion
+          setTimeout(() => {
+            checkSingleTool(toolType, true);
+          }, 1000);
+        }
+      });
+
+      message.info(t("aiTools.installingInTerminal"));
+    } catch (error) {
+      message.error(t("aiTools.installFailed"));
+      console.error("Install in PTY failed:", error);
+      installingTerminal.value = null;
+      installPtyId.value = null;
+    }
+    return;
+  }
+
+  // For macOS/Linux, continue using system terminal
   // Helper function to execute the install command in system terminal
   const executeInSystemTerminal = async () => {
     try {
       const { getAdapter } = await import("../../adapters");
       const adapter = await getAdapter();
       
-      // For Windows, use PowerShell terminal directly instead of PowerShell launching cmd
-      if (currentPlatform.value === 'windows') {
-        // Use PowerShell as the terminal for all commands on Windows
-        // This is cleaner than using PowerShell to launch a cmd window
-        const terminalCommand = installCommand;
-        
-        // For PowerShell commands (irm, iex), execute them directly
-        // For other commands (npm, etc.), they work fine in PowerShell too
-        await adapter.system.openInSpecificTerminal('powershell', terminalCommand);
-      } else {
-        // macOS/Linux: use system terminal
-        await adapter.system.openInSystemTerminal(installCommand);
-      }
+      // macOS/Linux: use system terminal
+      await adapter.system.openInSystemTerminal(installCommand);
       
       message.info(t("aiTools.installingInTerminal"));
       
@@ -945,7 +1022,7 @@ const runInstallCommand = async (
     }
   };
 
-  // Always use system terminal for all installation commands
+  // Always use system terminal for macOS/Linux
   await executeInSystemTerminal();
 };
 
@@ -1228,5 +1305,49 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
 
 .installed-section {
   margin-top: 8px;
+}
+
+.install-terminal-section {
+  margin-top: 8px;
+}
+
+.install-terminal-container {
+  background-color: #1a1a1a;
+  border: 1px solid var(--n-border-color);
+  border-radius: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.install-terminal-output {
+  font-family: 'Cascadia Code', 'Fira Code', 'Source Code Pro', Menlo, Monaco, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c0c0c0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-text {
+  margin: 0;
+  padding: 0;
+}
+
+.install-terminal-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.install-terminal-container::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.install-terminal-container::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.5);
+  border-radius: 4px;
+}
+
+.install-terminal-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(128, 128, 128, 0.8);
 }
 </style>

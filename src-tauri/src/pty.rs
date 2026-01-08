@@ -56,6 +56,8 @@ pub struct TaskExecuteOptions {
     pub cwd: Option<String>,
     pub env: Option<HashMap<String, String>>,
     pub log_path: Option<String>,
+    #[serde(rename = "shell_path")]
+    pub shell_path: Option<String>,
 }
 
 impl Default for TaskExecuteOptions {
@@ -66,6 +68,7 @@ impl Default for TaskExecuteOptions {
             cwd: None,
             env: None,
             log_path: None,
+            shell_path: None,
         }
     }
 }
@@ -429,32 +432,51 @@ impl PtyManager {
                 }
             }
         }
-        
+
         let pair = pair.ok_or_else(|| {
             format!("Failed to open PTY after retries: {:?}", last_error)
         }).map_err(|e| format!("Failed to open PTY: {}", e))?;
 
         // Build command with arguments
         // On Windows, we need to use cmd.exe /c to run batch scripts like npm.cmd
+        // However, if shell_path is provided (e.g., "powershell"), use that instead
         #[cfg(target_os = "windows")]
         let mut cmd = {
-            let mut c = CommandBuilder::new("cmd.exe");
-            c.arg("/c");
-            c.arg(&command);
-            for arg in &args {
-                c.arg(arg);
+            if let Some(ref shell_path) = options.shell_path {
+                // Use custom shell (e.g., PowerShell)
+                let mut c = CommandBuilder::new(shell_path);
+                c.arg("-NoExit");
+                c.arg("-NoProfile");
+                c.arg("-Command");
+                let full_command = if args.is_empty() {
+                    command.clone()
+                } else {
+                    format!("{} {}", command, args.join(" "))
+                };
+                c.arg(&full_command);
+                c
+            } else {
+                // Default to cmd.exe
+                let mut c = CommandBuilder::new("cmd.exe");
+                c.arg("/c");
+                c.arg(&command);
+                for arg in &args {
+                    c.arg(arg);
+                }
+                c
             }
-            c
         };
-        
+
         #[cfg(not(target_os = "windows"))]
         let mut cmd = {
             // Use shell to execute the command to ensure proper TTY handling
             // This is important for sudo password prompts on macOS
-            let shell = Self::get_default_shell();
+            let shell = options.shell_path.as_ref()
+                .unwrap_or(&Self::get_default_shell())
+                .clone();
             let mut c = CommandBuilder::new(&shell);
             c.arg("-c");
-            
+
             // Build the full command string with proper escaping
             let full_command = if args.is_empty() {
                 command.clone()
