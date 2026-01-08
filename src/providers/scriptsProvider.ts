@@ -249,8 +249,9 @@ export class ScriptsProvider implements TaskProvider {
           command = 'bash';
           args = [scriptPath];
         } else {
-          // On Unix, execute script directly (assumes it has shebang and executable permission)
-          // If the script is not executable, the task will fail with a permission error
+          // On Unix, execute script directly
+          // Note: The script must have executable permissions (chmod +x) and a shebang line
+          // If these requirements are not met, the task will fail at runtime with a permission error
           command = scriptPath;
           args = [];
         }
