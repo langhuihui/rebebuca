@@ -100,9 +100,9 @@ export const useUIStore = defineStore("ui", () => {
             height: logicalHeight
           };
           
-          // Resize to sidebar width (280px)
+          // Resize to sidebar width (250px)
           // Use a reasonable height for the mini window
-          const miniWidth = 280;
+          const miniWidth = 250;
           const miniHeight = 600; // Default height for mini mode
           console.log("[MiniMode] Resizing to:", { width: miniWidth, height: miniHeight });
           

@@ -307,7 +307,7 @@
                   v-model:value="toolConfigsLocal[toolType].customEndpoint"
                   :placeholder="t('aiTools.customEndpointPlaceholder')"
                   size="small"
-                  style="width: 280px"
+                  style="width: 250px"
                   @blur="saveToolConfig(toolType)"
                 />
               </n-form-item>

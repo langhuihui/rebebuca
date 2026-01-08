@@ -62,7 +62,7 @@
               :options="terminalOptions"
               :loading="loadingTerminals"
               clearable
-              style="width: 280px;"
+              style="width: 250px;"
               :placeholder="t('settings.preferredTerminalPlaceholder')"
             />
             <span class="setting-hint">{{ t('settings.preferredTerminalHint') }}</span>
@@ -73,7 +73,7 @@
               :options="shellOptions"
               :loading="loadingShells"
               clearable
-              style="width: 280px;"
+              style="width: 250px;"
               :placeholder="t('settings.preferredShellPlaceholder')"
             />
             <span class="setting-hint">{{ t('settings.preferredShellHint') }}</span>
@@ -93,7 +93,7 @@
               type="password"
               :placeholder="sudoPasswordPlaceholder"
               show-password-on="click"
-              style="width: 280px;"
+              style="width: 250px;"
               @focus="handleSudoPasswordFocus"
               @update:value="handleSudoPasswordChange"
               @blur="handleSudoPasswordBlur"

@@ -20,7 +20,7 @@
   <n-layout-sider
     v-show="uiStore.sidebarVisible"
     bordered
-    :width="280"
+    :width="250"
     class="sidebar-layout"
     :class="{ 'light-theme': effectiveTheme === 'light' }"
   >
@@ -1177,7 +1177,7 @@ onMounted(async () => {
 }
 
 .task-tree-container :deep(.n-scrollbar-content) {
-  padding-right: 14px;
+  padding-right: 10px;
   padding-bottom: 28px;
 }
 

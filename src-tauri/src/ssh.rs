@@ -136,7 +136,7 @@ impl SshConnection {
         Self::ping_agent_static(session, agent_path).await
     }
 
-    async fn start_keep_alive(&mut self, app_handle: tauri::AppHandle, session: Arc<Mutex<ssh2::Session>>, agent_path: String) {
+    async fn start_keep_alive(&mut self, _app_handle: tauri::AppHandle, session: Arc<Mutex<ssh2::Session>>, agent_path: String) {
         let interval = self.keep_alive_interval;
         let config_id = self.config_id.clone();
         
@@ -161,7 +161,7 @@ impl SshConnection {
                 // Ping the agent
                 let connections = SSH_CONNECTIONS.lock().await;
                 if let Some(conn) = connections.get(&config_id) {
-                    let mut conn_guard = conn.lock().await;
+                    let conn_guard = conn.lock().await;
                     
                     // Check if we should still keep alive
                     if !conn_guard.should_keep_connection() {
@@ -182,7 +182,7 @@ impl SshConnection {
                         
                         // Update last ping time
                         let connections = SSH_CONNECTIONS.lock().await;
-                        if let Some(conn) = connections.get(&config_id) {
+                        if let Some(_conn) = connections.get(&config_id) {
                             // Note: We can't update timestamp here easily without more refactoring
                             // For now, just log success
                         }
@@ -209,7 +209,7 @@ impl SshConnection {
         let agent_path = agent_path.to_string();
         
         let result = timeout(Duration::from_secs(5), async move {
-            let mut session_guard = session_clone.lock().await;
+            let session_guard = session_clone.lock().await;
             
             let mut channel = match session_guard.channel_session() {
                 Ok(ch) => ch,
@@ -522,7 +522,7 @@ impl SshConnection {
                                         }
                                     }
                                 }
-                                AgentMessage::Error { id, message } => {
+                                AgentMessage::Error { id: _, message } => {
                                     let _ = app_handle_clone.emit(
                                         "ssh-error",
                                         serde_json::json!({
@@ -706,7 +706,7 @@ pub async fn connect_ssh(
 pub async fn disconnect_ssh(
     id: String,
 ) -> Result<(), String> {
-    let mut connections = SSH_CONNECTIONS.lock().await;
+    let connections = SSH_CONNECTIONS.lock().await;
     
     if let Some(conn) = connections.get(&id) {
         let mut conn_guard = conn.lock().await;
