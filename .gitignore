@@ -27,5 +27,8 @@ dist-ssr
 .playwright-mcp
 .vscode
 
+# Test scripts (temporary for development)
+test-scripts/
+
 # CodeBuddy (AI assistant data)
 .codebuddy/
