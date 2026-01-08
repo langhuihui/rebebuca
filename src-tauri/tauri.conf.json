@@ -59,10 +59,6 @@
     "resources": [
       "shell-integration/*"
     ],
-    "externalBin": [
-      "src-tauri/build/rebebuca-remote-agent-x86_64-apple-darwin",
-      "src-tauri/build/rebebuca-remote-agent-aarch64-apple-darwin"
-    ],
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "10.13",
