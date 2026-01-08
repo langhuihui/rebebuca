@@ -50,6 +50,15 @@ pub fn run() {
         .setup(|app| {
             info!("[APP] Rebebuca starting up...");
 
+            // Ensure main window is visible
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                info!("[APP] Main window shown");
+            } else {
+                info!("[APP] Warning: Main window not found");
+            }
+
             // Create a simple static tray icon
             // The frontend can create additional dynamic menus if needed
             info!("[TRAY] Creating tray icon in Rust backend");
@@ -57,9 +66,10 @@ pub fn run() {
             // Create tray menu items
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+            let devtools_item = MenuItem::with_id(app, "devtools", "打开开发者工具", true, None::<&str>)?;
 
             // Create the menu
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &devtools_item, &quit_item])?;
 
             // Create application menu with Edit submenu (for copy/paste shortcuts) and Help submenu
             // Edit menu - required for keyboard shortcuts on macOS
@@ -81,8 +91,9 @@ pub fn run() {
             // Help menu
             let about_item = MenuItem::with_id(app, "about", "关于 Rebebuca", true, None::<&str>)?;
             let website_item = MenuItem::with_id(app, "website", "访问官网", true, None::<&str>)?;
+            let devtools_item = MenuItem::with_id(app, "devtools", "打开开发者工具", true, None::<&str>)?;
             let help_submenu =
-                Submenu::with_items(app, "帮助", true, &[&about_item, &website_item])?;
+                Submenu::with_items(app, "帮助", true, &[&about_item, &website_item, &devtools_item])?;
 
             let app_menu = Menu::with_items(app, &[&edit_submenu, &help_submenu])?;
             app.set_menu(app_menu)?;
@@ -118,6 +129,16 @@ pub fn run() {
                                 .spawn();
                         }
                     }
+                    "devtools" => {
+                        info!("[MENU] Developer tools menu item clicked");
+                        // Open developer tools for the main window
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            window.open_devtools();
+                            info!("[MENU] Developer tools opened");
+                        } else {
+                            info!("[MENU] Main window not found");
+                        }
+                    }
                     _ => {}
                 }
             });
@@ -148,6 +169,18 @@ pub fn run() {
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
                                 let _ = window.set_focus();
+                            }
+                        }
+                        "devtools" => {
+                            info!("[TRAY] Developer tools menu item clicked");
+                            if let Some(window) = app.get_webview_window("main") {
+                                window.open_devtools();
+                                info!("[TRAY] Developer tools opened");
+                                // Also show the window when opening devtools
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            } else {
+                                info!("[TRAY] Main window not found");
                             }
                         }
                         _ => {
@@ -246,7 +279,15 @@ pub fn run() {
             // ssh module
             ssh::test_ssh_connection,
             ssh::execute_ssh_command,
+            ssh::execute_ssh_command_by_id,
             ssh::close_ssh_connection,
+            ssh::list_ssh_configs,
+            ssh::save_ssh_config,
+            ssh::delete_ssh_config,
+            ssh::get_ssh_connection_status,
+            ssh::connect_ssh,
+            ssh::disconnect_ssh,
+            ssh::test_ssh_agent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

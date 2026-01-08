@@ -34,6 +34,8 @@ import { useRunConfigStore } from './runConfig';
 import { useSettingsStore } from './settings';
 import { useNotificationStore } from './notification';
 import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
+import { useSshStore } from './ssh';
+import { safeInvoke } from '../utils/programUtils';
 
 /**
  * Check if command contains sudo and inject password if stored
@@ -1390,13 +1392,18 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       return;
     }
     
+    // Check if task uses SSH
+    if (task.sshConfigId) {
+      await executeTaskViaSsh(task, options);
+      return;
+    }
+    
     const terminalStore = useTerminalStore();
     const runConfigStore = useRunConfigStore();
     await terminalStore.initListeners();
     
     const cwd = options?.cwd || task.cwd;
     const env = options?.env ? { ...task.env, ...options.env } : task.env;
-    const label = options?.label || task.name;
     
     // Check if task should be executed in system terminal
     if (task.useSystemTerminal) {
@@ -1686,7 +1693,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         env,
         taskId: task.id,
         historyId: historyRecord.id,
-        label,
+        label: task.name,
         logPath,
         shellPath: task.shellPath || null,
       });
@@ -1722,10 +1729,199 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         'frontend'
       );
       
+    throw error;
+  }
+}
+
+  /**
+   * Execute task via SSH
+   */
+  async function executeTaskViaSsh(task: Task, options?: TaskExecutionOptions): Promise<void> {
+    if (!task.sshConfigId) {
+      throw new Error('SSH config ID is required for SSH execution');
+    }
+    
+    const sshStore = useSshStore();
+    const runConfigStore = useRunConfigStore();
+    const notificationStore = useNotificationStore();
+    
+    // Ensure SSH store is initialized
+    await sshStore.initialize();
+    
+    // Get SSH config
+    const sshConfig = sshStore.getConfig(task.sshConfigId);
+    if (!sshConfig) {
+      throw new Error(`SSH config not found: ${task.sshConfigId}`);
+    }
+    
+    // Check connection status and connect if needed
+    const status = sshStore.getConnectionStatus(task.sshConfigId);
+    if (!status || (status.status !== 'connected' && status.status !== 'agent_ready')) {
+      console.log(`[TaskManager] Connecting to SSH ${task.sshConfigId}...`);
+      try {
+        await sshStore.connect(task.sshConfigId);
+        
+        // Test agent after connecting
+        const agentReady = await sshStore.testAgent(task.sshConfigId);
+        if (!agentReady) {
+          notificationStore.addWarning(
+            'SSH Agent Not Ready',
+            `SSH connection established but agent is not ready. Task may fail.`,
+            'frontend'
+          );
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        notificationStore.addError(
+          'SSH Connection Failed',
+          `Failed to connect to SSH server: ${errorMessage}`,
+          'frontend'
+        );
+        throw error;
+      }
+    }
+    
+    const cwd = options?.cwd || task.cwd;
+    const env = options?.env ? { ...task.env, ...options.env } : task.env;
+    
+    // Build command and args
+    let command: string;
+    let args: string[];
+    
+    const hasArgs = task.args && task.args.length > 0;
+    const commandHasSpaces = task.command && task.command.includes(' ');
+    
+    // Similar logic to local execution for determining command/args
+    const needsShellExecution = (cmdLine: string): boolean => {
+      const shellOperators = ['&&', '||', '|', ';', '>', '<', '>>', '<<', '2>', '2>>', '&>', '`', '$('];
+      let inSingleQuote = false;
+      let inDoubleQuote = false;
+      
+      for (let i = 0; i < cmdLine.length; i++) {
+        const char = cmdLine[i];
+        
+        if (char === "'" && !inDoubleQuote) {
+          inSingleQuote = !inSingleQuote;
+          continue;
+        }
+        
+        if (char === '"' && !inSingleQuote) {
+          inDoubleQuote = !inDoubleQuote;
+          continue;
+        }
+        
+        if (!inSingleQuote && !inDoubleQuote) {
+          for (const op of shellOperators) {
+            if (cmdLine.slice(i, i + op.length) === op) {
+              return true;
+            }
+          }
+        }
+      }
+      
+      const shellCommands = ['sudo', 'nohup', 'time', 'nice', 'env'];
+      const firstToken = cmdLine.trim().split(/\s+/)[0];
+      if (shellCommands.includes(firstToken)) {
+        return true;
+      }
+      
+      return false;
+    };
+    
+    const shouldUseShellExecution = task.source === 'user' || task.source === 'npm';
+    
+    if (shouldUseShellExecution && commandHasSpaces) {
+      const isWindows = navigator.platform.toLowerCase().includes('win');
+      if (isWindows) {
+        command = task.shellPath ?? 'cmd';
+        args = ['/c', task.command ?? ''];
+      } else {
+        command = task.shellPath ?? 'sh';
+        args = ['-c', task.command ?? ''];
+      }
+    } else if (commandHasSpaces && !hasArgs) {
+      if (needsShellExecution(task.command ?? '')) {
+        const isWindows = navigator.platform.toLowerCase().includes('win');
+        if (isWindows) {
+          command = task.shellPath ?? 'cmd';
+          args = ['/c', task.command ?? ''];
+        } else {
+          command = task.shellPath ?? 'sh';
+          args = ['-c', task.command ?? ''];
+        }
+      } else {
+        const parsed = parseCommandLine(task.command ?? '');
+        command = parsed.command;
+        args = parsed.args;
+      }
+    } else {
+      command = task.command ?? '';
+      args = task.args || [];
+    }
+    
+    // Create history record
+    const historyRecord = await runConfigStore.addHistory({
+      configId: task.id,
+      name: task.name,
+      command: `[SSH:${sshConfig.name}] ${command} ${args.join(' ')}`,
+      status: 'running',
+      timestamp: new Date(),
+      startTime: Date.now(),
+    });
+    
+    try {
+      // Execute via SSH using config ID
+      const execId = await safeInvoke<string>('execute_ssh_command_by_id', {
+        config_id: task.sshConfigId,
+        task_id: task.id,
+        command,
+        args: args.length > 0 ? args : undefined,
+        cwd,
+        env: env && Object.keys(env).length > 0 ? env : undefined,
+      });
+      
+      if (!execId) {
+        throw new Error('Failed to start SSH execution');
+      }
+      
+      console.log(`[TaskManager] SSH execution started with id: ${execId}`);
+      
+      // Track this task as running
+      runningTasks.value.set(task.id, execId);
+      
+      // Update task run statistics
+      await updateTaskRunStats(task.id);
+      
+      // Update history with SSH execution ID
+      const index = runConfigStore.history.findIndex(h => h.id === historyRecord.id);
+      if (index !== -1) {
+        runConfigStore.history[index] = {
+          ...runConfigStore.history[index],
+          ptyId: execId,
+        };
+        await runConfigStore.saveHistory();
+      }
+      
+      console.log(`[TaskManager] SSH task started: ${task.name}, execId: ${execId}`);
+    } catch (error) {
+      // Update history to error status if execution failed
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await runConfigStore.updateHistory(historyRecord.id, {
+        status: 'error',
+        output: `Failed to start SSH task: ${errorMessage}`,
+      });
+      
+      // Add notification for task execution failure
+      notificationStore.addError(
+        'SSH Task execution failed',
+        `Task: ${task.name}\n${errorMessage}`,
+        'frontend'
+      );
+      
       throw error;
     }
   }
-  
+
   /**
    * Stop a running task
    */

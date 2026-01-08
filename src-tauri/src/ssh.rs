@@ -1,5 +1,8 @@
-use crate::types::{AgentMessage, OutputType, SshAuthMethod, SshConfig};
-use log::{error, info};
+use crate::types::{
+    AgentMessage, OutputType, SshAuthMethod, SshConfig, SshConnectionInfo, 
+    SshConnectionStatus, SavedSshConfig
+};
+use log::{error, info, warn};
 use ssh2::Session;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -7,32 +10,91 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
+use tokio::time::{timeout, Duration};
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct SshConnection {
     config: SshConfig,
+    config_id: String,  // ID for saved configuration
     agent_deployed: bool,
     agent_path: Option<String>,
+    status: SshConnectionStatus,
+    task_count: u32,
+    keep_alive_interval: u64,  // Keep-alive interval in seconds
+    keep_connection: bool,  // Whether to keep connection when no tasks
+    keep_alive_handle: Option<Arc<tokio::task::JoinHandle<()>>>,
+    session: Option<Arc<Mutex<ssh2::Session>>>,
 }
 
-// Store active SSH connections
+// Store active SSH connections (keyed by config ID)
 lazy_static::lazy_static! {
     static ref SSH_CONNECTIONS: Arc<Mutex<HashMap<String, Arc<Mutex<SshConnection>>>>> = 
+        Arc::new(Mutex::new(HashMap::new()));
+    
+    // Store saved SSH configurations (keyed by config ID)
+    static ref SSH_CONFIGS: Arc<Mutex<HashMap<String, SavedSshConfig>>> = 
         Arc::new(Mutex::new(HashMap::new()));
 }
 
 impl SshConnection {
-    pub fn new(config: SshConfig) -> Self {
+    pub fn new(config: SshConfig, config_id: String) -> Self {
+        let keep_alive_interval = config.keep_alive_interval.unwrap_or(60);
+        let keep_connection = config.keep_connection.unwrap_or(false);
+        
         Self {
             config,
+            config_id,
             agent_deployed: false,
             agent_path: None,
+            status: SshConnectionStatus::Disconnected,
+            task_count: 0,
+            keep_alive_interval,
+            keep_connection,
+            keep_alive_handle: None,
+            session: None,
         }
     }
+    
+    fn get_connection_key(&self) -> String {
+        format!("{}@{}:{}", self.config.username, self.config.host, self.config.port)
+    }
+    
+    pub fn get_status(&self) -> SshConnectionStatus {
+        self.status.clone()
+    }
+    
+    pub fn get_task_count(&self) -> u32 {
+        self.task_count
+    }
+    
+    pub fn increment_task_count(&mut self) {
+        self.task_count += 1;
+    }
+    
+    pub fn decrement_task_count(&mut self) {
+        if self.task_count > 0 {
+            self.task_count -= 1;
+        }
+    }
+    
+    pub fn should_keep_connection(&self) -> bool {
+        self.keep_connection || self.task_count > 0
+    }
 
-    fn create_session(&self) -> Result<Session, String> {
-        let tcp = TcpStream::connect(format!("{}:{}", self.config.host, self.config.port))
+    async fn create_session(&mut self) -> Result<Arc<Mutex<ssh2::Session>>, String> {
+        // Set timeout for connection (10 seconds)
+        let connect_timeout = Duration::from_secs(10);
+        
+        let host = self.config.host.clone();
+        let port = self.config.port;
+        
+        let tcp = timeout(
+            connect_timeout,
+            tokio::task::spawn_blocking(move || TcpStream::connect(format!("{}:{}", host, port)))
+        ).await
+            .map_err(|e| format!("Connection timeout: {}", e))?
+            .map_err(|e| format!("Failed to spawn blocking task: {}", e))?
             .map_err(|e| format!("Failed to connect to SSH server: {}", e))?;
 
         let mut session = Session::new().map_err(|e| format!("Failed to create SSH session: {}", e))?;
@@ -49,10 +111,17 @@ impl SshConnection {
                     .map_err(|e| format!("SSH password authentication failed: {}", e))?;
             }
             SshAuthMethod::PrivateKey { key_path, passphrase } => {
-                let passphrase = passphrase.as_deref();
-                session
-                    .userauth_pubkey_file(&self.config.username, None, std::path::Path::new(key_path), passphrase)
-                    .map_err(|e| format!("SSH key authentication failed: {}", e))?;
+                let passphrase = passphrase.clone();
+                let key_path = key_path.clone();
+                let username = self.config.username.clone();
+                
+                // For key auth, we need to do it synchronously as ssh2 doesn't support async well
+                session.userauth_pubkey_file(
+                    &username, 
+                    None, 
+                    std::path::Path::new(&key_path), 
+                    passphrase.as_deref()
+                ).map_err(|e| format!("SSH key authentication failed: {}", e))?;
             }
         }
 
@@ -60,9 +129,145 @@ impl SshConnection {
             return Err("SSH authentication failed".to_string());
         }
 
-        Ok(session)
+        Ok(Arc::new(Mutex::new(session)))
+    }
+    
+    async fn ping_agent(&self, session: Arc<Mutex<ssh2::Session>>, agent_path: &str) -> Result<bool, String> {
+        Self::ping_agent_static(session, agent_path).await
     }
 
+    async fn start_keep_alive(&mut self, app_handle: tauri::AppHandle, session: Arc<Mutex<ssh2::Session>>, agent_path: String) {
+        let interval = self.keep_alive_interval;
+        let config_id = self.config_id.clone();
+        
+        // Spawn keep-alive task
+        let _handle = tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(Duration::from_secs(interval));
+            
+            loop {
+                interval_timer.tick().await;
+                
+                // Check if connection still exists
+                let connection_exists = {
+                    let connections = SSH_CONNECTIONS.lock().await;
+                    connections.contains_key(&config_id)
+                };
+                
+                if !connection_exists {
+                    info!("[SSH] Keep-alive stopped: connection removed for {}", config_id);
+                    break;
+                }
+                
+                // Ping the agent
+                let connections = SSH_CONNECTIONS.lock().await;
+                if let Some(conn) = connections.get(&config_id) {
+                    let mut conn_guard = conn.lock().await;
+                    
+                    // Check if we should still keep alive
+                    if !conn_guard.should_keep_connection() {
+                        info!("[SSH] Keep-alive stopped: no tasks and keep_connection=false for {}", config_id);
+                        drop(conn_guard);
+                        drop(connections);
+                        break;
+                    }
+                    
+                    drop(conn_guard);
+                }
+                drop(connections);
+                
+                // Ping agent
+                match Self::ping_agent_static(session.clone(), &agent_path).await {
+                    Ok(true) => {
+                        info!("[SSH] Keep-alive ping successful for {}", config_id);
+                        
+                        // Update last ping time
+                        let connections = SSH_CONNECTIONS.lock().await;
+                        if let Some(conn) = connections.get(&config_id) {
+                            // Note: We can't update timestamp here easily without more refactoring
+                            // For now, just log success
+                        }
+                        drop(connections);
+                    }
+                    Ok(false) => {
+                        warn!("[SSH] Keep-alive ping failed: no pong received for {}", config_id);
+                        // Connection might be dead, but don't disconnect yet
+                    }
+                    Err(e) => {
+                        warn!("[SSH] Keep-alive ping error for {}: {}", config_id, e);
+                        // Connection error, but continue trying
+                    }
+                }
+            }
+        });
+        
+        // Store the handle wrapped in Arc so we can keep a reference
+        self.keep_alive_handle = Some(Arc::new(_handle));
+    }
+    
+    async fn ping_agent_static(session: Arc<Mutex<ssh2::Session>>, agent_path: &str) -> Result<bool, String> {
+        let session_clone = session.clone();
+        let agent_path = agent_path.to_string();
+        
+        let result = timeout(Duration::from_secs(5), async move {
+            let mut session_guard = session_clone.lock().await;
+            
+            let mut channel = match session_guard.channel_session() {
+                Ok(ch) => ch,
+                Err(e) => return Err(format!("Failed to open channel: {}", e)),
+            };
+            
+            if let Err(e) = channel.exec(&agent_path) {
+                return Err(format!("Failed to execute agent: {}", e));
+            }
+            
+            let ping_msg = AgentMessage::Ping;
+            let json = match serde_json::to_string(&ping_msg) {
+                Ok(j) => j,
+                Err(e) => return Err(format!("Failed to serialize ping: {}", e)),
+            };
+            
+            if let Err(e) = channel.write_all(format!("{}\n", json).as_bytes()) {
+                return Err(format!("Failed to send ping: {}", e));
+            }
+            
+            if let Err(e) = channel.flush() {
+                return Err(format!("Failed to flush: {}", e));
+            }
+            
+            drop(session_guard);
+            
+            // Read response with timeout
+            let reader = BufReader::new(channel);
+            let line_future = async {
+                let mut reader = reader;
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(_) => Ok::<String, String>(line),
+                    Err(e) => Err(format!("Failed to read response: {}", e)),
+                }
+            };
+            
+            let line_result = timeout(Duration::from_secs(2), line_future).await;
+            match line_result {
+                Ok(Ok(line)) => {
+                    if let Ok(msg) = serde_json::from_str::<AgentMessage>(&line.trim()) {
+                        Ok(matches!(msg, AgentMessage::Pong))
+                    } else {
+                        Ok(false)
+                    }
+                }
+                Ok(Err(e)) => Err(e),
+                Err(_) => Err("Read timeout".to_string()),
+            }
+        }).await;
+        
+        match result {
+            Ok(Ok(is_pong)) => Ok(is_pong),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err("Ping timeout".to_string()),
+        }
+    }
+    
     async fn deploy_agent(&mut self, app_handle: &tauri::AppHandle) -> Result<(), String> {
         if self.agent_deployed {
             return Ok(());
@@ -70,7 +275,14 @@ impl SshConnection {
 
         info!("Deploying remote agent to {}@{}", self.config.username, self.config.host);
 
-        let session = self.create_session()?;
+        // Get or create session
+        let session = if let Some(ref sess) = self.session {
+            sess.clone()
+        } else {
+            let new_session = self.create_session().await?;
+            self.session = Some(new_session.clone());
+            new_session
+        };
 
         // Get the agent binary path from the app resources
         let agent_path = app_handle
@@ -85,7 +297,9 @@ impl SshConnection {
 
         // Transfer the agent to remote
         let remote_path = format!("/tmp/rebebuca-remote-agent-{}", Uuid::new_v4());
-        let mut remote_file = session
+        
+        let session_guard = session.lock().await;
+        let mut remote_file = session_guard
             .scp_send(std::path::Path::new(&remote_path), 0o755, agent_binary.len() as u64, None)
             .map_err(|e| format!("Failed to initiate SCP transfer: {}", e))?;
 
@@ -108,11 +322,71 @@ impl SshConnection {
         remote_file
             .wait_close()
             .map_err(|e| format!("Failed to wait for close: {}", e))?;
+        drop(session_guard);
 
         info!("Agent deployed successfully to {}", remote_path);
         self.agent_deployed = true;
-        self.agent_path = Some(remote_path);
+        let remote_path_clone = remote_path.clone();
+        self.agent_path = Some(remote_path_clone.clone());
+        
+        // Start keep-alive if interval is set
+        if self.keep_alive_interval > 0 {
+            self.start_keep_alive(app_handle.clone(), session, remote_path_clone).await;
+        }
 
+        Ok(())
+    }
+    
+    pub async fn connect(&mut self, app_handle: &tauri::AppHandle) -> Result<(), String> {
+        if matches!(self.status, SshConnectionStatus::Connected | SshConnectionStatus::AgentReady) {
+            return Ok(());
+        }
+        
+        self.status = SshConnectionStatus::Connecting;
+        
+        // Create session
+        let session = self.create_session().await?;
+        self.session = Some(session.clone());
+        self.status = SshConnectionStatus::Connected;
+        
+        // Deploy agent
+        self.deploy_agent(app_handle).await?;
+        
+        // Test agent connection
+        if let Some(ref agent_path) = self.agent_path {
+            match self.ping_agent(session.clone(), agent_path).await {
+                Ok(true) => {
+                    self.status = SshConnectionStatus::AgentReady;
+                    info!("[SSH] Agent ready for {}", self.config_id);
+                }
+                Ok(false) => {
+                    warn!("[SSH] Agent ping failed (no pong) for {}", self.config_id);
+                    // Still mark as ready if agent is deployed
+                    self.status = SshConnectionStatus::AgentReady;
+                }
+                Err(e) => {
+                    warn!("[SSH] Agent ping error for {}: {}", self.config_id, e);
+                    // Still mark as ready if agent is deployed
+                    self.status = SshConnectionStatus::AgentReady;
+                }
+            }
+        }
+        
+        Ok(())
+    }
+    
+    pub async fn disconnect(&mut self) -> Result<(), String> {
+        // Stop keep-alive
+        if let Some(handle) = self.keep_alive_handle.take() {
+            handle.abort();
+        }
+        
+        // Close session (drop the Arc reference)
+        drop(self.session.take());
+        self.agent_deployed = false;
+        self.agent_path = None;
+        self.status = SshConnectionStatus::Disconnected;
+        
         Ok(())
     }
 
@@ -125,17 +399,25 @@ impl SshConnection {
         cwd: Option<String>,
         env: Option<HashMap<String, String>>,
     ) -> Result<String, String> {
-        // Deploy agent if not already deployed
-        self.deploy_agent(app_handle).await?;
+        // Ensure connection is established
+        if !matches!(self.status, SshConnectionStatus::AgentReady) {
+            self.connect(app_handle).await?;
+        }
+        
+        // Increment task count
+        self.increment_task_count();
 
         let agent_path = self.agent_path.as_ref()
             .ok_or("Agent path not available")?;
 
-        let session = self.create_session()?;
+        let session = self.session.as_ref()
+            .ok_or("Session not available")?
+            .clone();
         let exec_id = Uuid::new_v4().to_string();
 
         // Start the remote agent and send execute command
-        let mut channel = session
+        let session_guard = session.lock().await;
+        let mut channel = session_guard
             .channel_session()
             .map_err(|e| format!("Failed to open channel: {}", e))?;
 
@@ -162,11 +444,14 @@ impl SshConnection {
         channel
             .flush()
             .map_err(|e| format!("Failed to flush channel: {}", e))?;
+        
+        drop(session_guard);
 
         // Read responses from agent in a background task
         // The channel will be properly closed when the reader finishes or encounters an error
         let app_handle_clone = app_handle.clone();
         let task_id_clone = task_id.clone();
+        let config_id_clone = self.config_id.clone();
         let reader = BufReader::new(channel);
 
         tokio::spawn(async move {
@@ -175,7 +460,7 @@ impl SshConnection {
                     Ok(line) => {
                         if let Ok(msg) = serde_json::from_str::<AgentMessage>(&line) {
                             match msg {
-                                AgentMessage::Output { id, output_type, content } => {
+                                AgentMessage::Output { id: _, output_type, content } => {
                                     let _ = app_handle_clone.emit(
                                         "ssh-output",
                                         serde_json::json!({
@@ -189,7 +474,7 @@ impl SshConnection {
                                         }),
                                     );
                                 }
-                                AgentMessage::ProcessStarted { id, pid } => {
+                                AgentMessage::ProcessStarted { id: _, pid } => {
                                     let _ = app_handle_clone.emit(
                                         "ssh-process-started",
                                         serde_json::json!({
@@ -198,7 +483,7 @@ impl SshConnection {
                                         }),
                                     );
                                 }
-                                AgentMessage::ProcessFinished { id, exit_code } => {
+                                AgentMessage::ProcessFinished { id: _, exit_code } => {
                                     let _ = app_handle_clone.emit(
                                         "ssh-process-finished",
                                         serde_json::json!({
@@ -206,6 +491,36 @@ impl SshConnection {
                                             "exitCode": exit_code,
                                         }),
                                     );
+                                    
+                                    // Decrement task count when task finishes
+                                    let should_disconnect = {
+                                        let connections = SSH_CONNECTIONS.lock().await;
+                                        if let Some(conn) = connections.get(&config_id_clone) {
+                                            let mut conn_guard = conn.lock().await;
+                                            conn_guard.decrement_task_count();
+                                            
+                                            // Check if we should disconnect
+                                            let should = conn_guard.task_count == 0 && !conn_guard.should_keep_connection();
+                                            if should {
+                                                drop(conn_guard);
+                                                drop(connections);
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        }
+                                    };
+                                    
+                                    // Disconnect outside the lock
+                                    if should_disconnect {
+                                        let connections = SSH_CONNECTIONS.lock().await;
+                                        if let Some(conn) = connections.get(&config_id_clone) {
+                                            let mut conn_guard = conn.lock().await;
+                                            let _ = conn_guard.disconnect().await;
+                                        }
+                                    }
                                 }
                                 AgentMessage::Error { id, message } => {
                                     let _ = app_handle_clone.emit(
@@ -235,17 +550,204 @@ impl SshConnection {
 
 // Tauri commands
 
+// Helper function to load SSH configs from storage
+// Note: We'll use the adapter's storage system from frontend instead
+// This is a placeholder - actual storage will be handled by frontend
+async fn load_ssh_configs_from_storage(_app_handle: &tauri::AppHandle) -> Result<(), String> {
+    // Storage loading will be handled by frontend through adapter
+    // Backend just maintains in-memory cache
+    Ok(())
+}
+
+// Helper function to save SSH configs to storage
+// Note: We'll use the adapter's storage system from frontend instead
+// This is a placeholder - actual storage will be handled by frontend
+async fn save_ssh_configs_to_storage(_app_handle: &tauri::AppHandle) -> Result<(), String> {
+    // Storage saving will be handled by frontend through adapter
+    // Backend just maintains in-memory cache
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn test_ssh_connection(config: SshConfig) -> Result<String, String> {
     info!("Testing SSH connection to {}@{}:{}", config.username, config.host, config.port);
     
-    let connection = SshConnection::new(config);
-    let session = connection.create_session()?;
+    // Create a temporary connection for testing
+    let config_id = config.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+    let config_for_test = config.clone();
+    let mut connection = SshConnection::new(config_for_test, config_id);
+    
+    // Try to create a session
+    let session = connection.create_session().await?;
+    let session_guard = session.lock().await;
     
     // Try to get server banner
-    let banner = session.banner().unwrap_or("Unknown").to_string();
+    let banner = session_guard.banner().unwrap_or("Unknown").to_string();
+    drop(session_guard);
     
     Ok(format!("Connected successfully. Server: {}", banner))
+}
+
+#[tauri::command]
+pub async fn list_ssh_configs(
+    app_handle: tauri::AppHandle,
+) -> Result<Vec<SavedSshConfig>, String> {
+    load_ssh_configs_from_storage(&app_handle).await?;
+    
+    let configs = SSH_CONFIGS.lock().await;
+    Ok(configs.values().cloned().collect())
+}
+
+#[tauri::command]
+pub async fn save_ssh_config(
+    app_handle: tauri::AppHandle,
+    config: SavedSshConfig,
+) -> Result<(), String> {
+    let mut configs = SSH_CONFIGS.lock().await;
+    configs.insert(config.id.clone(), config.clone());
+    drop(configs);
+    
+    save_ssh_configs_to_storage(&app_handle).await?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_ssh_config(
+    app_handle: tauri::AppHandle,
+    id: String,
+) -> Result<(), String> {
+    let mut configs = SSH_CONFIGS.lock().await;
+    configs.remove(&id);
+    drop(configs);
+    
+    save_ssh_configs_to_storage(&app_handle).await?;
+    
+    // Also disconnect if there's an active connection
+    let conn_to_disconnect = {
+        let mut connections = SSH_CONNECTIONS.lock().await;
+        connections.remove(&id)
+    };
+    
+    if let Some(conn) = conn_to_disconnect {
+        let mut conn_guard = conn.lock().await;
+        let _ = conn_guard.disconnect().await;
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_ssh_connection_status(
+    id: String,
+) -> Result<SshConnectionInfo, String> {
+    let connections = SSH_CONNECTIONS.lock().await;
+    
+    if let Some(conn) = connections.get(&id) {
+        let conn_guard = conn.lock().await;
+        Ok(SshConnectionInfo {
+            id: id.clone(),
+            status: conn_guard.get_status(),
+            task_count: conn_guard.get_task_count(),
+            last_ping: None,  // TODO: track last ping timestamp
+        })
+    } else {
+        Ok(SshConnectionInfo {
+            id,
+            status: SshConnectionStatus::Disconnected,
+            task_count: 0,
+            last_ping: None,
+        })
+    }
+}
+
+#[tauri::command]
+pub async fn connect_ssh(
+    app_handle: tauri::AppHandle,
+    id: String,
+) -> Result<(), String> {
+    // Load configs first
+    load_ssh_configs_from_storage(&app_handle).await?;
+    
+    // Get config
+    let configs = SSH_CONFIGS.lock().await;
+    let saved_config = configs.get(&id)
+        .ok_or_else(|| format!("SSH config not found: {}", id))?;
+    
+    // Convert SavedSshConfig to SshConfig
+    let ssh_config = SshConfig {
+        id: Some(saved_config.id.clone()),
+        name: Some(saved_config.name.clone()),
+        host: saved_config.host.clone(),
+        port: saved_config.port,
+        username: saved_config.username.clone(),
+        auth: saved_config.auth.clone(),
+        keep_alive_interval: Some(saved_config.keep_alive_interval),
+        keep_connection: Some(saved_config.keep_connection),
+    };
+    drop(configs);
+    
+    // Get or create connection
+    let ssh_config_for_conn = ssh_config.clone();
+    let id_for_conn = id.clone();
+    
+    let mut connections = SSH_CONNECTIONS.lock().await;
+    let connection = connections
+        .entry(id.clone())
+        .or_insert_with(|| Arc::new(Mutex::new(SshConnection::new(ssh_config_for_conn, id_for_conn))));
+    
+    let mut conn = connection.lock().await;
+    conn.connect(&app_handle).await?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn disconnect_ssh(
+    id: String,
+) -> Result<(), String> {
+    let mut connections = SSH_CONNECTIONS.lock().await;
+    
+    if let Some(conn) = connections.get(&id) {
+        let mut conn_guard = conn.lock().await;
+        conn_guard.disconnect().await?;
+    }
+    
+    // Optionally remove from connections map
+    // connections.remove(&id);
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn test_ssh_agent(
+    app_handle: tauri::AppHandle,
+    id: String,
+) -> Result<bool, String> {
+    // Ensure connection is established
+    connect_ssh(app_handle.clone(), id.clone()).await?;
+    
+    let (session_clone, agent_path_clone) = {
+        let connections = SSH_CONNECTIONS.lock().await;
+        if let Some(conn) = connections.get(&id) {
+            let conn_guard = conn.lock().await;
+            
+            // Clone values before dropping the guard
+            let session_opt = conn_guard.session.as_ref().map(|s| s.clone());
+            let agent_path_opt = conn_guard.agent_path.as_ref().map(|p| p.clone());
+            
+            (session_opt, agent_path_opt)
+        } else {
+            (None, None)
+        }
+    };
+    
+    if let (Some(session), Some(agent_path)) = (session_clone, agent_path_clone) {
+        // session is already Arc<Mutex<Session>>, pass it directly
+        SshConnection::ping_agent_static(session, &agent_path).await
+    } else {
+        Ok(false)
+    }
 }
 
 #[tauri::command]
@@ -258,21 +760,93 @@ pub async fn execute_ssh_command(
     cwd: Option<String>,
     env: Option<HashMap<String, String>>,
 ) -> Result<String, String> {
-    let connection_key = format!("{}@{}:{}", config.username, config.host, config.port);
+    // Use config ID if provided, otherwise generate one from connection key
+    let config_id = config.id.clone().unwrap_or_else(|| {
+        format!("{}@{}:{}", config.username, config.host, config.port)
+    });
+    
+    let config_for_conn = config.clone(); // Clone for connection creation
+    let config_id_for_conn = config_id.clone();
     
     let mut connections = SSH_CONNECTIONS.lock().await;
     let connection = connections
-        .entry(connection_key)
-        .or_insert_with(|| Arc::new(Mutex::new(SshConnection::new(config))));
+        .entry(config_id.clone())
+        .or_insert_with(|| Arc::new(Mutex::new(SshConnection::new(config_for_conn, config_id_for_conn))));
     
     let mut conn = connection.lock().await;
     conn.execute_remote(&app_handle, task_id, command, args, cwd, env).await
 }
 
 #[tauri::command]
+pub async fn execute_ssh_command_by_id(
+    app_handle: tauri::AppHandle,
+    config_id: String,
+    task_id: String,
+    command: String,
+    args: Option<Vec<String>>,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+) -> Result<String, String> {
+    // Load configs first
+    load_ssh_configs_from_storage(&app_handle).await?;
+    
+    // Get config
+    let configs = SSH_CONFIGS.lock().await;
+    let saved_config = configs.get(&config_id)
+        .ok_or_else(|| format!("SSH config not found: {}", config_id))?;
+    
+    // Convert SavedSshConfig to SshConfig
+    let ssh_config = SshConfig {
+        id: Some(saved_config.id.clone()),
+        name: Some(saved_config.name.clone()),
+        host: saved_config.host.clone(),
+        port: saved_config.port,
+        username: saved_config.username.clone(),
+        auth: saved_config.auth.clone(),
+        keep_alive_interval: Some(saved_config.keep_alive_interval),
+        keep_connection: Some(saved_config.keep_connection),
+    };
+    drop(configs);
+    
+    // Get or create connection
+    let mut connections = SSH_CONNECTIONS.lock().await;
+    let connection = connections
+        .entry(config_id.clone())
+        .or_insert_with(|| Arc::new(Mutex::new(SshConnection::new(ssh_config, config_id))));
+    
+    let mut conn = connection.lock().await;
+    
+    // Ensure connection is established and agent is ready
+    if !matches!(conn.get_status(), SshConnectionStatus::AgentReady) {
+        conn.connect(&app_handle).await?;
+    }
+    
+    conn.execute_remote(&app_handle, task_id, command, args, cwd, env).await
+}
+
+#[tauri::command]
 pub async fn close_ssh_connection(host: String, port: u16, username: String) -> Result<(), String> {
+    // This is the old API - try to find by connection key
     let connection_key = format!("{}@{}:{}", username, host, port);
     let mut connections = SSH_CONNECTIONS.lock().await;
-    connections.remove(&connection_key);
+    
+    // Try to find by connection key (for backward compatibility)
+    let mut found_id: Option<String> = None;
+    for (id, conn) in connections.iter() {
+        let conn_guard = conn.lock().await;
+        if conn_guard.get_connection_key() == connection_key {
+            found_id = Some(id.clone());
+            break;
+        }
+    }
+    
+    if let Some(id) = found_id {
+        if let Some(conn) = connections.get(&id) {
+            let mut conn_guard = conn.lock().await;
+            let _ = conn_guard.disconnect().await;
+        }
+        connections.remove(&id);
+    }
+    
     Ok(())
 }

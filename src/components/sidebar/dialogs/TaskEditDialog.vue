@@ -217,91 +217,48 @@
       
       <!-- SSH Remote Execution -->
       <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.useSsh')">
-        <n-switch v-model:value="editingTask.useSsh" />
+        <n-space align="center" :size="12">
+          <n-switch v-model:value="editingTask.useSsh" />
+          <n-select
+            v-if="editingTask.useSsh"
+            v-model:value="editingTask.sshConfigId"
+            :options="sshConfigOptions"
+            :placeholder="t('task.selectSshConfig')"
+            clearable
+            filterable
+            style="min-width: 200px;"
+            @update:value="handleSshConfigChange"
+          />
+          <n-button
+            v-if="editingTask.useSsh && editingTask.sshConfigId"
+            size="small"
+            :loading="testingSsh"
+            @click="testSshConnection"
+          >
+            {{ t('task.testSshConnection') }}
+          </n-button>
+        </n-space>
       </n-form-item>
       
-      <!-- SSH Configuration (shown when useSsh is enabled) -->
-      <template v-if="editingTask.useSsh && editingTask.type !== 'macro'">
-        <n-divider>{{ t('task.sshConfig') }}</n-divider>
-        
-        <n-form-item :label="t('task.sshHost')" path="sshConfig.host">
-          <n-input 
-            v-model:value="editingTask.sshConfig!.host" 
-            :placeholder="t('task.sshHostPlaceholder')"
-          />
-        </n-form-item>
-        
-        <n-form-item :label="t('task.sshPort')" path="sshConfig.port">
-          <n-input-number 
-            v-model:value="editingTask.sshConfig!.port" 
-            :min="1" 
-            :max="65535"
-            style="width: 100%;"
-          />
-        </n-form-item>
-        
-        <n-form-item :label="t('task.sshUsername')" path="sshConfig.username">
-          <n-input 
-            v-model:value="editingTask.sshConfig!.username" 
-            :placeholder="t('task.sshUsernamePlaceholder')"
-          />
-        </n-form-item>
-        
-        <n-form-item :label="t('task.sshAuthMethod')">
-          <n-radio-group v-model:value="editingTask.sshAuthType">
-            <n-space vertical :size="8">
-              <n-radio value="password">{{ t('task.sshAuthPassword') }}</n-radio>
-              <n-radio value="privateKey">{{ t('task.sshAuthPrivateKey') }}</n-radio>
-            </n-space>
-          </n-radio-group>
-        </n-form-item>
-        
-        <n-form-item 
-          v-if="editingTask.sshAuthType === 'password'" 
-          :label="t('task.sshPassword')"
-          path="sshConfig.auth.password"
-        >
-          <n-input 
-            v-model:value="editingTask.sshPassword" 
-            type="password"
-            show-password-on="click"
-            :placeholder="t('task.sshPasswordPlaceholder')"
-          />
-        </n-form-item>
-        
-        <template v-if="editingTask.sshAuthType === 'privateKey'">
-          <n-form-item :label="t('task.sshPrivateKey')" path="sshConfig.auth.key_path">
-            <n-input-group>
-              <n-input 
-                v-model:value="editingTask.sshKeyPath" 
-                :placeholder="t('task.sshPrivateKeyPlaceholder')"
-              />
-              <n-button @click="selectSshKeyFile">
-                <template #icon>
-                  <n-icon size="16">
-                    <component :is="svgIcons.folderOpen" />
-                  </n-icon>
-                </template>
-              </n-button>
-            </n-input-group>
-          </n-form-item>
-          
-          <n-form-item :label="t('task.sshPassphrase')">
-            <n-input 
-              v-model:value="editingTask.sshPassphrase" 
-              type="password"
-              show-password-on="click"
-              :placeholder="t('task.sshPassphrasePlaceholder')"
-            />
-          </n-form-item>
-        </template>
-        
-        <n-form-item>
-          <n-button @click="testSshConnection" :loading="testingSsh">
-            {{ t('task.sshTestConnection') }}
+      <!-- SSH Connection Status -->
+      <n-form-item v-if="editingTask.useSsh && editingTask.sshConfigId && editingTask.type !== 'macro'">
+        <n-space align="center" :size="8">
+          <n-tag
+            :type="getSshStatusTagType(editingTask.sshConfigId)"
+            size="small"
+          >
+            {{ getSshStatusLabel(editingTask.sshConfigId) }}
+          </n-tag>
+          <n-button
+            v-if="!isSshConnected(editingTask.sshConfigId)"
+            size="tiny"
+            :loading="sshStore.loading"
+            @click="connectSsh(editingTask.sshConfigId!)"
+          >
+            {{ t('task.connectSsh') }}
           </n-button>
-        </n-form-item>
-      </template>
+        </n-space>
+      </n-form-item>
       
       <n-form-item v-if="isUserTask" :label="t('task.group')">
         <n-select
@@ -330,7 +287,6 @@ import {
   NFormItem,
   NInput,
   NInputGroup,
-  NInputNumber,
   NSelect,
   NSwitch,
   NButton,
@@ -340,7 +296,6 @@ import {
   NSpace,
   NRadio,
   NRadioGroup,
-  NDivider,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -353,6 +308,7 @@ import CommandPlazaDialog from './CommandPlazaDialog.vue';
 import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
 import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 import { useTaskManagerStore } from '../../../stores/taskManager';
+import { useSshStore } from '../../../stores/ssh';
 
 interface EditingTask {
   id: string;
@@ -374,16 +330,7 @@ interface EditingTask {
   subTasks?: string[];
   // SSH remote execution fields
   useSsh?: boolean;
-  sshConfig?: {
-    host: string;
-    port: number;
-    username: string;
-    auth?: any;
-  };
-  sshAuthType?: 'password' | 'privateKey';
-  sshPassword?: string;
-  sshKeyPath?: string;
-  sshPassphrase?: string;
+  sshConfigId?: string | null;  // ID of saved SSH configuration
 }
 
 const props = defineProps<{
@@ -405,6 +352,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const aiToolsStore = useAIToolsStore();
 const taskManager = useTaskManagerStore();
+const sshStore = useSshStore();
 
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');
@@ -515,11 +463,23 @@ const handleAIToolSelect = (key: string) => {
   }
 };
 
+// SSH config options
+const sshConfigOptions = computed(() => {
+  return sshStore.configOptions.map(opt => ({
+    label: opt.label,
+    value: opt.value,
+    host: opt.host,
+    port: opt.port,
+    username: opt.username,
+  }));
+});
+
 // Check platform on mount
 onMounted(async () => {
   isWindowsPlatform.value = await isWindows();
   await Promise.all([
     aiToolsStore.loadConfigurations(),
+    sshStore.initialize(),
     loadAvailableTerminals(),
     loadAvailableShells(),
   ]);
@@ -626,56 +586,34 @@ const selectWorkingDirectory = async () => {
   }
 };
 
-// SSH key file selection
-const selectSshKeyFile = async () => {
-  try {
-    const adapter = await getAdapter();
-    const selected = await adapter.dialog.selectFile({
-      title: t('task.sshPrivateKey'),
-      filters: [{
-        name: 'SSH Private Key',
-        extensions: ['', 'pem', 'ppk'],
-      }],
-    });
-    
-    if (selected) {
-      editingTask.value.sshKeyPath = selected;
-    }
-  } catch (error) {
-    console.error('[TaskEditDialog] Failed to select SSH key file:', error);
-  }
-};
-
 // SSH connection test
 const testingSsh = ref(false);
 const testSshConnection = async () => {
-  if (!editingTask.value.sshConfig) {
+  if (!editingTask.value.sshConfigId) {
     return;
   }
   
   testingSsh.value = true;
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    
-    // Build SSH config with auth
-    const sshConfig = {
-      host: editingTask.value.sshConfig.host,
-      port: editingTask.value.sshConfig.port,
-      username: editingTask.value.sshConfig.username,
-      auth: editingTask.value.sshAuthType === 'password'
-        ? { type: 'password', password: editingTask.value.sshPassword || '' }
-        : { 
-            type: 'privateKey', 
-            key_path: editingTask.value.sshKeyPath || '',
-            passphrase: editingTask.value.sshPassphrase || undefined,
-          },
-    };
-    
-    const result = await invoke<string>('test_ssh_connection', { config: sshConfig });
+    const config = sshStore.getConfig(editingTask.value.sshConfigId);
+    if (!config) {
+      throw new Error('SSH config not found');
+    }
     
     const { useMessage } = await import('naive-ui');
     const message = useMessage();
-    message.success(t('task.sshTestSuccess') + ': ' + result);
+    
+    // Test connection
+    const result = await sshStore.testConnection(config);
+    message.success(result);
+    
+    // Test agent
+    const agentReady = await sshStore.testAgent(editingTask.value.sshConfigId);
+    if (agentReady) {
+      message.success(t('task.sshAgentReady'));
+    } else {
+      message.warning(t('task.sshAgentNotReady'));
+    }
   } catch (error) {
     const { useMessage } = await import('naive-ui');
     const message = useMessage();
@@ -686,19 +624,71 @@ const testSshConnection = async () => {
   }
 };
 
+// Handle SSH config change
+const handleSshConfigChange = (configId: string | null) => {
+  editingTask.value.sshConfigId = configId;
+};
+
+// Get SSH status
+const getSshStatusTagType = (configId: string | null): 'default' | 'success' | 'warning' | 'error' => {
+  if (!configId) return 'default';
+  const status = sshStore.getConnectionStatus(configId);
+  if (!status) return 'default';
+  
+  switch (status.status) {
+    case 'agent_ready':
+      return 'success';
+    case 'connected':
+      return 'default';
+    case 'connecting':
+      return 'warning';
+    default:
+      return 'default';
+  }
+};
+
+const getSshStatusLabel = (configId: string | null): string => {
+  if (!configId) return '';
+  const status = sshStore.getConnectionStatus(configId);
+  if (!status) return t('task.sshStatus.disconnected');
+  
+  switch (status.status) {
+    case 'agent_ready':
+      return t('task.sshStatus.agentReady');
+    case 'connected':
+      return t('task.sshStatus.connected');
+    case 'connecting':
+      return t('task.sshStatus.connecting');
+    default:
+      return t('task.sshStatus.disconnected');
+  }
+};
+
+const isSshConnected = (configId: string | null): boolean => {
+  if (!configId) return false;
+  return sshStore.isConnected(configId);
+};
+
+const connectSsh = async (configId: string) => {
+  try {
+    await sshStore.connect(configId);
+    const { useMessage } = await import('naive-ui');
+    const message = useMessage();
+    message.success(t('task.sshConnected'));
+  } catch (error) {
+    const { useMessage } = await import('naive-ui');
+    const message = useMessage();
+    message.error(t('task.sshConnectFailed') + ': ' + (error instanceof Error ? error.message : String(error)));
+  }
+};
+
 const handleSave = async () => {
   try {
     await taskFormRef.value?.validate();
     
-    // Build SSH auth object if SSH is enabled
-    if (editingTask.value.useSsh && editingTask.value.sshConfig) {
-      editingTask.value.sshConfig.auth = editingTask.value.sshAuthType === 'password'
-        ? { type: 'password', password: editingTask.value.sshPassword || '' }
-        : { 
-            type: 'privateKey', 
-            key_path: editingTask.value.sshKeyPath || '',
-            passphrase: editingTask.value.sshPassphrase || undefined,
-          };
+    // Clear SSH config ID if SSH is disabled
+    if (!editingTask.value.useSsh) {
+      editingTask.value.sshConfigId = null;
     }
     
     emit('save', editingTask.value, selectedGroupId.value, newGroupName.value);
@@ -758,20 +748,7 @@ watch(() => editingTask.value.executionMode, (newMode, oldMode) => {
   }
 });
 
-// Watch useSsh changes to initialize SSH config
-watch(() => editingTask.value.useSsh, (useSsh) => {
-  if (useSsh && !editingTask.value.sshConfig) {
-    editingTask.value.sshConfig = {
-      host: '',
-      port: 22,
-      username: '',
-    };
-    editingTask.value.sshAuthType = 'password';
-    editingTask.value.sshPassword = '';
-    editingTask.value.sshKeyPath = '';
-    editingTask.value.sshPassphrase = '';
-  }
-});
+// Watch useSsh changes - no need to initialize config, user selects from saved configs
 </script>
 
 <style scoped>

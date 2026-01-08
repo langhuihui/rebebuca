@@ -111,6 +111,9 @@ export interface Task {
   
   // AI tool configuration
   aiTool?: string;  // AI tool type (e.g., 'claude-code', 'codex', etc.)
+  
+  // SSH remote execution
+  sshConfigId?: string | null;  // ID of saved SSH configuration
 }
 
 /**

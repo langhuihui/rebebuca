@@ -553,15 +553,7 @@ const editingTask = ref<{
   subTasks?: string[];
   // SSH remote execution fields
   useSsh?: boolean;
-  sshConfig?: {
-    host: string;
-    port: number;
-    username: string;
-    auth?: any;
-  };
-  sshAuthType?: 'password' | 'privateKey';
-  sshPassword?: string;
-  sshKeyPath?: string;
+  sshConfigId?: string | null;
   sshPassphrase?: string;
 }>({
   id: '',
@@ -930,11 +922,7 @@ const handleAddTask = () => {
     subTasks: undefined,
     // SSH fields
     useSsh: false,
-    sshConfig: undefined,
-    sshAuthType: 'password',
-    sshPassword: '',
-    sshKeyPath: '',
-    sshPassphrase: '',
+    sshConfigId: null,
   };
   showTaskDialog.value = true;
 };
@@ -998,11 +986,7 @@ const handleEditAIResult = (result: any) => {
     subTasks: undefined,
     // SSH fields
     useSsh: false,
-    sshConfig: undefined,
-    sshAuthType: 'password',
-    sshPassword: '',
-    sshKeyPath: '',
-    sshPassphrase: '',
+    sshConfigId: null,
   };
   
   showAIDialog.value = false;
@@ -1028,17 +1012,6 @@ const handleTaskEditVisual = (task: Task) => {
     ? `${task.command} ${task.args.join(' ')}`
     : task.command || '';  // Default to empty string for macro tasks
   
-  // Initialize SSH config from task
-  let sshConfig = undefined;
-  if (task.definition?.ssh) {
-    const ssh = task.definition.ssh;
-    sshConfig = {
-      host: ssh.host || '',
-      port: ssh.port || 22,
-      username: ssh.username || '',
-    };
-  }
-  
   editingTask.value = {
     id: task.id,
     name: task.name,
@@ -1058,13 +1031,9 @@ const handleTaskEditVisual = (task: Task) => {
     // Other fields
     pythonEnv: task.pythonEnv || '',
     runAsAdmin: task.runAsAdmin || false,
-    // SSH fields
-    useSsh: !!task.definition?.ssh,
-    sshConfig,
-    sshAuthType: task.definition?.ssh?.auth?.type || 'password',
-    sshPassword: '', // Don't load password from task for security
-    sshKeyPath: task.definition?.ssh?.auth?.key_path || '',
-    sshPassphrase: '', // Don't load passphrase from task for security
+    // SSH fields - use sshConfigId if available, otherwise check legacy definition.ssh
+    useSsh: !!task.sshConfigId || !!task.definition?.ssh,
+    sshConfigId: task.sshConfigId || null,
   };
   showTaskDialog.value = true;
 };
@@ -1123,23 +1092,14 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       }
     }
     
-    // Add SSH configuration if enabled
-    if (task.useSsh && task.sshConfig) {
-      taskData.definition = taskData.definition || {};
-      taskData.definition.ssh = {
-        host: task.sshConfig.host,
-        port: task.sshConfig.port,
-        username: task.sshConfig.username,
-        auth: task.sshAuthType === 'password'
-          ? { type: 'password', password: task.sshPassword || '' }
-          : { 
-              type: 'privateKey', 
-              key_path: task.sshKeyPath || '',
-              passphrase: task.sshPassphrase || undefined,
-            },
-      };
+    // Add SSH configuration ID if enabled
+    if (task.useSsh && task.sshConfigId) {
+      taskData.sshConfigId = task.sshConfigId;
     } else {
-      // Remove SSH config if disabled
+      // Clear SSH config ID if disabled
+      taskData.sshConfigId = null;
+      
+      // Also clear legacy SSH config in definition if present
       if (taskData.definition?.ssh) {
         delete taskData.definition.ssh;
       }

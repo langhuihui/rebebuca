@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Rebebuca",
         "width": 1200,
         "height": 800,
@@ -19,7 +20,8 @@
         "minHeight": 600,
         "decorations": false,
         "transparent": true,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "visible": true
       }
     ],
     "security": {

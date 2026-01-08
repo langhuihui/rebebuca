@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
+import { getAdapter, type BackendAdapter } from '../adapters';
+import { safeInvoke } from '../utils/programUtils';
 
 // Adapter instance
 let adapter: BackendAdapter | null = null;
@@ -11,31 +12,6 @@ const getAdapterInstance = async (): Promise<BackendAdapter> => {
     adapter = await getAdapter();
   }
   return adapter;
-};
-
-// Safe invoke function that handles browser environment
-const safeInvoke = async <T = unknown>(command: string, args?: any): Promise<T | undefined> => {
-  if (!isTauri()) {
-    throw new Error(`Command '${command}' not available in browser environment`);
-  }
-
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    return await invoke<T>(command, args);
-  } catch (error) {
-    if (command === 'get_process_stats') {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes("Process not found - it has finished") ||
-        errorMessage.includes("Process has finished")) {
-        throw error;
-      } else {
-        console.warn(`Process stats temporarily unavailable: ${errorMessage}`);
-        throw error;
-      }
-    }
-    console.error(`Failed to invoke '${command}':`, error);
-    throw error;
-  }
 };
 
 // Initialize storage via adapter

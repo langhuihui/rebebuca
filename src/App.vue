@@ -166,6 +166,10 @@ let unlistenOutput: UnlistenFn | null = null;
 let unlistenStarted: UnlistenFn | null = null;
 let unlistenStopped: UnlistenFn | null = null;
 let unlistenPtyExit: UnlistenFn | null = null;
+let unlistenSshOutput: UnlistenFn | null = null;
+let unlistenSshProcessStarted: UnlistenFn | null = null;
+let unlistenSshProcessFinished: UnlistenFn | null = null;
+let unlistenSshError: UnlistenFn | null = null;
 
 // Process monitoring
 let processStatsInterval: number | null = null;
@@ -696,6 +700,17 @@ onMounted(async () => {
           status: historyStatus,
           duration: duration,
         });
+        
+        // Notify taskManager that task has exited (for SSH tasks)
+        if (historyItem.configId) {
+          try {
+            const { useTaskManagerStore } = await import('./stores/taskManager');
+            const taskManager = useTaskManagerStore();
+            taskManager.onTaskExit(historyItem.ptyId || historyItem.configId);
+          } catch (error) {
+            console.error('[App] Failed to notify taskManager:', error);
+          }
+        }
 
         // Update selected history item if it's the same
         if (uiStore.selectedHistoryItem?.id === historyItem.id) {
@@ -704,6 +719,114 @@ onMounted(async () => {
         }
       } else {
         console.log(`[FRONTEND] No history item found for PTY ${pty_id}`);
+      }
+    }
+  );
+
+  // Listen for SSH output events
+  unlistenSshOutput = await appStore.safeListen(
+    "ssh-output",
+    async (event: any) => {
+      const { taskId, type, content } = event.payload;
+      console.log(`[FRONTEND] SSH output - Task ID: ${taskId}, Type: ${type}`);
+      
+      // Find history item by task ID (ptyId is the exec_id for SSH tasks)
+      const historyItem = runConfigStore.history.find(
+        (item) => item.configId === taskId || item.ptyId === taskId
+      );
+
+      if (historyItem) {
+        // Map SSH output type to history output type
+        const outputType = type === 'stdout' ? 'stdout' : type === 'stderr' ? 'stderr' : 'system';
+        appendOutputToHistory(historyItem.ptyId || taskId, content, outputType);
+      } else {
+        // Buffer output if history item doesn't exist yet
+        if (!outputBuffer.value[taskId]) {
+          outputBuffer.value[taskId] = [];
+        }
+        outputBuffer.value[taskId].push({ content, outputType: type });
+      }
+    }
+  );
+
+  unlistenSshProcessStarted = await appStore.safeListen(
+    "ssh-process-started",
+    async (event: any) => {
+      const { taskId, pid } = event.payload;
+      console.log(`[FRONTEND] SSH process started - Task ID: ${taskId}, PID: ${pid}`);
+      
+      const historyItem = runConfigStore.history.find(
+        (item) => item.configId === taskId || item.ptyId === taskId
+      );
+
+      if (historyItem) {
+        runConfigStore.updateHistory(historyItem.id, {
+          pid,
+          ptyId: taskId, // Use taskId as ptyId for SSH tasks
+        });
+      }
+    }
+  );
+
+  unlistenSshProcessFinished = await appStore.safeListen(
+    "ssh-process-finished",
+    async (event: any) => {
+      const { taskId, exitCode } = event.payload;
+      console.log(`[FRONTEND] SSH process finished - Task ID: ${taskId}, Exit Code: ${exitCode}`);
+      
+      const historyItem = runConfigStore.history.find(
+        (item) => item.configId === taskId || item.ptyId === taskId
+      );
+
+      if (historyItem) {
+        const historyStatus: "running" | "success" | "error" =
+          exitCode === 0 || exitCode === null ? "success" : "error";
+
+        const endTime = Date.now();
+        const duration = historyItem.startTime
+          ? endTime - historyItem.startTime
+          : 0;
+
+        runConfigStore.updateHistory(historyItem.id, {
+          status: historyStatus,
+          duration: duration,
+        });
+
+        // Update selected history item if it's the same
+        if (uiStore.selectedHistoryItem?.id === historyItem.id) {
+          uiStore.selectedHistoryItem.status = historyStatus;
+          uiStore.selectedHistoryItem.duration = duration;
+        }
+
+        // Notify taskManager that task has exited
+        if (historyItem.configId) {
+          try {
+            const { useTaskManagerStore } = await import('./stores/taskManager');
+            const taskManager = useTaskManagerStore();
+            taskManager.onTaskExit(taskId);
+          } catch (error) {
+            console.error('[App] Failed to notify taskManager:', error);
+          }
+        }
+      }
+    }
+  );
+
+  unlistenSshError = await appStore.safeListen(
+    "ssh-error",
+    async (event: any) => {
+      const { taskId, message } = event.payload;
+      console.error(`[FRONTEND] SSH error - Task ID: ${taskId}, Message: ${message}`);
+      
+      const historyItem = runConfigStore.history.find(
+        (item) => item.configId === taskId || item.ptyId === taskId
+      );
+
+      if (historyItem) {
+        runConfigStore.updateHistory(historyItem.id, {
+          status: "error",
+          output: (historyItem.output || "") + `[SSH ERROR] ${message}\n`,
+        });
       }
     }
   );
@@ -729,6 +852,10 @@ onUnmounted(() => {
   if (unlistenStarted) unlistenStarted();
   if (unlistenStopped) unlistenStopped();
   if (unlistenPtyExit) unlistenPtyExit();
+  if (unlistenSshOutput) unlistenSshOutput();
+  if (unlistenSshProcessStarted) unlistenSshProcessStarted();
+  if (unlistenSshProcessFinished) unlistenSshProcessFinished();
+  if (unlistenSshError) unlistenSshError();
 
   // Stop process monitoring
   stopProcessMonitoring();

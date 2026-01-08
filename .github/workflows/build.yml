@@ -48,6 +48,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Install OpenSSL (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # Install OpenSSL via Homebrew
+          brew install openssl@3
+          
+          # Detect OpenSSL path (works for both Intel and Apple Silicon)
+          # On Intel Macs: /usr/local/opt/openssl@3
+          # On Apple Silicon: /opt/homebrew/opt/openssl@3
+          OPENSSL_PREFIX=$(brew --prefix openssl@3)
+          echo "OPENSSL_DIR=${OPENSSL_PREFIX}" >> $GITHUB_ENV
+          echo "Installed OpenSSL at: ${OPENSSL_PREFIX}"
+          
+          # Verify installation
+          echo "OpenSSL libraries:"
+          ls -la "${OPENSSL_PREFIX}/lib" | grep -E "(libssl|libcrypto)" || true
+          
+          # For universal builds, the linker needs to find libraries for each architecture
+          # Set library search path
+          echo "DYLD_LIBRARY_PATH=${OPENSSL_PREFIX}/lib:${DYLD_LIBRARY_PATH:-}" >> $GITHUB_ENV
+          # Also set PKG_CONFIG_PATH for pkg-config
+          echo "PKG_CONFIG_PATH=${OPENSSL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
       - name: Install frontend dependencies
         run: pnpm install
 
@@ -86,6 +109,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
+          DYLD_LIBRARY_PATH: ${{ env.DYLD_LIBRARY_PATH }}
+          PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Rebebuca ${{ github.ref_name }}'

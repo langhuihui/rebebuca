@@ -208,6 +208,10 @@
       <n-tab-pane name="aitools" :tab="t('settings.aiTools')">
         <AIToolsPanel />
       </n-tab-pane>
+      
+      <n-tab-pane name="ssh" :tab="t('settings.ssh')">
+        <SshPanel />
+      </n-tab-pane>
     </n-tabs>
   </div>
 </template>
@@ -244,6 +248,7 @@ import { svgIcons } from '../../utils/icons';
 import CommandIconSettings from '../CommandIconSettings.vue';
 import DevLogViewer from '../DevLogViewer.vue';
 import AIToolsPanel from './AIToolsPanel.vue';
+import SshPanel from './SshPanel.vue';
 
 interface ReleaseNote {
   tag: string;
