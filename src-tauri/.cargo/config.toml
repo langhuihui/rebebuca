@@ -3,4 +3,6 @@
 CFLAGS = "-fno-modules"
 CXXFLAGS = "-fno-modules"
 OBJCFLAGS = "-fno-modules"
+# OpenSSL 配置，用于 openssl-sys crate 编译
+OPENSSL_DIR = "/opt/homebrew/opt/openssl@3"
 

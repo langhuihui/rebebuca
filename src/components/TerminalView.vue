@@ -258,10 +258,14 @@ const initTerminal = async () => {
         webglAddon = null;
         // Force refresh terminal after context loss
         if (terminal && fitAddon) {
+          const term = terminal;
+          const fit = fitAddon;
           nextTick(() => {
-            fitAddon.fit();
-            if (terminal.rows > 0) {
-              terminal.refresh(0, terminal.rows - 1);
+            if (fit && term) {
+              fit.fit();
+              if (term.rows > 0) {
+                term.refresh(0, term.rows - 1);
+              }
             }
           });
         }
@@ -991,7 +995,7 @@ watch(() => props.ptyId, async (newPtyId, oldPtyId) => {
       // This is just a ptyId update after task start, don't reinitialize
       // Just update the ptyId reference but keep the terminal instance
       console.log('[TerminalView] PTY ID updated from placeholder to actual:', oldPtyId, '->', newPtyId);
-      console.log('[TerminalView] Keeping existing terminal with content, buffer length:', terminal.buffer.active.length);
+      console.log('[TerminalView] Keeping existing terminal with content, buffer length:', terminal?.buffer?.active?.length);
       return;
     }
     

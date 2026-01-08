@@ -357,7 +357,6 @@ import {
   NDivider,
   NSpin,
   useMessage,
-  useDialog,
 } from "naive-ui";
 import {
   useAIToolsStore,
@@ -552,17 +551,6 @@ const getAvailableInstallMethods = (toolType: AIToolType) => {
   return methods.filter(
     (m) => m.platform === "all" || m.platform === currentPlatform.value
   );
-};
-
-// Check which tools are installed
-const checkInstalledTools = async () => {
-  if (!isTauri()) return;
-
-  // Check all tools in parallel
-  const checkPromises = availableTools.map((toolType) =>
-    checkSingleTool(toolType)
-  );
-  await Promise.allSettled(checkPromises);
 };
 
 // Check if a single tool is installed

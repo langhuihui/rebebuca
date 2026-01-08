@@ -273,13 +273,11 @@ const languageOptions = computed(() => getLocalizedOptions());
 
 // Sudo password input
 const sudoPasswordInput = ref<string>('');
-const sudoPasswordDebounceTimer = ref<NodeJS.Timeout | null>(null);
+const sudoPasswordDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const sudoPasswordPlaceholder = computed(() => {
   if (settingsStore.settings.sudoPassword) {
     // Show "already set" indicator in the placeholder
     const basePlaceholder = t('settings.sudoPasswordPlaceholder');
-    // For Chinese, show "已设置", for English, show "(Set)"
-    const locale = t('settings.sudoPassword'); // This will help determine language
     // Simple check: if the placeholder contains Chinese characters, we're in Chinese mode
     if (basePlaceholder.includes('输入')) {
       return basePlaceholder + ' (已设置)';
