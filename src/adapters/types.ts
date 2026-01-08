@@ -12,6 +12,7 @@ export interface CreateTerminalParams {
   cwd?: string;
   env?: Record<string, string>;
   logPath?: string;
+  shellPath?: string | null;
 }
 
 export interface TerminalInfo {

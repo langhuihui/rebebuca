@@ -70,6 +70,8 @@ export interface RunConfig {
   arguments?: string[];
   createdAt: Date;
   updatedAt: Date;
+  // Shell path for execution
+  shellPath?: string | null;
   // SSH remote execution config
   useSsh?: boolean;
   sshConfig?: SshConfig;
@@ -623,6 +625,7 @@ export const useRunConfigStore = defineStore('runConfig', () => {
         historyId: newHistory.id,
         label: config.name,
         logPath,
+        shellPath: config.shellPath || null,
       });
 
       console.log(`[FRONTEND] executeCommand via PTY - ptyId: ${tab.ptyId}, historyId: ${newHistory.id}`);

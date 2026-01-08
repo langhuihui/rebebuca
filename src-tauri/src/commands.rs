@@ -2,7 +2,6 @@ use crate::process::get_logs_dir;
 use std::fs;
 use std::process::Command;
 use tauri::Manager;
-use uuid::Uuid;
 
 #[tauri::command]
 pub fn greet(name: &str) -> String {
@@ -104,28 +103,45 @@ pub async fn open_in_system_terminal(command: String, cwd: Option<String>) -> Re
 
     #[cfg(target_os = "windows")]
     {
-        // Use PowerShell's Start-Process to open a new cmd window
-        // This handles complex commands better than cmd /c start
-        let full_command = if let Some(ref dir) = cwd {
-            // Escape single quotes in the command for PowerShell
-            let escaped_cmd = command.replace("'", "''");
-            let escaped_dir = dir.replace("'", "''");
+        // For Windows, use PowerShell directly with CREATE_NEW_CONSOLE flag
+        // The Command::spawn() with proper args will create a new console window
+
+        // Build the PowerShell command to execute
+        let ps_cmd = if let Some(ref dir) = cwd {
+            // Set working directory and execute command
             format!(
-                "Start-Process cmd -ArgumentList '/k','cd /d \"{}\" && {}' -WorkingDirectory '{}'",
-                escaped_dir, escaped_cmd, escaped_dir
+                "cd '{}'; {}",
+                dir.replace("\\", "\\\\"), command
             )
         } else {
-            let escaped_cmd = command.replace("'", "''");
-            format!(
-                "Start-Process cmd -ArgumentList '/k','{}'",
-                escaped_cmd
-            )
+            command.clone()
         };
-        
-        Command::new("powershell")
-            .args(["-NoProfile", "-Command", &full_command])
-            .spawn()
-            .map_err(|e| format!("Failed to open system terminal: {}", e))?;
+
+        // Try pwsh first (PowerShell 7+), then fallback to powershell.exe (Windows PowerShell 5.x)
+        let result = Command::new("pwsh")
+            .args([
+                "-NoExit",
+                "-NoProfile",
+                "-Command",
+                &ps_cmd,
+            ])
+            .spawn();
+
+        match result {
+            Ok(_) => {},
+            Err(_) => {
+                // Fallback to Windows PowerShell
+                Command::new("powershell.exe")
+                    .args([
+                        "-NoExit",
+                        "-NoProfile",
+                        "-Command",
+                        &ps_cmd,
+                    ])
+                    .spawn()
+                    .map_err(|e| format!("Failed to open PowerShell terminal: {}", e))?;
+            }
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -706,25 +722,66 @@ pub async fn open_in_specific_terminal(
                     .map_err(|e| format!("Failed to open Command Prompt: {}", e))?;
             }
             "powershell" | "pwsh" => {
-                let ps_exe = if terminal_id == "pwsh" { "pwsh" } else { "powershell" };
-                let full_command = if let Some(ref dir) = cwd {
-                    format!("Set-Location '{}'; {}", dir.replace("'", "''"), command)
+                // Build the PowerShell command to execute
+                let ps_cmd = if let Some(ref dir) = cwd {
+                    // Set working directory and execute command
+                    format!(
+                        "cd '{}'; {}",
+                        dir.replace("\\", "\\\\"), command
+                    )
                 } else {
                     command.clone()
                 };
-                
-                Command::new(ps_exe)
-                    .args(["-NoExit", "-Command", &full_command])
-                    .spawn()
-                    .map_err(|e| format!("Failed to open PowerShell: {}", e))?;
+
+                // Try the requested PowerShell version, or fallback
+                if terminal_id == "pwsh" {
+                    // Try pwsh first (PowerShell 7+), then fallback to powershell.exe
+                    let result = Command::new("pwsh")
+                        .args([
+                            "-NoExit",
+                            "-NoProfile",
+                            "-Command",
+                            &ps_cmd,
+                        ])
+                        .spawn();
+
+                    match result {
+                        Ok(_) => {},
+                        Err(_) => {
+                            // Fallback to Windows PowerShell
+                            Command::new("powershell.exe")
+                                .args([
+                                    "-NoExit",
+                                    "-NoProfile",
+                                    "-Command",
+                                    &ps_cmd,
+                                ])
+                                .spawn()
+                                .map_err(|e| format!("Failed to open PowerShell: {}", e))?;
+                        }
+                    }
+                } else {
+                    // Use Windows PowerShell directly
+                    Command::new("powershell.exe")
+                        .args([
+                            "-NoExit",
+                            "-NoProfile",
+                            "-Command",
+                            &ps_cmd,
+                        ])
+                        .spawn()
+                        .map_err(|e| format!("Failed to open PowerShell: {}", e))?;
+                }
             }
             "windows-terminal" => {
                 // Windows Terminal uses wt.exe
+                // Default to PowerShell for Windows Terminal on Windows platform
                 let mut cmd = Command::new("wt");
                 if let Some(ref dir) = cwd {
                     cmd.args(["-d", dir]);
                 }
-                cmd.arg("cmd").args(["/k", &command]);
+                // Use PowerShell in Windows Terminal instead of cmd
+                cmd.args(["powershell", "-NoExit", "-NoProfile", "-Command", &command]);
                 cmd.spawn()
                     .map_err(|e| format!("Failed to open Windows Terminal: {}", e))?;
             }
@@ -808,7 +865,7 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
     
     // Get the user's default shell
     let default_shell = std::env::var("SHELL").unwrap_or_default();
-    let default_shell_name = std::path::Path::new(&default_shell)
+    let _default_shell_name = std::path::Path::new(&default_shell)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("");
@@ -999,3 +1056,35 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
 
     Ok(shells)
 }
+
+/// Execute a PowerShell command and return the output
+/// This is used for checking if tools are installed on Windows
+#[tauri::command]
+pub async fn execute_powershell_command(command: String) -> Result<String, String> {
+    // Try pwsh first (PowerShell 7+), then fallback to powershell.exe
+    let output = Command::new("pwsh")
+        .args(["-NoProfile", "-Command", &command])
+        .output();
+
+    let output = match output {
+        Ok(output) => output,
+        Err(_) => {
+            // Fallback to Windows PowerShell
+            Command::new("powershell.exe")
+                .args(["-NoProfile", "-Command", &command])
+                .output()
+                .map_err(|e| format!("Failed to execute PowerShell command: {}", e))?
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // Return stdout if successful, otherwise return stderr
+    if output.status.success() {
+        Ok(stdout)
+    } else {
+        Ok(stderr)
+    }
+}
+

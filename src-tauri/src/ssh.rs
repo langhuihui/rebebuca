@@ -1,13 +1,11 @@
 use crate::types::{AgentMessage, OutputType, SshAuthMethod, SshConfig};
 use log::{error, info};
-use serde::{Deserialize, Serialize};
 use ssh2::Session;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
-use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 

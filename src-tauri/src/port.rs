@@ -1,5 +1,4 @@
 use std::process::Command;
-use std::path::Path;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
@@ -79,104 +78,109 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                     
                     if let Some(port_str) = local_addr.split(':').last() {
                         if let Ok(port) = port_str.parse::<u16>() {
-                            // Get process name using tasklist - wrap with cmd /c to prevent popup windows
-                            let name_output = Command::new("cmd")
-                                .args(["/c", &format!("tasklist /FI \"PID eq {}\" /FO CSV /NH", pid)])
+                            // Try to get process name and command using PowerShell (more reliable than tasklist/wmic)
+                            let ps_output = Command::new("powershell")
+                                .args(["-NoProfile", "-NonInteractive", "-Command",
+                                       &format!("(Get-Process -Id {}).ProcessName, (Get-Process -Id {}).Path", pid, pid)])
                                 .creation_flags(0x08000000) // CREATE_NO_WINDOW
                                 .output()
                                 .ok();
-                            
-                            let name = name_output
-                                .and_then(|o| {
+
+                            let (name, command) = ps_output
+                                .map(|o| {
                                     let s = String::from_utf8_lossy(&o.stdout);
-                                    let trimmed = s.trim();
-                                    // tasklist CSV format: "process.exe","pid","Session Name","Session#","Mem Usage"
-                                    // Skip if output contains "INFO:" (no matching process) or is empty
-                                    if trimmed.is_empty() || trimmed.starts_with("INFO:") || !trimmed.contains(',') {
-                                        return None;
-                                    }
-                                    // Extract first field (process name) from CSV
-                                    trimmed.split(',')
-                                        .next()
-                                        .map(|s| s.trim().trim_matches('"').to_string())
+                                    println!("[PORT] PowerShell output for PID {}:\n'{}'", pid, s);
+
+                                    let lines: Vec<&str> = s.lines().collect();
+                                    let proc_name = lines.get(0)
+                                        .map(|l| l.trim())
+                                        .filter(|l| !l.is_empty() && !l.starts_with("Get-Process"))
+                                        .unwrap_or("");
+
+                                    let proc_path = lines.get(1)
+                                        .map(|l| l.trim())
+                                        .filter(|l| !l.is_empty() && !l.starts_with("Get-Process"))
+                                        .unwrap_or("");
+
+                                    let name = if !proc_name.is_empty() {
+                                        // PowerShell returns process name without .exe extension
+                                        proc_name.to_string()
+                                    } else {
+                                        format!("PID:{}", pid)
+                                    };
+
+                                    let command = if !proc_path.is_empty() {
+                                        format!("\"{}\"", proc_path)
+                                    } else {
+                                        String::new()
+                                    };
+
+                                    println!("[PORT] Extracted - name: '{}', command: '{}'", name, command);
+                                    (name, command)
                                 })
-                                .unwrap_or_else(|| format!("PID:{}", pid));
-                            
-                            // Get full command line using WMIC
-                            let cmd_output = Command::new("cmd")
-                                .args(["/c", &format!("wmic process where \"ProcessId={}\" get CommandLine /format:list", pid)])
-                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                                .output()
-                                .ok();
-                            
-                            let command = cmd_output
-                                .and_then(|o| {
-                                    let s = String::from_utf8_lossy(&o.stdout);
-                                    // WMIC output format: "CommandLine=<full command>"
-                                    // Find and extract the command line from the output
-                                    s.lines()
-                                        .find_map(|line| {
-                                            line.trim()
-                                                .strip_prefix("CommandLine=")
-                                                .and_then(|c| {
-                                                    let trimmed = c.trim();
-                                                    if trimmed.is_empty() {
-                                                        None
-                                                    } else {
-                                                        Some(trimmed.to_string())
-                                                    }
+                                .unwrap_or_else(|| {
+                                    println!("[PORT] PowerShell failed, falling back to tasklist/wmic");
+
+                                    // Fallback to tasklist for name
+                                    let name_output = Command::new("cmd")
+                                        .args(["/c", &format!("tasklist /FI \"PID eq {}\" /FO CSV /NH", pid)])
+                                        .creation_flags(0x08000000)
+                                        .output()
+                                        .ok();
+
+                                    let name = name_output
+                                        .and_then(|o| {
+                                            let s = String::from_utf8_lossy(&o.stdout);
+                                            println!("[PORT] tasklist raw output for PID {}:\n'{}'", pid, s);
+                                            for line in s.lines() {
+                                                let line_trimmed = line.trim();
+                                                if !line_trimmed.is_empty() && line_trimmed.contains(',') {
+                                                    return line_trimmed.split(',')
+                                                        .next()
+                                                        .map(|s| s.trim().trim_matches('"').to_string());
+                                                }
+                                            }
+                                            None
+                                        })
+                                        .unwrap_or_else(|| format!("PID:{}", pid));
+
+                                    // Fallback to WMIC for command
+                                    let cmd_output = Command::new("cmd")
+                                        .args(["/c", &format!("wmic process where \"ProcessId={}\" get CommandLine /format:list", pid)])
+                                        .creation_flags(0x08000000)
+                                        .output()
+                                        .ok();
+
+                                    let command = cmd_output
+                                        .and_then(|o| {
+                                            let s = String::from_utf8_lossy(&o.stdout);
+                                            s.lines()
+                                                .find_map(|line| {
+                                                    line.trim()
+                                                        .strip_prefix("CommandLine=")
+                                                        .and_then(|c| {
+                                                            let trimmed = c.trim();
+                                                            if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+                                                        })
                                                 })
                                         })
-                                })
-                                .unwrap_or_default();
-                            
-                            // Determine the best display name
-                            let display_name = if name.starts_with("PID:") {
-                                // tasklist failed, try to extract name from command line
-                                if !command.is_empty() {
-                                    // Extract executable name from command line
-                                    // Handle both quoted and unquoted paths
-                                    let exe_path = if command.starts_with('"') {
-                                        // Quoted path: extract between quotes
-                                        // For "C:\path\to\app.exe" args, we want C:\path\to\app.exe
-                                        // splitn(3, '"') splits into: ["", "path", "args..."], so we take index 1
-                                        command.splitn(3, '"').nth(1).unwrap_or_else(|| {
-                                            // If quote is not closed, fall back to unquoted parsing
-                                            command.split_whitespace().next().unwrap_or(&command)
-                                        })
-                                    } else {
-                                        // Unquoted path: extract until first space (the executable part)
-                                        command.split_whitespace().next().unwrap_or(&command)
-                                    };
-                                    
-                                    // Use std::path::Path for proper cross-platform path handling
-                                    Path::new(exe_path)
-                                        .file_name()
-                                        .and_then(|os_str| os_str.to_str())
-                                        .map(|s| s.to_string())
-                                        .unwrap_or_else(|| {
-                                            // Fallback: manually extract filename if Path fails (e.g., non-UTF8 paths)
-                                            // Split by both Windows (\) and Unix (/) path separators
-                                            exe_path.split(&['\\', '/'])
-                                                .last()
-                                                .unwrap_or(exe_path)
-                                                .to_string()
-                                        })
-                                } else {
-                                    // Both tasklist and WMIC failed, use PID fallback
-                                    name.clone()
-                                }
-                            } else {
-                                // tasklist succeeded, use its result
-                                name.clone()
-                            };
-                            
+                                        .unwrap_or_default();
+
+
+
+                                    (name, command)
+                                });
+
+                            // Use the name from PowerShell or tasklist
+                            // PowerShell returns process name without .exe, tasklist returns with .exe
+                            // We'll keep whatever we got (both are acceptable)
                             result.push(PortProcess {
                                 port,
                                 pid,
-                                name: display_name,
+                                name: name.clone(),
                                 command,
                             });
+                            println!("[PORT] Added port process: port={}, pid={}, name='{}'", port, pid, name);
                         }
                     }
                 }

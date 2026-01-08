@@ -1,25 +1,23 @@
 /// Shell environment utilities
-/// 
+///
 /// This module provides functionality to load environment variables from a login shell.
 /// This is crucial for macOS and Linux GUI apps which don't inherit shell PATH.
 
 use std::collections::HashMap;
-use std::process::{Command, Stdio};
-use std::sync::OnceLock;
 
 /// Global cache for shell environment variables
 /// This prevents repeated permission dialogs on macOS when accessing user folders
 #[cfg(not(target_os = "windows"))]
-static SHELL_ENV_CACHE: OnceLock<HashMap<String, String>> = OnceLock::new();
+static SHELL_ENV_CACHE: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
 
 /// Try to load environment from shell with given arguments
 #[cfg(not(target_os = "windows"))]
 fn try_load_env_from_shell(shell: &str, args: &[&str]) -> Option<HashMap<String, String>> {
-    let result = Command::new(shell)
+    let result = std::process::Command::new(shell)
         .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
         .output();
     
     if let Ok(output) = result {

@@ -1391,13 +1391,21 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     if (shouldUseShellExecution && commandHasSpaces) {
       // Execute via shell for user/npm tasks
-      // On macOS/Linux use sh -c, on Windows use cmd /c
+      // Use task's shellPath if specified, otherwise use platform default
       const isWindows = navigator.platform.toLowerCase().includes('win');
       if (isWindows) {
-        command = 'cmd';
-        args = ['/c', task.command];
+        if (task.shellPath) {
+          // Use user-configured shell (e.g., PowerShell)
+          command = task.shellPath;
+          args = ['-Command', task.command];
+        } else {
+          // Default to cmd
+          command = 'cmd';
+          args = ['/c', task.command];
+        }
       } else {
-        command = 'sh';
+        // On macOS/Linux use user-configured shell or default to sh
+        command = task.shellPath || 'sh';
         args = ['-c', task.command];
       }
     } else if (commandHasSpaces && !hasArgs) {
@@ -1405,10 +1413,18 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         // Execute via shell for commands with shell operators or sudo
         const isWindows = navigator.platform.toLowerCase().includes('win');
         if (isWindows) {
-          command = 'cmd';
-          args = ['/c', task.command];
+          if (task.shellPath) {
+            // Use user-configured shell (e.g., PowerShell)
+            command = task.shellPath;
+            args = ['-Command', task.command];
+          } else {
+            // Default to cmd
+            command = 'cmd';
+            args = ['/c', task.command];
+          }
         } else {
-          command = 'sh';
+          // On macOS/Linux use user-configured shell or default to sh
+          command = task.shellPath || 'sh';
           args = ['-c', task.command];
         }
       } else {
@@ -1542,6 +1558,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         historyId: historyRecord.id,
         label,
         logPath,
+        shellPath: task.shellPath || null,
       });
       
       // Track this task as running

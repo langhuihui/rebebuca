@@ -276,13 +276,6 @@
     </div>
   </div>
 
-  <!-- Settings Dialog -->
-  <SettingsDialog
-    ref="settingsDialogRef"
-    v-model:show="showSettingsDialog"
-    :initial-tab="initialSettingsTab"
-  />
-
   <!-- Notifications Dialog -->
   <n-modal
     v-model:show="showNotifications"
@@ -346,7 +339,6 @@ import {
   closeWindow,
   startDrag,
 } from "../utils/windowControls";
-import { SettingsDialog } from "./settings";
 import { getAdapter } from "../adapters";
 
 interface Props {
@@ -363,9 +355,6 @@ const updaterStore = useUpdaterStore();
 const notificationStore = useNotificationStore();
 const dialog = useDialog();
 const { setThemeMode } = useTheme();
-
-// Settings dialog state
-const showSettingsDialog = ref(false);
 
 // Notification dialog state
 const showNotifications = ref(false);
@@ -486,11 +475,9 @@ const checkForErrors = () => {
   }
 };
 
-const initialSettingsTab = ref("general");
-
 // Open settings tab
 const openSettingsTab = (tab?: string) => {
-  terminalStore.createSettingsTab(tab || initialSettingsTab.value);
+  terminalStore.createSettingsTab(tab || "general");
 };
 
 // Open settings to update tab

@@ -213,6 +213,7 @@ pub fn run() {
             commands::get_available_terminals,
             commands::open_in_specific_terminal,
             commands::get_available_shells,
+            commands::execute_powershell_command,
             // process module
             process::execute_command,
             process::kill_process_cmd,

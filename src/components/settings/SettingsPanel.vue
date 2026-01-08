@@ -388,6 +388,15 @@ onMounted(async () => {
       padding: 0 16px;
     }
     
+    .n-tabs-nav-wrapper {
+      flex-shrink: 0;
+    }
+    
+    .n-tabs-pane-wrapper {
+      flex: 1;
+      overflow: hidden;
+    }
+    
     .n-tab-pane {
       flex: 1;
       overflow: hidden;
@@ -395,6 +404,10 @@ onMounted(async () => {
       display: flex;
       flex-direction: column;
       min-height: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow-x: auto;
+      height: 100%;
     }
   }
 }

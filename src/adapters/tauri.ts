@@ -83,6 +83,7 @@ class TauriTerminalAdapter implements TerminalAdapter {
         cwd: params.cwd || null,
         env: params.env || null,
         log_path: params.logPath || null,
+        shell_path: params.shellPath || null,
       },
     });
     
@@ -278,14 +279,23 @@ class TauriStorageAdapter implements StorageAdapter {
   private async getStore() {
     if (!storeInstance) {
       await loadTauriModules();
-      storeInstance = await tauriStore!.Store.load(this.storeName);
+      if (!tauriStore?.Store) {
+        console.error('[TauriStorageAdapter] Store plugin not available');
+        throw new Error('Store plugin not available');
+      }
+      storeInstance = await tauriStore.Store.load(this.storeName);
     }
     return storeInstance;
   }
 
   async get<T>(key: string): Promise<T | null> {
-    const store = await this.getStore();
-    return (await store.get(key)) as T | null;
+    try {
+      const store = await this.getStore();
+      return (await store.get(key)) as T | null;
+    } catch (error) {
+      console.error('[TauriStorageAdapter] Failed to get value:', error);
+      return null;
+    }
   }
 
   async set<T>(key: string, value: T): Promise<void> {

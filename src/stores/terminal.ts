@@ -173,6 +173,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     historyId?: string;
     label: string;
     logPath?: string;
+    shellPath?: string | null;
   }): Promise<TerminalTab> => {
     const id = generateId();
     const ptyId = `task-${id}`;
@@ -195,6 +196,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         cwd: options.cwd,
         env: options.env,
         logPath: options.logPath,
+        shellPath: options.shellPath,
       },
     };
     
@@ -213,7 +215,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       return;
     }
     
-    const { command, args, cwd, env, logPath } = tab.execParams;
+    const { command, args, cwd, env, logPath, shellPath } = tab.execParams;
     
     try {
       tab.status = 'running';
@@ -225,6 +227,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         cwd,
         env,
         logPath,
+        shellPath,
       });
       
       // Update tab with actual ptyId from adapter

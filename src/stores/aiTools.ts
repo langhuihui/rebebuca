@@ -152,13 +152,17 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     launchCommand: 'gemini',
   },
   'opencode': {
-    name: 'OpenCode',
-    website: 'https://github.com/opencode-ai/opencode',
+    name: 'Crush',
+    website: 'https://github.com/charmbracelet/crush',
     installMethods: [
-      { id: 'npm', name: 'NPM', command: 'npm install -g opencode', platform: 'all' },
+      { id: 'npm', name: 'NPM', command: 'npm install -g @charmland/crush', platform: 'all' },
+      { id: 'script', name: 'Install Script', command: 'curl -fsSL https://charm.sh/install | bash', platform: 'macos' },
+      { id: 'brew', name: 'Homebrew', command: 'brew install charmbracelet/tap/crush', platform: 'macos' },
+      { id: 'aur', name: 'AUR (Arch Linux)', command: 'yay -S crush', platform: 'linux' },
+      { id: 'winget', name: 'WinGet', command: 'winget install charmbracelet.crush', platform: 'windows' },
     ],
-    versionCommand: 'opencode --version',
-    launchCommand: 'opencode',
+    versionCommand: 'crush --version',
+    launchCommand: 'crush',
   },
   'codebuddy': {
     name: 'CodeBuddy',

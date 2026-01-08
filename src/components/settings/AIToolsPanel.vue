@@ -468,90 +468,127 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
   try {
     const metadata = AI_TOOL_METADATA[toolType];
     const shell = await import("@tauri-apps/plugin-shell");
+    const { invoke } = await import("@tauri-apps/api/core");
 
-    // Use login shell (-l) instead of sourcing .zshrc directly
-    // This avoids triggering macOS permission dialogs when .zshrc accesses Desktop folder
-    // Login shell loads .zprofile which typically sets PATH without interactive commands
     const launchCmd = metadata.launchCommand;
-    
-    // Define common installation paths to check as fallback
-    // These paths are checked if the command is not found in PATH
-    const commonPaths: Record<string, string[]> = {
-      'cursor-agent': ['~/.local/bin/cursor-agent'],
-      'claude': ['~/.claude/local/claude'],
-      'codebuddy': ['~/.codebuddy/bin/codebuddy'],
-      'auggie': ['~/.augment/bin/auggie'],
-      'droid': ['~/.droid/bin/droid'],
-    };
-    
-    // Build the which command with fallback paths
-    let whichCmd = `which ${launchCmd} || command -v ${launchCmd}`;
-    const fallbackPaths = commonPaths[launchCmd] || [];
-    if (fallbackPaths.length > 0) {
-      // Add fallback path checks: test -x path && echo path
-      const fallbackChecks = fallbackPaths
-        .map(p => `(test -x ${p} && echo ${p})`)
-        .join(' || ');
-      whichCmd = `${whichCmd} || ${fallbackChecks}`;
-    }
-    
-    // Use -l flag for login shell, which loads .zprofile but not .zshrc
-    // This prevents permission dialogs while still getting proper PATH
-    const whichCommand = shell.Command.create("exec-zsh", [
-      "-l",
-      "-c",
-      whichCmd,
-    ]);
-    const whichOutput = await whichCommand.execute();
 
-    // Extract the actual path from the output (filter out non-path lines like env setup messages)
-    const outputLines = (whichOutput.stdout || '').split('\n').filter(line => {
-      const trimmed = line.trim();
-      // Valid paths start with / or ~
-      return trimmed && (trimmed.startsWith('/') || trimmed.startsWith('~')) && !trimmed.includes('=');
-    });
-    const foundPath = outputLines[outputLines.length - 1]?.trim() || '';
-    
-    if (whichOutput.code !== 0 && !foundPath) {
-      // Command not found in PATH or fallback paths
-      toolVersions.value[toolType] = "";
-      checkedTools.value[toolType] = true;
-      return;
-    }
+    // Platform-specific command checking
+    let foundPath = '';
 
-    // Command exists, now try to get version
-    // If we found a full path, use it directly; otherwise use the command name
-    const versionCmd = foundPath ? 
-      `${foundPath} --version` : 
-      metadata.versionCommand;
-    
-    // Use -l flag for login shell to avoid permission dialogs
-    const command = shell.Command.create("exec-zsh", [
-      "-l",
-      "-c",
-      versionCmd,
-    ]);
-    const output = await command.execute();
+    if (currentPlatform.value === 'windows') {
+      // Windows: Use Tauri command to execute PowerShell commands
 
-    if (output.code === 0) {
-      const outputText = output.stdout || output.stderr || "";
-      // Extract version number from output (handles various formats)
-      // Also handle date-based versions like 2026.01.02-80e4d9b
+      // Check if command exists using Get-Command
+      const whereOutput = await invoke<string>("execute_powershell_command", {
+        command: `Get-Command ${launchCmd} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source`
+      });
+      foundPath = whereOutput?.trim() || '';
+
+      if (!foundPath) {
+        // Command not found
+        toolVersions.value[toolType] = "";
+        checkedTools.value[toolType] = true;
+        return;
+      }
+
+      // Get version
+      const outputText = await invoke<string>("execute_powershell_command", {
+        command: metadata.versionCommand
+      });
+
+      // Extract version number
       const versionMatch = outputText.match(/v?(\d+\.\d+\.?\d*(?:-[\w.]+)?)/i) ||
                           outputText.match(/(\d{4}\.\d{2}\.\d{2}(?:-[\w]+)?)/);
       if (versionMatch) {
         toolVersions.value[toolType] = versionMatch[1];
       } else {
-        // Tool is installed but version format is unknown
         toolVersions.value[toolType] = "installed";
       }
     } else {
-      // Version command failed but tool might still be installed
-      // If we found a path, mark as installed
-      if (foundPath) {
-        toolVersions.value[toolType] = "installed";
-      } else {
+      // macOS/Linux: Use shell to check if command exists
+      // Use login shell (-l) instead of sourcing .zshrc directly
+      // This avoids triggering macOS permission dialogs when .zshrc accesses Desktop folder
+      // Login shell loads .zprofile which typically sets PATH without interactive commands
+      
+      // Define common installation paths to check as fallback
+      // These paths are checked if the command is not found in PATH
+      const commonPaths: Record<string, string[]> = {
+        'cursor-agent': ['~/.local/bin/cursor-agent'],
+        'claude': ['~/.claude/local/claude'],
+        'codebuddy': ['~/.codebuddy/bin/codebuddy'],
+        'auggie': ['~/.augment/bin/auggie'],
+        'droid': ['~/.droid/bin/droid'],
+      };
+
+      // Build the which command with fallback paths
+      let whichCmd = `which ${launchCmd} || command -v ${launchCmd}`;
+      const fallbackPaths = commonPaths[launchCmd] || [];
+      if (fallbackPaths.length > 0) {
+        // Add fallback path checks: test -x path && echo path
+        const fallbackChecks = fallbackPaths
+          .map(p => `(test -x ${p} && echo ${p})`)
+          .join(' || ');
+        whichCmd = `${whichCmd} || ${fallbackChecks}`;
+      }
+
+      // Use -l flag for login shell, which loads .zprofile but not .zshrc
+      // This prevents permission dialogs while still getting proper PATH
+      const whichCommand = shell.Command.create("exec-zsh", [
+        "-l",
+        "-c",
+        whichCmd,
+      ]);
+      const whichOutput = await whichCommand.execute();
+
+      // Extract the actual path from the output (filter out non-path lines like env setup messages)
+      const outputLines = (whichOutput.stdout || '').split('\n').filter(line => {
+        const trimmed = line.trim();
+        // Valid paths start with / or ~
+        return trimmed && (trimmed.startsWith('/') || trimmed.startsWith('~')) && !trimmed.includes('=');
+      });
+      foundPath = outputLines[outputLines.length - 1]?.trim() || '';
+
+      if (whichOutput.code !== 0 && !foundPath) {
+        // Command not found in PATH or fallback paths
         toolVersions.value[toolType] = "";
+        checkedTools.value[toolType] = true;
+        return;
+      }
+
+      // Command exists, now try to get version
+      // If we found a full path, use it directly; otherwise use the command name
+      const versionCmd = foundPath ?
+        `${foundPath} --version` :
+        metadata.versionCommand;
+
+      // Use -l flag for login shell to avoid permission dialogs
+      const command = shell.Command.create("exec-zsh", [
+        "-l",
+        "-c",
+        versionCmd,
+      ]);
+      const output = await command.execute();
+
+      if (output.code === 0) {
+        const outputText = output.stdout || output.stderr || "";
+        // Extract version number from output (handles various formats)
+        // Also handle date-based versions like 2026.01.02-80e4d9b
+        const versionMatch = outputText.match(/v?(\d+\.\d+\.?\d*(?:-[\w.]+)?)/i) ||
+                            outputText.match(/(\d{4}\.\d{2}\.\d{2}(?:-[\w]+)?)/);
+        if (versionMatch) {
+          toolVersions.value[toolType] = versionMatch[1];
+        } else {
+          // Tool is installed but version format is unknown
+          toolVersions.value[toolType] = "installed";
+        }
+      } else {
+        // Version command failed but tool might still be installed
+        // If we found a path, mark as installed
+        if (foundPath) {
+          toolVersions.value[toolType] = "installed";
+        } else {
+          toolVersions.value[toolType] = "";
+        }
       }
     }
 
@@ -615,16 +652,19 @@ const runInstallCommand = async (
       const { getAdapter } = await import("../../adapters");
       const adapter = await getAdapter();
       
-      // For PowerShell commands on Windows, wrap with PowerShell
-      let terminalCommand = installCommand;
-      if (currentPlatform.value === 'windows' && isPowerShellCommand) {
-        // Use PowerShell with the command directly (no string wrapping to avoid escaping issues)
-        // The adapter will handle the terminal opening with proper command passing
-        terminalCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command ${installCommand}`;
+      // For Windows, use PowerShell terminal directly instead of PowerShell launching cmd
+      if (currentPlatform.value === 'windows') {
+        // Use PowerShell as the terminal for all commands on Windows
+        // This is cleaner than using PowerShell to launch a cmd window
+        let terminalCommand = installCommand;
+        
+        // For PowerShell commands (irm, iex), execute them directly
+        // For other commands (npm, etc.), they work fine in PowerShell too
+        await adapter.system.openInSpecificTerminal('powershell', terminalCommand);
+      } else {
+        // macOS/Linux: use system terminal
+        await adapter.system.openInSystemTerminal(installCommand);
       }
-      
-      // Open in system terminal for interactive installation
-      await adapter.system.openInSystemTerminal(terminalCommand);
       
       message.info(t("aiTools.installingInTerminal"));
       
@@ -680,6 +720,7 @@ const runInstallCommand = async (
   }
 
   // Check if we should ask for sudo (non-Windows platforms with global npm install)
+  let finalCommand = installCommand;
   if (
     currentPlatform.value !== "windows" &&
     installCommand.includes("npm install -g")
@@ -692,12 +733,13 @@ const runInstallCommand = async (
         negativeText: t("aiTools.withoutSudo"),
         autoFocus: false,
         onPositiveClick: async () => {
-          installCommand = `sudo ${installCommand}`;
-          await executeInstallCommand();
+          finalCommand = `sudo ${installCommand}`;
+          installCommand = finalCommand;
+          await executeInSystemTerminal();
           resolve();
         },
         onNegativeClick: async () => {
-          await executeInstallCommand();
+          await executeInSystemTerminal();
           resolve();
         },
         onClose: () => {
@@ -707,7 +749,17 @@ const runInstallCommand = async (
     });
   }
 
-  await executeInstallCommand();
+  // For Windows npm install -g, also use PowerShell terminal
+  if (
+    currentPlatform.value === "windows" &&
+    installCommand.includes("npm install -g")
+  ) {
+    await executeInSystemTerminal();
+    return;
+  }
+
+  // Always use system terminal for all installation commands
+  await executeInSystemTerminal();
 };
 
 // Get provider options for a tool

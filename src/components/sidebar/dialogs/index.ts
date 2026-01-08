@@ -10,7 +10,6 @@
 
 export { default as TaskEditDialog } from './TaskEditDialog.vue';
 export { default as AIGenerateDialog } from './AIGenerateDialog.vue';
-export { default as PortManagementDialog } from './PortManagementDialog.vue';
 export { default as AddFolderDialog } from './AddFolderDialog.vue';
 export { default as TaskSelectionDialog } from './TaskSelectionDialog.vue';
 export { default as RenameGroupDialog } from './RenameGroupDialog.vue';

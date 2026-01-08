@@ -543,10 +543,26 @@ const editingTask = ref<{
   type: 'shell' | 'process' | 'macro';
   sourceFile: string;
   useSystemTerminal: boolean;
+  systemTerminalId?: string | null;
+  shellPath?: string | null;
   envStr: string;
+  pythonEnv?: string;
+  runAsAdmin?: boolean;
   executionMode?: 'serial' | 'parallel';
   dependsOn?: string[];
   subTasks?: string[];
+  // SSH remote execution fields
+  useSsh?: boolean;
+  sshConfig?: {
+    host: string;
+    port: number;
+    username: string;
+    auth?: any;
+  };
+  sshAuthType?: 'password' | 'privateKey';
+  sshPassword?: string;
+  sshKeyPath?: string;
+  sshPassphrase?: string;
 }>({
   id: '',
   name: '',
@@ -556,7 +572,11 @@ const editingTask = ref<{
   type: 'shell',
   sourceFile: '',
   useSystemTerminal: false,
+  systemTerminalId: null,
+  shellPath: null,
   envStr: '',
+  pythonEnv: '',
+  runAsAdmin: false,
 });
 
 // AI dialog state
@@ -907,11 +927,22 @@ const handleAddTask = () => {
     type: 'shell',
     sourceFile: '',
     useSystemTerminal: false,
+    systemTerminalId: null,
+    shellPath: null,
     envStr: '',
+    pythonEnv: '',
+    runAsAdmin: false,
     // Macro task fields (initialized for new tasks)
     executionMode: undefined,
     dependsOn: undefined,
     subTasks: undefined,
+    // SSH fields
+    useSsh: false,
+    sshConfig: undefined,
+    sshAuthType: 'password',
+    sshPassword: '',
+    sshKeyPath: '',
+    sshPassphrase: '',
   };
   showTaskDialog.value = true;
 };
@@ -964,7 +995,22 @@ const handleEditAIResult = (result: any) => {
     type: result.type || 'shell',
     sourceFile: '',
     useSystemTerminal: false,
+    systemTerminalId: null,
+    shellPath: null,
     envStr: '',
+    pythonEnv: '',
+    runAsAdmin: false,
+    // Macro task fields
+    executionMode: undefined,
+    dependsOn: undefined,
+    subTasks: undefined,
+    // SSH fields
+    useSsh: false,
+    sshConfig: undefined,
+    sshAuthType: 'password',
+    sshPassword: '',
+    sshKeyPath: '',
+    sshPassphrase: '',
   };
   
   showAIDialog.value = false;
@@ -990,6 +1036,17 @@ const handleTaskEditVisual = (task: Task) => {
     ? `${task.command} ${task.args.join(' ')}`
     : task.command || '';  // Default to empty string for macro tasks
   
+  // Initialize SSH config from task
+  let sshConfig = undefined;
+  if (task.definition?.ssh) {
+    const ssh = task.definition.ssh;
+    sshConfig = {
+      host: ssh.host || '',
+      port: ssh.port || 22,
+      username: ssh.username || '',
+    };
+  }
+  
   editingTask.value = {
     id: task.id,
     name: task.name,
@@ -999,11 +1056,23 @@ const handleTaskEditVisual = (task: Task) => {
     type: (task.type || 'shell') as 'shell' | 'process' | 'macro',
     sourceFile: task.sourceFile || '',
     useSystemTerminal: task.useSystemTerminal || false,
+    systemTerminalId: task.systemTerminalId || null,
+    shellPath: task.shellPath || null,
     envStr,
     // Macro task fields
     executionMode: task.executionMode,
     dependsOn: task.dependsOn,
     subTasks: task.subTasks,
+    // Other fields
+    pythonEnv: task.pythonEnv || '',
+    runAsAdmin: task.runAsAdmin || false,
+    // SSH fields
+    useSsh: !!task.definition?.ssh,
+    sshConfig,
+    sshAuthType: task.definition?.ssh?.auth?.type || 'password',
+    sshPassword: '', // Don't load password from task for security
+    sshKeyPath: task.definition?.ssh?.auth?.key_path || '',
+    sshPassphrase: '', // Don't load passphrase from task for security
   };
   showTaskDialog.value = true;
 };
@@ -1043,6 +1112,10 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       type: task.type,
       cwd: task.cwd,
       useSystemTerminal: task.useSystemTerminal,
+      systemTerminalId: task.systemTerminalId,
+      shellPath: task.shellPath,
+      pythonEnv: task.pythonEnv,
+      runAsAdmin: task.runAsAdmin,
       env,
     };
     
@@ -1055,6 +1128,28 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       } else {
         taskData.dependsOn = task.dependsOn;
         taskData.subTasks = undefined;
+      }
+    }
+    
+    // Add SSH configuration if enabled
+    if (task.useSsh && task.sshConfig) {
+      taskData.definition = taskData.definition || {};
+      taskData.definition.ssh = {
+        host: task.sshConfig.host,
+        port: task.sshConfig.port,
+        username: task.sshConfig.username,
+        auth: task.sshAuthType === 'password'
+          ? { type: 'password', password: task.sshPassword || '' }
+          : { 
+              type: 'privateKey', 
+              key_path: task.sshKeyPath || '',
+              passphrase: task.sshPassphrase || undefined,
+            },
+      };
+    } else {
+      // Remove SSH config if disabled
+      if (taskData.definition?.ssh) {
+        delete taskData.definition.ssh;
       }
     }
     
