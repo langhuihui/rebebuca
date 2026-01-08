@@ -102,6 +102,13 @@ jobs:
           echo "Generated release notes:"
           echo "$NOTES"
 
+      - name: Copy multi-arch remote agent binaries
+        if: matrix.platform == 'macos-latest'
+        run: |
+          mkdir -p src-tauri/build
+          cp target/x86_64-apple-darwin/release/rebebuca-remote-agent src-tauri/build/rebebuca-remote-agent-x86_64-apple-darwin
+          cp target/aarch64-apple-darwin/release/rebebuca-remote-agent src-tauri/build/rebebuca-remote-agent-aarch64-apple-darwin
+
       - name: Build Tauri app and create release
         uses: tauri-apps/tauri-action@v0
         id: tauri
