@@ -36,6 +36,9 @@ import { useNotificationStore } from './notification';
 import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
 import { useSshStore } from './ssh';
 import { safeInvoke } from '../utils/programUtils';
+import { startMonitoring as startSupervisorMonitoring } from '../services/supervisorAIService';
+import { useSupervisorAIStore } from './supervisorAI';
+import type { AIToolType } from './aiTools';
 
 /**
  * Check if command contains sudo and inject password if stored
@@ -1700,6 +1703,34 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       
       // Track this task as running
       runningTasks.value.set(task.id, tab.id);
+      
+      // Start supervisor monitoring if this is an AI tool task
+      if (task.aiTool) {
+        try {
+          const supervisorStore = useSupervisorAIStore();
+          await supervisorStore.initialize();
+          
+          if (supervisorStore.config.enabled && supervisorStore.shouldMonitorTool(task.aiTool as AIToolType)) {
+            const sessionId = startSupervisorMonitoring(
+              tab.ptyId,
+              tab.id,
+              task.aiTool as AIToolType,
+              task.name,
+              {
+                maxIterations: supervisorStore.config.defaultMaxIterations,
+                idleTimeout: supervisorStore.config.idleTimeout,
+                autoMode: supervisorStore.config.autoModeEnabled,
+              }
+            );
+            if (sessionId) {
+              console.log(`[TaskManager] Started supervisor monitoring for AI tool task: ${task.name}, session: ${sessionId}`);
+            }
+          }
+        } catch (error) {
+          console.warn('[TaskManager] Failed to start supervisor monitoring:', error);
+          // Don't fail the task execution if supervisor fails
+        }
+      }
       
       // Update task run statistics
       await updateTaskRunStats(task.id);

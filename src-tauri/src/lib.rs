@@ -133,7 +133,7 @@ pub fn run() {
                         info!("[MENU] Developer tools menu item clicked");
                         // Open developer tools for the main window
                         if let Some(window) = app_handle.get_webview_window("main") {
-                            window.open_devtools();
+                            let _ = window.open_devtools();
                             info!("[MENU] Developer tools opened");
                         } else {
                             info!("[MENU] Main window not found");
@@ -174,7 +174,7 @@ pub fn run() {
                         "devtools" => {
                             info!("[TRAY] Developer tools menu item clicked");
                             if let Some(window) = app.get_webview_window("main") {
-                                window.open_devtools();
+                                let _ = window.open_devtools();
                                 info!("[TRAY] Developer tools opened");
                                 // Also show the window when opening devtools
                                 let _ = window.show();
