@@ -1059,11 +1059,13 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
 
 /// Execute a PowerShell command and return the output
 /// This is used for checking if tools are installed on Windows
+/// Uses subprocess approach to prevent popup windows on Windows
 #[tauri::command]
 pub async fn execute_powershell_command(command: String) -> Result<String, String> {
     // Try pwsh first (PowerShell 7+), then fallback to powershell.exe
+    // Use -WindowStyle Hidden to prevent any popup windows on Windows
     let output = Command::new("pwsh")
-        .args(["-NoProfile", "-Command", &command])
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
         .output();
 
     let output = match output {
@@ -1071,7 +1073,7 @@ pub async fn execute_powershell_command(command: String) -> Result<String, Strin
         Err(_) => {
             // Fallback to Windows PowerShell
             Command::new("powershell.exe")
-                .args(["-NoProfile", "-Command", &command])
+                .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
                 .output()
                 .map_err(|e| format!("Failed to execute PowerShell command: {}", e))?
         }

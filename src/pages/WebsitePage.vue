@@ -1320,7 +1320,7 @@ const WebsiteContentInner = defineComponent({
                   { id: "gemini-cli", name: "Google Gemini CLI", website: "https://github.com/google-gemini/gemini-cli" },
                   { id: "opencode", name: "OpenCode", website: "https://github.com/opencode-ai/opencode" },
                   { id: "codebuddy", name: "CodeBuddy", website: "https://github.com/codebuddy-ai/codebuddy" },
-                  { id: "qoder-cli", name: "Qoder CLI", website: "https://github.com/qoder-ai/qoder-cli" },
+                  { id: "qoder-cli", name: "Qoder CLI", website: "https://qoder.com/cli" },
                   { id: "copilot-cli", name: "GitHub Copilot CLI", website: "https://github.com/github/copilot-cli" },
                   { id: "droid", name: "Droid", website: "https://github.com/droid-ai/droid" },
                   { id: "augment-cli", name: "Augment CLI", website: "https://github.com/augment-ai/augment-cli" },

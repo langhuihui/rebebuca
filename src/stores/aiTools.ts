@@ -183,12 +183,14 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
   },
   'qoder-cli': {
     name: 'Qoder CLI',
-    website: 'https://github.com/qodo-ai/qoder',
+    website: 'https://qoder.com/cli',
     installMethods: [
-      { id: 'npm', name: 'NPM', command: 'npm install -g qoder-cli', platform: 'all' },
+      { id: 'curl', name: 'cURL', command: 'curl -fsSL https://qoder.com/install | bash', platform: 'all' },
+      { id: 'brew', name: 'Homebrew', command: 'brew install qoderai/qoder/qodercli --cask', platform: 'macos' },
+      { id: 'npm', name: 'NPM', command: 'npm install -g @qoder-ai/qodercli', platform: 'all' },
     ],
-    versionCommand: 'qoder --version',
-    launchCommand: 'qoder',
+    versionCommand: 'qodercli --version',
+    launchCommand: 'qodercli',
   },
   'copilot-cli': {
     name: 'GitHub Copilot CLI',

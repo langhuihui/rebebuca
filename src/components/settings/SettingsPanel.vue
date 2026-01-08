@@ -83,31 +83,33 @@
       
       <n-tab-pane name="security" :tab="t('settings.security')">
         <n-form label-placement="left" label-width="auto" class="compact-settings-form">
-          <n-alert type="warning" :title="t('settings.sudoPasswordWarning')" style="margin-bottom: 16px;">
-            {{ t('settings.sudoPasswordWarningContent') }}
-          </n-alert>
-          
-          <n-form-item :label="t('settings.sudoPassword')">
-            <n-input
-              v-model:value="sudoPasswordInput"
-              type="password"
-              :placeholder="sudoPasswordPlaceholder"
-              show-password-on="click"
-              style="width: 250px;"
-              @focus="handleSudoPasswordFocus"
-              @update:value="handleSudoPasswordChange"
-              @blur="handleSudoPasswordBlur"
-            />
-            <n-button
-              v-if="settingsStore.settings.sudoPassword"
-              size="small"
-              style="margin-left: 8px;"
-              @click="clearSudoPassword"
-            >
-              {{ t('settings.clearSudoPassword') }}
-            </n-button>
-            <span class="setting-hint" style="display: block; margin-top: 4px;">{{ t('settings.sudoPasswordHint') }}</span>
-          </n-form-item>
+          <template v-if="currentPlatform !== 'windows'">
+            <n-alert type="warning" :title="t('settings.sudoPasswordWarning')" style="margin-bottom: 16px;">
+              {{ t('settings.sudoPasswordWarningContent') }}
+            </n-alert>
+
+            <n-form-item :label="t('settings.sudoPassword')">
+              <n-input
+                v-model:value="sudoPasswordInput"
+                type="password"
+                :placeholder="sudoPasswordPlaceholder"
+                show-password-on="click"
+                style="width: 250px;"
+                @focus="handleSudoPasswordFocus"
+                @update:value="handleSudoPasswordChange"
+                @blur="handleSudoPasswordBlur"
+              />
+              <n-button
+                v-if="settingsStore.settings.sudoPassword"
+                size="small"
+                style="margin-left: 8px;"
+                @click="clearSudoPassword"
+              >
+                {{ t('settings.clearSudoPassword') }}
+              </n-button>
+              <span class="setting-hint" style="display: block; margin-top: 4px;">{{ t('settings.sudoPasswordHint') }}</span>
+            </n-form-item>
+          </template>
         </n-form>
       </n-tab-pane>
       
@@ -242,7 +244,7 @@ import { useSettingsStore } from '../../stores/settings';
 import { useUpdaterStore } from '../../stores/updater';
 import { useRunConfigStore } from '../../stores/runConfig';
 import { useLocale } from '../../composables/useLocale';
-import { getAdapter } from '../../adapters';
+import { getAdapter, isTauri } from '../../adapters';
 import type { SystemTerminalInfo, ShellInfo } from '../../adapters/types';
 import { svgIcons } from '../../utils/icons';
 import CommandIconSettings from '../CommandIconSettings.vue';
@@ -313,6 +315,9 @@ const shellOptions = computed(() => {
   }));
 });
 
+// Current platform detection
+const currentPlatform = ref<"macos" | "linux" | "windows">("macos");
+
 const loadAvailableTerminals = async () => {
   loadingTerminals.value = true;
   try {
@@ -346,6 +351,35 @@ const loadAvailableShells = async () => {
     message.error(t('settings.failedToLoadShells'));
   } finally {
     loadingShells.value = false;
+  }
+};
+
+// Detect current platform
+const detectPlatform = async () => {
+  if (isTauri()) {
+    try {
+      const os = await import("@tauri-apps/plugin-os");
+      const platform = os.platform();
+      if (platform === "macos") {
+        currentPlatform.value = "macos";
+      } else if (platform === "windows") {
+        currentPlatform.value = "windows";
+      } else {
+        currentPlatform.value = "linux";
+      }
+    } catch {
+      currentPlatform.value = "macos";
+    }
+  } else {
+    // Web mode - detect from user agent
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes("win")) {
+      currentPlatform.value = "windows";
+    } else if (ua.includes("mac")) {
+      currentPlatform.value = "macos";
+    } else {
+      currentPlatform.value = "linux";
+    }
   }
 };
 
@@ -466,6 +500,7 @@ watch(() => props.initialTab, (newTab) => {
 }, { immediate: true });
 
 onMounted(async () => {
+  await detectPlatform();
   currentVersion.value = await updaterStore.getCurrentVersion();
   await Promise.all([
     loadAvailableTerminals(),

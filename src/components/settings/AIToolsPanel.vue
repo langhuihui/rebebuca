@@ -1000,6 +1000,11 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
 
 // Check if update is available
 const isUpdateAvailable = (toolType: AIToolType): boolean => {
+  // copilot-cli always shows update button since we cannot detect version
+  if (toolType === 'copilot-cli') {
+    return true;
+  }
+  
   const current = toolVersions.value[toolType];
   const latest = latestVersions.value[toolType];
   

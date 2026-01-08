@@ -46,11 +46,9 @@ const NPM_PACKAGE_MAP: Record<AIToolType, NpmPackageInfo | null> = {
     packageName: '@tencent-ai/codebuddy-code',
   },
   'qoder-cli': {
-    packageName: 'qoder-cli',
+    packageName: '@qoder-ai/qodercli',
   },
-  'copilot-cli': {
-    packageName: '@github/copilot',
-  },
+  'copilot-cli': null, // Cannot detect version, always show update button
   'droid': null, // Installed via script, not npm
   'augment-cli': {
     packageName: '@augmentcode/auggie',
@@ -167,6 +165,8 @@ export function getUpdateCommand(toolType: AIToolType): string | null {
     switch (toolType) {
       case 'codebuddy':
         return 'codebuddy update';
+      case 'copilot-cli':
+        return 'agent update';
       case 'cursor-cli':
         // Cursor CLI doesn't have a direct update command
         return null;
