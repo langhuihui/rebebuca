@@ -42,6 +42,9 @@ chrono = "0.4"
 sysinfo = "0.30"
 portable-pty = "0.8"
 log = "0.4"
-ssh2 = "0.9"
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }
 base64 = "0.21"
 lazy_static = "1.4"
+
+# Explicitly add openssl-sys with vendored feature for universal builds
+openssl-sys = { version = "0.9", features = ["vendored"] }

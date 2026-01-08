@@ -1,10 +1,19 @@
-[env]
-# 禁用 clang 模块功能以解决 macOS 15 (Sequoia) 的兼容性问题
-CFLAGS = "-fno-modules"
-CXXFLAGS = "-fno-modules"
-OBJCFLAGS = "-fno-modules"
-# OpenSSL 配置，用于 openssl-sys crate 编译
-# 本地开发环境默认路径（Apple Silicon）
-# 在 CI 环境中，OPENSSL_DIR 会通过环境变量覆盖此设置
-OPENSSL_DIR = "/opt/homebrew/opt/openssl@3"
+# Cargo configuration for Tauri builds
 
+[build]
+# For universal macOS builds, ensure proper cross-compilation
+rustflags = []
+
+[target.x86_64-apple-darwin]
+# Configuration for Intel macOS builds
+rustflags = []
+
+[target.aarch64-apple-darwin]
+# Configuration for Apple Silicon macOS builds
+rustflags = []
+
+# Environment variables for OpenSSL
+[env]
+# Use vendored OpenSSL by default for universal builds
+# This can be overridden by setting OPENSSL_STATIC=0
+OPENSSL_STATIC = { value = "1", condition = { env_not_set = ["OPENSSL_STATIC"] } }
