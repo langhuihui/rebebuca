@@ -787,7 +787,6 @@ const WebsiteContentInner = defineComponent({
         language: currentLang.value === "zh-CN" ? "zh-CN" : "en",
         confirmBeforeClose: true,
         closeButtonBehavior: "exit" as "exit" | "hide",
-        autoExpandFolders: true,
         showTaskIcons: true,
         recentTasksCount: 5,
         preferredTerminal: "Terminal.app",
@@ -978,16 +977,6 @@ const WebsiteContentInner = defineComponent({
                             h(NRadio, { value: "exit" }, () => t("settings.closeButtonExit")),
                             h(NRadio, { value: "hide" }, () => t("settings.closeButtonHide")),
                           ],
-                        }),
-                    }),
-                    h(NFormItem, { label: t("settings.autoExpandFolders") }, {
-                      default: () =>
-                        h(NSwitch, {
-                          value: demoSettings.autoExpandFolders,
-                          "onUpdate:value": (v: boolean) => {
-                            demoSettings.autoExpandFolders = v;
-                            message.info(t("website.demo.settingsSaved"));
-                          },
                         }),
                     }),
                     h(NFormItem, { label: t("settings.showTaskIcons") }, {
@@ -1372,7 +1361,37 @@ const WebsiteContentInner = defineComponent({
                           },
                           onClick: () => (activeToolTab.value = tool.id),
                         }, [
-                          h("div", { style: "font-weight: 500; margin-bottom: 4px;" }, tool.name),
+                          h("div", { style: "display: flex; align-items: center; gap: 8px; font-weight: 500; margin-bottom: 4px;" }, [
+                            (() => {
+                              const logoUrls: Record<string, string | undefined> = {
+                                "claude-code": "/ai-tools-logos/claude-code.svg",
+                                "codex": "/ai-tools-logos/codex.png",
+                                "gemini-cli": "/ai-tools-logos/gemini-cli.webp",
+                                "opencode": "/ai-tools-logos/opencode.jpg",
+                                "codebuddy": "/ai-tools-logos/codebuddy.jpeg",
+                                "qoder-cli": "/ai-tools-logos/qoder.png",
+                                "copilot-cli": "/ai-tools-logos/copilot-cli.png",
+                                "droid": "/ai-tools-logos/droid.ico",
+                                "augment-cli": "/ai-tools-logos/augment-cli.ico",
+                                "cursor-cli": "/ai-tools-logos/cursor-cli.ico",
+                                "crush": "/ai-tools-logos/crush.svg",
+                              };
+                              const logoUrl = logoUrls[tool.id];
+                              if (logoUrl) {
+                                return h("img", {
+                                  src: logoUrl,
+                                  alt: tool.name,
+                                  style: "width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;",
+                                  onError: (e: Event) => {
+                                    const img = e.target as HTMLImageElement;
+                                    if (img) img.style.display = "none";
+                                  },
+                                });
+                              }
+                              return null;
+                            })(),
+                            h("span", tool.name),
+                          ]),
                           h("div", { style: "font-size: 11px; opacity: 0.6;" }, toolVersions.value[tool.id as keyof typeof toolVersions.value] ? `v${toolVersions.value[tool.id as keyof typeof toolVersions.value]}` : t("aiTools.notInstalled")),
                         ])
                       ),

@@ -29,6 +29,7 @@ export interface TaskExecutionParams {
   cwd?: string;
   env?: Record<string, string>;
   logPath?: string;
+  shellPath?: string | null;
 }
 
 export interface TerminalTab {
@@ -47,6 +48,7 @@ export interface TerminalTab {
   memoryUsage?: string; // 内存使用
   pid?: number;         // 进程 PID
   initialTab?: string;  // 对于 settings 类型，可以指定初始 tab
+  shellName?: string;   // 终端类型名称（用于状态栏显示）
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -72,7 +74,9 @@ export const useTerminalStore = defineStore('terminal', () => {
   
   // Computed
   const activeTabs = computed(() => tabs.value.filter(t => t.status !== 'closed'));
-  const runningTabs = computed(() => tabs.value.filter(t => t.status === 'running'));
+  const runningTabs = computed(() => tabs.value.filter(t => 
+    t.status === 'running' && (t.type === 'task' || t.type === 'shell')
+  ));
   const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value));
   
   // Initialize event listeners
@@ -88,7 +92,8 @@ export const useTerminalStore = defineStore('terminal', () => {
         console.log('[Terminal Store] PTY exit event:', ptyId, exitCode);
         
         const tab = tabs.value.find(t => t.ptyId === ptyId);
-        if (tab) {
+        // Only process exit events for task/shell tabs, not special tabs like settings/notifications
+        if (tab && (tab.type === 'task' || tab.type === 'shell')) {
           tab.exitCode = exitCode ?? undefined;
           tab.status = exitCode === 0 ? 'success' : 'error';
           
@@ -137,6 +142,40 @@ export const useTerminalStore = defineStore('terminal', () => {
   
   // Generate unique ID for terminal
   const generateId = () => `term-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Extract shell name from shell path
+  const getShellName = (shellPath?: string | null): string | undefined => {
+    if (!shellPath) return undefined;
+    
+    // Get the base name of the shell (last part of the path)
+    const parts = shellPath.split(/[/\\]/);
+    const baseName = parts[parts.length - 1] || '';
+    
+    // Remove extension on Windows
+    const name = baseName.replace(/\.(exe|cmd|bat)$/i, '');
+    
+    // Map common shell names to display names
+    const shellNameMap: Record<string, string> = {
+      'cmd': 'CMD',
+      'powershell': 'PowerShell',
+      'pwsh': 'PowerShell',
+      'bash': 'Bash',
+      'zsh': 'Zsh',
+      'fish': 'Fish',
+      'sh': 'Shell',
+      'dash': 'Dash',
+      'ksh': 'Ksh',
+      'tcsh': 'Tcsh',
+      'csh': 'Csh',
+      'nu': 'Nushell',
+      'nushell': 'Nushell',
+      'elvish': 'Elvish',
+      'xonsh': 'Xonsh',
+      'ion': 'Ion',
+    };
+    
+    return shellNameMap[name.toLowerCase()] || name;
+  };
   
   // Create a new shell terminal
   const createShellTerminal = async (options?: {
@@ -198,6 +237,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         logPath: options.logPath,
         shellPath: options.shellPath,
       },
+      shellName: getShellName(options.shellPath),
     };
     
     tabs.value.push(tab);
@@ -207,10 +247,10 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
   
-  // Start a pending task - call this after terminal is ready
+  // Start a pending task - call this after terminal is ready (only for task tabs)
   const startTask = async (tabId: string): Promise<void> => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (!tab || tab.status !== 'pending' || !tab.execParams) {
+    if (!tab || tab.type !== 'task' || tab.status !== 'pending' || !tab.execParams) {
       console.warn('[Terminal Store] Cannot start task - invalid state:', tabId, tab?.status);
       return;
     }
@@ -285,8 +325,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab) return;
     
-    // If running, try to kill the task/close the PTY
-    if (tab.status === 'running') {
+    // If running, try to kill the task/close the PTY (only for task/shell tabs)
+    if (tab.status === 'running' && (tab.type === 'task' || tab.type === 'shell')) {
       try {
         const adapterInstance = await getAdapterInstance();
         await adapterInstance.terminal.kill(tab.ptyId);
@@ -296,6 +336,16 @@ export const useTerminalStore = defineStore('terminal', () => {
         if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
           console.warn('[Terminal Store] Failed to close PTY:', error);
         }
+      }
+      
+      // Notify taskManager that this task has exited (in case pty-exit event is not received)
+      // This is a fallback for Windows where taskkill might not trigger the pty-exit event properly
+      try {
+        const { useTaskManagerStore } = await import('./taskManager');
+        const taskManager = useTaskManagerStore();
+        taskManager.onTaskExit(tab.id);
+      } catch (error) {
+        console.warn('[Terminal Store] Failed to notify taskManager on closeTab:', error);
       }
     }
     
@@ -311,10 +361,10 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   };
   
-  // Stop a running task
+  // Stop a running task (only for task/shell tabs)
   const stopTask = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (!tab || tab.status !== 'running') return;
+    if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running') return;
     
     try {
       const adapterInstance = await getAdapterInstance();
@@ -327,11 +377,11 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   };
   
-  // Restart a task using saved execution params (reuse existing tab)
+  // Restart a task using saved execution params (reuse existing tab, only for task tabs)
   const restartTask = async (tabId: string): Promise<TerminalTab | null> => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (!tab || !tab.execParams) {
-      console.warn('[Terminal Store] Cannot restart: no execution params saved');
+    if (!tab || tab.type !== 'task' || !tab.execParams) {
+      console.warn('[Terminal Store] Cannot restart: no execution params saved or not a task tab');
       return null;
     }
 
@@ -368,10 +418,10 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tabs.value.find(t => t.ptyId === ptyId);
   };
   
-  // Update tab status
+  // Update tab status (only for task/shell tabs, not special tabs)
   const updateTabStatus = (tabId: string, status: TerminalStatus, exitCode?: number) => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (tab) {
+    if (tab && (tab.type === 'task' || tab.type === 'shell')) {
       tab.status = status;
       if (exitCode !== undefined) {
         tab.exitCode = exitCode;
@@ -389,10 +439,10 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   };
   
-  // Get process stats for a running tab
+  // Get process stats for a running tab (only for task/shell tabs)
   const getTabProcessStats = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (!tab || tab.status !== 'running' || !tab.pid) {
+    if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running' || !tab.pid) {
       return null;
     }
     
@@ -437,7 +487,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       type: 'settings',
       label: 'Settings',
       ptyId: '', // No PTY for settings tab
-      status: 'running',
+      status: 'pending', // Special tab doesn't have real status
       startTime: Date.now(),
       initialTab,
     };
@@ -462,7 +512,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       type: 'notifications',
       label: 'Notifications',
       ptyId: '', // No PTY for notifications tab
-      status: 'running',
+      status: 'pending', // Special tab doesn't have real status
       startTime: Date.now(),
     };
     

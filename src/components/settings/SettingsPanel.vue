@@ -44,9 +44,6 @@
               <n-radio value="hide">{{ t('settings.closeButtonHide') }}</n-radio>
             </n-radio-group>
           </n-form-item>
-          <n-form-item :label="t('settings.autoExpandFolders')">
-            <n-switch v-model:value="settingsStore.settings.autoExpandFolders" />
-          </n-form-item>
           <n-form-item :label="t('settings.showTaskIcons')">
             <n-switch v-model:value="settingsStore.settings.showTaskIcons" />
           </n-form-item>
@@ -80,6 +77,36 @@
               :placeholder="t('settings.preferredShellPlaceholder')"
             />
             <span class="setting-hint">{{ t('settings.preferredShellHint') }}</span>
+          </n-form-item>
+        </n-form>
+      </n-tab-pane>
+      
+      <n-tab-pane name="security" :tab="t('settings.security')">
+        <n-form label-placement="left" label-width="auto" class="compact-settings-form">
+          <n-alert type="warning" :title="t('settings.sudoPasswordWarning')" style="margin-bottom: 16px;">
+            {{ t('settings.sudoPasswordWarningContent') }}
+          </n-alert>
+          
+          <n-form-item :label="t('settings.sudoPassword')">
+            <n-input
+              v-model:value="sudoPasswordInput"
+              type="password"
+              :placeholder="sudoPasswordPlaceholder"
+              show-password-on="click"
+              style="width: 280px;"
+              @focus="handleSudoPasswordFocus"
+              @update:value="handleSudoPasswordChange"
+              @blur="handleSudoPasswordBlur"
+            />
+            <n-button
+              v-if="settingsStore.settings.sudoPassword"
+              size="small"
+              style="margin-left: 8px;"
+              @click="clearSudoPassword"
+            >
+              {{ t('settings.clearSudoPassword') }}
+            </n-button>
+            <span class="setting-hint" style="display: block; margin-top: 4px;">{{ t('settings.sudoPasswordHint') }}</span>
           </n-form-item>
         </n-form>
       </n-tab-pane>
@@ -186,7 +213,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import {
   NTabs,
   NTabPane,
@@ -203,6 +230,7 @@ import {
   NDivider,
   NSpin,
   NIcon,
+  NInput,
   useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -242,6 +270,25 @@ const loadingReleaseNotes = ref(false);
 
 const currentLanguage = ref(localeMode.value);
 const languageOptions = computed(() => getLocalizedOptions());
+
+// Sudo password input
+const sudoPasswordInput = ref<string>('');
+const sudoPasswordDebounceTimer = ref<NodeJS.Timeout | null>(null);
+const sudoPasswordPlaceholder = computed(() => {
+  if (settingsStore.settings.sudoPassword) {
+    // Show "already set" indicator in the placeholder
+    const basePlaceholder = t('settings.sudoPasswordPlaceholder');
+    // For Chinese, show "已设置", for English, show "(Set)"
+    const locale = t('settings.sudoPassword'); // This will help determine language
+    // Simple check: if the placeholder contains Chinese characters, we're in Chinese mode
+    if (basePlaceholder.includes('输入')) {
+      return basePlaceholder + ' (已设置)';
+    } else {
+      return basePlaceholder + ' (Set)';
+    }
+  }
+  return t('settings.sudoPasswordPlaceholder');
+});
 
 const loadingTerminals = ref(false);
 const availableTerminals = ref<SystemTerminalInfo[]>([]);
@@ -345,6 +392,60 @@ const fetchReleaseNotes = async () => {
   }
 };
 
+// Handle sudo password focus (clear placeholder if it's the placeholder dots)
+const handleSudoPasswordFocus = () => {
+  // If the input contains only placeholder dots, clear it
+  if (sudoPasswordInput.value === '••••••••' || sudoPasswordInput.value.match(/^•+$/)) {
+    sudoPasswordInput.value = '';
+  }
+};
+
+// Handle sudo password change with debounce
+const handleSudoPasswordChange = (value: string) => {
+  // Don't save if it's the placeholder dots
+  if (value === '••••••••' || value.match(/^•+$/)) {
+    return;
+  }
+  
+  // Clear existing timer
+  if (sudoPasswordDebounceTimer.value) {
+    clearTimeout(sudoPasswordDebounceTimer.value);
+  }
+  
+  // Set new timer to save after user stops typing (500ms delay)
+  sudoPasswordDebounceTimer.value = setTimeout(async () => {
+    await settingsStore.setSudoPassword(value || null);
+  }, 500);
+};
+
+// Handle sudo password blur (save immediately on blur)
+const handleSudoPasswordBlur = async () => {
+  // Clear debounce timer
+  if (sudoPasswordDebounceTimer.value) {
+    clearTimeout(sudoPasswordDebounceTimer.value);
+    sudoPasswordDebounceTimer.value = null;
+  }
+  
+  // Don't save if it's the placeholder dots
+  if (sudoPasswordInput.value === '••••••••' || sudoPasswordInput.value.match(/^•+$/)) {
+    // Restore placeholder if user didn't change it
+    if (settingsStore.settings.sudoPassword) {
+      sudoPasswordInput.value = '••••••••';
+    }
+    return;
+  }
+  
+  // Save immediately
+  await settingsStore.setSudoPassword(sudoPasswordInput.value || null);
+};
+
+// Clear sudo password
+const clearSudoPassword = async () => {
+  sudoPasswordInput.value = '';
+  await settingsStore.setSudoPassword(null);
+  message.success(t('settings.clearSudoPassword') + ' ' + t('common.save'));
+};
+
 // Auto-save settings when they change
 watch(
   () => settingsStore.settings,
@@ -367,6 +468,18 @@ onMounted(async () => {
     loadAvailableTerminals(),
     loadAvailableShells(),
   ]);
+  
+  // Load sudo password if exists (but don't display the actual password)
+  if (settingsStore.settings.sudoPassword) {
+    sudoPasswordInput.value = '••••••••'; // Show placeholder dots if password exists
+  }
+});
+
+// Cleanup timer on unmount
+onUnmounted(() => {
+  if (sudoPasswordDebounceTimer.value) {
+    clearTimeout(sudoPasswordDebounceTimer.value);
+  }
 });
 </script>
 

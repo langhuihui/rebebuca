@@ -43,7 +43,7 @@ export async function initTrayService() {
     adapter = await getAdapter();
     
     // Only setup tray on Tauri (desktop app)
-    if (adapter.type !== 'tauri') {
+    if (!adapter || adapter.type !== 'tauri') {
       console.log('[TrayService] Not running in Tauri, skipping tray menu setup');
       return;
     }

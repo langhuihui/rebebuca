@@ -845,8 +845,25 @@ pub async fn execute_task(
 pub async fn kill_task(
     pty_id: String,
     pty_manager: tauri::State<'_, PtyManager>,
+    app_handle: AppHandle,
 ) -> Result<(), String> {
-    pty_manager.kill_task(&pty_id).await
+    let result = pty_manager.kill_task(&pty_id).await;
+    
+    // Always emit pty-exit event when kill_task is called
+    // This ensures the frontend is notified even if the reading thread
+    // doesn't detect the process exit (especially on Windows with taskkill)
+    if result.is_ok() {
+        let _ = app_handle.emit(
+            "pty-exit",
+            PtyExitEvent {
+                pty_id: pty_id.clone(),
+                exit_code: Some(-1), // -1 indicates killed by user
+            },
+        );
+        println!("[PTY] Emitted pty-exit event for killed task: {}", pty_id);
+    }
+    
+    result
 }
 
 /// Force kill a task process (SIGKILL on Unix, forceful termination on Windows)
@@ -854,8 +871,23 @@ pub async fn kill_task(
 pub async fn force_kill_task(
     pty_id: String,
     pty_manager: tauri::State<'_, PtyManager>,
+    app_handle: AppHandle,
 ) -> Result<(), String> {
-    pty_manager.force_kill_task(&pty_id).await
+    let result = pty_manager.force_kill_task(&pty_id).await;
+    
+    // Always emit pty-exit event when force_kill_task is called
+    if result.is_ok() {
+        let _ = app_handle.emit(
+            "pty-exit",
+            PtyExitEvent {
+                pty_id: pty_id.clone(),
+                exit_code: Some(-9), // -9 indicates force killed (SIGKILL)
+            },
+        );
+        println!("[PTY] Emitted pty-exit event for force killed task: {}", pty_id);
+    }
+    
+    result
 }
 
 /// Check if a task process is still running

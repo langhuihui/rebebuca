@@ -112,6 +112,11 @@ export function getAIToolLaunchConfig(
       args: [],
       useSystemTerminal: true,
     },
+    'crush': {
+      command: AI_TOOL_METADATA['crush'].launchCommand,
+      args: [],
+      useSystemTerminal: true,
+    },
   };
   
   const launchConfig = { ...baseConfigs[toolType] };
@@ -152,6 +157,7 @@ export function getAIToolLaunchConfig(
       case 'copilot-cli':
       case 'droid':
       case 'augment-cli':
+      case 'crush':
         launchConfig.env['API_KEY'] = apiKey;
         break;
     }
@@ -233,6 +239,7 @@ export function createAIToolQuickLaunchTask(
     'droid': 'Droid',
     'augment-cli': 'Auggie (Augment CLI)',
     'cursor-cli': 'Cursor CLI',
+    'crush': 'Crush',
   };
   
   return {

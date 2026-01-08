@@ -719,14 +719,6 @@ const handleConfirmAddFolder = async (data: AddFolderFormData) => {
   } else {
     try {
       await taskManager.addFolder(data.sourceFolder);
-      if (settingsStore.settings.autoExpandFolders) {
-        for (const folder of taskManager.treeItems) {
-          expandedNodes.value.add(folder.id);
-          for (const source of folder.children || []) {
-            expandedNodes.value.add(source.id);
-          }
-        }
-      }
     } catch (error) {
       console.error('[TaskSidebar] Failed to add folder:', error);
     }
@@ -1213,28 +1205,8 @@ onMounted(async () => {
   
   expandedNodes.value.add('favorites');
   expandedNodes.value.add('recent');
-  
-  if (settingsStore.settings.autoExpandFolders) {
-    for (const folder of taskManager.treeItems) {
-      expandedNodes.value.add(folder.id);
-      for (const source of folder.children || []) {
-        expandedNodes.value.add(source.id);
-      }
-    }
-  }
 });
 
-// Auto-expand new folders
-watch(() => taskManager.folders.length, () => {
-  if (settingsStore.settings.autoExpandFolders) {
-    for (const folder of taskManager.treeItems) {
-      expandedNodes.value.add(folder.id);
-      for (const source of folder.children || []) {
-        expandedNodes.value.add(source.id);
-      }
-    }
-  }
-});
 </script>
 
 <style scoped>

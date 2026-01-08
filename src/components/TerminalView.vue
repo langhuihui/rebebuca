@@ -123,7 +123,13 @@ let unlistenOutput: (() => void) | null = null;
 let unlistenExit: (() => void) | null = null;
 let unlistenDragDrop: (() => void) | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let intersectionObserver: IntersectionObserver | null = null;
+let mutationObserver: MutationObserver | null = null;
 let isInitialized = false;
+let wasHidden = false;
+
+// WebGL setting - enabled for better performance
+const USE_WEBGL = true;
 
 // Terminal theme configurations
 const darkTheme = {
@@ -175,8 +181,12 @@ const lightTheme = {
 };
 
 const initTerminal = async () => {
-  if (!terminalContainer.value || isInitialized) return;
+  if (!terminalContainer.value || isInitialized) {
+    console.log('[TerminalView] Skipping initTerminal - container:', !!terminalContainer.value, 'initialized:', isInitialized);
+    return;
+  }
 
+  console.log('[TerminalView] Initializing terminal for ptyId:', props.ptyId);
   const adapterInstance = await getAdapterInstance();
 
   // Create terminal instance
@@ -235,18 +245,34 @@ const initTerminal = async () => {
   terminal.open(terminalContainer.value);
   
   // Try to enable WebGL renderer for better performance
-  try {
-    webglAddon = new WebglAddon();
-    webglAddon.onContextLoss(() => {
-      // WebGL context lost, fall back to canvas renderer
-      console.warn('WebGL context lost, falling back to canvas renderer');
-      webglAddon?.dispose();
-      webglAddon = null;
-    });
-    terminal.loadAddon(webglAddon);
-    console.log('[Terminal] WebGL renderer enabled');
-  } catch (e) {
-    console.warn('[Terminal] WebGL not available, using canvas renderer:', e);
+  // However, WebGL can lose context when element is hidden (v-show)
+  // Disabling WebGL by default to avoid rendering issues when switching tabs
+  // Canvas renderer is more stable and doesn't have context loss issues
+  if (USE_WEBGL) {
+    try {
+      webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        // WebGL context lost, fall back to canvas renderer
+        console.warn('[Terminal] WebGL context lost, falling back to canvas renderer');
+        webglAddon?.dispose();
+        webglAddon = null;
+        // Force refresh terminal after context loss
+        if (terminal && fitAddon) {
+          nextTick(() => {
+            fitAddon.fit();
+            if (terminal.rows > 0) {
+              terminal.refresh(0, terminal.rows - 1);
+            }
+          });
+        }
+      });
+      terminal.loadAddon(webglAddon);
+      console.log('[Terminal] WebGL renderer enabled');
+    } catch (e) {
+      console.warn('[Terminal] WebGL not available, using canvas renderer:', e);
+    }
+  } else {
+    console.log('[Terminal] Using canvas renderer (WebGL disabled to avoid rendering issues with tab switching)');
   }
   
   // Fit terminal to container
@@ -342,10 +368,73 @@ const initTerminal = async () => {
     });
     resizeObserver.observe(terminalContainer.value);
 
+    // Setup intersection observer to detect visibility changes (v-show)
+    // This helps restore rendering when tab is switched back
+    // Note: This is a backup mechanism, the main restoration happens via restoreRenderer() called from ConsoleArea
+    intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0) {
+            // Element is now visible
+            if (wasHidden && terminal) {
+              console.log('[TerminalView] Element became visible (via IntersectionObserver), restoring renderer');
+              wasHidden = false;
+              // Use the restoreRenderer method for consistency
+              restoreRenderer();
+            }
+          } else if (!entry.isIntersecting || entry.intersectionRatio === 0) {
+            // Element is now hidden
+            wasHidden = true;
+          }
+        });
+      },
+      { threshold: 0 }
+    );
+    if (terminalContainer.value) {
+      intersectionObserver.observe(terminalContainer.value);
+    }
+    
+    // Also use MutationObserver to watch for style changes (v-show changes display property)
+    if (terminalContainer.value?.parentElement) {
+      mutationObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+            const target = mutation.target as HTMLElement;
+            const isVisible = target.style.display !== 'none' && 
+                             target.style.visibility !== 'hidden' &&
+                             !target.hasAttribute('hidden');
+            
+            if (isVisible && wasHidden && terminal) {
+              console.log('[TerminalView] Element became visible (via MutationObserver), restoring renderer');
+              wasHidden = false;
+              restoreRenderer();
+            } else if (!isVisible) {
+              wasHidden = true;
+            }
+          }
+        });
+      });
+      
+      // Observe the parent element for style changes on the terminal container
+      mutationObserver.observe(terminalContainer.value.parentElement, {
+        attributes: true,
+        attributeFilter: ['style', 'class'],
+        subtree: true,
+        childList: false
+      });
+      
+      // Also observe the terminal container itself
+      mutationObserver.observe(terminalContainer.value, {
+        attributes: true,
+        attributeFilter: ['style', 'class']
+      });
+    }
+
     // Setup keyboard shortcuts
     setupKeyboardShortcuts();
 
     isInitialized = true;
+    console.log('[TerminalView] Terminal initialized successfully, buffer length:', terminal.buffer.active.length);
     emit('ready');
   } catch (error) {
     console.error('Failed to initialize terminal:', error);
@@ -367,6 +456,16 @@ const dispose = async () => {
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
+  }
+
+  if (intersectionObserver) {
+    intersectionObserver.disconnect();
+    intersectionObserver = null;
+  }
+
+  if (mutationObserver) {
+    mutationObserver.disconnect();
+    mutationObserver = null;
   }
 
   if (webglAddon) {
@@ -426,7 +525,171 @@ const fit = () => {
 };
 
 const clear = () => {
+  console.log('[TerminalView] clear() called for ptyId:', props.ptyId);
   terminal?.clear();
+};
+
+// Force restore rendering after visibility change
+// This should only refresh the renderer, not recreate the terminal instance
+const restoreRenderer = () => {
+  if (!terminal || !terminalContainer.value) {
+    console.warn('[TerminalView] Cannot restore: terminal or container not available');
+    return;
+  }
+  
+  console.log('[TerminalView] Restoring renderer for terminal:', props.ptyId);
+  console.log('[TerminalView] Terminal buffer active length:', terminal.buffer.active.length);
+  console.log('[TerminalView] Terminal buffer normal length:', terminal.buffer.normal.length);
+  
+  // Check if terminal has any content
+  const hasContent = terminal.buffer.active.length > 0 || terminal.buffer.normal.length > 0;
+  console.log('[TerminalView] Terminal has content:', hasContent);
+  
+  if (hasContent) {
+    // Log some buffer content for debugging
+    try {
+      const activeBuffer = terminal.buffer.active;
+      if (activeBuffer.length > 0) {
+        const firstLine = activeBuffer.getLine(0);
+        const lastLine = activeBuffer.getLine(Math.min(activeBuffer.length - 1, terminal.rows - 1));
+        console.log('[TerminalView] First line content:', firstLine?.translateToString(true));
+        console.log('[TerminalView] Last line content:', lastLine?.translateToString(true));
+      }
+    } catch (e) {
+      console.warn('[TerminalView] Could not read buffer content:', e);
+    }
+  } else {
+    console.warn('[TerminalView] WARNING: Terminal has no content in buffer!');
+  }
+  
+  // Check if element is actually visible
+  const element = terminal.element;
+  if (element) {
+    const style = window.getComputedStyle(element);
+    const isVisible = style.display !== 'none' && 
+                      style.visibility !== 'hidden' &&
+                      style.opacity !== '0';
+    
+    if (!isVisible) {
+      console.warn('[TerminalView] Element is not visible yet, waiting...');
+      setTimeout(() => restoreRenderer(), 100);
+      return;
+    }
+  }
+  
+  // Re-fit the terminal first to ensure dimensions are correct
+  nextTick(() => {
+    if (!terminal || !fitAddon) {
+      console.warn('[TerminalView] Terminal or fitAddon not available');
+      return;
+    }
+    
+    try {
+      fitAddon.fit();
+      console.log('[TerminalView] Terminal fitted, cols:', terminal.cols, 'rows:', terminal.rows);
+    } catch (e) {
+      console.error('[TerminalView] Error fitting terminal:', e);
+      return;
+    }
+    
+    // Wait for DOM to settle, then restore WebGL and refresh
+    setTimeout(() => {
+      if (!terminal) return;
+      
+      // If WebGL was enabled but lost, try to restore it
+      if (USE_WEBGL && !webglAddon) {
+        try {
+          console.log('[TerminalView] Recreating WebGL addon');
+          webglAddon = new WebglAddon();
+          webglAddon.onContextLoss(() => {
+            console.warn('[TerminalView] WebGL context lost again');
+            webglAddon?.dispose();
+            webglAddon = null;
+          });
+          terminal.loadAddon(webglAddon);
+          console.log('[TerminalView] WebGL addon recreated');
+          
+          // Fit again after WebGL is loaded
+          if (fitAddon && terminal) {
+            fitAddon.fit();
+          }
+        } catch (e) {
+          console.warn('[TerminalView] Failed to recreate WebGL:', e);
+        }
+      }
+      
+      // Force refresh the entire viewport - try multiple methods
+      try {
+        if (terminal.rows > 0) {
+          // Method 1: Standard refresh
+          terminal.refresh(0, terminal.rows - 1);
+          
+          // Method 2: Force refresh via renderer
+          try {
+            const renderer = (terminal as any).renderer;
+            if (renderer) {
+              // Force render service to refresh
+              if (renderer._renderService) {
+                const renderService = renderer._renderService;
+                
+                // Force render all rows (DON'T clear, just refresh)
+                if (renderService._renderer) {
+                  const rendererInstance = renderService._renderer;
+                  
+                  // Force render all rows from buffer
+                  if (rendererInstance.renderRows) {
+                    rendererInstance.renderRows(0, terminal.rows - 1);
+                  }
+                  
+                  // Also try refreshRows
+                  if (renderService.refreshRows) {
+                    renderService.refreshRows(0, terminal.rows - 1);
+                  }
+                }
+                
+                // Trigger refresh event
+                if (renderService.onRequestRefreshRows) {
+                  renderService.onRequestRefreshRows.fire({ start: 0, end: terminal.rows - 1 });
+                }
+              }
+              
+              // Trigger resize event
+              if (renderer.onResize) {
+                renderer.onResize.fire({ cols: terminal.cols, rows: terminal.rows });
+              }
+            }
+          } catch (rendererError) {
+            console.warn('[TerminalView] Could not access renderer directly:', rendererError);
+          }
+          
+          // Method 3: Trigger a resize event on the window
+          window.dispatchEvent(new Event('resize'));
+          
+          console.log('[TerminalView] Terminal refreshed using multiple methods');
+        }
+      } catch (e) {
+        console.warn('[TerminalView] Error refreshing terminal:', e);
+      }
+      
+      // Final fit and focus
+      setTimeout(() => {
+        if (terminal && fitAddon) {
+          fitAddon.fit();
+          
+          // One more refresh after fit
+          if (terminal.rows > 0) {
+            terminal.refresh(0, terminal.rows - 1);
+          }
+          
+          terminal.focus();
+          console.log('[TerminalView] Terminal fitted and focused');
+          
+          // Final check - log buffer length again
+          console.log('[TerminalView] Final buffer length after restore:', terminal.buffer.active.length);
+        }
+      }, 100);
+    }, 200);
+  });
 };
 
 const write = (data: string) => {
@@ -704,18 +967,37 @@ defineExpose({
   getCommands,
   getCwd,
   isShellIntegrationActive,
+  restoreRenderer,
 });
 
 onMounted(() => {
+  console.log('[TerminalView] Component mounted for ptyId:', props.ptyId);
   initTerminal();
   setupDragDropListener();
 });
 
 // Watch for ptyId changes (restart task scenario)
+// IMPORTANT: Only reinitialize if terminal is not already initialized with content
+// When startTask updates ptyId from "task-xxx" to actual ptyId, we should NOT reinitialize
+// if terminal already exists and has content
 watch(() => props.ptyId, async (newPtyId, oldPtyId) => {
   if (newPtyId && oldPtyId && newPtyId !== oldPtyId) {
-    // Task is being restarted - dispose old connection and reinitialize
-    console.log('[TerminalView] PTY ID changed, reinitializing:', oldPtyId, '->', newPtyId);
+    // Check if this is just a ptyId update (from "task-xxx" to actual ptyId) after task start
+    // vs a real restart (terminal should be reinitialized)
+    const isPtyIdUpdate = oldPtyId.startsWith('task-') && terminal && isInitialized;
+    const hasContent = terminal && terminal.buffer.active.length > 0;
+    
+    if (isPtyIdUpdate && hasContent) {
+      // This is just a ptyId update after task start, don't reinitialize
+      // Just update the ptyId reference but keep the terminal instance
+      console.log('[TerminalView] PTY ID updated from placeholder to actual:', oldPtyId, '->', newPtyId);
+      console.log('[TerminalView] Keeping existing terminal with content, buffer length:', terminal.buffer.active.length);
+      return;
+    }
+    
+    // This is a real restart - dispose old connection and reinitialize
+    console.log('[TerminalView] PTY ID changed (real restart), reinitializing:', oldPtyId, '->', newPtyId);
+    console.log('[TerminalView] Buffer length before dispose:', terminal?.buffer.active.length);
 
     // Force close old PTY (even in attach mode)
     if (isTauri()) {
@@ -735,10 +1017,14 @@ watch(() => props.ptyId, async (newPtyId, oldPtyId) => {
     await dispose();
     await nextTick();
     initTerminal();
+  } else if (newPtyId === oldPtyId && newPtyId) {
+    // Same ptyId - this is normal tab switching, don't reinitialize
+    console.log('[TerminalView] PTY ID unchanged during tab switch:', newPtyId, 'terminal exists:', !!terminal);
   }
 });
 
 onUnmounted(() => {
+  console.log('[TerminalView] Component unmounted for ptyId:', props.ptyId, 'buffer length before dispose:', terminal?.buffer.active.length);
   if (unlistenDragDrop) {
     unlistenDragDrop();
     unlistenDragDrop = null;

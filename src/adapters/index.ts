@@ -76,7 +76,17 @@ export async function createAdapter(type?: BackendType): Promise<BackendAdapter>
  */
 export async function getAdapter(): Promise<BackendAdapter> {
   if (!adapterInstance) {
-    adapterInstance = await createAdapter();
+    try {
+      adapterInstance = await createAdapter();
+    } catch (error) {
+      console.error('[Adapter] Failed to create adapter:', error);
+      // Reset instance to null so we can retry
+      adapterInstance = null;
+      throw error;
+    }
+  }
+  if (!adapterInstance) {
+    throw new Error('Adapter instance is null after creation');
   }
   return adapterInstance;
 }

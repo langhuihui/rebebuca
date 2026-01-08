@@ -61,7 +61,8 @@ import {
   NInput,
   NDynamicInput,
   NInputGroup,
-  NCode
+  NCode,
+  NDropdown
 } from 'naive-ui';
 
 const naive = create({
@@ -96,7 +97,8 @@ const naive = create({
     NInput,
     NDynamicInput,
     NInputGroup,
-    NCode
+    NCode,
+    NDropdown
   ]
 });
 

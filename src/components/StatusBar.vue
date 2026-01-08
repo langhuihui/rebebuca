@@ -21,27 +21,36 @@
     <!-- Left section: Command info -->
     <div class="status-section status-left">
       <template v-if="terminalStore.activeTab">
-        <!-- Running indicator -->
-        <span v-if="terminalStore.activeTab.status === 'running'" class="status-indicator running">
-          <span class="pulse-dot"></span>
-        </span>
-        <span v-else-if="terminalStore.activeTab.status === 'success'" class="status-indicator success">
-          <component :is="iconComponents.check" />
-        </span>
-        <span v-else-if="terminalStore.activeTab.status === 'error'" class="status-indicator error">
-          <component :is="iconComponents.close" />
-        </span>
+        <!-- Only show status indicators for task/shell tabs, not for settings/notifications -->
+        <template v-if="terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell'">
+          <!-- Running indicator -->
+          <span v-if="terminalStore.activeTab.status === 'running'" class="status-indicator running">
+            <span class="pulse-dot"></span>
+          </span>
+          <span v-else-if="terminalStore.activeTab.status === 'success'" class="status-indicator success">
+            <component :is="iconComponents.check" />
+          </span>
+          <span v-else-if="terminalStore.activeTab.status === 'error'" class="status-indicator error">
+            <component :is="iconComponents.close" />
+          </span>
 
-        <!-- Task location (group or folder) -->
-        <span v-if="taskLocation" class="status-location" :title="taskLocation">
-          {{ taskLocation }}
-        </span>
-        <span v-if="taskLocation" class="status-separator">/</span>
+          <!-- Task location (group or folder) -->
+          <span v-if="taskLocation" class="status-location" :title="taskLocation">
+            {{ taskLocation }}
+          </span>
+          <span v-if="taskLocation" class="status-separator">/</span>
 
-        <!-- Command -->
-        <span class="status-command" :title="terminalStore.activeTab.command || terminalStore.activeTab.label">
-          {{ terminalStore.activeTab.command || terminalStore.activeTab.label }}
-        </span>
+          <!-- Command -->
+          <span class="status-command" :title="terminalStore.activeTab.command || terminalStore.activeTab.label">
+            {{ terminalStore.activeTab.command || terminalStore.activeTab.label }}
+          </span>
+        </template>
+        <template v-else>
+          <!-- For settings/notifications tabs, just show the label -->
+          <span class="status-command" :title="terminalStore.activeTab.label">
+            {{ terminalStore.activeTab.label }}
+          </span>
+        </template>
       </template>
       <template v-else>
         <span class="status-placeholder">{{ t('statusBar.noActiveTask') }}</span>
@@ -51,34 +60,39 @@
     <!-- Right section: Process stats -->
     <div class="status-section status-right">
       <template v-if="terminalStore.activeTab">
-        <!-- Exit code (when not running) -->
-        <span 
-          v-if="terminalStore.activeTab.status !== 'running'" 
-          class="status-item exit-code"
-          :class="terminalStore.activeTab.status"
-        >
-          Exit: {{ terminalStore.activeTab.status === 'success' ? '0' : (terminalStore.activeTab.exitCode ?? 'N/A') }}
-        </span>
+        <!-- Only show status info for task/shell tabs -->
+        <template v-if="terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell'">
+          <!-- Exit code (when not running) -->
+          <span 
+            v-if="terminalStore.activeTab.status !== 'running'" 
+            class="status-item exit-code"
+            :class="terminalStore.activeTab.status"
+          >
+            Exit: {{ terminalStore.activeTab.status === 'success' ? '0' : (terminalStore.activeTab.exitCode ?? 'N/A') }}
+          </span>
 
-        <!-- Process stats (when running) -->
-        <template v-if="terminalStore.activeTab.status === 'running'">
-          <span v-if="terminalStore.activeTab.cpuUsage" class="status-item cpu">
-            <component :is="svgIcons.cpu" />
-            {{ terminalStore.activeTab.cpuUsage }}
-          </span>
-          <span v-if="terminalStore.activeTab.memoryUsage" class="status-item memory">
-            <component :is="svgIcons.memory" />
-            {{ terminalStore.activeTab.memoryUsage }}
-          </span>
-          <span v-if="terminalStore.activeTab.pid" class="status-item pid">
-            PID: {{ terminalStore.activeTab.pid }}
+          <!-- Process stats (when running) -->
+          <template v-if="terminalStore.activeTab.status === 'running'">
+            <span v-if="terminalStore.activeTab.cpuUsage" class="status-item cpu">
+              <component :is="svgIcons.cpu" />
+              {{ terminalStore.activeTab.cpuUsage }}
+            </span>
+            <span v-if="terminalStore.activeTab.memoryUsage" class="status-item memory">
+              <component :is="svgIcons.memory" />
+              {{ terminalStore.activeTab.memoryUsage }}
+            </span>
+            <span v-if="terminalStore.activeTab.pid" class="status-item pid">
+              PID: {{ terminalStore.activeTab.pid }}
+            </span>
+          </template>
+
+          <!-- Tab type indicator -->
+          <span class="status-item tab-type">
+            <template v-if="terminalStore.activeTab.type === 'shell'">Shell</template>
+            <template v-else-if="terminalStore.activeTab.shellName">{{ terminalStore.activeTab.shellName }}</template>
+            <template v-else>Task</template>
           </span>
         </template>
-
-        <!-- Tab type indicator -->
-        <span class="status-item tab-type">
-          {{ terminalStore.activeTab.type === 'shell' ? 'Shell' : 'Task' }}
-        </span>
       </template>
     </div>
   </div>

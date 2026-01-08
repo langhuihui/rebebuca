@@ -33,8 +33,9 @@ import { getAdapter, type BackendAdapter } from '../adapters';
  * - droid: Droid AI assistant
  * - augment-cli: Augment Code CLI (Auggie)
  * - cursor-cli: Cursor CLI (cursor-agent)
+ * - crush: Charmbracelet Crush AI coding agent
  */
-export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli';
+export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli' | 'crush';
 
 // Provider presets
 export interface ProviderPreset {
@@ -50,52 +51,52 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   original: {
     id: 'original',
     name: 'Original',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli', 'crush'],
   },
   glm: {
     id: 'glm',
     name: 'GLM (智谱AI)',
     getKeyUrl: 'https://open.bigmodel.cn/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   kimi: {
     id: 'kimi',
     name: 'Kimi (月之暗面)',
     getKeyUrl: 'https://platform.moonshot.cn/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   doubao: {
     id: 'doubao',
     name: 'Doubao (豆包)',
     getKeyUrl: 'https://console.volcengine.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   minimax: {
     id: 'minimax',
     name: 'MiniMax',
     getKeyUrl: 'https://www.minimaxi.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   deepseek: {
     id: 'deepseek',
     name: 'DeepSeek',
     getKeyUrl: 'https://platform.deepseek.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   aigocode: {
     id: 'aigocode',
     name: 'AIgoCode',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   aicodemirror: {
     id: 'aicodemirror',
     name: 'AiCodeMirror',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
   },
   custom: {
     id: 'custom',
     name: 'Custom',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'crush'],
   },
 };
 
@@ -152,17 +153,20 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     launchCommand: 'gemini',
   },
   'opencode': {
-    name: 'Crush',
-    website: 'https://github.com/charmbracelet/crush',
+    name: 'OpenCode',
+    website: 'https://github.com/anomalyco/opencode',
     installMethods: [
-      { id: 'npm', name: 'NPM', command: 'npm install -g @charmland/crush', platform: 'all' },
-      { id: 'script', name: 'Install Script', command: 'curl -fsSL https://charm.sh/install | bash', platform: 'macos' },
-      { id: 'brew', name: 'Homebrew', command: 'brew install charmbracelet/tap/crush', platform: 'macos' },
-      { id: 'aur', name: 'AUR (Arch Linux)', command: 'yay -S crush', platform: 'linux' },
-      { id: 'winget', name: 'WinGet', command: 'winget install charmbracelet.crush', platform: 'windows' },
+      { id: 'npm', name: 'NPM', command: 'pnpm install -g opencode-ai@latest', platform: 'all' },
+      { id: 'script', name: 'Install Script', command: 'curl -fsSL https://opencode.ai/install | bash', platform: 'macos' },
+      { id: 'script-linux', name: 'Install Script', command: 'curl -fsSL https://opencode.ai/install | bash', platform: 'linux' },
+      { id: 'brew', name: 'Homebrew', command: 'brew install anomalyco/tap/opencode', platform: 'macos' },
+      { id: 'brew-linux', name: 'Homebrew', command: 'brew install anomalyco/tap/opencode', platform: 'linux' },
+      { id: 'scoop', name: 'Scoop', command: 'scoop bucket add extras && scoop install extras/opencode', platform: 'windows' },
+      { id: 'choco', name: 'Chocolatey', command: 'choco install opencode', platform: 'windows' },
+      { id: 'aur', name: 'AUR (Arch Linux)', command: 'paru -S opencode-bin', platform: 'linux' },
     ],
-    versionCommand: 'crush --version',
-    launchCommand: 'crush',
+    versionCommand: 'opencode --version',
+    launchCommand: 'opencode',
   },
   'codebuddy': {
     name: 'CodeBuddy',
@@ -229,6 +233,21 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     versionCommand: 'cursor-agent --version',
     launchCommand: 'cursor-agent',
   },
+  'crush': {
+    name: 'Crush',
+    website: 'https://github.com/charmbracelet/crush',
+    installMethods: [
+      { id: 'brew', name: 'Homebrew', command: 'brew install charmbracelet/tap/crush', platform: 'macos' },
+      { id: 'brew-linux', name: 'Homebrew', command: 'brew install charmbracelet/tap/crush', platform: 'linux' },
+      { id: 'npm', name: 'NPM', command: 'npm install -g @charmland/crush', platform: 'all' },
+      { id: 'go', name: 'Go Install', command: 'go install github.com/charmbracelet/crush@latest', platform: 'all' },
+      { id: 'winget', name: 'WinGet', command: 'winget install charmbracelet.crush', platform: 'windows' },
+      { id: 'scoop', name: 'Scoop', command: 'scoop bucket add charm https://github.com/charmbracelet/scoop-bucket.git && scoop install crush', platform: 'windows' },
+      { id: 'aur', name: 'AUR (Arch Linux)', command: 'yay -S crush-bin', platform: 'linux' },
+    ],
+    versionCommand: 'crush --version',
+    launchCommand: 'crush',
+  },
 };
 
 // Provider API Key storage (for syncing across tools)
@@ -286,6 +305,11 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     },
     'cursor-cli': {
       toolType: 'cursor-cli',
+      provider: 'original',
+      enabled: false,
+    },
+    'crush': {
+      toolType: 'crush',
       provider: 'original',
       enabled: false,
     },
@@ -398,8 +422,27 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'droid': 'Droid',
       'augment-cli': 'Augment CLI (Auggie)',
       'cursor-cli': 'Cursor CLI',
+      'crush': 'Crush',
     };
     return names[toolType];
+  };
+
+  // Get tool logo URL (local paths)
+  const getToolLogoUrl = (toolType: AIToolType): string | undefined => {
+    const logos: Record<AIToolType, string | undefined> = {
+      'claude-code': '/ai-tools-logos/claude-code.svg',
+      'codex': '/ai-tools-logos/codex.png',
+      'gemini-cli': '/ai-tools-logos/gemini-cli.webp',
+      'opencode': '/ai-tools-logos/opencode.jpg',
+      'codebuddy': '/ai-tools-logos/codebuddy.jpeg',
+      'qoder-cli': '/ai-tools-logos/qoder.png',
+      'copilot-cli': '/ai-tools-logos/copilot-cli.png',
+      'droid': '/ai-tools-logos/droid.ico',
+      'augment-cli': '/ai-tools-logos/augment-cli.ico',
+      'cursor-cli': '/ai-tools-logos/cursor-cli.ico',
+      'crush': '/ai-tools-logos/crush.svg',
+    };
+    return logos[toolType];
   };
 
   return {
@@ -413,5 +456,6 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     changeToolProvider,
     getProvidersForTool,
     getToolDisplayName,
+    getToolLogoUrl,
   };
 });

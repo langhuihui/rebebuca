@@ -44,7 +44,7 @@ export function useTrayMenu() {
       adapter = await getAdapter();
       
       // Only setup tray on Tauri (desktop app)
-      if (adapter.type !== 'tauri') {
+      if (!adapter || adapter.type !== 'tauri') {
         console.log('[TrayMenu] Not running in Tauri, skipping tray menu setup');
         return;
       }

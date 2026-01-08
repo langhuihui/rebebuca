@@ -323,7 +323,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, h } from 'vue';
 import {
   NModal,
   NForm,
@@ -470,10 +470,31 @@ const aiToolOptions = computed(() => {
   const allTools = Object.keys(aiToolsStore.toolConfigs) as AIToolType[];
   return allTools
     .filter(toolType => aiToolsStore.toolConfigs[toolType]) // Filter out any null/undefined configs
-    .map(toolType => ({
-      label: aiToolsStore.getToolDisplayName(toolType),
-      key: toolType,
-    }));
+    .map(toolType => {
+      const logoUrl = aiToolsStore.getToolLogoUrl(toolType);
+      const displayName = aiToolsStore.getToolDisplayName(toolType);
+      
+      return {
+        label: () => {
+          if (logoUrl) {
+            return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
+              h('img', {
+                src: logoUrl,
+                alt: displayName,
+                style: 'width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;',
+                onError: (e: Event) => {
+                  const img = e.target as HTMLImageElement;
+                  if (img) img.style.display = 'none';
+                },
+              }),
+              h('span', displayName),
+            ]);
+          }
+          return displayName;
+        },
+        key: toolType,
+      };
+    });
 });
 
 // Handle AI tool selection

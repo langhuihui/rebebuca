@@ -43,7 +43,6 @@ export interface AppSettings {
   
   // Behavior settings
   confirmBeforeClose: boolean;
-  autoExpandFolders: boolean;
   closeButtonBehavior: 'hide' | 'exit';  // 'hide' = minimize to tray, 'exit' = quit app
   
   // UI settings
@@ -54,6 +53,9 @@ export interface AppSettings {
   preferredTerminal: string | null;  // Terminal ID to use when opening in system terminal
   preferredShell: string | null;  // Shell path to use for internal PTY terminal (e.g., /bin/zsh, /bin/bash)
   
+  // Security settings
+  sudoPassword: string | null;  // Stored sudo password (base64 encoded for basic obfuscation)
+  
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
   commandIcons: Record<string, string>;
@@ -63,12 +65,12 @@ const defaultSettings: AppSettings = {
   saveLogs: true,
   maxLogFiles: 100,
   confirmBeforeClose: true,
-  autoExpandFolders: true,
   closeButtonBehavior: 'exit',
   showTaskIcons: true,
   recentTasksCount: 5,
   preferredTerminal: null,
   preferredShell: null,
+  sudoPassword: null,
   commandIcons: {},
 };
 
@@ -142,6 +144,34 @@ export const useSettingsStore = defineStore('settings', () => {
     await saveSettings();
   }
   
+  /**
+   * Set sudo password (encoded for basic obfuscation)
+   */
+  async function setSudoPassword(password: string | null): Promise<void> {
+    if (password === null || password === '') {
+      settings.value.sudoPassword = null;
+    } else {
+      // Basic obfuscation using base64 (not encryption, but better than plaintext)
+      settings.value.sudoPassword = btoa(password);
+    }
+    await saveSettings();
+  }
+  
+  /**
+   * Get sudo password (decoded)
+   */
+  function getSudoPassword(): string | null {
+    if (!settings.value.sudoPassword) {
+      return null;
+    }
+    try {
+      return atob(settings.value.sudoPassword);
+    } catch (error) {
+      console.error('[Settings] Failed to decode sudo password:', error);
+      return null;
+    }
+  }
+  
   return {
     settings,
     initialized,
@@ -150,5 +180,7 @@ export const useSettingsStore = defineStore('settings', () => {
     loadSettings,
     updateSetting,
     resetSettings,
+    setSudoPassword,
+    getSudoPassword,
   };
 });

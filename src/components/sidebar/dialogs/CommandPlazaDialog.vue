@@ -148,6 +148,7 @@ const commands = computed<CommandItem[]>(() => {
     'copilot-cli': 'copilotCliLaunch',
     'droid': 'droidLaunch',
     'cursor-cli': 'cursorCliLaunch',
+    'crush': 'crushLaunch',
   };
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {
@@ -356,6 +357,15 @@ const handleSelect = (command: string, name: string) => {
   showDialog.value = false;
 };
 
+// Get tool type from command item
+const getToolTypeFromCommand = (command: CommandItem): AIToolType | undefined => {
+  if (command.id.endsWith('-launch')) {
+    const toolType = command.id.replace('-launch', '') as AIToolType;
+    return toolType;
+  }
+  return undefined;
+};
+
 // Table columns
 const columns = computed<DataTableColumns<CommandItem>>(() => [
   {
@@ -364,6 +374,26 @@ const columns = computed<DataTableColumns<CommandItem>>(() => [
     width: 180,
     ellipsis: {
       tooltip: true,
+    },
+    render(row) {
+      const toolType = getToolTypeFromCommand(row);
+      const logoUrl = toolType ? aiToolsStore.getToolLogoUrl(toolType) : undefined;
+      
+      if (logoUrl) {
+        return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
+          h('img', {
+            src: logoUrl,
+            alt: row.name,
+            style: 'width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;',
+            onError: (e: Event) => {
+              const img = e.target as HTMLImageElement;
+              if (img) img.style.display = 'none';
+            },
+          }),
+          h('span', row.name),
+        ]);
+      }
+      return row.name;
     },
   },
   {

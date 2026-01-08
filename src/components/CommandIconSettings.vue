@@ -19,15 +19,17 @@
 <template>
   <div class="command-icon-settings">
     <!-- Data Table -->
-    <n-data-table
-      :columns="columns"
-      :data="tableData"
-      :bordered="false"
-      size="small"
-      :max-height="280"
-      :row-class-name="rowClassName"
-      class="command-icon-table"
-    />
+    <div class="table-container">
+      <n-data-table
+        :columns="columns"
+        :data="tableData"
+        :bordered="false"
+        size="small"
+        :row-class-name="rowClassName"
+        :max-height="tableMaxHeight"
+        class="command-icon-table"
+      />
+    </div>
 
     <!-- Add new mapping -->
     <div class="add-mapping">
@@ -90,6 +92,13 @@ const newCommand = ref('');
 const newIconName = ref('task');
 const showNewIconPicker = ref(false);
 const editingCommand = ref<string | null>(null);
+
+// 使用 CSS calc 计算表格最大高度
+// 视口高度减去标题栏、状态栏、设置面板padding、输入框区域等
+const tableMaxHeight = computed(() => {
+  // 增加减去的值，让表格高度更短一些
+  return 'calc(100vh - 250px)';
+});
 
 const getIcon = (iconName: string) => {
   return svgIcons[iconName as keyof typeof svgIcons] || svgIcons.task;
@@ -280,8 +289,7 @@ const removeMapping = (command: string) => {
   overflow: hidden;
 }
 
-.command-icon-table {
-  margin-bottom: 4px;
+.table-container {
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -320,13 +328,13 @@ const removeMapping = (command: string) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   flex-wrap: wrap;
 }
 
 .help-text {
   font-size: 12px;
   color: var(--n-text-color-3);
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 </style>

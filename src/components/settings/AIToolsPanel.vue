@@ -29,6 +29,13 @@
           :class="{ active: activeToolTab === toolType }"
           @click="selectTool(toolType)"
         >
+          <img
+            v-if="aiToolsStore.getToolLogoUrl(toolType)"
+            :src="aiToolsStore.getToolLogoUrl(toolType)"
+            :alt="AI_TOOL_METADATA[toolType].name"
+            class="tool-logo"
+            @error="handleLogoError"
+          />
           {{ AI_TOOL_METADATA[toolType].name }}
         </div>
       </div>
@@ -41,29 +48,68 @@
             <div class="tool-header-section">
               <div class="tool-status">
                 <n-spin v-if="checkingInstall[toolType]" :size="14" />
-                <n-tag
-                  v-else-if="toolVersions[toolType]"
-                  type="success"
-                  size="small"
-                >
-                  v{{ toolVersions[toolType] }}
-                </n-tag>
+                <template v-else-if="toolVersions[toolType]">
+                  <n-tag type="success" size="small">
+                    v{{ toolVersions[toolType] }}
+                  </n-tag>
+                  <n-tag
+                    v-if="latestVersions[toolType] && isUpdateAvailable(toolType)"
+                    type="warning"
+                    size="small"
+                    style="margin-left: 8px"
+                  >
+                    {{ t("aiTools.updateAvailable") }}: v{{ latestVersions[toolType] }}
+                  </n-tag>
+                  <n-tag
+                    v-else-if="latestVersions[toolType] && !isUpdateAvailable(toolType)"
+                    type="default"
+                    size="small"
+                    style="margin-left: 8px"
+                  >
+                    {{ t("aiTools.latestVersion") }}
+                  </n-tag>
+                </template>
                 <n-tag v-else type="warning" size="small">
                   {{ t("aiTools.notInstalled") }}
                 </n-tag>
-                <n-button
-                  text
-                  size="tiny"
-                  @click="() => checkSingleTool(toolType, true)"
-                  :loading="checkingInstall[toolType]"
-                  :title="t('aiTools.recheckInstall')"
+                <n-dropdown
+                  trigger="click"
+                  :options="getRefreshOptions(toolType)"
+                  @select="(key: string) => handleRefreshSelect(key, toolType)"
                 >
-                  <template #icon>
-                    <n-icon size="14">
-                      <component :is="svgIcons.refresh" />
-                    </n-icon>
-                  </template>
-                </n-button>
+                  <n-button
+                    text
+                    size="tiny"
+                    :loading="checkingInstall[toolType] || checkingVersion[toolType]"
+                    :title="t('aiTools.refresh')"
+                  >
+                    <template #icon>
+                      <n-icon size="14">
+                        <component :is="svgIcons.refresh" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </n-dropdown>
+                <n-dropdown
+                  v-if="toolVersions[toolType] && isUpdateAvailable(toolType)"
+                  trigger="click"
+                  :options="getUpgradeOptions()"
+                  @select="(key: string) => handleUpgradeSelect(key, toolType)"
+                >
+                  <n-button
+                    type="primary"
+                    size="small"
+                    :loading="updating[toolType]"
+                    style="margin-left: 8px"
+                  >
+                    {{ t("aiTools.upgrade") }}
+                    <template #icon>
+                      <n-icon size="14">
+                        <component :is="svgIcons.chevronDown" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </n-dropdown>
               </div>
             </div>
 
@@ -118,10 +164,28 @@
                           </n-icon>
                         </template>
                       </n-button>
+                      <!-- macOS/Linux: dropdown with sudo option -->
+                      <n-dropdown
+                        v-if="currentPlatform !== 'windows'"
+                        trigger="click"
+                        :options="getInstallOptions()"
+                        @select="(key: string) => handleInstallSelect(key, toolType, method)"
+                      >
+                        <n-button size="small" type="primary">
+                          {{ t("aiTools.install") }}
+                          <template #icon>
+                            <n-icon size="14">
+                              <component :is="svgIcons.chevronDown" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                      </n-dropdown>
+                      <!-- Windows: normal button -->
                       <n-button
+                        v-else
                         size="small"
                         type="primary"
-                        @click="runInstallCommand(toolType, method)"
+                        @click="runInstallCommand(toolType, method, false)"
                       >
                         {{ t("aiTools.install") }}
                       </n-button>
@@ -151,10 +215,28 @@
                         </n-icon>
                       </template>
                     </n-button>
+                    <!-- macOS/Linux: dropdown with sudo option -->
+                    <n-dropdown
+                      v-if="currentPlatform !== 'windows'"
+                      trigger="click"
+                      :options="getInstallOptions()"
+                      @select="(key: string) => handleInstallSelect(key, toolType, method)"
+                    >
+                      <n-button size="small" type="primary">
+                        {{ t("aiTools.install") }}
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.chevronDown" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                    </n-dropdown>
+                    <!-- Windows: normal button -->
                     <n-button
+                      v-else
                       size="small"
                       type="primary"
-                      @click="runInstallCommand(toolType, method)"
+                      @click="runInstallCommand(toolType, method, false)"
                     >
                       {{ t("aiTools.install") }}
                     </n-button>
@@ -286,11 +368,17 @@ import {
 } from "../../stores/aiTools";
 import { isTauri } from "../../adapters";
 import { svgIcons } from "../../utils/icons";
+import { useSettingsStore } from "../../stores/settings";
+import {
+  getLatestVersion,
+  isVersionNewer,
+  getUpdateCommand,
+} from "../../utils/aiToolVersionChecker";
 
 const { t } = useI18n();
 const message = useMessage();
-const dialog = useDialog();
 const aiToolsStore = useAIToolsStore();
+const settingsStore = useSettingsStore();
 
 // Available AI tools
 const availableTools: AIToolType[] = [
@@ -304,6 +392,7 @@ const availableTools: AIToolType[] = [
   "droid",
   "augment-cli",
   "cursor-cli",
+  "crush",
 ];
 
 // Active tool tab
@@ -315,8 +404,17 @@ const selectedInstallMethod = ref<Record<string, string>>({});
 // Tool versions (empty string means not installed)
 const toolVersions = ref<Record<string, string>>({});
 
+// Latest versions from registry
+const latestVersions = ref<Record<string, string>>({});
+
 // Install check state
 const checkingInstall = ref<Record<string, boolean>>({});
+
+// Version check state
+const checkingVersion = ref<Record<string, boolean>>({});
+
+// Update state
+const updating = ref<Record<string, boolean>>({});
 
 // Track which tools have been checked to avoid repeated checks
 const checkedTools = ref<Record<string, boolean>>({});
@@ -333,6 +431,7 @@ const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
   droid: { provider: "original", apiKey: "", customEndpoint: "" },
   "augment-cli": { provider: "original", apiKey: "", customEndpoint: "" },
   "cursor-cli": { provider: "original", apiKey: "", customEndpoint: "" },
+  crush: { provider: "original", apiKey: "", customEndpoint: "" },
 });
 
 // Current platform
@@ -342,8 +441,16 @@ onMounted(async () => {
   await aiToolsStore.loadConfigurations();
   initLocalConfigs();
   await detectPlatform();
-  await checkInstalledTools();
   initSelectedInstallMethods();
+  
+  // Check the initially selected tool on mount
+  if (!checkedTools.value[activeToolTab.value] && !checkingInstall.value[activeToolTab.value]) {
+    await checkSingleTool(activeToolTab.value);
+    // Check version if tool is installed
+    if (toolVersions.value[activeToolTab.value]) {
+      checkLatestVersion(activeToolTab.value);
+    }
+  }
 });
 
 // Watch for store changes and sync to local
@@ -360,12 +467,21 @@ const selectTool = (toolType: AIToolType) => {
   activeToolTab.value = toolType;
 };
 
-// Watch for tab changes and auto-check installation status
-watch(activeToolTab, (newTool) => {
-  // Auto-check if not already checked or checking
+// Watch for tab changes and auto-check installation status and version
+watch(activeToolTab, async (newTool) => {
+  // Auto-check installation status if not already checked or checking
   // This prevents repeated checks and permission dialogs on macOS
   if (!checkedTools.value[newTool] && !checkingInstall.value[newTool]) {
-    checkSingleTool(newTool);
+    await checkSingleTool(newTool);
+    // After checking installation, if tool is installed, check version
+    if (toolVersions.value[newTool]) {
+      checkLatestVersion(newTool);
+    }
+  } else {
+    // Tool already checked, just check version if installed (always check on tab activation for latest version)
+    if (toolVersions.value[newTool]) {
+      checkLatestVersion(newTool);
+    }
   }
 });
 
@@ -477,12 +593,41 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
 
     if (currentPlatform.value === 'windows') {
       // Windows: Use Tauri command to execute PowerShell commands
+      
+      // Define common installation paths for Windows
+      const windowsCommonPaths: Record<string, string[]> = {
+        'opencode': [
+          '$env:USERPROFILE\\.opencode\\bin\\opencode.exe',
+          '$env:USERPROFILE\\bin\\opencode.exe',
+          '$env:LOCALAPPDATA\\opencode\\opencode.exe',
+        ],
+        'claude': ['$env:USERPROFILE\\.claude\\local\\claude.exe'],
+        'codebuddy': ['$env:USERPROFILE\\.codebuddy\\bin\\codebuddy.exe'],
+        'auggie': ['$env:USERPROFILE\\.augment\\bin\\auggie.exe'],
+        'droid': ['$env:USERPROFILE\\.droid\\bin\\droid.exe'],
+        'cursor-agent': ['$env:LOCALAPPDATA\\Programs\\cursor-agent\\cursor-agent.exe'],
+      };
 
       // Check if command exists using Get-Command
       const whereOutput = await invoke<string>("execute_powershell_command", {
         command: `Get-Command ${launchCmd} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source`
       });
       foundPath = whereOutput?.trim() || '';
+
+      // If not found in PATH, check common installation paths
+      if (!foundPath) {
+        const fallbackPaths = windowsCommonPaths[launchCmd] || [];
+        for (const path of fallbackPaths) {
+          const checkOutput = await invoke<string>("execute_powershell_command", {
+            command: `if (Test-Path "${path}") { Write-Output "${path}" }`
+          });
+          const checkedPath = checkOutput?.trim() || '';
+          if (checkedPath) {
+            foundPath = checkedPath;
+            break;
+          }
+        }
+      }
 
       if (!foundPath) {
         // Command not found
@@ -491,9 +636,12 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
         return;
       }
 
-      // Get version
+      // Get version using the found path
+      const versionCmd = foundPath.includes('\\') ? 
+        `& "${foundPath}" --version` : 
+        metadata.versionCommand;
       const outputText = await invoke<string>("execute_powershell_command", {
-        command: metadata.versionCommand
+        command: versionCmd
       });
 
       // Extract version number
@@ -518,6 +666,7 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
         'codebuddy': ['~/.codebuddy/bin/codebuddy'],
         'auggie': ['~/.augment/bin/auggie'],
         'droid': ['~/.droid/bin/droid'],
+        'opencode': ['~/.opencode/bin/opencode', '~/bin/opencode', '~/.local/bin/opencode'],
       };
 
       // Build the which command with fallback paths
@@ -531,14 +680,31 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
         whichCmd = `${whichCmd} || ${fallbackChecks}`;
       }
 
-      // Use -l flag for login shell, which loads .zprofile but not .zshrc
-      // This prevents permission dialogs while still getting proper PATH
-      const whichCommand = shell.Command.create("exec-zsh", [
-        "-l",
-        "-c",
-        whichCmd,
-      ]);
-      const whichOutput = await whichCommand.execute();
+      // Use exec-sh with bash/zsh -l -c to ensure login shell PATH is loaded
+      // Wrap the command in a login shell call
+      const loginShellCmd = `zsh -l -c '${whichCmd.replace(/'/g, "'\\''")}'`;
+      
+      console.log(`[AITools] Running command for ${launchCmd}: ${loginShellCmd}`);
+      
+      let whichOutput;
+      try {
+        const whichCommand = shell.Command.create("exec-sh", [
+          "-c",
+          loginShellCmd,
+        ]);
+        whichOutput = await whichCommand.execute();
+      } catch (e) {
+        // Fallback to direct bash if sh fails
+        console.warn(`[AITools] sh failed for ${launchCmd}, trying direct bash:`, e);
+        const bashLoginCmd = `bash -l -c '${whichCmd.replace(/'/g, "'\\''")}'`;
+        const bashCommand = shell.Command.create("exec-sh", [
+          "-c",
+          bashLoginCmd,
+        ]);
+        whichOutput = await bashCommand.execute();
+      }
+      
+      console.log(`[AITools] Check ${launchCmd}: code=${whichOutput.code}, stdout=${whichOutput.stdout}, stderr=${whichOutput.stderr}`);
 
       // Extract the actual path from the output (filter out non-path lines like env setup messages)
       const outputLines = (whichOutput.stdout || '').split('\n').filter(line => {
@@ -547,8 +713,11 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
         return trimmed && (trimmed.startsWith('/') || trimmed.startsWith('~')) && !trimmed.includes('=');
       });
       foundPath = outputLines[outputLines.length - 1]?.trim() || '';
+      
+      console.log(`[AITools] Found path for ${launchCmd}: "${foundPath}"`);
 
-      if (whichOutput.code !== 0 && !foundPath) {
+      // If which/command -v failed AND no fallback path found, command is not installed
+      if (!foundPath) {
         // Command not found in PATH or fallback paths
         toolVersions.value[toolType] = "";
         checkedTools.value[toolType] = true;
@@ -561,13 +730,28 @@ const checkSingleTool = async (toolType: AIToolType, force = false) => {
         `${foundPath} --version` :
         metadata.versionCommand;
 
-      // Use -l flag for login shell to avoid permission dialogs
-      const command = shell.Command.create("exec-zsh", [
-        "-l",
-        "-c",
-        versionCmd,
-      ]);
-      const output = await command.execute();
+      // Use exec-sh with zsh/bash login shell to ensure proper PATH
+      const versionLoginCmd = `zsh -l -c '${versionCmd.replace(/'/g, "'\\''")}'`;
+      
+      let output;
+      try {
+        const command = shell.Command.create("exec-sh", [
+          "-c",
+          versionLoginCmd,
+        ]);
+        output = await command.execute();
+      } catch (e) {
+        // Fallback to bash if zsh fails
+        console.warn(`[AITools] zsh version check failed for ${launchCmd}, trying bash:`, e);
+        const bashVersionCmd = `bash -l -c '${versionCmd.replace(/'/g, "'\\''")}'`;
+        const bashCommand = shell.Command.create("exec-sh", [
+          "-c",
+          bashVersionCmd,
+        ]);
+        output = await bashCommand.execute();
+      }
+      
+      console.log(`[AITools] Version check ${launchCmd}: code=${output.code}, stdout=${output.stdout}, stderr=${output.stderr}`);
 
       if (output.code === 0) {
         const outputText = output.stdout || output.stderr || "";
@@ -625,26 +809,120 @@ const copyCommand = async (command: string) => {
   }
 };
 
-// Run install command
-const runInstallCommand = async (
+// Get install dropdown options for macOS/Linux
+const getInstallOptions = () => {
+  return [
+    {
+      label: t("aiTools.installNormal"),
+      key: "normal",
+    },
+    {
+      label: t("aiTools.installWithSudo"),
+      key: "sudo",
+    },
+  ];
+};
+
+// Get refresh dropdown options
+const getRefreshOptions = (toolType: AIToolType) => {
+  const options = [
+    {
+      label: t("aiTools.recheckInstall"),
+      key: "install",
+    },
+  ];
+  
+  if (toolVersions.value[toolType]) {
+    options.push({
+      label: t("aiTools.checkUpdate"),
+      key: "version",
+    });
+  }
+  
+  return options;
+};
+
+// Handle refresh option selection
+const handleRefreshSelect = (key: string, toolType: AIToolType) => {
+  if (key === "install") {
+    checkSingleTool(toolType, true);
+  } else if (key === "version") {
+    checkLatestVersion(toolType);
+  }
+};
+
+// Get upgrade dropdown options
+const getUpgradeOptions = () => {
+  const options = [
+    {
+      label: t("aiTools.upgradeNormal"),
+      key: "normal",
+    },
+  ];
+  
+  // Only show sudo option on macOS/Linux
+  if (currentPlatform.value !== 'windows') {
+    options.push({
+      label: t("aiTools.upgradeWithSudo"),
+      key: "sudo",
+    });
+  }
+  
+  return options;
+};
+
+// Handle upgrade option selection
+const handleUpgradeSelect = (key: string, toolType: AIToolType) => {
+  const useSudo = key === "sudo";
+  updateTool(toolType, useSudo);
+};
+
+/**
+ * Inject sudo password into command if stored
+ */
+const injectSudoPasswordIntoCommand = (command: string, useSudo: boolean): string => {
+  if (!useSudo || currentPlatform.value === 'windows') {
+    return command;
+  }
+  
+  const sudoPassword = settingsStore.getSudoPassword();
+  if (!sudoPassword) {
+    // No password stored, use regular sudo (will prompt)
+    return `sudo ${command}`;
+  }
+  
+  // Escape password for shell (single quotes are safest)
+  const escapedPassword = sudoPassword.replace(/'/g, "'\\''");
+  
+  // Build: echo 'password' | sudo -S <command>
+  return `echo '${escapedPassword}' | sudo -S ${command}`;
+};
+
+// Handle install option selection
+const handleInstallSelect = (
+  key: string,
   toolType: AIToolType,
   method: { command: string; id: string }
 ) => {
+  const useSudo = key === "sudo";
+  runInstallCommand(toolType, method, useSudo);
+};
+
+// Run install command
+const runInstallCommand = async (
+  toolType: AIToolType,
+  method: { command: string; id: string },
+  useSudo: boolean = false
+) => {
   if (!isTauri()) {
+    const command = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
     message.info(t("aiTools.copyAndRunManually"));
-    await copyCommand(method.command);
+    await copyCommand(command);
     return;
   }
 
-  let installCommand = method.command;
-  
-  // Check if this is a PowerShell command (for Windows)
-  const isPowerShellCommand = /\b(irm|iex)\b/i.test(installCommand);
-  
-  // Check if this is an install script that should run in system terminal
-  // These scripts often require user interaction and proper shell environment
-  const isInstallScript = method.id.includes('script') || 
-    /\b(curl|wget|irm|iex)\b/i.test(installCommand);
+  // Inject sudo password if useSudo is true and password is stored
+  let installCommand = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
 
   // Helper function to execute the install command in system terminal
   const executeInSystemTerminal = async () => {
@@ -656,7 +934,7 @@ const runInstallCommand = async (
       if (currentPlatform.value === 'windows') {
         // Use PowerShell as the terminal for all commands on Windows
         // This is cleaner than using PowerShell to launch a cmd window
-        let terminalCommand = installCommand;
+        const terminalCommand = installCommand;
         
         // For PowerShell commands (irm, iex), execute them directly
         // For other commands (npm, etc.), they work fine in PowerShell too
@@ -678,85 +956,6 @@ const runInstallCommand = async (
       console.error("Install in system terminal failed:", error);
     }
   };
-
-  // Helper function to execute the install command in background
-  const executeInstallCommand = async () => {
-    try {
-      const shell = await import("@tauri-apps/plugin-shell");
-      
-      // For PowerShell commands on Windows, use PowerShell
-      let command;
-      if (currentPlatform.value === 'windows' && isPowerShellCommand) {
-        command = shell.Command.create("powershell", [
-          "-NoProfile",
-          "-ExecutionPolicy", "Bypass",
-          "-Command",
-          installCommand
-        ]);
-      } else {
-        command = shell.Command.create("exec-sh", ["-c", installCommand]);
-      }
-
-      message.loading(t("aiTools.installing"));
-      const output = await command.execute();
-
-      if (output.code === 0) {
-        message.success(t("aiTools.installSuccess"));
-        // Recheck the specific tool's installation status (force recheck after install)
-        await checkSingleTool(toolType, true);
-      } else {
-        message.error(t("aiTools.installFailed") + ": " + output.stderr);
-      }
-    } catch (error) {
-      message.error(t("aiTools.installFailed"));
-      console.error("Install failed:", error);
-    }
-  };
-
-  // For install scripts, use system terminal
-  if (isInstallScript) {
-    await executeInSystemTerminal();
-    return;
-  }
-
-  // Check if we should ask for sudo (non-Windows platforms with global npm install)
-  let finalCommand = installCommand;
-  if (
-    currentPlatform.value !== "windows" &&
-    installCommand.includes("npm install -g")
-  ) {
-    return new Promise<void>((resolve) => {
-      dialog.warning({
-        title: t("aiTools.sudoPromptTitle"),
-        content: t("aiTools.sudoPromptMessage"),
-        positiveText: t("aiTools.useSudo"),
-        negativeText: t("aiTools.withoutSudo"),
-        autoFocus: false,
-        onPositiveClick: async () => {
-          finalCommand = `sudo ${installCommand}`;
-          installCommand = finalCommand;
-          await executeInSystemTerminal();
-          resolve();
-        },
-        onNegativeClick: async () => {
-          await executeInSystemTerminal();
-          resolve();
-        },
-        onClose: () => {
-          resolve();
-        },
-      });
-    });
-  }
-
-  // For Windows npm install -g, also use PowerShell terminal
-  if (
-    currentPlatform.value === "windows" &&
-    installCommand.includes("npm install -g")
-  ) {
-    await executeInSystemTerminal();
-    return;
-  }
 
   // Always use system terminal for all installation commands
   await executeInSystemTerminal();
@@ -810,6 +1009,108 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
     }
   }
 };
+
+// Check if update is available
+const isUpdateAvailable = (toolType: AIToolType): boolean => {
+  const current = toolVersions.value[toolType];
+  const latest = latestVersions.value[toolType];
+  
+  if (!current || !latest) {
+    return false;
+  }
+  
+  return isVersionNewer(current, latest);
+};
+
+// Check latest version for a tool
+const checkLatestVersion = async (toolType: AIToolType) => {
+  if (!toolVersions.value[toolType]) {
+    // Tool not installed, no need to check
+    return;
+  }
+  
+  if (checkingVersion.value[toolType]) {
+    return;
+  }
+  
+  checkingVersion.value[toolType] = true;
+  
+  try {
+    const latest = await getLatestVersion(toolType);
+    if (latest) {
+      latestVersions.value[toolType] = latest;
+    } else {
+      message.warning(t("aiTools.versionCheckFailed"));
+    }
+  } catch (error) {
+    console.error(`Failed to check latest version for ${toolType}:`, error);
+    message.error(t("aiTools.versionCheckFailed"));
+  } finally {
+    checkingVersion.value[toolType] = false;
+  }
+};
+
+// Handle logo load error
+const handleLogoError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  if (img) {
+    img.style.display = 'none';
+  }
+};
+
+// Update tool
+const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
+  if (!isTauri()) {
+    const updateCmd = getUpdateCommand(toolType);
+    if (updateCmd) {
+      const finalCmd = useSudo ? injectSudoPasswordIntoCommand(updateCmd, useSudo) : updateCmd;
+      message.info(t("aiTools.copyAndRunManually"));
+      await copyCommand(finalCmd);
+    }
+    return;
+  }
+  
+  const updateCmd = getUpdateCommand(toolType);
+  if (!updateCmd) {
+    message.warning(t("aiTools.updateNotSupported"));
+    return;
+  }
+  
+  // Inject sudo password if useSudo is true and password is stored
+  let finalUpdateCmd = useSudo ? injectSudoPasswordIntoCommand(updateCmd, useSudo) : updateCmd;
+  
+  updating.value[toolType] = true;
+  
+  try {
+    const { getAdapter } = await import("../../adapters");
+    const adapter = await getAdapter();
+    
+    // Execute update command in system terminal
+    if (currentPlatform.value === 'windows') {
+      // Windows doesn't use sudo, so ignore useSudo parameter
+      await adapter.system.openInSpecificTerminal('powershell', updateCmd);
+    } else {
+      await adapter.system.openInSystemTerminal(finalUpdateCmd);
+    }
+    
+    message.info(t("aiTools.updatingInTerminal"));
+    
+    // Wait a bit then check installation status
+    setTimeout(() => {
+      checkSingleTool(toolType, true);
+      // Also check latest version again after update
+      setTimeout(() => {
+        checkLatestVersion(toolType);
+      }, 2000);
+    }, 5000);
+  } catch (error) {
+    message.error(t("aiTools.updateFailed"));
+    console.error("Update failed:", error);
+  } finally {
+    updating.value[toolType] = false;
+  }
+};
+
 </script>
 
 <style scoped>
@@ -849,6 +1150,16 @@ const openGetKeyUrl = async (toolType: AIToolType) => {
   color: var(--n-text-color);
   transition: all 0.2s;
   border-left: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-logo {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .tool-tab-item:hover {

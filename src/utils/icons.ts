@@ -48,6 +48,18 @@ export const defaultCommandIcons: Record<string, string> = {
   'clang': 'cpp',
   'clang++': 'cpp',
   'cmake': 'cpp',
+  // AI Tools
+  'claude': 'ai',
+  'codex': 'ai',
+  'gemini': 'ai',
+  'opencode': 'ai',
+  'codebuddy': 'ai',
+  'qoder': 'ai',
+  'copilot': 'ai',
+  'droid': 'ai',
+  'auggie': 'ai',
+  'cursor-agent': 'ai',
+  'crush': 'ai',
 };
 
 /**
@@ -608,6 +620,12 @@ export const svgIcons = {
     h('rect', { x: '9', y: '2', width: '6', height: '6', rx: '1' }),
     h('path', { d: 'M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3' }),
     h('line', { x1: '12', y1: '12', x2: '12', y2: '8' })
+  ]),
+
+  // 通知图标（铃铛）
+  notifications: createSvgIcon([
+    h('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
+    h('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
   ]),
 
   // 搜索图标

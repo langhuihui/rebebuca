@@ -47,9 +47,9 @@
               class="terminal-tab"
               :class="{ 
                 active: terminalStore.activeTabId === tab.id,
-                running: tab.status === 'running',
-                success: tab.status === 'success',
-                error: tab.status === 'error'
+                running: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'running',
+                success: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'success',
+                error: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'error'
               }"
               @click="terminalStore.setActiveTab(tab.id)"
             >
@@ -75,79 +75,78 @@
 
       <!-- Active terminal content -->
       <div class="terminal-content">
-        <template v-if="terminalStore.activeTab">
-          <!-- Settings tab -->
-          <template v-if="terminalStore.activeTab.type === 'settings'">
-            <SettingsPanel :initial-tab="terminalStore.activeTab.initialTab" />
-          </template>
-          
-          <!-- Notifications tab -->
-          <template v-else-if="terminalStore.activeTab.type === 'notifications'">
-            <NotificationsPanel />
-          </template>
-          
-          <!-- Port Management tab -->
-          <template v-else-if="terminalStore.activeTab.type === 'port-management'">
-            <PortManagementPanel />
-          </template>
-          
-          <!-- Terminal tabs (task or shell) -->
-          <template v-else>
-            <!-- Terminal toolbar -->
-            <n-space class="console-toolbar" size="small">
-              <!-- 停止按钮 (仅运行中显示) -->
-              <n-button
-                v-if="terminalStore.activeTab.status === 'running'"
-                size="small"
-                text
-                @click="handleStopTask"
-              >
-                <template #icon>
-                  <component :is="iconComponents.stop(true)" />
-                </template>
-              </n-button>
+        <!-- Settings tab -->
+        <div v-show="terminalStore.activeTab?.type === 'settings'" class="settings-content-wrapper">
+          <SettingsPanel v-if="terminalStore.activeTab?.type === 'settings'" :initial-tab="terminalStore.activeTab.initialTab" />
+        </div>
+        
+        <!-- Notifications tab -->
+        <div v-show="terminalStore.activeTab?.type === 'notifications'" class="notifications-content-wrapper">
+          <NotificationsPanel v-if="terminalStore.activeTab?.type === 'notifications'" />
+        </div>
+        
+        <!-- Port Management tab -->
+        <div v-show="terminalStore.activeTab?.type === 'port-management'" class="port-management-content-wrapper">
+          <PortManagementPanel v-if="terminalStore.activeTab?.type === 'port-management'" />
+        </div>
+        
+        <!-- Terminal tabs (task or shell) - Always render terminals, use v-show to preserve instances -->
+        <div v-show="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')">
+          <!-- Terminal toolbar (only for task/shell tabs) -->
+          <n-space v-if="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')" class="console-toolbar" size="small">
+            <!-- 停止按钮 (仅运行中显示) -->
+            <n-button
+              v-if="terminalStore.activeTab.status === 'running'"
+              size="small"
+              text
+              @click="handleStopTask"
+            >
+              <template #icon>
+                <component :is="iconComponents.stop(true)" />
+              </template>
+            </n-button>
 
-              <!-- 重启按钮 (仅任务类型显示) -->
-              <n-button
-                v-if="terminalStore.activeTab.type === 'task'"
-                size="small"
-                text
-                @click="handleRestartTask"
-              >
-                <template #icon>
-                  <component :is="iconComponents.replay" />
-                </template>
-              </n-button>
+            <!-- 重启按钮 (仅任务类型显示) -->
+            <n-button
+              v-if="terminalStore.activeTab.type === 'task'"
+              size="small"
+              text
+              @click="handleRestartTask"
+            >
+              <template #icon>
+                <component :is="iconComponents.replay" />
+              </template>
+            </n-button>
 
-              <!-- 清空按钮 -->
-              <n-button size="small" text @click="handleClearTerminal">
-                <template #icon>
-                  <component :is="iconComponents.clear" />
-                </template>
-              </n-button>
-            </n-space>
+            <!-- 清空按钮 -->
+            <n-button size="small" text @click="handleClearTerminal">
+              <template #icon>
+                <component :is="iconComponents.clear" />
+              </template>
+            </n-button>
+          </n-space>
 
-            <!-- Terminal view - render all tabs, show only active one -->
-            <div class="console-output-container terminal-wrapper">
-              <TerminalView
-                v-for="tab in terminalStore.tabs"
-                v-show="terminalStore.activeTabId === tab.id && (tab.type === 'task' || tab.type === 'shell')"
-                :key="tab.id"
-                :pty-id="tab.ptyId"
-                :theme="effectiveTheme"
-                :cwd="getTabCwd(tab)"
-                :attach-only="tab.type === 'task'"
-                :ref="(el) => setTerminalRef(tab.id, el)"
-                @ready="() => onTerminalReady(tab.id)"
-                @exit="(code) => onTerminalExit(tab.id, code)"
-                @error="onTerminalError"
-              />
-            </div>
-          </template>
-        </template>
+          <!-- Terminal view - render all terminal tabs, show only active one -->
+          <!-- IMPORTANT: Always render terminals (even when settings tab is active) to preserve instances -->
+          <div class="console-output-container terminal-wrapper">
+            <TerminalView
+              v-for="tab in terminalStore.tabs.filter(t => t.type === 'task' || t.type === 'shell')"
+              v-show="terminalStore.activeTabId === tab.id"
+              :key="tab.id"
+              :pty-id="tab.ptyId"
+              :theme="effectiveTheme"
+              :cwd="getTabCwd(tab)"
+              :attach-only="tab.type === 'task'"
+              :ref="(el) => setTerminalRef(tab.id, el)"
+              @ready="() => onTerminalReady(tab.id)"
+              @exit="(code) => onTerminalExit(tab.id, code)"
+              @error="onTerminalError"
+            />
+          </div>
+        </div>
 
         <!-- History output view (when history selected but no terminal tab) -->
-        <template v-else-if="showHistoryOutput">
+        <div v-show="!terminalStore.activeTab && showHistoryOutput" class="history-output-wrapper">
           <!-- History toolbar -->
           <n-space class="console-toolbar" size="small">
             <!-- 命令信息 -->
@@ -178,10 +177,10 @@
               <pre v-else class="history-output" v-html="formatAnsiOutput(currentHistoryOutput || t('console.noOutput'))"></pre>
             </n-scrollbar>
           </div>
-        </template>
+        </div>
 
         <!-- No active tab -->
-        <div v-else class="no-terminal">
+        <div v-show="!terminalStore.activeTab && !showHistoryOutput" class="no-terminal">
           <n-empty :description="t('console.noOutput')">
             <template #extra>
               <n-button size="small" @click="openShellTerminal">
@@ -199,7 +198,6 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { NSpace, NButton, NScrollbar, NText, NTag, NEmpty, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { NotificationsOutline } from "@vicons/ionicons5";
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
@@ -363,21 +361,46 @@ watch(
 // Watch for active tab changes - focus terminal and fit size
 watch(
   () => terminalStore.activeTabId,
-  (newTabId) => {
+  (newTabId, oldTabId) => {
     if (newTabId) {
       const activeTab = terminalStore.activeTab;
       // Only handle terminal tabs (task or shell), not special tabs like port-management
       if (activeTab && (activeTab.type === 'task' || activeTab.type === 'shell')) {
-        // Use nextTick with a small delay to ensure the terminal is visible and DOM is updated
+        // Use nextTick with a longer delay when switching from non-terminal tabs
+        // This ensures v-show has taken effect and terminal container is visible
+        const oldTab = oldTabId ? terminalStore.tabs.find(t => t.id === oldTabId) : null;
+        const isSwitchingFromNonTerminalTab = oldTab && 
+          !['task', 'shell'].includes(oldTab.type);
+        const delay = isSwitchingFromNonTerminalTab 
+          ? 200 // Longer delay when switching from settings/notifications tabs
+          : 50; // Normal delay for tab-to-tab switches
+        
         nextTick(() => {
-          // Add a small delay to ensure v-show has taken effect and terminal container is visible
           setTimeout(() => {
             const ref = terminalRefs.value.get(newTabId);
             if (ref) {
-              ref.fit();
-              ref.focus();
+              // Always try to restore renderer when switching from non-terminal tabs
+              // For normal tab switches, also try restore to handle any edge cases
+              if (isSwitchingFromNonTerminalTab && ref.restoreRenderer) {
+                console.log('[ConsoleArea] Restoring renderer after switching from non-terminal tab');
+                ref.restoreRenderer();
+              } else {
+                // For normal tab switches, try restore first, then fallback to fit/focus
+                if (ref.restoreRenderer) {
+                  console.log('[ConsoleArea] Restoring renderer after tab switch');
+                  ref.restoreRenderer();
+                } else {
+                  ref.fit();
+                  setTimeout(() => {
+                    ref.fit();
+                    ref.focus();
+                  }, 50);
+                }
+              }
+            } else {
+              console.warn('[ConsoleArea] Terminal ref not found for tab:', newTabId);
             }
-          }, 50);
+          }, delay);
         });
       }
     }
@@ -408,8 +431,7 @@ const getTabIcon = (tab: TerminalTab) => {
   
   // For notifications tab
   if (tab.type === 'notifications') {
-    // Return a component that renders NotificationsOutline
-    return NotificationsOutline;
+    return svgIcons.notifications;
   }
   
   // For port management tab
@@ -428,13 +450,17 @@ const getTabIcon = (tab: TerminalTab) => {
     return iconComponents.task;
   }
   
-  // For shell tabs
-  if (tab.status === 'success') {
-    return iconComponents.success;
+  // For shell tabs (only show status icons for shell/task tabs)
+  if (tab.type === 'shell') {
+    if (tab.status === 'success') {
+      return iconComponents.success;
+    }
+    if (tab.status === 'error') {
+      return iconComponents.error;
+    }
+    return iconComponents.terminal;
   }
-  if (tab.status === 'error') {
-    return iconComponents.error;
-  }
+  
   return iconComponents.terminal;
 };
 
@@ -651,6 +677,18 @@ const onTerminalError = (error: string) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+.settings-content-wrapper,
+.notifications-content-wrapper,
+.port-management-content-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: auto;
 }
 
 .terminal-wrapper {

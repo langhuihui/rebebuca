@@ -32,7 +32,100 @@ import { npmScriptsProvider } from '../providers/npmScriptsProvider';
 import { useTerminalStore } from './terminal';
 import { useRunConfigStore } from './runConfig';
 import { useSettingsStore } from './settings';
+import { useNotificationStore } from './notification';
 import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
+
+/**
+ * Check if command contains sudo and inject password if stored
+ * Returns modified command/args or original if no sudo or no password stored
+ */
+function injectSudoPassword(
+  command: string,
+  args: string[],
+  sudoPassword: string | null
+): { command: string; args: string[]; modified: boolean } {
+  // Only process on non-Windows platforms
+  const isWindows = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('win');
+  if (isWindows || !sudoPassword) {
+    return { command, args, modified: false };
+  }
+  
+  // Escape password for shell (single quotes are safest)
+  // Replace single quotes with '\'' (end quote, escaped quote, start quote)
+  const escapedPassword = sudoPassword.replace(/'/g, "'\\''");
+  
+  // Check if command is a shell executor (sh, bash, zsh, etc.) with -c flag
+  // In this case, the actual command is in args[1]
+  const cmdLower = command.toLowerCase().trim();
+  const isShellExecutor = ['sh', 'bash', 'zsh', 'fish', 'csh', 'tcsh', 'ksh'].includes(cmdLower);
+  
+  if (isShellExecutor && args.length >= 2 && args[0] === '-c') {
+    // Command is executed via shell: sh -c "actual command"
+    const actualCommand = args.slice(1).join(' ');
+    
+    // Check if actual command contains sudo
+    const sudoPattern = /\bsudo\b/i;
+    if (sudoPattern.test(actualCommand)) {
+      // Replace 'sudo ' with 'echo password | sudo -S '
+      const modifiedCommand = actualCommand.replace(
+        /\bsudo\s+/gi,
+        `echo '${escapedPassword}' | sudo -S `
+      );
+      
+      if (modifiedCommand !== actualCommand) {
+        return { 
+          command, 
+          args: ['-c', modifiedCommand], 
+          modified: true 
+        };
+      }
+    }
+  }
+  
+  // Build full command string for checking
+  const fullCommandStr = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  
+  // Check if command contains sudo (case-insensitive)
+  const sudoPattern = /\bsudo\b/i;
+  if (!sudoPattern.test(fullCommandStr)) {
+    return { command, args, modified: false };
+  }
+  
+  // Case 1: Command is exactly 'sudo' or starts with 'sudo '
+  if (cmdLower === 'sudo' || cmdLower.startsWith('sudo ')) {
+    // Extract the actual command after sudo
+    let actualCommand: string;
+    if (cmdLower === 'sudo') {
+      // Command is 'sudo', actual command is in args
+      actualCommand = args.length > 0 ? args.join(' ') : '';
+    } else {
+      // Command is 'sudo something', extract 'something' and combine with args
+      const afterSudo = command.substring(5).trim();
+      actualCommand = args.length > 0 ? `${afterSudo} ${args.join(' ')}` : afterSudo;
+    }
+    
+    if (actualCommand) {
+      // Build: echo 'password' | sudo -S <actual command>
+      const newCommand = `echo '${escapedPassword}' | sudo -S ${actualCommand}`;
+      return { command: 'sh', args: ['-c', newCommand], modified: true };
+    }
+  }
+  
+  // Case 2: Command string contains 'sudo' (e.g., "sudo apt update" or "npm run build && sudo deploy")
+  // This is a shell command that needs to be wrapped
+  // Replace all occurrences of 'sudo ' with 'echo password | sudo -S '
+  const modifiedCommand = fullCommandStr.replace(
+      /\bsudo\s+/gi,
+      `echo '${escapedPassword}' | sudo -S `
+    );
+  
+  // If modification was made, wrap in shell
+  if (modifiedCommand !== fullCommandStr) {
+    return { command: 'sh', args: ['-c', modifiedCommand], modified: true };
+  }
+  
+  return { command, args, modified: false };
+}
 
 /**
  * Parse a command line string into command and arguments
@@ -1441,10 +1534,19 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     // Build the full command string for display
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
     
+    // Check if we have stored sudo password
+    const settingsStore = useSettingsStore();
+    const sudoPassword = settingsStore.getSudoPassword();
+    
     // Check if command needs admin privileges
     const needsAdmin = await checkNeedsAdmin(fullCommand);
     
-    if (needsAdmin) {
+    // If command contains sudo and we have stored password, skip admin execution
+    // and use normal PTY execution with password injection instead
+    const hasSudo = /\bsudo\b/i.test(fullCommand);
+    const shouldUseSudoPassword = hasSudo && sudoPassword && !navigator.platform.toLowerCase().includes('win');
+    
+    if (needsAdmin && !shouldUseSudoPassword) {
       console.log('[TaskManager] Command requires admin privileges:', fullCommand);
       
       // For admin commands, we execute differently:
@@ -1518,22 +1620,42 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     // Normal (non-admin) execution continues below
     
+    // Check if we should inject sudo password
+    const { command: finalCommand, args: finalArgs, modified: sudoModified } = injectSudoPassword(command, args, sudoPassword);
+    
+    if (sudoModified) {
+      console.log('[TaskManager] Injected sudo password into command');
+      // Update command and args for execution
+      command = finalCommand;
+      args = finalArgs;
+      // Rebuild full command for display (but don't show password)
+      const displayCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      // Replace password in display with ***
+      const sanitizedCommand = displayCommand.replace(/echo '[^']*' \| sudo -S/g, 'echo \'***\' | sudo -S');
+      console.log('[TaskManager] Modified command (password hidden):', sanitizedCommand);
+    }
+    
+    // Rebuild full command for history (sanitize if password was injected)
+    const historyCommand = sudoModified 
+      ? fullCommand.replace(/sudo/g, 'sudo [password provided]')
+      : fullCommand;
+    
     // Create history record first
     const historyRecord = await runConfigStore.addHistory({
       configId: task.id,
       name: task.name,
-      command: fullCommand,
+      command: historyCommand,
       status: 'running',
       timestamp: new Date(),
       startTime: Date.now(),
     });
     
+    // Initialize log path variables
+    let logPath: string | undefined;
+    let logFilename: string | undefined;
+    
     try {
       // Generate log path if saveLogs is enabled
-      let logPath: string | undefined;
-      let logFilename: string | undefined;
-      const settingsStore = useSettingsStore();
-      
       if (settingsStore.settings.saveLogs) {
         try {
           const adapterInstance = await initAdapter();
@@ -1545,7 +1667,15 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
             console.log('[TaskManager] Generated log path:', logPath);
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           console.error('[TaskManager] Failed to generate log path:', error);
+          // Add notification for log path generation failure
+          const notificationStore = useNotificationStore();
+          notificationStore.addError(
+            'Failed to generate log path',
+            `Task: ${task.name}\n${errorMessage}`,
+            'frontend'
+          );
         }
       }
       
@@ -1578,10 +1708,20 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       console.log(`[TaskManager] Task started: ${task.name}, historyId: ${historyRecord.id}`);
     } catch (error) {
       // Update history to error status if execution failed
+      const errorMessage = error instanceof Error ? error.message : String(error);
       await runConfigStore.updateHistory(historyRecord.id, {
         status: 'error',
-        output: `Failed to start task: ${error}`,
+        output: `Failed to start task: ${errorMessage}`,
       });
+      
+      // Add notification for task execution failure
+      const notificationStore = useNotificationStore();
+      notificationStore.addError(
+        'Task execution failed',
+        `Task: ${task.name}\n${errorMessage}`,
+        'frontend'
+      );
+      
       throw error;
     }
   }
