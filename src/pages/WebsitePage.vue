@@ -71,7 +71,6 @@ import {
   useMessage,
 } from "naive-ui";
 import {
-  LogoGithub,
   LogoApple,
   LogoWindows,
   CodeSlashOutline,
@@ -117,18 +116,15 @@ const fetchVersion = async () => {
   try {
     const res = await fetch("https://download.m7s.live/rb/latest.json");
     const data = await res.json();
-    
+
     currentVersion.value = `v${data.version}`;
-    
-    // Generate download URLs based on GitHub Actions format
+
+    // Generate download URLs
     const version = data.version;
     macosUrl.value = `https://download.m7s.live/rb/v${version}/macos/Rebebuca.app.tar.gz`;
     windowsUrl.value = `https://download.m7s.live/rb/v${version}/nsis/Rebebuca_${version}_x64-setup.exe`;
   } catch (e) {
     console.error("Failed to fetch version:", e);
-    // Fallback to GitHub releases page
-    macosUrl.value = "https://github.com/langhuihui/rebebuca/releases/latest";
-    windowsUrl.value = "https://github.com/langhuihui/rebebuca/releases/latest";
   }
 };
 
@@ -1531,18 +1527,6 @@ const WebsiteContentInner = defineComponent({
               },
               () => (props.currentLang === "zh-CN" ? "EN" : "中")
             ),
-            h(
-              NButton,
-              {
-                quaternary: true,
-                circle: true,
-                size: "small",
-                tag: "a",
-                href: "https://github.com/langhuihui/rebebuca",
-                target: "_blank",
-              },
-              { icon: () => h(NIcon, null, () => h(LogoGithub)) }
-            ),
           ]),
       ]),
       
@@ -1881,9 +1865,7 @@ const WebsiteContentInner = defineComponent({
                         h(
                           "a",
                           {
-                            href:
-                              props.macosUrl ||
-                              "https://github.com/langhuihui/rebebuca/releases/latest",
+                            href: props.macosUrl || "#",
                             target: "_blank",
                             class: "download-btn macos",
                           },
@@ -1906,9 +1888,7 @@ const WebsiteContentInner = defineComponent({
                         h(
                           "a",
                           {
-                            href:
-                              props.windowsUrl ||
-                              "https://github.com/langhuihui/rebebuca/releases/latest",
+                            href: props.windowsUrl || "#",
                             target: "_blank",
                             class: "download-btn windows",
                           },
@@ -1927,7 +1907,7 @@ const WebsiteContentInner = defineComponent({
                         h(
                           "a",
                           {
-                            href: "https://github.com/langhuihui/rebebuca/releases/latest",
+                            href: "#",
                             target: "_blank",
                             class: "download-btn linux",
                           },
@@ -1955,7 +1935,6 @@ const WebsiteContentInner = defineComponent({
                         ),
                       ]),
                       h("p", { class: "download-hint" }, [
-                      h(NIcon, null, () => h(LogoGithub)),
                         t("website.download.note"),
                       ]),
                       h("div", { class: "security-warning" }, [
@@ -1999,15 +1978,6 @@ const WebsiteContentInner = defineComponent({
             ),
           ]),
           h("div", { class: "statusbar-right" }, [
-            h(
-              "a",
-              {
-                href: "https://github.com/langhuihui/rebebuca",
-                target: "_blank",
-                class: "status-item clickable",
-              },
-              [h(NIcon, null, () => h(LogoGithub)), "GitHub"]
-            ),
             h("span", { class: "status-item" }, "GPL-3.0"),
           ]),
       ]),

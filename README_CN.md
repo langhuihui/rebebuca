@@ -7,7 +7,6 @@
   
   <p>一个现代化的桌面应用，帮助开发者快速管理和执行各种命令与脚本</p>
 
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/langhuihui/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/langhuihui/rebebuca/actions)
   [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
   [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -60,18 +59,12 @@
 
 ### 开发环境安装
 
-1. **克隆项目**
-```bash
-git clone https://github.com/yourusername/rebebuca.git
-cd rebebuca
-```
-
-2. **安装依赖**
+1. **安装依赖**
 ```bash
 pnpm install
 ```
 
-3. **启动开发服务器**
+2. **启动开发服务器**
 ```bash
 pnpm tauri:dev
 ```
@@ -208,10 +201,6 @@ git push origin v0.1.0
 - 遵循 Vue 3 Composition API 最佳实践
 - 使用 `<script setup>` 语法糖
 - 保持代码简洁和可维护性
-
-## 🐛 问题反馈
-
-如果你发现了 bug 或有功能建议，请[创建 Issue](https://github.com/yourusername/rebebuca/issues/new)。
 
 ## 📄 许可证
 

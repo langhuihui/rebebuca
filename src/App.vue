@@ -50,14 +50,6 @@
               >
                 {{ t("about.website") }}
               </n-button>
-              <n-button
-                text
-                tag="a"
-                href="https://github.com/langhuihui/rebebuca"
-                target="_blank"
-              >
-                GitHub
-              </n-button>
             </div>
             <div class="about-copyright">
               {{ t("about.copyright") }}

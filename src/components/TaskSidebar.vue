@@ -30,7 +30,6 @@
         :effective-theme="effectiveTheme"
         @add-folder="handleAddFolder"
         @add-task="handleAddTask"
-        @ai-generate="showAIDialog = true"
         @port-management="handlePortManagement"
       />
       
@@ -473,13 +472,6 @@
     @confirm="handleConfirmImport"
   />
   
-  <AIGenerateDialog
-    ref="aiDialogRef"
-    v-model:show="showAIDialog"
-    @add-result="handleAddAIResult"
-    @edit-result="handleEditAIResult"
-  />
-  
 </template>
 
 <script setup lang="ts">
@@ -508,7 +500,6 @@ import SidebarHeader from './sidebar/SidebarHeader.vue';
 import TaskNode from './sidebar/TaskNode.vue';
 import {
   TaskEditDialog,
-  AIGenerateDialog,
   AddFolderDialog,
   TaskSelectionDialog,
   RenameGroupDialog,
@@ -525,9 +516,6 @@ const { effectiveTheme } = useTheme();
 
 // Expanded nodes state
 const expandedNodes = ref<Set<string>>(new Set());
-
-// Dialog refs
-const aiDialogRef = ref<InstanceType<typeof AIGenerateDialog> | null>(null);
 
 // Task dialog state
 const showTaskDialog = ref(false);
@@ -570,9 +558,6 @@ const editingTask = ref<{
   pythonEnv: '',
   runAsAdmin: false,
 });
-
-// AI dialog state
-const showAIDialog = ref(false);
 
 // Add folder dialog state
 const showAddFolderDialog = ref(false);
@@ -930,67 +915,6 @@ const handleAddTask = () => {
 // Handle port management - create tab instead of dialog
 const handlePortManagement = () => {
   terminalStore.createPortManagementTab();
-};
-
-// Handle AI result
-const handleAddAIResult = async (result: any) => {
-  try {
-    // Combine command and args into a single command string
-    const fullCommand = result.args?.length 
-      ? `${result.command} ${result.args.join(' ')}`
-      : result.command;
-    
-    await taskManager.addTaskToGroup('default', {
-      name: result.name,
-      command: fullCommand,
-      cwd: result.cwd,
-      group: result.group || 'none',
-      type: result.type || 'shell',
-    });
-    
-    expandedNodes.value.add('group:default');
-    aiDialogRef.value?.reset();
-    showAIDialog.value = false;
-  } catch (error) {
-    console.error('[TaskSidebar] Failed to add AI result:', error);
-  }
-};
-
-// Handle edit AI result
-const handleEditAIResult = (result: any) => {
-  // Combine command and args into a single command string
-  const fullCommand = result.args?.length 
-    ? `${result.command} ${result.args.join(' ')}`
-    : result.command;
-  
-  isEditMode.value = false;
-  isUserTask.value = true;
-  editingTaskGroupId.value = 'default';
-  editingTask.value = {
-    id: '',
-    name: result.name,
-    command: fullCommand,
-    cwd: result.cwd || '',
-    group: result.group || 'none',
-    type: result.type || 'shell',
-    sourceFile: '',
-    useSystemTerminal: false,
-    systemTerminalId: null,
-    shellPath: null,
-    envStr: '',
-    pythonEnv: '',
-    runAsAdmin: false,
-    // Macro task fields
-    executionMode: undefined,
-    dependsOn: undefined,
-    subTasks: undefined,
-    // SSH fields
-    useSsh: false,
-    sshConfigId: null,
-  };
-  
-  showAIDialog.value = false;
-  showTaskDialog.value = true;
 };
 
 // Handle task visual edit

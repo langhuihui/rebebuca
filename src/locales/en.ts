@@ -223,18 +223,6 @@ export default {
     importSelected: 'Import Selected',
     noTasksFound: 'No tasks found',
     willOverwrite: 'Will overwrite existing task',
-    aiGenerate: 'AI Generate',
-    aiProvider: 'AI Provider',
-    aiApiKey: 'API Key',
-    aiApiKeyPlaceholder: 'Enter API Key',
-    aiPrompt: 'Describe what you need',
-    aiPromptPlaceholder: 'e.g., Start a Node.js dev server on port 3000',
-    aiGenerateBtn: 'Generate Command',
-    aiResult: 'Generated Result',
-    addToTasks: 'Add to Tasks',
-    editAndAdd: 'Edit and Add',
-    ollamaUrl: 'Ollama URL',
-    ollamaModel: 'Model',
     taskCategory: 'Category',
     renameGroup: 'Rename Group',
     groupName: 'Group Name',
@@ -539,7 +527,7 @@ export default {
     macos: '.dmg / .app',
     windows: '.exe / .msi',
     linux: '.AppImage / .deb',
-    note: 'All releases are available on GitHub Releases'
+    note: 'All releases are available on official website'
   },
   footer: { issues: 'Issues', license: 'License', copyright: 'Released under GPL-3.0 License' },
   // New website translations

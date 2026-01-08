@@ -7,7 +7,6 @@
   
   <p>A modern desktop application that helps developers quickly manage and execute various commands and scripts</p>
 
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/langhuihui/rebebuca/build.yml?branch=main&style=flat-square&logo=github)](https://github.com/langhuihui/rebebuca/actions)
   [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
   [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -60,18 +59,12 @@
 
 ### Development Setup
 
-1. **Clone the repository**
-```bash
-git clone https://github.com/yourusername/rebebuca.git
-cd rebebuca
-```
-
-2. **Install dependencies**
+1. **Install dependencies**
 ```bash
 pnpm install
 ```
 
-3. **Start development server**
+2. **Start development server**
 ```bash
 pnpm tauri:dev
 ```
@@ -208,10 +201,6 @@ Contributions are welcome! Please follow these steps:
 - Follow Vue 3 Composition API best practices
 - Use `<script setup>` syntax sugar
 - Keep code clean and maintainable
-
-## 🐛 Issue Reporting
-
-If you find a bug or have a feature suggestion, please [create an issue](https://github.com/yourusername/rebebuca/issues/new).
 
 ## 📄 License
 

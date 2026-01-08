@@ -413,14 +413,14 @@ const downloadUpdate = async () => {
 const fetchReleaseNotes = async () => {
   loadingReleaseNotes.value = true;
   try {
-    const response = await fetch('https://api.github.com/repos/langhuihui/rebebuca/releases?per_page=10');
-    if (!response.ok) throw new Error('Failed to fetch releases');
-    const releases = await response.json();
-    releaseNotes.value = releases.map((release: { tag_name: string; published_at: string; body: string }) => ({
-      tag: release.tag_name,
-      date: new Date(release.published_at).toLocaleDateString(),
-      body: release.body || t('settings.noReleaseNotes')
-    }));
+    const response = await fetch('https://download.m7s.live/rb/latest.json');
+    if (!response.ok) throw new Error('Failed to fetch release info');
+    const release = await response.json();
+    releaseNotes.value = [{
+      tag: `v${release.version}`,
+      date: new Date().toLocaleDateString(),
+      body: t('settings.noReleaseNotes')
+    }];
   } catch (error) {
     console.error('Failed to fetch release notes:', error);
     releaseNotes.value = [];

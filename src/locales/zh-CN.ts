@@ -223,18 +223,6 @@ export default {
     importSelected: '导入选中',
     noTasksFound: '未找到任务',
     willOverwrite: '将覆盖现有任务',
-    aiGenerate: 'AI 生成',
-    aiProvider: 'AI 服务',
-    aiApiKey: 'API Key',
-    aiApiKeyPlaceholder: '输入 API Key',
-    aiPrompt: '描述你需要的命令',
-    aiPromptPlaceholder: '例如：启动一个 Node.js 开发服务器，监听 3000 端口',
-    aiGenerateBtn: '生成命令',
-    aiResult: '生成结果',
-    addToTasks: '添加到任务',
-    editAndAdd: '编辑后添加',
-    ollamaUrl: 'Ollama 地址',
-    ollamaModel: '模型',
     taskCategory: '任务类别',
     renameGroup: '重命名分组',
     groupName: '分组名称',
@@ -561,7 +549,7 @@ export default {
     macos: '.dmg / .app',
     windows: '.exe / .msi',
     linux: '.AppImage / .deb',
-    note: '所有版本都可以在 GitHub Releases 页面下载'
+    note: '所有版本都可以在官网下载'
   },
   footer: { issues: '问题反馈', license: '许可证', copyright: '基于 GPL-3.0 许可证发布' },
   // New website translations

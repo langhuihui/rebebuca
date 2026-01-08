@@ -217,18 +217,6 @@
           </n-button>
         </n-dropdown>
         <n-button
-          text
-          size="small"
-          @click="openGitHub"
-          class="titlebar-button"
-          title="GitHub"
-          @mousedown.stop
-        >
-          <template #icon>
-            <component :is="svgIcons.github" />
-          </template>
-        </n-button>
-        <n-button
           v-if="!uiStore.miniMode"
           text
           size="small"
@@ -578,16 +566,6 @@ const performClose = async (behavior: "hide" | "exit") => {
   } else {
     // Default: exit (close window)
     await closeWindow();
-  }
-};
-
-// Open GitHub
-const openGitHub = async () => {
-  try {
-    const adapter = await getAdapter();
-    await adapter.system.openExternal("https://github.com/langhuihui/rebebuca");
-  } catch (error) {
-    console.error("Failed to open GitHub:", error);
   }
 };
 </script>

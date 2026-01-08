@@ -77,24 +77,6 @@
             {{ t('task.addTask') }}
           </n-tooltip>
           
-          <!-- AI Generate button -->
-          <n-tooltip trigger="hover">
-            <template #trigger>
-              <n-button
-                size="small"
-                quaternary
-                @click="$emit('ai-generate')"
-              >
-                <template #icon>
-                  <n-icon size="16">
-                    <component :is="svgIcons.ai" />
-                  </n-icon>
-                </template>
-              </n-button>
-            </template>
-            {{ t('task.aiGenerate') }}
-          </n-tooltip>
-          
           <!-- Port Management button -->
           <n-tooltip trigger="hover">
             <template #trigger>
@@ -133,7 +115,6 @@ defineProps<{
 defineEmits<{
   (e: 'add-folder'): void;
   (e: 'add-task'): void;
-  (e: 'ai-generate'): void;
   (e: 'port-management'): void;
 }>();
 
