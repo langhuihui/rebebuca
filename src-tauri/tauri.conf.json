@@ -59,6 +59,9 @@
     "resources": [
       "shell-integration/*"
     ],
+    "externalBin": [
+      "rebebuca-remote-agent"
+    ],
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "10.13",
