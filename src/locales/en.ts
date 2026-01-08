@@ -721,7 +721,7 @@ export default {
     autoModeDescription: 'Automatically send instructions without manual confirmation',
     requireConfirmation: 'Require Confirmation',
     requireConfirmationDescription: 'Ask for confirmation before sending instructions in auto mode',
-    notifications: 'Notifications',
+    notificationsLabel: 'Notifications',
     notifyOnComplete: 'Notify on Complete',
     notifyOnError: 'Notify on Error',
     notifyOnIteration: 'Notify on Each Iteration',
