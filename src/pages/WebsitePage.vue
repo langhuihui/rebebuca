@@ -1467,11 +1467,6 @@ const WebsiteContentInner = defineComponent({
                                   style: "width: 250px;",
                                 }),
                             }),
-                            currentConfig.value.provider === "original" && h(NAlert, {
-                              type: "info",
-                              bordered: false,
-                              size: "small",
-                            }, () => t("aiTools.originalModeNotice")),
                             currentConfig.value.provider !== "original" && h(NAlert, {
                               type: "default",
                               bordered: false,

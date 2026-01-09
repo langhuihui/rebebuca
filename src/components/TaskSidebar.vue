@@ -31,6 +31,7 @@
         @add-folder="handleAddFolder"
         @add-task="handleAddTask"
         @port-management="handlePortManagement"
+        @ai-collab="handleAICollab"
       />
       
       <!-- Task tree -->
@@ -472,6 +473,11 @@
     @confirm="handleConfirmImport"
   />
   
+  <AICollabCreateDialog
+    v-model:show="showAICollabDialog"
+    @confirm="handleConfirmAICollab"
+  />
+  
 </template>
 
 <script setup lang="ts">
@@ -503,7 +509,9 @@ import {
   AddFolderDialog,
   TaskSelectionDialog,
   RenameGroupDialog,
+  AICollabCreateDialog,
   type AddFolderFormData,
+  type AICollabFormData,
 } from './sidebar/dialogs';
 
 const { t } = useI18n();
@@ -571,6 +579,9 @@ const renameGroupData = reactive({
   groupId: '',
   newName: '',
 });
+
+// AI Collab dialog state
+const showAICollabDialog = ref(false);
 
 // Drag and drop state
 const draggedTask = ref<Task | null>(null);
@@ -915,6 +926,66 @@ const handleAddTask = () => {
 // Handle port management - create tab instead of dialog
 const handlePortManagement = () => {
   terminalStore.createPortManagementTab();
+};
+
+// Handle AI collaboration - show create dialog
+const handleAICollab = () => {
+  showAICollabDialog.value = true;
+};
+
+// Handle confirm AI collab creation
+const handleConfirmAICollab = async (data: AICollabFormData) => {
+  const { useAICollabStore } = await import('../stores/aiCollab');
+  const collabStore = useAICollabStore();
+  
+  // Parse environment variables
+  let envVars: Record<string, string> | undefined;
+  if (data.envVars?.trim()) {
+    envVars = {};
+    const lines = data.envVars.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex > 0) {
+        const key = trimmed.substring(0, eqIndex).trim();
+        const value = trimmed.substring(eqIndex + 1).trim();
+        if (key) envVars[key] = value;
+      }
+    }
+    if (Object.keys(envVars).length === 0) envVars = undefined;
+  }
+  
+  // Create a new session with the provided config
+  const session = await collabStore.createSession({
+    projectPath: data.projectPath,
+    taskDirectory: `${data.projectPath}/.rebebuca/ai-collab/task.md`,
+    progressFile: `${data.projectPath}/.rebebuca/ai-collab/progress.json`,
+    chatHistoryFile: `${data.projectPath}/.rebebuca/ai-collab/chat-history.json`,
+    supervisor: {
+      id: 'supervisor',
+      role: 'supervisor',
+      type: data.supervisorType,
+      aiTool: data.supervisorType === 'ai-tool' ? data.supervisorAITool : undefined,
+      command: data.supervisorType === 'custom-cli' ? data.supervisorCommand : undefined,
+      cwd: data.projectPath,
+      env: envVars,
+    },
+    worker: {
+      id: 'worker',
+      role: 'worker',
+      type: data.workerType,
+      aiTool: data.workerType === 'ai-tool' ? data.workerAITool : undefined,
+      command: data.workerType === 'custom-cli' ? data.workerCommand : undefined,
+      cwd: data.projectPath,
+      env: envVars,
+    },
+    decisionTimeout: data.decisionTimeout,
+    autoDecision: data.decisionTimeout > 0,
+  });
+  
+  // Create the AI collab tab with the session name
+  terminalStore.createAICollabTab(session.id, data.sessionName || 'AI 协作');
 };
 
 // Handle task visual edit

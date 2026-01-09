@@ -119,6 +119,12 @@ export interface AIToolInstallInfo {
     command: string;
     platform?: 'macos' | 'linux' | 'windows' | 'all';
   }[];
+  uninstallMethods?: {
+    id: string;
+    name: string;
+    command: string;
+    platform?: 'macos' | 'linux' | 'windows' | 'all';
+  }[];
   versionCommand: string;
   launchCommand: string;
 }
@@ -131,6 +137,9 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     installMethods: [
       { id: 'npm', name: 'NPM', command: 'npm install -g @anthropic-ai/claude-code', platform: 'all' },
     ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @anthropic-ai/claude-code', platform: 'all' },
+    ],
     versionCommand: 'claude --version',
     launchCommand: 'claude',
   },
@@ -140,6 +149,9 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     installMethods: [
       { id: 'npm', name: 'NPM', command: 'npm install -g @openai/codex', platform: 'all' },
     ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @openai/codex', platform: 'all' },
+    ],
     versionCommand: 'codex --version',
     launchCommand: 'codex',
   },
@@ -148,6 +160,9 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     website: 'https://github.com/google-gemini/gemini-cli',
     installMethods: [
       { id: 'npm', name: 'NPM', command: 'npm install -g @google/gemini-cli', platform: 'all' },
+    ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @google/gemini-cli', platform: 'all' },
     ],
     versionCommand: 'gemini --version',
     launchCommand: 'gemini',
@@ -165,6 +180,14 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'choco', name: 'Chocolatey', command: 'choco install opencode', platform: 'windows' },
       { id: 'aur', name: 'AUR (Arch Linux)', command: 'paru -S opencode-bin', platform: 'linux' },
     ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'pnpm uninstall -g opencode-ai', platform: 'all' },
+      { id: 'brew', name: 'Homebrew', command: 'brew uninstall opencode', platform: 'macos' },
+      { id: 'brew-linux', name: 'Homebrew', command: 'brew uninstall opencode', platform: 'linux' },
+      { id: 'scoop', name: 'Scoop', command: 'scoop uninstall opencode', platform: 'windows' },
+      { id: 'choco', name: 'Chocolatey', command: 'choco uninstall opencode', platform: 'windows' },
+      { id: 'aur', name: 'AUR (Arch Linux)', command: 'paru -R opencode-bin', platform: 'linux' },
+    ],
     versionCommand: 'opencode --version',
     launchCommand: 'opencode',
   },
@@ -178,6 +201,11 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'script', name: 'Install Script', command: 'curl -fsSL https://copilot.tencent.com/cli/install.sh | bash', platform: 'macos' },
       { id: 'script-linux', name: 'Install Script', command: 'curl -fsSL https://copilot.tencent.com/cli/install.sh | bash', platform: 'linux' },
     ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @tencent-ai/codebuddy-code', platform: 'all' },
+      { id: 'brew', name: 'Homebrew', command: 'brew uninstall codebuddy-code', platform: 'macos' },
+      { id: 'brew-linux', name: 'Homebrew', command: 'brew uninstall codebuddy-code', platform: 'linux' },
+    ],
     versionCommand: 'codebuddy --version',
     launchCommand: 'codebuddy',
   },
@@ -188,6 +216,10 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'curl', name: 'cURL', command: 'curl -fsSL https://qoder.com/install | bash', platform: 'all' },
       { id: 'brew', name: 'Homebrew', command: 'brew install qoderai/qoder/qodercli --cask', platform: 'macos' },
       { id: 'npm', name: 'NPM', command: 'npm install -g @qoder-ai/qodercli', platform: 'all' },
+    ],
+    uninstallMethods: [
+      { id: 'brew', name: 'Homebrew', command: 'brew uninstall --cask qodercli', platform: 'macos' },
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @qoder-ai/qodercli', platform: 'all' },
     ],
     versionCommand: 'qodercli --version',
     launchCommand: 'qodercli',
@@ -201,6 +233,11 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'winget', name: 'WinGet', command: 'winget install GitHub.Copilot', platform: 'windows' },
       { id: 'script', name: 'Install Script', command: 'curl -fsSL https://gh.io/copilot-install | bash', platform: 'macos' },
     ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @github/copilot', platform: 'all' },
+      { id: 'brew', name: 'Homebrew', command: 'brew uninstall copilot-cli', platform: 'macos' },
+      { id: 'winget', name: 'WinGet', command: 'winget uninstall GitHub.Copilot', platform: 'windows' },
+    ],
     versionCommand: 'copilot --version',
     launchCommand: 'copilot',
   },
@@ -212,6 +249,10 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'script-linux', name: 'Install Script (Linux)', command: 'curl -fsSL https://app.factory.ai/cli | sh', platform: 'linux' },
       { id: 'script-windows', name: 'Install Script (Windows)', command: 'irm https://app.factory.ai/cli/windows | iex', platform: 'windows' },
     ],
+    uninstallMethods: [
+      { id: 'manual', name: 'Manual', command: 'rm -rf ~/.droid', platform: 'macos' },
+      { id: 'manual-linux', name: 'Manual', command: 'rm -rf ~/.droid', platform: 'linux' },
+    ],
     versionCommand: 'droid --version',
     launchCommand: 'droid',
   },
@@ -220,6 +261,9 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     website: 'https://www.augmentcode.com/product/CLI',
     installMethods: [
       { id: 'npm', name: 'NPM', command: 'npm install -g @augmentcode/auggie', platform: 'all' },
+    ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @augmentcode/auggie', platform: 'all' },
     ],
     versionCommand: 'auggie --version',
     launchCommand: 'auggie',
@@ -231,6 +275,10 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'script-macos', name: 'Install Script', command: 'curl https://cursor.com/install -fsS | bash', platform: 'macos' },
       { id: 'script-linux', name: 'Install Script', command: 'curl https://cursor.com/install -fsS | bash', platform: 'linux' },
       { id: 'website-win', name: 'Website', command: 'echo "Please visit https://cursor.com/cn/cli"', platform: 'windows' },
+    ],
+    uninstallMethods: [
+      { id: 'manual', name: 'Manual', command: 'rm -rf ~/.local/bin/cursor-agent', platform: 'macos' },
+      { id: 'manual-linux', name: 'Manual', command: 'rm -rf ~/.local/bin/cursor-agent', platform: 'linux' },
     ],
     versionCommand: 'cursor-agent --version',
     launchCommand: 'cursor-agent',
@@ -246,6 +294,14 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'winget', name: 'WinGet', command: 'winget install charmbracelet.crush', platform: 'windows' },
       { id: 'scoop', name: 'Scoop', command: 'scoop bucket add charm https://github.com/charmbracelet/scoop-bucket.git && scoop install crush', platform: 'windows' },
       { id: 'aur', name: 'AUR (Arch Linux)', command: 'yay -S crush-bin', platform: 'linux' },
+    ],
+    uninstallMethods: [
+      { id: 'brew', name: 'Homebrew', command: 'brew uninstall crush', platform: 'macos' },
+      { id: 'brew-linux', name: 'Homebrew', command: 'brew uninstall crush', platform: 'linux' },
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @charmland/crush', platform: 'all' },
+      { id: 'winget', name: 'WinGet', command: 'winget uninstall charmbracelet.crush', platform: 'windows' },
+      { id: 'scoop', name: 'Scoop', command: 'scoop uninstall crush', platform: 'windows' },
+      { id: 'aur', name: 'AUR (Arch Linux)', command: 'yay -R crush-bin', platform: 'linux' },
     ],
     versionCommand: 'crush --version',
     launchCommand: 'crush',

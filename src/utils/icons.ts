@@ -300,6 +300,26 @@ export const iconComponents = {
     h('line', { x1: '5', y1: '12', x2: '19', y2: '12' })
   ]),
 
+  // 添加图标 (圆圈加号)
+  add: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('line', { x1: '12', y1: '8', x2: '12', y2: '16' }),
+    h('line', { x1: '8', y1: '12', x2: '16', y2: '12' })
+  ]),
+
+  // 信息图标
+  info: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('line', { x1: '12', y1: '16', x2: '12', y2: '12' }),
+    h('line', { x1: '12', y1: '8', x2: '12.01', y2: '8' })
+  ]),
+
+  // 加载中图标 (旋转)
+  loading: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '10', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-dasharray': '31.4 31.4', 'stroke-linecap': 'round' }),
+    h('animateTransform', { attributeName: 'transform', type: 'rotate', from: '0 12 12', to: '360 12 12', dur: '1s', repeatCount: 'indefinite' })
+  ]),
+
   // 向下展开箭头
   chevronDown: createIconComponent([
     h('polyline', { points: '6 9 12 15 18 9' })
@@ -359,6 +379,52 @@ export const iconComponents = {
     h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
     h('polyline', { points: '7 10 12 15 17 10' }),
     h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })
+  ]),
+
+  // 机器人图标
+  robot: createIconComponent([
+    h('rect', { x: '3', y: '11', width: '18', height: '10', rx: '2' }),
+    h('circle', { cx: '12', cy: '5', r: '2' }),
+    h('path', { d: 'M12 7v4' }),
+    h('line', { x1: '8', y1: '16', x2: '8', y2: '16' }),
+    h('line', { x1: '16', y1: '16', x2: '16', y2: '16' }),
+    h('circle', { cx: '8', cy: '16', r: '1', fill: 'currentColor' }),
+    h('circle', { cx: '16', cy: '16', r: '1', fill: 'currentColor' })
+  ]),
+
+  // 发送图标
+  send: createIconComponent([
+    h('line', { x1: '22', y1: '2', x2: '11', y2: '13' }),
+    h('polygon', { points: '22 2 15 22 11 13 2 9 22 2' })
+  ]),
+
+  // 警告图标
+  warning: createIconComponent([
+    h('path', { d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),
+    h('line', { x1: '12', y1: '9', x2: '12', y2: '13' }),
+    h('line', { x1: '12', y1: '17', x2: '12.01', y2: '17' })
+  ]),
+
+  // 播放图标
+  play: createIconComponent([
+    h('polygon', { points: '5 3 19 12 5 21 5 3' })
+  ]),
+
+  // 停止图标
+  stop: createIconComponent([
+    h('rect', { x: '3', y: '3', width: '18', height: '18', rx: '2', ry: '2' })
+  ]),
+
+  // 用户图标
+  user: createIconComponent([
+    h('path', { d: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' }),
+    h('circle', { cx: '12', cy: '7', r: '4' })
+  ]),
+
+  // 时钟图标
+  clock: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('polyline', { points: '12 6 12 12 16 14' })
   ])
 };
 
@@ -706,5 +772,45 @@ export const svgIcons = {
     h('polyline', { points: '15 21 21 21 21 15' }),
     h('line', { x1: '3', y1: '3', x2: '10', y2: '10' }),
     h('line', { x1: '21', y1: '21', x2: '14', y2: '14' })
+  ]),
+
+  // Layout icon (sidebar layout - left outline, right filled, right is larger)
+  layout: createSvgIcon([
+    h('rect', { x: '2', y: '3', width: '20', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
+    h('rect', { x: '2', y: '3', width: '8', height: '18', rx: '1', ry: '1', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
+    h('rect', { x: '10', y: '3', width: '12', height: '18', rx: '1', ry: '1', fill: 'currentColor' }),
+  ]),
+
+  // Layout outline icon (both sides outline)
+  layoutOutline: createSvgIcon([
+    h('rect', { x: '2', y: '3', width: '20', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
+    h('rect', { x: '2', y: '3', width: '10', height: '18', rx: '2', ry: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
+  ]),
+
+  // 太阳图标 (亮色主题)
+  sun: createSvgIcon([
+    h('circle', { cx: '12', cy: '12', r: '5' }),
+    h('line', { x1: '12', y1: '1', x2: '12', y2: '3' }),
+    h('line', { x1: '12', y1: '21', x2: '12', y2: '23' }),
+    h('line', { x1: '4.22', y1: '4.22', x2: '5.64', y2: '5.64' }),
+    h('line', { x1: '18.36', y1: '18.36', x2: '19.78', y2: '19.78' }),
+    h('line', { x1: '1', y1: '12', x2: '3', y2: '12' }),
+    h('line', { x1: '21', y1: '12', x2: '23', y2: '12' }),
+    h('line', { x1: '4.22', y1: '19.78', x2: '5.64', y2: '18.36' }),
+    h('line', { x1: '18.36', y1: '5.64', x2: '19.78', y2: '4.22' })
+  ]),
+
+  // 月亮图标 (暗色主题)
+  moon: createSvgIcon([
+    h('path', { d: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z' })
+  ]),
+
+  // 机器人图标
+  robot: createSvgIcon([
+    h('rect', { x: '3', y: '11', width: '18', height: '10', rx: '2' }),
+    h('circle', { cx: '12', cy: '5', r: '2' }),
+    h('path', { d: 'M12 7v4' }),
+    h('circle', { cx: '8', cy: '16', r: '1', fill: 'currentColor' }),
+    h('circle', { cx: '16', cy: '16', r: '1', fill: 'currentColor' })
   ]),
 };

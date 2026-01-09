@@ -90,6 +90,14 @@
           <PortManagementPanel v-if="terminalStore.activeTab?.type === 'port-management'" />
         </div>
         
+        <!-- AI Collaboration tab -->
+        <div v-show="terminalStore.activeTab?.type === 'ai-collab'" class="ai-collab-content-wrapper">
+          <AICollabPanel 
+            v-if="terminalStore.activeTab?.type === 'ai-collab' && terminalStore.activeTab.collabSessionId" 
+            :session-id="terminalStore.activeTab.collabSessionId" 
+          />
+        </div>
+        
         <!-- Terminal tabs (task or shell) - Always render terminals, use v-show to preserve instances -->
         <div v-show="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')">
           <!-- Terminal toolbar (only for task/shell tabs) -->
@@ -203,6 +211,7 @@ import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
 import { useTerminalStore, type TerminalTab } from "../stores/terminal";
 import { useSettingsStore } from "../stores/settings";
+import { useTaskManagerStore } from "../stores/taskManager";
 import { iconComponents, svgIcons, getCommandIconName } from "../utils/icons";
 import { ansiToHtml } from "../utils/ansiUtils";
 import WelcomeScreen from "./WelcomeScreen.vue";
@@ -210,6 +219,7 @@ import TerminalView from "./TerminalView.vue";
 import SettingsPanel from "./settings/SettingsPanel.vue";
 import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
+import AICollabPanel from "./AICollabPanel.vue";
 
 const { t } = useI18n();
 const message = useMessage();
@@ -217,6 +227,7 @@ const uiStore = useUIStore();
 const { effectiveTheme } = useTheme();
 const runConfigStore = useRunConfigStore();
 const terminalStore = useTerminalStore();
+const taskManager = useTaskManagerStore();
 
 const terminalRefs = ref<Map<string, InstanceType<typeof TerminalView> | null>>(new Map());
 
@@ -439,6 +450,11 @@ const getTabIcon = (tab: TerminalTab) => {
     return svgIcons.network;
   }
   
+  // For AI collaboration tab
+  if (tab.type === 'ai-collab') {
+    return iconComponents.robot;
+  }
+  
   // For task tabs, use command-based icon
   if (tab.type === 'task' && tab.execParams?.command) {
     const settingsStore = useSettingsStore();
@@ -474,6 +490,9 @@ const getTabLabel = (tab: TerminalTab): string => {
   }
   if (tab.type === 'port-management') {
     return t('task.portManagement');
+  }
+  if (tab.type === 'ai-collab') {
+    return tab.label || t('aiCollab.title');
   }
   return tab.label;
 };
@@ -520,13 +539,38 @@ const handleStopTask = async () => {
 // Restart the current task
 const handleRestartTask = async () => {
   const tab = terminalStore.activeTab;
-  if (tab) {
-    try {
-      await terminalStore.restartTask(tab.id);
-    } catch (error) {
-      console.error('Failed to restart task:', error);
+  if (!tab || !tab.taskId) {
+    console.warn('[ConsoleArea] Cannot restart: no active task tab or no taskId');
+    return;
+  }
+
+  try {
+    // Find the task
+    const task = taskManager.findTask(tab.taskId);
+    if (!task) {
       message.error(t('console.restartFailed'));
+      console.warn('[ConsoleArea] Task not found:', tab.taskId);
+      return;
     }
+
+    // If task is running, stop it first and close the old tab
+    if (tab.status === 'running') {
+      try {
+        await terminalStore.stopTask(tab.id);
+        await terminalStore.closeTab(tab.id);
+        console.log('[ConsoleArea] Stopped and closed old task tab:', tab.id);
+      } catch (error) {
+        console.warn('[ConsoleArea] Failed to stop/close task:', error);
+      }
+    }
+
+    // Execute the task (this will create a new tab)
+    await taskManager.executeTask(task);
+    console.log('[ConsoleArea] Task restarted:', task.name);
+
+  } catch (error) {
+    console.error('[ConsoleArea] Failed to restart task:', error);
+    message.error(t('console.restartFailed'));
   }
 };
 
@@ -682,7 +726,8 @@ const onTerminalError = (error: string) => {
 
 .settings-content-wrapper,
 .notifications-content-wrapper,
-.port-management-content-wrapper {
+.port-management-content-wrapper,
+.ai-collab-content-wrapper {
   position: absolute;
   top: 0;
   left: 0;

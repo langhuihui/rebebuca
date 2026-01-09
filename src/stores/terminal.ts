@@ -21,7 +21,7 @@ import { ref, computed } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab';
 
 export interface TaskExecutionParams {
   command: string;
@@ -49,6 +49,7 @@ export interface TerminalTab {
   pid?: number;         // 进程 PID
   initialTab?: string;  // 对于 settings 类型，可以指定初始 tab
   shellName?: string;   // 终端类型名称（用于状态栏显示）
+  collabSessionId?: string; // 对于 ai-collab 类型，关联的协作会话 ID
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -349,6 +350,18 @@ export const useTerminalStore = defineStore('terminal', () => {
       }
     }
     
+    // For AI collab tabs, stop the session and all child processes
+    if (tab.type === 'ai-collab' && tab.collabSessionId) {
+      try {
+        const { useAICollabStore } = await import('./aiCollab');
+        const collabStore = useAICollabStore();
+        await collabStore.stopSession(tab.collabSessionId);
+        console.log('[Terminal Store] Stopped AI collab session:', tab.collabSessionId);
+      } catch (error) {
+        console.warn('[Terminal Store] Failed to stop AI collab session:', error);
+      }
+    }
+    
     // Remove tab
     const index = tabs.value.findIndex(t => t.id === tabId);
     if (index !== -1) {
@@ -385,6 +398,17 @@ export const useTerminalStore = defineStore('terminal', () => {
       return null;
     }
 
+    // Force stop the task if it's running (to handle blocked processes)
+    if (tab.status === 'running') {
+      try {
+        await stopTask(tabId);
+        console.log('[Terminal Store] Force stopped task before restart:', tab.ptyId);
+      } catch (error) {
+        console.warn('[Terminal Store] Failed to stop task before restart:', error);
+        // Continue anyway, as we want to restart regardless
+      }
+    }
+
     // Generate new PTY ID for the restart
     const newPtyId = `task-${generateId()}`;
 
@@ -399,6 +423,9 @@ export const useTerminalStore = defineStore('terminal', () => {
     activeTabId.value = tab.id;
 
     console.log('[Terminal Store] Task tab restarted (pending):', newPtyId, 'tabId:', tab.id);
+
+    // Actually start the task
+    await startTask(tabId);
 
     return tab;
   };
@@ -545,6 +572,36 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
   
+  // Create an AI collaboration tab
+  const createAICollabTab = (sessionId: string, label?: string): TerminalTab => {
+    // Check if a tab for this session already exists
+    const existingTab = tabs.value.find(t => t.type === 'ai-collab' && t.collabSessionId === sessionId);
+    if (existingTab) {
+      activeTabId.value = existingTab.id;
+      return existingTab;
+    }
+    
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'ai-collab',
+      label: label || 'AI 协作',
+      ptyId: '', // No PTY for AI collab tab
+      status: 'running',
+      startTime: Date.now(),
+      collabSessionId: sessionId,
+    };
+    
+    tabs.value.push(tab);
+    activeTabId.value = id;
+    return tab;
+  };
+  
+  // Find tab by collab session ID
+  const findTabByCollabSessionId = (sessionId: string): TerminalTab | undefined => {
+    return tabs.value.find(t => t.type === 'ai-collab' && t.collabSessionId === sessionId);
+  };
+  
   return {
     // State
     tabs,
@@ -567,6 +624,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     setActiveTab,
     findTabByHistoryId,
     findTabByPtyId,
+    findTabByCollabSessionId,
     updateTabStatus,
     updateTabStats,
     getTabProcessStats,
@@ -574,5 +632,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     createSettingsTab,
     createNotificationsTab,
     createPortManagementTab,
+    createAICollabTab,
   };
 });

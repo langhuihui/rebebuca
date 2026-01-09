@@ -164,7 +164,7 @@
                           </n-icon>
                         </template>
                       </n-button>
-                      <!-- macOS/Linux: dropdown with sudo option -->
+                      <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
                       <n-dropdown
                         v-if="currentPlatform !== 'windows'"
                         trigger="click"
@@ -215,7 +215,7 @@
                         </n-icon>
                       </template>
                     </n-button>
-                    <!-- macOS/Linux: dropdown with sudo option -->
+                    <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
                     <n-dropdown
                       v-if="currentPlatform !== 'windows'"
                       trigger="click"
@@ -245,15 +245,145 @@
               </div>
             </div>
 
-            <!-- Installation Terminal (for Windows PTY-based installation) -->
-            <div v-if="installingTerminal === toolType" class="install-terminal-section">
+            <!-- Uninstall Section (when installed) -->
+            <div v-if="toolVersions[toolType] && getAvailableUninstallMethods(toolType).length > 0" class="uninstall-section">
               <n-divider style="margin: 16px 0 12px 0">
-                {{ t("aiTools.installationOutput") }}
+                {{ t("aiTools.uninstallOptions") }}
               </n-divider>
-              <div class="install-terminal-container" ref="installTerminalRef">
-                <div class="install-terminal-output">
-                  <pre class="terminal-text">{{ installOutput.join('') }}</pre>
+
+              <!-- Uninstall Methods Tabs -->
+              <n-tabs
+                v-if="getAvailableUninstallMethods(toolType).length > 1"
+                v-model:value="selectedUninstallMethod[toolType]"
+                type="line"
+                size="small"
+                style="margin-bottom: 12px"
+              >
+                <n-tab-pane
+                  v-for="method in getAvailableUninstallMethods(toolType)"
+                  :key="method.id"
+                  :name="method.id"
+                  :tab="method.name"
+                >
+                  <div class="install-command">
+                    <n-input-group>
+                      <n-input
+                        :value="method.command"
+                        readonly
+                        size="small"
+                        style="font-family: monospace; font-size: 12px"
+                      />
+                      <n-button
+                        size="small"
+                        @click="copyCommand(method.command)"
+                      >
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.copy" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                      <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
+                      <n-dropdown
+                        v-if="currentPlatform !== 'windows'"
+                        trigger="click"
+                        :options="getUninstallOptions()"
+                        @select="(key: string) => handleUninstallSelect(key, toolType, method)"
+                      >
+                        <n-button size="small" type="error">
+                          {{ t("aiTools.uninstall") }}
+                          <template #icon>
+                            <n-icon size="14">
+                              <component :is="svgIcons.chevronDown" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                      </n-dropdown>
+                      <!-- Windows: normal button -->
+                      <n-button
+                        v-else
+                        size="small"
+                        type="error"
+                        @click="runUninstallCommand(toolType, method, false)"
+                      >
+                        {{ t("aiTools.uninstall") }}
+                      </n-button>
+                    </n-input-group>
+                  </div>
+                </n-tab-pane>
+              </n-tabs>
+
+              <!-- Single Uninstall Method (no tabs needed) -->
+              <div v-else class="install-command">
+                <div
+                  v-for="method in getAvailableUninstallMethods(toolType)"
+                  :key="method.id"
+                >
+                  <div class="method-label">{{ method.name }}</div>
+                  <n-input-group>
+                    <n-input
+                      :value="method.command"
+                      readonly
+                      size="small"
+                      style="font-family: monospace; font-size: 12px"
+                    />
+                    <n-button size="small" @click="copyCommand(method.command)">
+                      <template #icon>
+                        <n-icon size="14">
+                          <component :is="svgIcons.copy" />
+                        </n-icon>
+                      </template>
+                    </n-button>
+                    <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
+                    <n-dropdown
+                      v-if="currentPlatform !== 'windows'"
+                      trigger="click"
+                      :options="getUninstallOptions()"
+                      @select="(key: string) => handleUninstallSelect(key, toolType, method)"
+                    >
+                      <n-button size="small" type="error">
+                        {{ t("aiTools.uninstall") }}
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.chevronDown" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                    </n-dropdown>
+                    <!-- Windows: normal button -->
+                    <n-button
+                      v-else
+                      size="small"
+                      type="error"
+                      @click="runUninstallCommand(toolType, method, false)"
+                    >
+                      {{ t("aiTools.uninstall") }}
+                    </n-button>
+                  </n-input-group>
                 </div>
+              </div>
+            </div>
+
+            <!-- Installation Terminal (for PTY-based operation on all platforms) -->
+            <div v-if="installingTerminal === toolType || upgradingTerminal === toolType" class="install-terminal-section">
+              <n-divider style="margin: 16px 0 12px 0">
+                {{ upgradingTerminal === toolType ? t("aiTools.upgradeOutput") : t("aiTools.installationOutput") }}
+              </n-divider>
+              <div class="install-terminal-wrapper" v-if="installingTerminal === toolType">
+                <TerminalView
+                  v-if="installPtyId"
+                  :pty-id="installPtyId"
+                  theme="dark"
+                  :attach-only="true"
+                />
+              </div>
+              <div class="install-terminal-wrapper" v-if="upgradingTerminal === toolType">
+                <TerminalView
+                  v-if="upgradePtyId"
+                  :pty-id="upgradePtyId"
+                  theme="dark"
+                  :attach-only="true"
+                />
               </div>
             </div>
 
@@ -324,16 +454,6 @@
                 />
               </n-form-item>
 
-              <!-- Original Mode Notice -->
-              <n-alert
-                v-if="toolConfigsLocal[toolType].provider === 'original'"
-                type="info"
-                :bordered="false"
-                size="small"
-              >
-                {{ t("aiTools.originalModeNotice") }}
-              </n-alert>
-
               <!-- Key Sync Notice -->
               <n-alert
                 v-if="toolConfigsLocal[toolType].provider !== 'original'"
@@ -377,6 +497,7 @@ import {
   type AIToolType,
   type AIToolConfig,
 } from "../../stores/aiTools";
+import TerminalView from "../TerminalView.vue";
 import { isTauri } from "../../adapters";
 import { svgIcons } from "../../utils/icons";
 import { useSettingsStore } from "../../stores/settings";
@@ -412,6 +533,9 @@ const activeToolTab = ref<AIToolType>("claude-code");
 // Selected install method for each tool
 const selectedInstallMethod = ref<Record<string, string>>({});
 
+// Selected uninstall method for each tool
+const selectedUninstallMethod = ref<Record<string, string>>({});
+
 // Tool versions (empty string means not installed)
 const toolVersions = ref<Record<string, string>>({});
 
@@ -432,9 +556,9 @@ const checkedTools = ref<Record<string, boolean>>({});
 
 // Installation terminal state (for Windows PTY-based installation)
 const installingTerminal = ref<AIToolType | null>(null);
+const upgradingTerminal = ref<AIToolType | null>(null);
 const installPtyId = ref<string | null>(null);
-const installOutput = ref<string[]>([]);
-const installTerminalRef = ref<HTMLDivElement | null>(null);
+const upgradePtyId = ref<string | null>(null);
 
 // Local tool configs for inline editing - initialize with defaults
 const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
@@ -531,6 +655,10 @@ const initSelectedInstallMethods = () => {
     if (methods.length > 0) {
       selectedInstallMethod.value[toolType] = methods[0].id;
     }
+    const uninstallMethods = getAvailableUninstallMethods(toolType);
+    if (uninstallMethods.length > 0) {
+      selectedUninstallMethod.value[toolType] = uninstallMethods[0].id;
+    }
   }
 };
 
@@ -566,6 +694,14 @@ const detectPlatform = async () => {
 // Get install methods available for current platform
 const getAvailableInstallMethods = (toolType: AIToolType) => {
   const methods = AI_TOOL_METADATA[toolType].installMethods;
+  return methods.filter(
+    (m) => m.platform === "all" || m.platform === currentPlatform.value
+  );
+};
+
+// Get uninstall methods available for current platform
+const getAvailableUninstallMethods = (toolType: AIToolType) => {
+  const methods = AI_TOOL_METADATA[toolType].uninstallMethods || [];
   return methods.filter(
     (m) => m.platform === "all" || m.platform === currentPlatform.value
   );
@@ -829,6 +965,20 @@ const getInstallOptions = () => {
   ];
 };
 
+// Get uninstall dropdown options for macOS/Linux
+const getUninstallOptions = () => {
+  return [
+    {
+      label: t("aiTools.uninstallNormal"),
+      key: "normal",
+    },
+    {
+      label: t("aiTools.uninstallWithSudo"),
+      key: "sudo",
+    },
+  ];
+};
+
 // Get refresh dropdown options
 const getRefreshOptions = (toolType: AIToolType) => {
   const options = [
@@ -914,6 +1064,97 @@ const handleInstallSelect = (
   runInstallCommand(toolType, method, useSudo);
 };
 
+// Handle uninstall option selection
+const handleUninstallSelect = (
+  key: string,
+  toolType: AIToolType,
+  method: { command: string; id: string }
+) => {
+  const useSudo = key === "sudo";
+  runUninstallCommand(toolType, method, useSudo);
+};
+
+// Run command in PTY (used for both install and uninstall on all platforms)
+const runCommandInPty = async (
+  toolType: AIToolType,
+  command: string,
+  onComplete: () => void,
+  isUpgrade: boolean = false
+) => {
+  try {
+    // Set terminal state
+    if (isUpgrade) {
+      upgradingTerminal.value = toolType;
+    } else {
+      installingTerminal.value = toolType;
+    }
+
+    const { getAdapter } = await import("../../adapters");
+    const adapter = await getAdapter();
+
+    // Determine shell based on platform
+    let shellPath: string | undefined;
+    let execCommand: string;
+    let execArgs: string[];
+
+    if (currentPlatform.value === 'windows') {
+      // Windows: use PowerShell
+      shellPath = 'powershell';
+      const parts = command.trim().split(/\s+/);
+      execCommand = parts[0];
+      execArgs = parts.slice(1);
+    } else {
+      // macOS/Linux: use zsh or bash with login shell
+      // Execute the command directly via sh -c
+      execCommand = 'sh';
+      execArgs = ['-c', command];
+    }
+
+    // Execute the command in PTY
+    const result = await adapter.terminal.create({
+      command: execCommand,
+      args: execArgs,
+      cwd: undefined,
+      env: undefined,
+      logPath: undefined,
+      shellPath: shellPath,
+    });
+
+    if (isUpgrade) {
+      upgradePtyId.value = result.ptyId;
+    } else {
+      installPtyId.value = result.ptyId;
+    }
+
+    // Listen for PTY exit
+    const unlistenExit = adapter.terminal.onExit((event) => {
+      if (event.ptyId === result.ptyId) {
+        unlistenExit();
+        // Don't hide terminal immediately, let user see the result
+        // installingTerminal.value = null;
+        // upgradingTerminal.value = null;
+
+        // Call completion callback
+        setTimeout(() => {
+          onComplete();
+        }, 1000);
+      }
+    });
+
+    return true;
+  } catch (error) {
+    console.error("PTY execution failed:", error);
+    if (isUpgrade) {
+      upgradingTerminal.value = null;
+      upgradePtyId.value = null;
+    } else {
+      installingTerminal.value = null;
+      installPtyId.value = null;
+    }
+    return false;
+  }
+};
+
 // Run install command
 const runInstallCommand = async (
   toolType: AIToolType,
@@ -930,100 +1171,46 @@ const runInstallCommand = async (
   // Inject sudo password if useSudo is true and password is stored
   let installCommand = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
 
-  // For Windows, use PTY (pseudo-terminal) to show output in the UI
-  if (currentPlatform.value === 'windows') {
-    try {
-      installingTerminal.value = toolType; // Show installing terminal
-      installOutput.value = []; // Clear previous output
+  // Use PTY for all platforms to show output in the UI
+  const success = await runCommandInPty(toolType, installCommand, () => {
+    // Check installation status after completion
+    checkSingleTool(toolType, true);
+  });
 
-      const { getAdapter } = await import("../../adapters");
-      const adapter = await getAdapter();
+  if (success) {
+    message.info(t("aiTools.installingInTerminal"));
+  } else {
+    message.error(t("aiTools.installFailed"));
+  }
+};
 
-      // For Windows, execute in PowerShell via PTY
-      // Parse command to extract the actual command and args
-      const parts = installCommand.trim().split(/\s+/);
-      const command = parts[0];
-      const args = parts.slice(1);
-
-      // Create a unique ptyId for this installation
-      const installPtyId = `install-${toolType}-${Date.now()}`;
-
-      // Execute the command in PTY
-      const result = await adapter.terminal.create({
-        command,
-        args,
-        cwd: undefined,
-        env: undefined,
-        logPath: undefined,
-        shellPath: 'powershell', // Use PowerShell for Windows
-      });
-
-      installPtyId.value = result.ptyId;
-
-      // Listen for PTY output
-      const unlistenOutput = adapter.terminal.onData((event) => {
-        if (event.ptyId === result.ptyId) {
-          installOutput.value.push(event.data);
-          // Scroll to bottom
-          setTimeout(() => {
-            const container = installTerminalRef.value;
-            if (container) {
-              container.scrollTop = container.scrollHeight;
-            }
-          }, 10);
-        }
-      });
-
-      // Listen for PTY exit
-      const unlistenExit = adapter.terminal.onExit((event) => {
-        if (event.ptyId === result.ptyId) {
-          unlistenOutput();
-          unlistenExit();
-          installPtyId.value = null;
-          installingTerminal.value = null;
-
-          // Check installation status after completion
-          setTimeout(() => {
-            checkSingleTool(toolType, true);
-          }, 1000);
-        }
-      });
-
-      message.info(t("aiTools.installingInTerminal"));
-    } catch (error) {
-      message.error(t("aiTools.installFailed"));
-      console.error("Install in PTY failed:", error);
-      installingTerminal.value = null;
-      installPtyId.value = null;
-    }
+// Run uninstall command
+const runUninstallCommand = async (
+  toolType: AIToolType,
+  method: { command: string; id: string },
+  useSudo: boolean = false
+) => {
+  if (!isTauri()) {
+    const command = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
+    message.info(t("aiTools.copyAndRunManually"));
+    await copyCommand(command);
     return;
   }
 
-  // For macOS/Linux, continue using system terminal
-  // Helper function to execute the install command in system terminal
-  const executeInSystemTerminal = async () => {
-    try {
-      const { getAdapter } = await import("../../adapters");
-      const adapter = await getAdapter();
-      
-      // macOS/Linux: use system terminal
-      await adapter.system.openInSystemTerminal(installCommand);
-      
-      message.info(t("aiTools.installingInTerminal"));
-      
-      // Wait a bit then check installation status
-      // User needs to complete the installation in terminal
-      setTimeout(() => {
-        checkSingleTool(toolType, true);
-      }, 5000);
-    } catch (error) {
-      message.error(t("aiTools.installFailed"));
-      console.error("Install in system terminal failed:", error);
-    }
-  };
+  // Inject sudo password if useSudo is true and password is stored
+  let uninstallCommand = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
 
-  // Always use system terminal for macOS/Linux
-  await executeInSystemTerminal();
+  // Use PTY for all platforms to show output in the UI
+  const success = await runCommandInPty(toolType, uninstallCommand, () => {
+    // Check installation status after completion
+    checkSingleTool(toolType, true);
+  });
+
+  if (success) {
+    message.info(t("aiTools.uninstallingInTerminal"));
+  } else {
+    message.error(t("aiTools.uninstallFailed"));
+  }
 };
 
 // Get provider options for a tool
@@ -1152,27 +1339,21 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
   updating.value[toolType] = true;
   
   try {
-    const { getAdapter } = await import("../../adapters");
-    const adapter = await getAdapter();
-    
-    // Execute update command in system terminal
-    if (currentPlatform.value === 'windows') {
-      // Windows doesn't use sudo, so ignore useSudo parameter
-      await adapter.system.openInSpecificTerminal('powershell', updateCmd);
-    } else {
-      await adapter.system.openInSystemTerminal(finalUpdateCmd);
-    }
-    
-    message.info(t("aiTools.updatingInTerminal"));
-    
-    // Wait a bit then check installation status
-    setTimeout(() => {
+    // Use PTY for all platforms to show output in the UI
+    const success = await runCommandInPty(toolType, finalUpdateCmd, () => {
+      // Check installation status after completion
       checkSingleTool(toolType, true);
       // Also check latest version again after update
       setTimeout(() => {
         checkLatestVersion(toolType);
       }, 2000);
-    }, 5000);
+    }, true);
+    
+    if (success) {
+      message.info(t("aiTools.updatingInTerminal"));
+    } else {
+      message.error(t("aiTools.updateFailed"));
+    }
   } catch (error) {
     message.error(t("aiTools.updateFailed"));
     console.error("Update failed:", error);
@@ -1293,6 +1474,10 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
   margin-top: 8px;
 }
 
+.uninstall-section {
+  margin-top: 8px;
+}
+
 .install-command {
   margin-top: 8px;
 }
@@ -1309,6 +1494,15 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
 
 .install-terminal-section {
   margin-top: 8px;
+}
+
+.install-terminal-wrapper {
+  background-color: #1a1a1a;
+  border: 1px solid var(--n-border-color);
+  border-radius: 6px;
+  max-height: 300px;
+  min-height: 200px;
+  overflow: hidden;
 }
 
 .install-terminal-container {

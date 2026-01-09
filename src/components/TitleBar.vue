@@ -58,8 +58,8 @@
         </span>
       </div>
 
-      <!-- Window controls - macOS style on the left (hidden in mini mode) -->
-      <div v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode" class="window-controls">
+      <!-- Window controls - macOS style on the left -->
+      <div v-if="!uiStore.isWindowsPlatform" class="window-controls">
         <button
           class="window-control-button close-btn"
           @click="handleCloseWindow"
@@ -136,10 +136,10 @@
         </span>
       </div>
 
-      <!-- Right buttons (hidden in mini mode) -->
-      <div class="titlebar-right" v-if="!uiStore.miniMode">
+      <!-- Right buttons -->
+      <div class="titlebar-right">
         <!-- Version and Update indicator -->
-        <div class="version-update-group">
+        <div class="version-update-group" v-if="!uiStore.miniMode">
           <span class="version-text">v{{ updaterStore.currentVersion }}</span>
           <template v-if="updaterStore.updateAvailable">
             <span class="update-arrow">→</span>
@@ -175,6 +175,7 @@
 
         <!-- Notification bell button -->
         <n-button
+          v-if="!uiStore.miniMode"
           text
           size="small"
           @click="openNotificationDialog"
@@ -208,8 +209,8 @@
               <component
                 :is="
                   effectiveTheme === 'light'
-                    ? iconComponents.sun
-                    : iconComponents.moon
+                    ? svgIcons.sun
+                    : svgIcons.moon
                 "
               />
             </template>
@@ -226,6 +227,18 @@
         >
           <template #icon>
             <component :is="svgIcons.settings" />
+          </template>
+        </n-button>
+        <n-button
+          text
+          size="small"
+          @click="uiStore.toggleMiniMode()"
+          class="titlebar-button"
+          :title="t('titlebar.toggleMiniMode')"
+          @mousedown.stop
+        >
+          <template #icon>
+            <component :is="uiStore.miniMode ? svgIcons.layoutOutline : svgIcons.layout" />
           </template>
         </n-button>
       </div>
