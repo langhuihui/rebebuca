@@ -68,6 +68,10 @@ export interface SupervisorSession {
   analysisHistory: AnalysisResult[];  // History of analysis results
   instructionHistory: string[];       // History of instructions sent
   
+  // Loop detection
+  duplicateInstructionCount: number;  // Count of consecutive duplicate instructions
+  lastInstructionHash: string | null; // Hash of last instruction for duplicate detection
+  
   // Timing
   startTime: number;
   lastAnalysisTime?: number;
@@ -93,6 +97,11 @@ export interface SupervisorConfig {
   // Iteration limits
   defaultMaxIterations: number;       // Default max iterations per session (default: 5)
   globalMaxIterations: number;        // Hard limit across all sessions (default: 20)
+  
+  // Loop detection settings
+  loopDetectionEnabled: boolean;      // Enable loop detection (default: true)
+  loopDetectionThreshold: number;     // Number of duplicate instructions before triggering (default: 2)
+  autoRecoveryEnabled: boolean;       // Enable automatic recovery from loops (default: true)
   
   // Output buffer settings
   maxBufferLines: number;             // Max lines to keep in buffer (default: 500)
@@ -132,6 +141,9 @@ export const defaultSupervisorConfig: SupervisorConfig = {
   notifyOnComplete: true,
   notifyOnError: true,
   notifyOnIteration: false,
+  loopDetectionEnabled: true,
+  loopDetectionThreshold: 2,
+  autoRecoveryEnabled: true,
 };
 
 /**
@@ -258,6 +270,8 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
       startTime: Date.now(),
       idleTimeout: options?.idleTimeout,
       autoMode: options?.autoMode ?? config.value.autoModeEnabled,
+      duplicateInstructionCount: 0,
+      lastInstructionHash: null,
     };
     
     sessions.value.set(session.id, session);
@@ -333,13 +347,98 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
   }
   
   /**
+   * Simple hash function for strings
+   */
+  function simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(16);
+  }
+  
+  /**
+   * Check if the agent is stuck in a loop
+   */
+  function isStuckInLoop(sessionId: string, instruction: string): boolean {
+    const session = sessions.value.get(sessionId);
+    if (!session || !config.value.loopDetectionEnabled) {
+      return false;
+    }
+    
+    // Calculate hash of the current instruction
+    const instructionHash = simpleHash(instruction.trim().toLowerCase());
+    
+    // Check if this is the same as the last instruction
+    if (session.lastInstructionHash === instructionHash) {
+      session.duplicateInstructionCount++;
+    } else {
+      // Reset counter if instruction is different
+      session.duplicateInstructionCount = 0;
+      session.lastInstructionHash = instructionHash;
+    }
+    
+    // Check if we've exceeded the threshold
+    return session.duplicateInstructionCount >= config.value.loopDetectionThreshold;
+  }
+  
+  /**
+   * Generate recovery suggestion when loop is detected
+   */
+  function generateRecoverySuggestion(sessionId: string): string {
+    const session = sessions.value.get(sessionId);
+    if (!session) {
+      return 'Try a different approach.';
+    }
+    
+    const suggestions = [
+      'The previous approach seems to be repeating. Consider trying a completely different strategy.',
+      'Loop detected: The same instruction has been sent multiple times. Try breaking down the task into smaller steps.',
+      'You appear to be stuck. Take a step back and analyze what went wrong in the previous attempts.',
+      'Repeated actions detected. Try examining the error messages more carefully and adjust your approach.',
+      'Pattern repetition noticed. Consider using alternative tools or commands to achieve the goal.',
+    ];
+    
+    // Return a random suggestion to avoid being repetitive
+    const randomIndex = Math.floor(Math.random() * suggestions.length);
+    return suggestions[randomIndex];
+  }
+  
+  /**
+   * Handle stuck state by suggesting recovery
+   */
+  function handleStuckState(sessionId: string): string | null {
+    if (!config.value.autoRecoveryEnabled) {
+      return null;
+    }
+    
+    const suggestion = generateRecoverySuggestion(sessionId);
+    console.log(`[SupervisorAI Store] Loop detected in session ${sessionId}, suggesting recovery: ${suggestion}`);
+    
+    return suggestion;
+  }
+  
+  /**
    * Record an instruction sent
    */
   function recordInstruction(sessionId: string, instruction: string) {
     const session = sessions.value.get(sessionId);
     if (session) {
+      // Check for loop before recording
+      const isLoop = isStuckInLoop(sessionId, instruction);
+      
       session.instructionHistory.push(instruction);
       session.iterationCount++;
+      
+      // If loop detected and auto-recovery enabled, add recovery suggestion to history
+      if (isLoop && config.value.autoRecoveryEnabled) {
+        const recoverySuggestion = handleStuckState(sessionId);
+        if (recoverySuggestion) {
+          session.instructionHistory.push(`[AUTO-RECOVERY] ${recoverySuggestion}`);
+        }
+      }
     }
   }
   
@@ -450,5 +549,8 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
     clearEndedSessions,
     shouldMonitorTool,
     getSessionIdleTimeout,
+    isStuckInLoop,
+    generateRecoverySuggestion,
+    handleStuckState,
   };
 });
