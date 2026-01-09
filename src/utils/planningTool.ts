@@ -169,8 +169,8 @@ export class PlanningTool extends BaseToolClass {
       plan_id,
       title,
       steps,
-      step_statuses: new Array(steps.length).fill(PlanStepStatus.NOT_STARTED),
-      step_notes: new Array(steps.length).fill(''),
+      step_statuses: Array.from({ length: steps.length }, () => PlanStepStatus.NOT_STARTED),
+      step_notes: Array.from({ length: steps.length }, () => ''),
     };
 
     this.plans.set(plan_id, plan);

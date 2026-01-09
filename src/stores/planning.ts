@@ -112,22 +112,31 @@ export const usePlanningStore = defineStore('planning', () => {
         // Restore plans
         planningTool.value.clearPlans();
         for (const plan of savedPlans) {
-          await planningTool.value.execute({
+          const createResult = await planningTool.value.execute({
             command: 'create',
             plan_id: plan.plan_id,
             title: plan.title,
             steps: plan.steps,
           });
           
+          if (createResult.error) {
+            console.warn('[Planning Store] Failed to restore plan:', plan.plan_id, createResult.error);
+            continue;
+          }
+          
           // Restore step statuses and notes
           for (let i = 0; i < plan.steps.length; i++) {
-            await planningTool.value.execute({
+            const markResult = await planningTool.value.execute({
               command: 'mark_step',
               plan_id: plan.plan_id,
               step_index: i,
               step_status: plan.step_statuses[i],
               step_notes: plan.step_notes[i] || undefined,
             });
+            
+            if (markResult.error) {
+              console.warn('[Planning Store] Failed to restore step:', plan.plan_id, i, markResult.error);
+            }
           }
         }
         

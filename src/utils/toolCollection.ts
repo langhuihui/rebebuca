@@ -90,7 +90,7 @@ export class ToolCollection {
   /**
    * Execute a tool by name with given parameters
    */
-  async execute(name: string, toolInput: Record<string, any> = {}): Promise<ToolResult> {
+  async execute(name: string, kwargs: Record<string, any> = {}): Promise<ToolResult> {
     const tool = this.toolMap.get(name);
     if (!tool) {
       return {
@@ -99,7 +99,7 @@ export class ToolCollection {
     }
 
     try {
-      const result = await tool.execute(toolInput);
+      const result = await tool.execute(kwargs);
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

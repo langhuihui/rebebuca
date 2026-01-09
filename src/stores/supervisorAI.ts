@@ -354,7 +354,7 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash | 0; // Convert to 32bit signed integer
     }
     return hash.toString(16);
   }
@@ -386,6 +386,7 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
   
   /**
    * Generate recovery suggestion when loop is detected
+   * Uses deterministic rotation based on iteration count for predictable behavior
    */
   function generateRecoverySuggestion(sessionId: string): string {
     const session = sessions.value.get(sessionId);
@@ -401,9 +402,9 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
       'Pattern repetition noticed. Consider using alternative tools or commands to achieve the goal.',
     ];
     
-    // Return a random suggestion to avoid being repetitive
-    const randomIndex = Math.floor(Math.random() * suggestions.length);
-    return suggestions[randomIndex];
+    // Use iteration count for deterministic rotation, making testing easier
+    const suggestionIndex = session.iterationCount % suggestions.length;
+    return suggestions[suggestionIndex];
   }
   
   /**
