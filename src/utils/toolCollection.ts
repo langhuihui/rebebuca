@@ -51,7 +51,10 @@ export class ToolCollection {
    */
   addTool(tool: BaseTool): ToolCollection {
     if (this.toolMap.has(tool.name)) {
-      console.warn(`[ToolCollection] Tool ${tool.name} already exists in collection, skipping`);
+      const existingTool = this.toolMap.get(tool.name)!;
+      console.warn(
+        `[ToolCollection] Tool '${tool.name}' already exists in collection (existing: ${existingTool.description}), skipping new tool (${tool.description})`
+      );
       return this;
     }
 

@@ -347,7 +347,9 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
   }
   
   /**
-   * Simple hash function for strings
+   * Simple hash function for loop detection
+   * Based on djb2 algorithm - fast and effective for short strings
+   * Returns hex string representation of 32-bit signed integer hash
    */
   function simpleHash(str: string): string {
     let hash = 0;
@@ -427,13 +429,14 @@ export const useSupervisorAIStore = defineStore('supervisorAI', () => {
   function recordInstruction(sessionId: string, instruction: string) {
     const session = sessions.value.get(sessionId);
     if (session) {
-      // Check for loop before recording
+      // Check for loop first, before recording
       const isLoop = isStuckInLoop(sessionId, instruction);
       
+      // Record the instruction
       session.instructionHistory.push(instruction);
       session.iterationCount++;
       
-      // If loop detected and auto-recovery enabled, add recovery suggestion to history
+      // If loop detected and auto-recovery enabled, add recovery suggestion
       if (isLoop && config.value.autoRecoveryEnabled) {
         const recoverySuggestion = handleStuckState(sessionId);
         if (recoverySuggestion) {
