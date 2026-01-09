@@ -21,9 +21,6 @@ import type {
   MCPToolCall,
   MCPToolResult,
   SSEEvent,
-  SSEEventType,
-  CollabMessage,
-  DecisionRequest,
   AgentRole,
 } from '../types/aiCollab';
 import { useAICollabStore } from '../stores/aiCollab';

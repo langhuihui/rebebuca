@@ -99,7 +99,7 @@
         </div>
         
         <!-- Terminal tabs (task or shell) - Always render terminals, use v-show to preserve instances -->
-        <div v-show="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')">
+        <div v-show="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')" class="terminal-tab-content">
           <!-- Terminal toolbar (only for task/shell tabs) -->
           <n-space v-if="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')" class="console-toolbar" size="small">
             <!-- 停止按钮 (仅运行中显示) -->
@@ -734,6 +734,14 @@ const onTerminalError = (error: string) => {
   right: 0;
   bottom: 0;
   overflow: auto;
+}
+
+.terminal-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .terminal-wrapper {

@@ -211,8 +211,51 @@
         <AIToolsPanel />
       </n-tab-pane>
       
-      <n-tab-pane name="ssh" :tab="t('settings.ssh')">
+      <n-tab-pane v-if="featureFlagsStore.flags.ssh" name="ssh" :tab="t('settings.ssh')">
         <SshPanel />
+      </n-tab-pane>
+      
+      <!-- Developer options (only visible in development mode) -->
+      <n-tab-pane v-if="isDevelopmentMode()" name="developer" :tab="t('settings.developer')">
+        <n-form label-placement="left" label-width="auto" class="compact-settings-form">
+          <n-alert type="info" style="margin-bottom: 16px;">
+            {{ t('settings.developerModeHint') }}
+          </n-alert>
+          
+          <n-form-item :label="t('settings.devOverrideEnabled')">
+            <n-switch 
+              :value="featureFlagsStore.devOverrideEnabled" 
+              @update:value="handleDevOverrideChange"
+            />
+            <span class="setting-hint">{{ t('settings.devOverrideEnabledHint') }}</span>
+          </n-form-item>
+          
+          <n-divider title-placement="left">{{ t('settings.featureFlags') }}</n-divider>
+          
+          <n-form-item :label="t('settings.featureAICollab')">
+            <n-switch 
+              :value="featureFlagsStore.flags.aiCollab"
+              :disabled="!featureFlagsStore.devOverrideEnabled"
+              @update:value="(val: boolean) => handleFeatureFlagChange('aiCollab', val)"
+            />
+            <span class="setting-hint">{{ t('settings.featureAICollabHint') }}</span>
+          </n-form-item>
+          
+          <n-form-item :label="t('settings.featureSSH')">
+            <n-switch 
+              :value="featureFlagsStore.flags.ssh"
+              :disabled="!featureFlagsStore.devOverrideEnabled"
+              @update:value="(val: boolean) => handleFeatureFlagChange('ssh', val)"
+            />
+            <span class="setting-hint">{{ t('settings.featureSSHHint') }}</span>
+          </n-form-item>
+          
+          <n-form-item>
+            <n-button size="small" @click="resetFeatureFlags">
+              {{ t('settings.resetFeatureFlags') }}
+            </n-button>
+          </n-form-item>
+        </n-form>
       </n-tab-pane>
     </n-tabs>
   </div>
@@ -245,6 +288,7 @@ import { useUpdaterStore } from '../../stores/updater';
 import { useRunConfigStore } from '../../stores/runConfig';
 import { useLocale } from '../../composables/useLocale';
 import { getAdapter, isTauri } from '../../adapters';
+import { useFeatureFlagsStore, isDevelopmentMode } from '../../stores/featureFlags';
 import type { SystemTerminalInfo, ShellInfo } from '../../adapters/types';
 import { svgIcons } from '../../utils/icons';
 import CommandIconSettings from '../CommandIconSettings.vue';
@@ -268,6 +312,7 @@ const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const runConfigStore = useRunConfigStore();
 const { localeMode, getLocalizedOptions, setLocale } = useLocale();
+const featureFlagsStore = useFeatureFlagsStore();
 
 const activeTab = ref(props.initialTab || 'general');
 const currentVersion = ref('');
@@ -481,6 +526,22 @@ const clearSudoPassword = async () => {
   sudoPasswordInput.value = '';
   await settingsStore.setSudoPassword(null);
   message.success(t('settings.clearSudoPassword') + ' ' + t('common.save'));
+};
+
+// Handle dev override toggle
+const handleDevOverrideChange = async (enabled: boolean) => {
+  await featureFlagsStore.setDevOverrideEnabled(enabled);
+};
+
+// Handle feature flag change
+const handleFeatureFlagChange = async (feature: 'aiCollab' | 'ssh', enabled: boolean) => {
+  await featureFlagsStore.setFeatureFlag(feature, enabled);
+};
+
+// Reset feature flags to defaults
+const resetFeatureFlags = async () => {
+  await featureFlagsStore.resetToDefaults();
+  message.success(t('settings.resetFeatureFlagsSuccess'));
 };
 
 // Auto-save settings when they change

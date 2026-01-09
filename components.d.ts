@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AddFolderDialog: typeof import('./src/components/sidebar/dialogs/AddFolderDialog.vue')['default']
     AICollabCreateDialog: typeof import('./src/components/sidebar/dialogs/AICollabCreateDialog.vue')['default']
+    AICollabEditDialog: typeof import('./src/components/sidebar/dialogs/AICollabEditDialog.vue')['default']
     AICollabPanel: typeof import('./src/components/AICollabPanel.vue')['default']
     AIGenerateDialog: typeof import('./src/components/sidebar/dialogs/AIGenerateDialog.vue')['default']
     AIToolsPanel: typeof import('./src/components/settings/AIToolsPanel.vue')['default']

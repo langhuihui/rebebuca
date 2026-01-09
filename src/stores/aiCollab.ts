@@ -27,10 +27,6 @@ import type {
   AgentInstance,
   AgentConfig,
   AgentStatus,
-  CollabSessionStatus,
-  MessageFrom,
-  MessageTo,
-  CollabMessageType,
   TaskProgress,
 } from '../types/aiCollab';
 
@@ -106,6 +102,32 @@ export const useAICollabStore = defineStore('aiCollab', () => {
     await saveSessionToStorage(session);
     
     return session;
+  };
+  
+  // 更新会话配置
+  const updateSession = async (sessionId: string, config: Partial<ProjectCollabConfig>): Promise<void> => {
+    const session = sessions.value.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    
+    // 更新配置
+    session.config = {
+      ...session.config,
+      ...config,
+    };
+    session.projectPath = config.projectPath || session.projectPath;
+    session.lastActivity = Date.now();
+    
+    // 保存到本地存储
+    await saveSessionToStorage(session);
+    
+    await addMessage(sessionId, {
+      from: 'system',
+      to: 'all',
+      type: 'system',
+      content: '会话配置已更新',
+    });
   };
   
   // 启动会话
@@ -241,8 +263,8 @@ export const useAICollabStore = defineStore('aiCollab', () => {
     // 添加 MCP 相关参数（提示 Agent 使用 MCP 通信）
     const mcpPrompt = getMCPPrompt(config.role, sessionId, effectiveMcpUrl, workerIndex);
     
-    // 创建 PTY
-    const ptyId = `collab-${config.role}${workerIndex !== undefined ? `-${workerIndex}` : ''}-${generateId()}`;
+    // 创建 PTY (ptyId 用于日志，暂时注释)
+    // const ptyId = `collab-${config.role}${workerIndex !== undefined ? `-${workerIndex}` : ''}-${generateId()}`;
     const result = await adapterInstance.terminal.create({
       command,
       args,
@@ -1078,6 +1100,7 @@ ${session.pendingDecision.options ? `选项: ${session.pendingDecision.options.j
     
     // Methods
     createSession,
+    updateSession,
     startSession,
     stopSession,
     restartAgent,

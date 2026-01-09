@@ -475,7 +475,19 @@
   
   <AICollabCreateDialog
     v-model:show="showAICollabDialog"
+    :group-id="aiCollabGroupId"
+    :group-options="userGroupOptions"
+    @update:group-id="aiCollabGroupId = $event"
     @confirm="handleConfirmAICollab"
+  />
+  
+  <AICollabEditDialog
+    v-model:show="showAICollabEditDialog"
+    :task="editingAICollabTask"
+    :group-id="aiCollabEditGroupId"
+    :group-options="userGroupOptions"
+    @update:group-id="aiCollabEditGroupId = $event"
+    @confirm="handleConfirmAICollabEdit"
   />
   
 </template>
@@ -510,8 +522,10 @@ import {
   TaskSelectionDialog,
   RenameGroupDialog,
   AICollabCreateDialog,
+  AICollabEditDialog,
   type AddFolderFormData,
   type AICollabFormData,
+  type AICollabEditFormData,
 } from './sidebar/dialogs';
 
 const { t } = useI18n();
@@ -582,6 +596,12 @@ const renameGroupData = reactive({
 
 // AI Collab dialog state
 const showAICollabDialog = ref(false);
+const aiCollabGroupId = ref('default');
+
+// AI Collab edit dialog state
+const showAICollabEditDialog = ref(false);
+const editingAICollabTask = ref<Task | null>(null);
+const aiCollabEditGroupId = ref('default');
 
 // Drag and drop state
 const draggedTask = ref<Task | null>(null);
@@ -930,11 +950,12 @@ const handlePortManagement = () => {
 
 // Handle AI collaboration - show create dialog
 const handleAICollab = () => {
+  aiCollabGroupId.value = 'default';
   showAICollabDialog.value = true;
 };
 
 // Handle confirm AI collab creation
-const handleConfirmAICollab = async (data: AICollabFormData) => {
+const handleConfirmAICollab = async (data: AICollabFormData, groupId: string, newGroupName: string) => {
   const { useAICollabStore } = await import('../stores/aiCollab');
   const collabStore = useAICollabStore();
   
@@ -954,6 +975,13 @@ const handleConfirmAICollab = async (data: AICollabFormData) => {
       }
     }
     if (Object.keys(envVars).length === 0) envVars = undefined;
+  }
+  
+  // Handle new group creation
+  let targetGroupId = groupId;
+  if (groupId === '__new__' && newGroupName?.trim()) {
+    const newGroup = await taskManager.createUserGroup(newGroupName.trim());
+    targetGroupId = newGroup.id;
   }
   
   // Create a new session with the provided config
@@ -984,12 +1012,131 @@ const handleConfirmAICollab = async (data: AICollabFormData) => {
     autoDecision: data.decisionTimeout > 0,
   });
   
+  // Save the AI collab task to the task list
+  await taskManager.addTaskToGroup(targetGroupId, {
+    name: data.sessionName || 'AI 协作',
+    command: '',
+    cwd: data.projectPath,
+    type: 'ai-collab',
+    group: 'none',
+    env: envVars,
+    definition: {
+      sessionId: session.id,
+      supervisorType: data.supervisorType,
+      supervisorAITool: data.supervisorAITool,
+      supervisorCommand: data.supervisorCommand,
+      workerType: data.workerType,
+      workerAITool: data.workerAITool,
+      workerCommand: data.workerCommand,
+      decisionTimeout: data.decisionTimeout,
+    },
+  });
+  
   // Create the AI collab tab with the session name
   terminalStore.createAICollabTab(session.id, data.sessionName || 'AI 协作');
 };
 
+// Handle confirm AI collab edit
+const handleConfirmAICollabEdit = async (data: AICollabEditFormData, groupId: string, newGroupName: string) => {
+  const { useAICollabStore } = await import('../stores/aiCollab');
+  const collabStore = useAICollabStore();
+  
+  // Parse environment variables
+  let envVars: Record<string, string> | undefined;
+  if (data.envVars?.trim()) {
+    envVars = {};
+    const lines = data.envVars.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex > 0) {
+        const key = trimmed.substring(0, eqIndex).trim();
+        const value = trimmed.substring(eqIndex + 1).trim();
+        if (key) envVars[key] = value;
+      }
+    }
+    if (Object.keys(envVars).length === 0) envVars = undefined;
+  }
+  
+  // Handle new group creation
+  let targetGroupId = groupId;
+  if (groupId === '__new__' && newGroupName?.trim()) {
+    const newGroup = await taskManager.createUserGroup(newGroupName.trim());
+    targetGroupId = newGroup.id;
+  }
+  
+  // Update the session configuration if session exists
+  if (data.sessionId) {
+    await collabStore.updateSession(data.sessionId, {
+      projectPath: data.projectPath,
+      taskDirectory: `${data.projectPath}/.rebebuca/ai-collab/task.md`,
+      progressFile: `${data.projectPath}/.rebebuca/ai-collab/progress.json`,
+      chatHistoryFile: `${data.projectPath}/.rebebuca/ai-collab/chat-history.json`,
+      supervisor: {
+        id: 'supervisor',
+        role: 'supervisor',
+        type: data.supervisorType,
+        aiTool: data.supervisorType === 'ai-tool' ? data.supervisorAITool : undefined,
+        command: data.supervisorType === 'custom-cli' ? data.supervisorCommand : undefined,
+        cwd: data.projectPath,
+        env: envVars,
+      },
+      worker: {
+        id: 'worker',
+        role: 'worker',
+        type: data.workerType,
+        aiTool: data.workerType === 'ai-tool' ? data.workerAITool : undefined,
+        command: data.workerType === 'custom-cli' ? data.workerCommand : undefined,
+        cwd: data.projectPath,
+        env: envVars,
+      },
+      decisionTimeout: data.decisionTimeout,
+      autoDecision: data.decisionTimeout > 0,
+    });
+  }
+  
+  // Find the current group containing the task
+  const currentGroup = taskManager.userGroups.find(g => g.tasks.some(t => t.id === data.taskId));
+  const currentGroupId = currentGroup?.id;
+  
+  // Update the task
+  const updatedTask: Partial<Task> = {
+    name: data.sessionName,
+    cwd: data.projectPath,
+    env: envVars,
+    definition: {
+      sessionId: data.sessionId,
+      supervisorType: data.supervisorType,
+      supervisorAITool: data.supervisorAITool,
+      supervisorCommand: data.supervisorCommand,
+      workerType: data.workerType,
+      workerAITool: data.workerAITool,
+      workerCommand: data.workerCommand,
+      decisionTimeout: data.decisionTimeout,
+    },
+  };
+  
+  // If group changed, move the task
+  if (currentGroupId && currentGroupId !== targetGroupId) {
+    await taskManager.moveTaskToGroup(data.taskId, targetGroupId);
+  }
+  
+  // Update the task properties
+  await taskManager.updateTaskInGroup(data.taskId, updatedTask);
+};
+
 // Handle task visual edit
 const handleTaskEditVisual = (task: Task) => {
+  // Check if this is an AI collab task
+  if (task.type === 'ai-collab') {
+    const group = taskManager.userGroups.find(g => g.tasks.some(t => t.id === task.id));
+    aiCollabEditGroupId.value = group?.id || 'default';
+    editingAICollabTask.value = task;
+    showAICollabEditDialog.value = true;
+    return;
+  }
+  
   isEditMode.value = true;
   isUserTask.value = task.source === 'user';
   const group = taskManager.userGroups.find(g => g.tasks.some(t => t.id === task.id));

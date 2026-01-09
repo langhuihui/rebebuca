@@ -332,14 +332,14 @@ import { useTheme } from "../composables/useTheme";
 import { useSettingsStore } from "../stores/settings";
 import { useUpdaterStore } from "../stores/updater";
 import { useNotificationStore } from "../stores/notification";
-import { iconComponents, svgIcons } from "../utils/icons";
+import { svgIcons } from "../utils/icons";
 import {
   minimizeWindow,
   toggleMaximize,
   closeWindow,
   startDrag,
 } from "../utils/windowControls";
-import { getAdapter } from "../adapters";
+import "../adapters";
 
 interface Props {
   effectiveTheme: string;

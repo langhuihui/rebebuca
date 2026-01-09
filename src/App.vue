@@ -99,6 +99,7 @@ import { useRunConfigStore } from "./stores/runConfig";
 import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
 import { useUpdaterStore } from "./stores/updater";
+import { useFeatureFlagsStore } from "./stores/featureFlags";
 import TitleBar from "./components/TitleBar.vue";
 import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
@@ -132,6 +133,7 @@ const runConfigStore = useRunConfigStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
+const featureFlagsStore = useFeatureFlagsStore();
 
 // About dialog state
 const showAboutDialog = ref(false);
@@ -505,6 +507,9 @@ onMounted(async () => {
 
   // Get current version
   currentVersion.value = await updaterStore.getCurrentVersion();
+
+  // Initialize feature flags
+  await featureFlagsStore.initialize();
 
   // Listen for show-about-dialog event from Rust menu
   await appStore.safeListen("show-about-dialog", () => {

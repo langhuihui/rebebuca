@@ -216,7 +216,7 @@
       </n-form-item>
       
       <!-- SSH Remote Execution -->
-      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.useSsh')">
+      <n-form-item v-if="featureFlagsStore.flags.ssh && editingTask.type !== 'macro'" :label="t('task.useSsh')">
         <n-space align="center" :size="12">
           <n-switch v-model:value="editingTask.useSsh" />
           <n-select
@@ -241,7 +241,7 @@
       </n-form-item>
       
       <!-- SSH Connection Status -->
-      <n-form-item v-if="editingTask.useSsh && editingTask.sshConfigId && editingTask.type !== 'macro'">
+      <n-form-item v-if="featureFlagsStore.flags.ssh && editingTask.useSsh && editingTask.sshConfigId && editingTask.type !== 'macro'">
         <n-space align="center" :size="8">
           <n-tag
             :type="getSshStatusTagType(editingTask.sshConfigId)"
@@ -309,6 +309,7 @@ import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
 import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 import { useTaskManagerStore } from '../../../stores/taskManager';
 import { useSshStore } from '../../../stores/ssh';
+import { useFeatureFlagsStore } from '../../../stores/featureFlags';
 
 interface EditingTask {
   id: string;
@@ -353,6 +354,7 @@ const { t } = useI18n();
 const aiToolsStore = useAIToolsStore();
 const taskManager = useTaskManagerStore();
 const sshStore = useSshStore();
+const featureFlagsStore = useFeatureFlagsStore();
 
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');

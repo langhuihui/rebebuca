@@ -14,6 +14,8 @@ export { default as TaskSelectionDialog } from './TaskSelectionDialog.vue';
 export { default as RenameGroupDialog } from './RenameGroupDialog.vue';
 export { default as CommandPlazaDialog } from './CommandPlazaDialog.vue';
 export { default as AICollabCreateDialog } from './AICollabCreateDialog.vue';
+export { default as AICollabEditDialog } from './AICollabEditDialog.vue';
 
 export type { AddFolderFormData } from './AddFolderDialog.vue';
 export type { AICollabFormData } from './AICollabCreateDialog.vue';
+export type { AICollabEditFormData } from './AICollabEditDialog.vue';

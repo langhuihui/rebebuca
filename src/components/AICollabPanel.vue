@@ -162,7 +162,7 @@
           <div class="target-item">
             <n-checkbox value="supervisor" size="small">
               <div class="target-content">
-                <n-avatar size="tiny" :style="{ backgroundColor: '#722ed1' }">S</n-avatar>
+                <n-avatar :size="20" :style="{ backgroundColor: '#722ed1', fontSize: '10px' }">S</n-avatar>
                 <span>{{ t('aiCollab.supervisor') }}</span>
                 <n-tag v-if="session?.supervisor" :type="agentStatusType(session.supervisor.status)" size="tiny">
                   {{ agentStatusText(session.supervisor.status) }}
@@ -187,7 +187,7 @@
           >
             <n-checkbox :value="`worker-${index}`" size="small">
               <div class="target-content">
-                <n-avatar size="tiny" :style="{ backgroundColor: getWorkerColor(index) }">W{{ index + 1 }}</n-avatar>
+                <n-avatar :size="20" :style="{ backgroundColor: getWorkerColor(index), fontSize: '10px' }">W{{ index + 1 }}</n-avatar>
                 <span>{{ t('aiCollab.worker') }} #{{ index + 1 }}</span>
                 <n-tag :type="agentStatusType(worker.status)" size="tiny">
                   {{ agentStatusText(worker.status) }}
@@ -316,7 +316,7 @@
       <template #footer>
         <n-space justify="end">
           <n-button @click="showAgentConfigModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" @click="handleSaveAgentConfig">{{ t('common.save') }}</n-button>
+          <n-button type="primary" @click="handleLaunchAgent">{{ t('aiCollab.launchAgent') }}</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -330,7 +330,6 @@ import {
   NButtonGroup,
   NTag,
   NAvatar,
-  NBadge,
   NScrollbar,
   NEmpty,
   NText,
@@ -349,7 +348,6 @@ import {
   NRadio,
   NRadioGroup,
   NSelect,
-  NTooltip,
   NTabs,
   NTabPane,
   useMessage,
@@ -561,7 +559,11 @@ const scrollToBottom = () => {
   nextTick(() => {
     if (scrollbarRef.value) {
       // Use the NScrollbar's built-in scrollTo method to scroll to bottom
-      scrollbarRef.value.scrollTo({ position: 'bottom', behavior: 'smooth' });
+      // Use scrollbar container to scroll to bottom
+      const container = scrollbarRef.value.$el?.querySelector('.n-scrollbar-container');
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      }
     }
   });
 };
@@ -598,16 +600,6 @@ const handleStop = async () => {
   }
 };
 
-const handleRestartAgent = async (role: 'supervisor' | 'worker', workerIndex?: number) => {
-  try {
-    await collabStore.restartAgent(props.sessionId, role, workerIndex);
-    const label = role === 'supervisor' ? role : `worker #${(workerIndex ?? 0) + 1}`;
-    message.success(t('aiCollab.restartSuccess', { role: label }));
-  } catch (error) {
-    message.error(t('aiCollab.restartFailed', { error: String(error) }));
-  }
-};
-
 // 添加 Worker
 const handleAddWorker = async () => {
   // 打开配置对话框，使用默认配置
@@ -620,16 +612,6 @@ const handleAddWorker = async () => {
     cwd: '',
   };
   showAgentConfigModal.value = true;
-};
-
-// 移除 Worker
-const handleRemoveWorker = async (index: number) => {
-  try {
-    await collabStore.removeWorker(props.sessionId, index);
-    message.success(t('aiCollab.workerRemoved', { index: index + 1 }));
-  } catch (error) {
-    message.error(t('aiCollab.removeWorkerFailed', { error: String(error) }));
-  }
 };
 
 const handleSettings = () => {
@@ -691,66 +673,51 @@ const openAgentConfigModal = (role: AgentRole, workerIndex?: number) => {
   showAgentConfigModal.value = true;
 };
 
-// 保存 Agent 配置
-const handleSaveAgentConfig = async () => {
+// 启动 Agent（单独启动，不需要保存配置）
+const handleLaunchAgent = async () => {
   if (!session.value) return;
   
-  const newConfig: Partial<AgentConfig> = {
-    type: agentConfigForm.value.type,
-    role: currentAgentRole.value,
-  };
+  // 获取当前配置
+  const config = agentConfigForm.value;
+  const projectPath = session.value.config.projectPath;
   
-  if (agentConfigForm.value.type === 'ai-tool') {
-    newConfig.aiTool = agentConfigForm.value.aiTool;
-    newConfig.command = undefined;
-    newConfig.cwd = undefined;
+  // 构建命令
+  let command: string;
+  let taskEnv: Record<string, string> | undefined;
+  
+  if (config.type === 'ai-tool' && config.aiTool) {
+    // 使用 AI 工具启动器获取命令
+    const { createAIToolQuickLaunchTask } = await import('../utils/aiToolLauncher');
+    const toolConfig = aiToolsStore.toolConfigs[config.aiTool];
+    const task = createAIToolQuickLaunchTask(config.aiTool, toolConfig, config.cwd || projectPath);
+    command = task.command || '';
+    taskEnv = task.env;
   } else {
-    newConfig.command = agentConfigForm.value.command;
-    newConfig.cwd = agentConfigForm.value.cwd || undefined;
-    newConfig.aiTool = undefined;
+    command = config.command || '';
   }
   
-  // 更新会话配置
-  if (currentAgentRole.value === 'supervisor') {
-    session.value.config.supervisor = {
-      ...session.value.config.supervisor,
-      ...newConfig,
-    } as AgentConfig;
-  } else {
-    const idx = currentWorkerIndex.value ?? 0;
-    const isNewWorker = idx >= (session.value.workers?.length || 0);
+  if (!command) {
+    message.error(t('aiCollab.commandRequired'));
+    return;
+  }
+  
+  // 创建终端 tab 并启动 Agent
+  const { useTerminalStore } = await import('../stores/terminal');
+  const terminalStore = useTerminalStore();
+  
+  const tabName = currentAgentRole.value === 'supervisor' 
+    ? t('aiCollab.supervisor') 
+    : t('aiCollab.worker');
     
-    if (isNewWorker) {
-      // 添加新 Worker
-      const fullConfig: AgentConfig = {
-        id: `worker-${Date.now()}`,
-        role: 'worker',
-        type: agentConfigForm.value.type,
-        aiTool: agentConfigForm.value.type === 'ai-tool' ? agentConfigForm.value.aiTool : undefined,
-        command: agentConfigForm.value.type === 'custom-cli' ? agentConfigForm.value.command : undefined,
-        cwd: agentConfigForm.value.cwd || undefined,
-      };
-      
-      try {
-        await collabStore.addWorker(props.sessionId, fullConfig);
-        message.success(t('aiCollab.workerAdded'));
-      } catch (error) {
-        message.error(t('aiCollab.addWorkerFailed', { error: String(error) }));
-      }
-    } else {
-      // 更新现有 Worker 配置
-      if (!session.value.config.workers) {
-        session.value.config.workers = [session.value.config.worker];
-      }
-      session.value.config.workers[idx] = {
-        ...session.value.config.workers[idx],
-        ...newConfig,
-      } as AgentConfig;
-    }
-  }
+  await terminalStore.executeTask({
+    command,
+    cwd: config.cwd || projectPath,
+    env: taskEnv,
+    label: tabName,
+  });
   
   showAgentConfigModal.value = false;
-  message.success(t('aiCollab.settingsSaved'));
+  message.success(t('aiCollab.agentLaunched', { role: tabName }));
 };
 
 const handleSend = async () => {
@@ -849,11 +816,10 @@ const initAgentTerminal = async () => {
     agentTerminalFitAddon.fit();
     
     // 监听 PTY 输出
-    agentTerminalUnlisten = await adapter.terminal.onOutput(
-      currentAgentPtyId.value,
-      (data: string) => {
-        if (agentTerminal) {
-          agentTerminal.write(data);
+    agentTerminalUnlisten = adapter.terminal.onData(
+      (event: { ptyId: string; data: string }) => {
+        if (event.ptyId === currentAgentPtyId.value && agentTerminal) {
+          agentTerminal.write(event.data);
         }
       }
     );

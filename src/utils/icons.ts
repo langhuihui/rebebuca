@@ -139,17 +139,19 @@ export const iconComponents = {
     h('path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' })
   ]),
 
-  // 停止图标
-  stop: (isRunning: boolean = false) => createIconComponent([
-    h('rect', {
-      x: '5',
-      y: '5',
-      width: '16',
-      height: '16',
-      rx: '1',
-      fill: isRunning ? '#ef4444' : '#6b7280'
-    })
-  ])(),
+  // 停止图标 (带颜色参数)
+  stop: (isRunning: boolean = false) => {
+    return createIconComponent([
+      h('rect', {
+        x: '5',
+        y: '5',
+        width: '16',
+        height: '16',
+        rx: '1',
+        fill: isRunning ? '#ef4444' : '#6b7280'
+      })
+    ])();
+  },
 
   // 导出图标
   export: createIconComponent([
@@ -405,14 +407,10 @@ export const iconComponents = {
     h('line', { x1: '12', y1: '17', x2: '12.01', y2: '17' })
   ]),
 
-  // 播放图标
-  play: createIconComponent([
-    h('polygon', { points: '5 3 19 12 5 21 5 3' })
-  ]),
-
-  // 停止图标
-  stop: createIconComponent([
-    h('rect', { x: '3', y: '3', width: '18', height: '18', rx: '2', ry: '2' })
+  // 设置图标
+  settings: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '3' }),
+    h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' })
   ]),
 
   // 用户图标
@@ -670,6 +668,13 @@ export const svgIcons = {
   // 停止图标
   stop: createSvgIcon([
     h('rect', { x: '6', y: '6', width: '12', height: '12', rx: '1', fill: 'currentColor' }),
+  ]),
+
+  // 警告图标
+  warning: createSvgIcon([
+    h('path', { d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),
+    h('line', { x1: '12', y1: '9', x2: '12', y2: '13' }),
+    h('line', { x1: '12', y1: '17', x2: '12.01', y2: '17' })
   ]),
 
   // 外部链接/在文件管理器中打开

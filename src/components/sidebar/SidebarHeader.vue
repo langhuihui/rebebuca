@@ -77,22 +77,24 @@
           </n-tooltip>
 
           <!-- AI Collaboration button -->
-          <n-tooltip trigger="hover">
-            <template #trigger>
-              <n-button
-                size="small"
-                quaternary
-                @click="$emit('ai-collab')"
-              >
-                <template #icon>
-                  <n-icon size="16">
-                    <component :is="svgIcons.robot" />
-                  </n-icon>
-                </template>
-              </n-button>
-            </template>
-            {{ t('aiCollab.title') }}
-          </n-tooltip>
+          <template v-if="featureFlagsStore.flags.aiCollab">
+            <n-tooltip trigger="hover">
+              <template #trigger>
+                <n-button
+                  size="small"
+                  quaternary
+                  @click="$emit('ai-collab')"
+                >
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.robot" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              {{ t('aiCollab.title') }}
+            </n-tooltip>
+          </template>
         </n-space>
       </div>
     </div>
@@ -102,10 +104,12 @@
 <script setup lang="ts">
 import { NTooltip, NButton, NSpace, NIcon } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
-import { svgIcons, iconComponents } from '../../utils/icons';
+import { svgIcons } from '../../utils/icons';
 import { useUIStore } from '../../stores/ui';
+import { useFeatureFlagsStore } from '../../stores/featureFlags';
 
 const uiStore = useUIStore();
+const featureFlagsStore = useFeatureFlagsStore();
 
 defineProps<{
   effectiveTheme: string;

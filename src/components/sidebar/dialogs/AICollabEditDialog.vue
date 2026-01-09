@@ -20,7 +20,7 @@
   <n-modal
     :show="show"
     preset="card"
-    :title="t('aiCollab.createSession')"
+    :title="t('aiCollab.editSession')"
     style="width: 560px; max-width: 90vw;"
     :mask-closable="false"
     @update:show="$emit('update:show', $event)"
@@ -154,8 +154,8 @@
         <n-button size="small" @click="$emit('update:show', false)">
           {{ t('aiCollab.cancel') }}
         </n-button>
-        <n-button type="primary" size="small" :loading="isCreating" @click="handleCreate">
-          {{ t('aiCollab.create') }}
+        <n-button type="primary" size="small" :loading="isSaving" @click="handleSave">
+          {{ t('task.save') }}
         </n-button>
       </n-space>
     </template>
@@ -185,10 +185,11 @@ import {
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
 import { useAIToolsStore, AI_TOOL_METADATA, type AIToolType } from '../../../stores/aiTools';
-import { useTaskManagerStore } from '../../../stores/taskManager';
+import type { Task } from '../../../providers/types';
 
 const props = defineProps<{
   show: boolean;
+  task: Task | null;
   groupId: string;
   groupOptions: Array<{ label: string; value: string }>;
 }>();
@@ -196,10 +197,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:show', value: boolean): void;
   (e: 'update:groupId', groupId: string): void;
-  (e: 'confirm', data: AICollabFormData, groupId: string, newGroupName: string): void;
+  (e: 'confirm', data: AICollabEditFormData, groupId: string, newGroupName: string): void;
 }>();
 
-export interface AICollabFormData {
+export interface AICollabEditFormData {
+  taskId: string;
   projectPath: string;
   sessionName: string;
   supervisorType: 'ai-tool' | 'custom-cli';
@@ -210,17 +212,15 @@ export interface AICollabFormData {
   workerCommand?: string;
   decisionTimeout: number;
   envVars: string;
-  groupId?: string;
-  newGroupName?: string;
+  sessionId?: string;
 }
 
 const { t } = useI18n();
 const message = useMessage();
 const aiToolsStore = useAIToolsStore();
-const taskManager = useTaskManagerStore();
 
 const formRef = ref<FormInst | null>(null);
-const isCreating = ref(false);
+const isSaving = ref(false);
 const newGroupName = ref('');
 
 // 分组选择
@@ -234,7 +234,8 @@ const groupOptionsWithNew = computed(() => [
   { label: t('task.createNewGroup'), value: '__new__' },
 ]);
 
-const formData = ref<AICollabFormData>({
+const formData = ref<AICollabEditFormData>({
+  taskId: '',
   projectPath: '',
   sessionName: '',
   supervisorType: 'ai-tool',
@@ -245,6 +246,7 @@ const formData = ref<AICollabFormData>({
   workerCommand: '',
   decisionTimeout: 30,
   envVars: '',
+  sessionId: '',
 });
 
 // 表单验证规则
@@ -293,19 +295,14 @@ const handleSelectProjectPath = async () => {
     
     if (result && typeof result === 'string') {
       formData.value.projectPath = result;
-      // 自动生成会话名称
-      if (!formData.value.sessionName) {
-        const parts = result.split(/[/\\]/);
-        formData.value.sessionName = parts[parts.length - 1] || 'AI Collab';
-      }
     }
   } catch (error) {
-    console.error('[AICollabCreateDialog] Failed to select folder:', error);
+    console.error('[AICollabEditDialog] Failed to select folder:', error);
   }
 };
 
-// 创建会话
-const handleCreate = async () => {
+// 保存会话
+const handleSave = async () => {
   try {
     await formRef.value?.validate();
   } catch {
@@ -322,37 +319,46 @@ const handleCreate = async () => {
     return;
   }
 
-  isCreating.value = true;
+  isSaving.value = true;
   try {
     emit('confirm', { ...formData.value }, selectedGroupId.value, newGroupName.value);
     emit('update:show', false);
   } finally {
-    isCreating.value = false;
+    isSaving.value = false;
   }
 };
 
-// 监听显示状态，重置表单
-watch(() => props.show, (show) => {
-  if (show) {
+// 监听显示状态和任务变化，加载任务数据
+watch([() => props.show, () => props.task], ([show, task]) => {
+  if (show && task) {
     // 重置新分组名称
     newGroupName.value = '';
-    // 使用第一个文件夹作为默认项目路径
-    if (taskManager.folders.length > 0) {
-      formData.value.projectPath = taskManager.folders[0].path;
-      const parts = formData.value.projectPath.split(/[/\\]/);
-      formData.value.sessionName = parts[parts.length - 1] || 'AI Collab';
-    } else {
-      formData.value.projectPath = '';
-      formData.value.sessionName = '';
+    
+    // 从任务中加载数据
+    const definition = task.definition || {};
+    
+    // 解析环境变量
+    let envStr = '';
+    if (task.env) {
+      envStr = Object.entries(task.env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n');
     }
-    formData.value.supervisorType = 'ai-tool';
-    formData.value.supervisorAITool = 'claude-code';
-    formData.value.supervisorCommand = '';
-    formData.value.workerType = 'ai-tool';
-    formData.value.workerAITool = 'claude-code';
-    formData.value.workerCommand = '';
-    formData.value.decisionTimeout = 30;
-    formData.value.envVars = '';
+    
+    formData.value = {
+      taskId: task.id,
+      projectPath: task.cwd || '',
+      sessionName: task.name || '',
+      supervisorType: definition.supervisorType || 'ai-tool',
+      supervisorAITool: definition.supervisorAITool || 'claude-code',
+      supervisorCommand: definition.supervisorCommand || '',
+      workerType: definition.workerType || 'ai-tool',
+      workerAITool: definition.workerAITool || 'claude-code',
+      workerCommand: definition.workerCommand || '',
+      decisionTimeout: definition.decisionTimeout ?? 30,
+      envVars: envStr,
+      sessionId: definition.sessionId || '',
+    };
   }
-});
+}, { immediate: true });
 </script>
