@@ -22,3 +22,4 @@ export * from './types';
 // Export providers
 export { VSCodeTasksProvider, vscodeTasksProvider } from './vscodeTasksProvider';
 export { NpmScriptsProvider, npmScriptsProvider } from './npmScriptsProvider';
+export { ScriptsProvider, scriptsProvider } from './scriptsProvider';

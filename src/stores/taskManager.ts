@@ -29,6 +29,7 @@ import {
 } from '../providers/types';
 import { vscodeTasksProvider } from '../providers/vscodeTasksProvider';
 import { npmScriptsProvider } from '../providers/npmScriptsProvider';
+import { scriptsProvider } from '../providers/scriptsProvider';
 import { useTerminalStore } from './terminal';
 import { useRunConfigStore } from './runConfig';
 import { useSettingsStore } from './settings';
@@ -243,6 +244,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   const providers = shallowRef<TaskProvider[]>([
     vscodeTasksProvider,
     npmScriptsProvider,
+    scriptsProvider,
   ]);
   
   // Currently scanned folders
@@ -2211,6 +2213,8 @@ function getSourceLabel(source: TaskSource): string {
       return 'User Tasks';
     case 'workspace':
       return 'Workspace Tasks';
+    case 'script':
+      return 'Script Files';
     default:
       return source;
   }
@@ -2226,6 +2230,8 @@ function getSourceIcon(source: TaskSource): string {
       return 'user';
     case 'workspace':
       return 'folder';
+    case 'script':
+      return 'script';
     default:
       return 'task';
   }
