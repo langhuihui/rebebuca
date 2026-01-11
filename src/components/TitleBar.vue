@@ -484,7 +484,6 @@ import {
   minimizeWindow,
   toggleMaximize,
   closeWindow,
-  startDrag,
 } from "../utils/windowControls";
 import "../adapters";
 

@@ -16,6 +16,42 @@ export { default as CommandPlazaDialog } from './CommandPlazaDialog.vue';
 export { default as AICollabCreateDialog } from './AICollabCreateDialog.vue';
 export { default as AICollabEditDialog } from './AICollabEditDialog.vue';
 
-export type { AddFolderFormData } from './AddFolderDialog.vue';
-export type { AICollabFormData } from './AICollabCreateDialog.vue';
-export type { AICollabEditFormData } from './AICollabEditDialog.vue';
+import type { AIToolType } from '../../../stores/aiTools';
+
+// Re-export types inline
+export interface AddFolderFormData {
+  sourceFolder: string;
+  isImportMode: boolean;
+  targetGroupId: string;
+  newGroupName: string;
+}
+
+export interface AICollabFormData {
+  projectPath: string;
+  sessionName: string;
+  supervisorType: 'ai-tool' | 'custom-cli';
+  supervisorAITool?: AIToolType;
+  supervisorCommand?: string;
+  workerType: 'ai-tool' | 'custom-cli';
+  workerAITool?: AIToolType;
+  workerCommand?: string;
+  decisionTimeout: number;
+  envVars: string;
+  groupId?: string;
+  newGroupName?: string;
+}
+
+export interface AICollabEditFormData {
+  taskId: string;
+  projectPath: string;
+  sessionName: string;
+  supervisorType: 'ai-tool' | 'custom-cli';
+  supervisorAITool?: AIToolType;
+  supervisorCommand?: string;
+  workerType: 'ai-tool' | 'custom-cli';
+  workerAITool?: AIToolType;
+  workerCommand?: string;
+  decisionTimeout: number;
+  envVars: string;
+  sessionId?: string;
+}

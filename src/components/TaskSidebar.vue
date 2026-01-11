@@ -507,7 +507,6 @@ import {
   NTooltip,
   NIcon,
   NSpin,
-  useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../adapters';
@@ -531,8 +530,8 @@ import {
   RenameGroupDialog,
   AICollabCreateDialog,
   AICollabEditDialog,
-  type AICollabEditFormData,
 } from './sidebar/dialogs';
+import type { AddFolderFormData, AICollabFormData, AICollabEditFormData } from './sidebar/dialogs';
 
 const { t } = useI18n();
 const uiStore = useUIStore();
@@ -541,7 +540,6 @@ const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
-const message = useMessage();
 const { effectiveTheme } = useTheme();
 
 // Expanded nodes state

@@ -35,7 +35,6 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue';
 import { NSpace, NText, NButton, NIcon, NTooltip } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../../utils/icons';
