@@ -534,18 +534,18 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Get process stats for a running tab (only for task/shell tabs)
   const getTabProcessStats = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
-    if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running' || !tab.pid) {
+    if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running') {
       return null;
     }
     
     try {
       const adapterInstance = await getAdapterInstance();
-      const stats = await adapterInstance.system.getProcessInfo(tab.pid);
+      const stats = await adapterInstance.terminal.getProcessStats(tab.ptyId);
       
       if (!stats) return null;
       
-      const cpuUsage = stats.cpuUsage !== undefined ? `${stats.cpuUsage.toFixed(1)}%` : undefined;
-      const memoryUsage = stats.memoryUsage !== undefined ? `${(stats.memoryUsage / 1024 / 1024).toFixed(1)} MB` : undefined;
+      const cpuUsage = `${stats.cpuUsage.toFixed(1)}%`;
+      const memoryUsage = stats.memoryUsageMb;
       
       updateTabStats(tabId, { cpuUsage, memoryUsage, pid: stats.pid });
       

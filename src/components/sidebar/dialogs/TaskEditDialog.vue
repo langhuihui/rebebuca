@@ -748,8 +748,14 @@ watch(() => editingTask.value.type, (newType, oldType) => {
 
 // Watch execution mode changes to sync dependsOn/subTasks
 watch(() => editingTask.value.executionMode, (newMode, oldMode) => {
+  // Skip if this is initial setup (oldMode is undefined) - data is already correctly set
+  if (oldMode === undefined) {
+    return;
+  }
+  
   if (editingTask.value.type === 'macro' && newMode !== oldMode) {
-    const currentIds = newMode === 'parallel' 
+    // When switching modes, transfer the task IDs from the old field to the new field
+    const currentIds = oldMode === 'parallel' 
       ? (editingTask.value.subTasks || [])
       : (editingTask.value.dependsOn || []);
     

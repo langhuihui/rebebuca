@@ -59,6 +59,39 @@
                 <component :is="getTabIcon(tab)" />
               </span>
               <span class="tab-label">{{ getTabLabel(tab) }}</span>
+              <!-- Tab action buttons (only for active task/shell tabs) -->
+              <span 
+                v-if="terminalStore.activeTabId === tab.id && (tab.type === 'task' || tab.type === 'shell')" 
+                class="tab-actions"
+                @click.stop
+              >
+                <!-- Stop button (only when running) -->
+                <span
+                  v-if="tab.status === 'running'"
+                  class="tab-action-btn"
+                  :title="t('console.stop')"
+                  @click="handleStopTask"
+                >
+                  <component :is="iconComponents.stop(true)" />
+                </span>
+                <!-- Restart button (only for task type) -->
+                <span
+                  v-if="tab.type === 'task'"
+                  class="tab-action-btn"
+                  :title="t('console.restart')"
+                  @click="handleRestartTask"
+                >
+                  <component :is="iconComponents.replay" />
+                </span>
+                <!-- Clear button -->
+                <span
+                  class="tab-action-btn"
+                  :title="t('console.clear')"
+                  @click="handleClearTerminal"
+                >
+                  <component :is="iconComponents.clear" />
+                </span>
+              </span>
               <span 
                 class="tab-close" 
                 @click.stop="closeTab(tab.id)"
@@ -102,40 +135,6 @@
         
         <!-- Terminal tabs (task or shell) - Always render terminals, use v-show to preserve instances -->
         <div v-show="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')" class="terminal-tab-content">
-          <!-- Terminal toolbar (only for task/shell tabs) -->
-          <n-space v-if="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')" class="console-toolbar" size="small">
-            <!-- 停止按钮 (仅运行中显示) -->
-            <n-button
-              v-if="terminalStore.activeTab.status === 'running'"
-              size="small"
-              text
-              @click="handleStopTask"
-            >
-              <template #icon>
-                <component :is="iconComponents.stop(true)" />
-              </template>
-            </n-button>
-
-            <!-- 重启按钮 (仅任务类型显示) -->
-            <n-button
-              v-if="terminalStore.activeTab.type === 'task'"
-              size="small"
-              text
-              @click="handleRestartTask"
-            >
-              <template #icon>
-                <component :is="iconComponents.replay" />
-              </template>
-            </n-button>
-
-            <!-- 清空按钮 -->
-            <n-button size="small" text @click="handleClearTerminal">
-              <template #icon>
-                <component :is="iconComponents.clear" />
-              </template>
-            </n-button>
-          </n-space>
-
           <!-- Terminal view - render all terminal tabs, show only active one -->
           <!-- IMPORTANT: Always render terminals (even when settings tab is active) to preserve instances -->
           <div 
@@ -153,6 +152,30 @@
               @dragover.prevent
               @drop="handleDropOnTab($event, tab.id)"
             >
+              <!-- Split mode tab bar -->
+              <div v-if="terminalStore.isSplitMode" class="split-tab-bar">
+                <n-scrollbar x-scrollable class="split-tabs-scrollbar">
+                  <div class="split-tabs-container">
+                    <div
+                      v-for="availableTab in getAvailableTabsForSplit(tab.id)"
+                      :key="availableTab.id"
+                      class="split-tab"
+                      :class="{ 
+                        active: availableTab.id === tab.id,
+                        running: availableTab.status === 'running',
+                        success: availableTab.status === 'success',
+                        error: availableTab.status === 'error'
+                      }"
+                      @click.stop="handleSplitTabChange(tab.id, availableTab.id)"
+                    >
+                      <span class="split-tab-icon">
+                        <component :is="getTabIcon(availableTab)" />
+                      </span>
+                      <span class="split-tab-label">{{ getTabLabel(availableTab) }}</span>
+                    </div>
+                  </div>
+                </n-scrollbar>
+              </div>
               <TerminalView
                 :pty-id="tab.ptyId"
                 :theme="effectiveTheme"
@@ -176,7 +199,7 @@
                 @dragover.prevent
                 @drop="handleDropOnSplit($event, index)"
               >
-                <n-text depth="3">Drop Tab Here</n-text>
+                <n-text depth="3">+</n-text>
               </div>
             </template>
           </div>
@@ -288,6 +311,37 @@ const getSplitStyle = (index: number) => {
     gridRow: row,
     gridColumn: col
   };
+};
+
+// Get available tabs for a split position (exclude tabs shown in other splits)
+const getAvailableTabsForSplit = (currentTabId: string): TerminalTab[] => {
+  const terminalTabs = terminalStore.tabs.filter(t => t.type === 'task' || t.type === 'shell');
+  const otherSplitTabs = terminalStore.splitTabs.filter(id => id && id !== currentTabId);
+  
+  return terminalTabs.filter(tab => tab.id === currentTabId || !otherSplitTabs.includes(tab.id));
+};
+
+// Handle split tab selection change
+const handleSplitTabChange = (currentTabId: string, newTabId: string) => {
+  if (newTabId === currentTabId) {
+    // Just activate this tab
+    terminalStore.setActiveTab(newTabId);
+    nextTick(() => {
+      const termRef = terminalRefs.value.get(newTabId);
+      if (termRef) termRef.focus();
+    });
+    return;
+  }
+  
+  const splitIndex = terminalStore.splitTabs.indexOf(currentTabId);
+  if (splitIndex !== -1) {
+    terminalStore.setSplitTab(splitIndex, newTabId);
+    terminalStore.setActiveTab(newTabId);
+    nextTick(() => {
+      const termRef = terminalRefs.value.get(newTabId);
+      if (termRef) termRef.focus();
+    });
+  }
 };
 
 const handleSplitClick = (tabId: string) => {
@@ -760,6 +814,7 @@ const onTerminalError = (error: string) => {
 .terminal-tab.active {
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
+  max-width: none; /* Allow active tab to expand for action buttons */
 }
 
 .terminal-tab.running .tab-icon {
@@ -783,6 +838,36 @@ const onTerminalError = (error: string) => {
 .tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Tab action buttons */
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.tab-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.15s ease;
+}
+
+.tab-action-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.tab-action-btn svg {
+  width: 12px;
+  height: 12px;
 }
 
 .tab-close {
@@ -894,6 +979,18 @@ const onTerminalError = (error: string) => {
   color: rgba(0, 0, 0, 0.65);
 }
 
+/* Light theme for tab action buttons */
+:global(.n-config-provider--light) .tab-action-btn,
+.console-area.light-theme .tab-action-btn {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+:global(.n-config-provider--light) .tab-action-btn:hover,
+.console-area.light-theme .tab-action-btn:hover {
+  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.08);
+}
+
 /* History output styles */
 .history-output-wrapper {
   flex: 1;
@@ -961,6 +1058,79 @@ const onTerminalError = (error: string) => {
   box-sizing: border-box;
   border: 1px solid transparent;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Split mode tab bar */
+.split-tab-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  height: 28px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.split-tabs-scrollbar {
+  flex: 1;
+  height: 100%;
+}
+
+.split-tabs-container {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+}
+
+.split-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.split-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.split-tab.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.split-tab.running .split-tab-icon {
+  color: #00d084;
+}
+
+.split-tab.success .split-tab-icon {
+  color: #52c41a;
+}
+
+.split-tab.error .split-tab-icon {
+  color: #ff4d4f;
+}
+
+.split-tab-icon {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.split-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Split mode active glow effect */
@@ -974,6 +1144,28 @@ const onTerminalError = (error: string) => {
 :global(.n-config-provider--light) .terminal-view-wrapper,
 .console-area.light-theme .terminal-view-wrapper {
   background-color: #ffffff;
+}
+
+:global(.n-config-provider--light) .split-tab-bar,
+.console-area.light-theme .split-tab-bar {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+:global(.n-config-provider--light) .split-tab,
+.console-area.light-theme .split-tab {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+:global(.n-config-provider--light) .split-tab:hover,
+.console-area.light-theme .split-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+:global(.n-config-provider--light) .split-tab.active,
+.console-area.light-theme .split-tab.active {
+  background: rgba(0, 0, 0, 0.08);
+  color: #000000;
 }
 
 :global(.n-config-provider--light) .terminal-view-wrapper.split-active,

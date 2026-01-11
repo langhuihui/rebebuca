@@ -872,9 +872,52 @@ html, body, #app, .n-layout, .n-layout-content {
 }
 
 .console-toolbar {
-  padding: 12px 16px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.1);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.8;
+  }
+}
+
+// Light theme
+.light-theme {
+  .console-toolbar {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.02);
+  }
+  
+  .toolbar-stat {
+    color: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.04);
+  }
 }
 
 .history-main-row {

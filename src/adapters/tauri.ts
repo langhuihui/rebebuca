@@ -138,6 +138,31 @@ class TauriTerminalAdapter implements TerminalAdapter {
     }
   }
 
+  async getProcessStats(ptyId: string): Promise<import('./types').PtyProcessStats | null> {
+    await loadTauriModules();
+    try {
+      const stats = await tauriCore!.invoke<{
+        pty_id: string;
+        pid: number;
+        cpu_usage: number;
+        memory_usage: number;
+        memory_usage_mb: string;
+      }>('get_pty_process_stats', { ptyId });
+      
+      if (!stats) return null;
+      
+      return {
+        ptyId: stats.pty_id,
+        pid: stats.pid,
+        cpuUsage: stats.cpu_usage,
+        memoryUsage: stats.memory_usage,
+        memoryUsageMb: stats.memory_usage_mb,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   onData(callback: (event: TerminalDataEvent) => void): () => void {
     const id = Math.random().toString(36).slice(2);
     let unlisten: (() => void) | null = null;

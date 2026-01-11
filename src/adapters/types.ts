@@ -92,6 +92,15 @@ export interface ShellInfo {
   is_default: boolean;
 }
 
+// PTY Process Stats types
+export interface PtyProcessStats {
+  ptyId: string;
+  pid: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  memoryUsageMb: string;
+}
+
 /**
  * Terminal Adapter Interface
  */
@@ -102,6 +111,7 @@ export interface TerminalAdapter {
   kill(ptyId: string): Promise<void>;
   forceKill(ptyId: string): Promise<void>;
   isRunning(ptyId: string): Promise<boolean>;
+  getProcessStats(ptyId: string): Promise<PtyProcessStats | null>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
 }

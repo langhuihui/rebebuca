@@ -266,6 +266,18 @@ class MockTerminalAdapter implements TerminalAdapter {
     return activeTerminals.has(ptyId);
   }
 
+  async getProcessStats(ptyId: string): Promise<import('./types').PtyProcessStats | null> {
+    if (!activeTerminals.has(ptyId)) return null;
+    // Return mock data for demo
+    return {
+      ptyId,
+      pid: 12345,
+      cpuUsage: Math.random() * 10,
+      memoryUsage: Math.random() * 100 * 1024 * 1024,
+      memoryUsageMb: `${(Math.random() * 100).toFixed(1)}MB`,
+    };
+  }
+
   onData(callback: (event: TerminalDataEvent) => void): () => void {
     // Add callback to all active terminals
     activeTerminals.forEach(terminal => {

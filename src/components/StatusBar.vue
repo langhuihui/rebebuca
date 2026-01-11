@@ -62,6 +62,25 @@
       <template v-if="terminalStore.activeTab">
         <!-- Only show status info for task/shell tabs -->
         <template v-if="terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell'">
+          <!-- Process stats (only when running) -->
+          <template v-if="terminalStore.activeTab.status === 'running'">
+            <span v-if="terminalStore.activeTab.cpuUsage" class="status-item process-stat">
+              <component :is="svgIcons.cpu" />
+              {{ terminalStore.activeTab.cpuUsage }}
+            </span>
+            <span v-if="terminalStore.activeTab.memoryUsage" class="status-item process-stat">
+              <component :is="svgIcons.memory" />
+              {{ terminalStore.activeTab.memoryUsage }}
+            </span>
+            <span class="status-item process-stat">
+              <component :is="svgIcons.clock" />
+              {{ formattedRuntime }}
+            </span>
+            <span v-if="terminalStore.activeTab.pid" class="status-item process-stat">
+              PID: {{ terminalStore.activeTab.pid }}
+            </span>
+          </template>
+
           <!-- Exit code (when not running) -->
           <span 
             v-if="terminalStore.activeTab.status !== 'running'" 
@@ -70,21 +89,6 @@
           >
             Exit: {{ terminalStore.activeTab.status === 'success' ? '0' : (terminalStore.activeTab.exitCode ?? 'N/A') }}
           </span>
-
-          <!-- Process stats (when running) -->
-          <template v-if="terminalStore.activeTab.status === 'running'">
-            <span v-if="terminalStore.activeTab.cpuUsage" class="status-item cpu">
-              <component :is="svgIcons.cpu" />
-              {{ terminalStore.activeTab.cpuUsage }}
-            </span>
-            <span v-if="terminalStore.activeTab.memoryUsage" class="status-item memory">
-              <component :is="svgIcons.memory" />
-              {{ terminalStore.activeTab.memoryUsage }}
-            </span>
-            <span v-if="terminalStore.activeTab.pid" class="status-item pid">
-              PID: {{ terminalStore.activeTab.pid }}
-            </span>
-          </template>
 
           <!-- Tab type indicator -->
           <span class="status-item tab-type">
@@ -99,17 +103,52 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTerminalStore } from '../stores/terminal';
 import { useTaskManagerStore } from '../stores/taskManager';
 import { useTheme } from '../composables/useTheme';
-import { iconComponents, createSvgIcon } from '../utils/icons';
+import { iconComponents, svgIcons } from '../utils/icons';
 
 const { t } = useI18n();
 const terminalStore = useTerminalStore();
 const taskManager = useTaskManagerStore();
 const { effectiveTheme } = useTheme();
+
+// Runtime ticker for real-time duration update
+const currentTime = ref(Date.now());
+let runtimeInterval: ReturnType<typeof setInterval> | null = null;
+
+// Computed: formatted runtime for active running task
+const formattedRuntime = computed(() => {
+  const tab = terminalStore.activeTab;
+  if (!tab || tab.status !== 'running' || !tab.startTime) return '--:--';
+  
+  const elapsed = currentTime.value - tab.startTime;
+  const totalSeconds = Math.floor(elapsed / 1000);
+  const seconds = totalSeconds % 60;
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+});
+
+onMounted(() => {
+  // Start runtime ticker (every second)
+  runtimeInterval = setInterval(() => {
+    currentTime.value = Date.now();
+  }, 1000);
+});
+
+onUnmounted(() => {
+  if (runtimeInterval) {
+    clearInterval(runtimeInterval);
+    runtimeInterval = null;
+  }
+});
 
 // Get task location (group name or folder name)
 const taskLocation = computed(() => {
@@ -140,29 +179,6 @@ const taskLocation = computed(() => {
   
   return null;
 });
-
-// Custom SVG icons for status bar
-const svgIcons = {
-  cpu: createSvgIcon([
-    h('rect', { x: '4', y: '4', width: '16', height: '16', rx: '2', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('rect', { x: '9', y: '9', width: '6', height: '6', fill: 'currentColor' }),
-    h('line', { x1: '9', y1: '1', x2: '9', y2: '4', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '15', y1: '1', x2: '15', y2: '4', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '9', y1: '20', x2: '9', y2: '23', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '15', y1: '20', x2: '15', y2: '23', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '20', y1: '9', x2: '23', y2: '9', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '20', y1: '15', x2: '23', y2: '15', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '1', y1: '9', x2: '4', y2: '9', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '1', y1: '15', x2: '4', y2: '15', stroke: 'currentColor', 'stroke-width': '1.5' }),
-  ]),
-  memory: createSvgIcon([
-    h('rect', { x: '3', y: '6', width: '18', height: '12', rx: '1', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '7', y1: '10', x2: '7', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '11', y1: '10', x2: '11', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '15', y1: '10', x2: '15', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
-    h('line', { x1: '19', y1: '10', x2: '19', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
-  ]),
-};
 </script>
 
 <style scoped>
@@ -270,23 +286,6 @@ const svgIcons = {
   white-space: nowrap;
 }
 
-.status-item svg {
-  width: 12px;
-  height: 12px;
-}
-
-.status-item.cpu {
-  color: #36cfc9;
-}
-
-.status-item.memory {
-  color: #9254de;
-}
-
-.status-item.pid {
-  color: rgba(255, 255, 255, 0.6);
-}
-
 .status-item.exit-code {
   font-weight: 500;
 }
@@ -304,6 +303,18 @@ const svgIcons = {
 .status-item.tab-type {
   color: rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.status-item.process-stat {
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  padding: 0;
+}
+
+.status-item.process-stat svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
 }
 
 /* Light theme */
@@ -334,15 +345,16 @@ const svgIcons = {
   background: rgba(0, 0, 0, 0.06);
 }
 
-:global(.n-config-provider--light) .status-item.pid,
-.status-bar.light-theme .status-item.pid {
-  color: rgba(0, 0, 0, 0.45);
-}
-
 :global(.n-config-provider--light) .status-item.tab-type,
 .status-bar.light-theme .status-item.tab-type {
   color: rgba(0, 0, 0, 0.4);
   background: rgba(0, 0, 0, 0.04);
+}
+
+:global(.n-config-provider--light) .status-item.process-stat,
+.status-bar.light-theme .status-item.process-stat {
+  color: rgba(0, 0, 0, 0.5);
+  background: transparent;
 }
 
 :global(.n-config-provider--light) .status-indicator.running .pulse-dot,
