@@ -101,7 +101,7 @@ const dateLocale = computed(() =>
 );
 
 // Version & Download URLs
-const currentVersion = ref("v0.2.2");
+const currentVersion = ref("v0.4.6");
 const macosUrl = ref("");
 const windowsUrl = ref("");
 
@@ -377,6 +377,12 @@ const WebsiteContentInner = defineComponent({
       `${t("website.features.ui.title")}`,
       `  ${t("website.features.ui.desc")}`,
       ``,
+      `${t("task.portManagement")}`,
+      `  查看和管理系统端口占用，一键终止进程`,
+      ``,
+      `${t("settings.aiTools")}`,
+      `  集成多种 AI 编程工具，支持自定义配置`,
+      ``,
       `[Done] Process exited with code 0`,
     ]);
 
@@ -388,7 +394,7 @@ const WebsiteContentInner = defineComponent({
       `  Frontend:`,
       `    - Vue 3.5 (Composition API)`,
       `    - TypeScript 5.6`,
-      `    - Vite 6.0`,
+      `    - Vite 7.x`,
       `    - Naive UI`,
       `    - Xterm.js`,
       ``,
@@ -401,7 +407,9 @@ const WebsiteContentInner = defineComponent({
       `    - Multi-platform (macOS, Windows, Linux)`,
       `    - Native performance`,
       `    - Small bundle size (~15MB)`,
-      `    - AI task generation (Ollama, OpenAI, Claude)`,
+      `    - AI Tools Integration (Claude Code, Codex, Gemini CLI...)`,
+      `    - Port Management`,
+      `    - Command Plaza`,
       ``,
       `[Done] Process exited with code 0`,
     ]);
@@ -818,34 +826,34 @@ const WebsiteContentInner = defineComponent({
       });
       
       // Demo data for other tabs
-      const currentVersion = ref("0.3.1");
+      const currentVersion = ref("0.4.6");
       const updateChecked = ref(false);
       const updateAvailable = ref(false);
       const checkingUpdate = ref(false);
       const releaseNotes = ref([
         {
-          tag: "v0.3.1",
-          date: "2025-01-07",
-          body: "✨ 新增端口管理功能\n✨ 新增设置标签页\n✨ 增强终端交互体验\n🐛 修复多个已知问题\n🔧 性能优化",
+          tag: "v0.4.6",
+          date: "2025-01-11",
+          body: "🐛 修复 TypeScript 编译错误\n🔧 修复重复图标定义问题\n✨ 优化类型导出",
+        },
+        {
+          tag: "v0.4.5",
+          date: "2025-01-10",
+          body: "✨ 新增控制台输出区域\n✨ 优化侧边栏布局\n✨ 新增标题栏操作按钮\n🐛 修复终端样式问题",
+        },
+        {
+          tag: "v0.4.0",
+          date: "2025-01-05",
+          body: "✨ 新增 AI 工具集成面板\n✨ 支持多种 AI 编程工具配置\n✨ 新增命令广场功能\n🔧 改进设置界面",
         },
         {
           tag: "v0.3.0",
           date: "2025-01-01",
-          body: "🎉 首个正式版本发布\n✨ 支持多平台（macOS、Windows、Linux）\n✨ 支持任务管理\n✨ 支持 AI 任务生成\n✨ 支持端口管理\n✨ 支持命令图标自定义",
-        },
-        {
-          tag: "v0.2.2",
-          date: "2024-12-25",
-          body: "✨ 新增 AI 工具集成\n✨ 新增开发日志查看器\n✨ 改进设置界面\n🐛 修复终端输出问题\n🔧 优化内存使用",
-        },
-        {
-          tag: "v0.2.1",
-          date: "2024-12-15",
-          body: "✨ 新增任务分组功能\n✨ 新增最近运行任务\n✨ 支持 VS Code 任务导入\n🐛 修复文件路径问题\n🔧 改进错误处理",
+          body: "🎉 首个正式版本发布\n✨ 支持多平台（macOS、Windows、Linux）\n✨ 支持任务管理\n✨ 支持端口管理\n✨ 支持命令图标自定义",
         },
         {
           tag: "v0.2.0",
-          date: "2024-12-01",
+          date: "2024-12-15",
           body: "✨ 新增多标签页支持\n✨ 新增历史记录功能\n✨ 新增任务搜索功能\n✨ 改进 UI 设计\n🐛 修复多个 bug",
         },
         {
