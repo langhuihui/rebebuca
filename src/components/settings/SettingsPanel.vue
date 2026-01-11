@@ -78,9 +78,32 @@
             />
             <span class="setting-hint">{{ t('settings.preferredShellHint') }}</span>
           </n-form-item>
+
+          <n-divider />
+
+          <n-form-item :label="t('task.title')">
+            <n-space>
+               <n-button @click="handleImportTasks" size="small">
+                 <template #icon>
+                   <n-icon>
+                     <component :is="svgIcons.import" />
+                   </n-icon>
+                 </template>
+                 {{ t('import.importButton') }}
+               </n-button>
+               <n-button @click="handleExportTasks" size="small">
+                 <template #icon>
+                   <n-icon>
+                     <component :is="svgIcons.export" />
+                   </n-icon>
+                 </template>
+                 {{ t('export.menu') }}
+               </n-button>
+            </n-space>
+          </n-form-item>
         </n-form>
       </n-tab-pane>
-      
+
       <n-tab-pane name="security" :tab="t('settings.security')">
         <n-form label-placement="left" label-width="auto" class="compact-settings-form">
           <template v-if="currentPlatform !== 'windows'">
@@ -112,7 +135,7 @@
           </template>
         </n-form>
       </n-tab-pane>
-      
+
       <n-tab-pane name="logs" :tab="t('settings.logs')">
         <n-form label-placement="left" label-width="auto" class="compact-settings-form">
           <n-form-item :label="t('settings.saveLogs')">
@@ -283,9 +306,11 @@ import {
   useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
+import { saveAs } from 'file-saver';
 import { useSettingsStore } from '../../stores/settings';
 import { useUpdaterStore } from '../../stores/updater';
 import { useRunConfigStore } from '../../stores/runConfig';
+import { useTaskManagerStore } from '../../stores/taskManager';
 import { useLocale } from '../../composables/useLocale';
 import { getAdapter, isTauri } from '../../adapters';
 import { useFeatureFlagsStore, isDevelopmentMode } from '../../stores/featureFlags';
@@ -311,8 +336,9 @@ const message = useMessage();
 const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const runConfigStore = useRunConfigStore();
-const { localeMode, getLocalizedOptions, setLocale } = useLocale();
+const taskManager = useTaskManagerStore();
 const featureFlagsStore = useFeatureFlagsStore();
+const { localeMode, getLocalizedOptions, setLocale } = useLocale();
 
 const activeTab = ref(props.initialTab || 'general');
 const currentVersion = ref('');
@@ -452,6 +478,82 @@ const downloadUpdate = async () => {
     await updaterStore.downloadAndInstall();
   } catch (error) {
     console.error('Update failed:', error);
+  }
+};
+
+// Handle export tasks
+const handleExportTasks = async () => {
+  try {
+    const json = await taskManager.exportUserGroups();
+    const adapter = await getAdapter();
+    
+    // Check if in Tauri environment
+    if (adapter.dialog.saveFile) {
+        // Use native save dialog
+        const filePath = await adapter.dialog.saveFile({
+             title: t('export.title'),
+             defaultPath: t('export.filename'),
+             filters: [{ name: 'JSON', extensions: ['json'] }]
+        });
+        
+        if (filePath) {
+            await adapter.fs.writeTextFile(filePath, json);
+            message.success(t('export.success'));
+        }
+    } else {
+        // Fallback to web download
+        const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+        saveAs(blob, t('export.filename'));
+        message.success(t('export.success'));
+    }
+  } catch (error) {
+    console.error('Export failed:', error);
+    message.error(t('export.failed'));
+  }
+};
+
+// Handle import tasks
+const handleImportTasks = async () => {
+  try {
+    const adapter = await getAdapter();
+    // Try to use native file dialog if available
+    try {
+      const selected = await adapter.dialog.selectFile({
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      
+      if (selected) {
+        const content = await adapter.fs.readTextFile(selected);
+        await taskManager.importUserGroups(content, 'merge');
+        message.success(t('import.success'));
+      }
+    } catch {
+      // Fallback for web or if dialog fails
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async (e: any) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const content = e.target?.result as string;
+          try {
+            await taskManager.importUserGroups(content, 'merge');
+            message.success(t('import.success'));
+          } catch (err) {
+            console.error('Import failed:', err);
+            message.error(t('import.failed'));
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+  } catch (error) {
+    console.error('Import failed:', error);
+    message.error(t('import.failed'));
   }
 };
 

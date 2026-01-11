@@ -153,13 +153,6 @@ export const iconComponents = {
     ])();
   },
 
-  // 导出图标
-  export: createIconComponent([
-    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
-    h('polyline', { points: '7 10 12 15 17 10' }),
-    h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })
-  ]),
-
   // 滚动到底部图标
   scrollToBottom: createIconComponent([
     h('path', { d: 'M12 5v14' }),
@@ -294,6 +287,26 @@ export const iconComponents = {
   // 文件夹打开图标
   folderOpen: createIconComponent([
     h('path', { d: 'M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9L12 6h7a2 2 0 0 1 2 2v2' })
+  ]),
+
+  // 导入图标 (向上箭头/上传)
+  import: createIconComponent([
+    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+    h('polyline', { points: '17 8 12 3 7 8' }),
+    h('line', { x1: '12', y1: '3', x2: '12', y2: '15' })
+  ]),
+
+  // 导出图标 (向下箭头/下载)
+  export: createIconComponent([
+    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+    h('polyline', { points: '7 10 12 15 17 10' }),
+    h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })
+  ]),
+
+  // 设置图标
+  settings: createIconComponent([
+    h('circle', { cx: '12', cy: '12', r: '3' }),
+    h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' })
   ]),
 
   // 加号图标
@@ -528,6 +541,12 @@ export const svgIcons = {
   ]),
 
   import: createSvgIcon([
+    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+    h('polyline', { points: '7 10 12 15 17 10' }),
+    h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })
+  ]),
+
+  export: createSvgIcon([
     h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
     h('polyline', { points: '17 8 12 3 7 8' }),
     h('line', { x1: '12', y1: '3', x2: '12', y2: '15' })

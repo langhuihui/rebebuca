@@ -780,6 +780,11 @@ const setupKeyboardShortcuts = () => {
   
   // Add custom key handler for shortcuts
   terminal.attachCustomKeyEventHandler((event) => {
+    // Only handle keydown events
+    if (event.type !== 'keydown') {
+      return true;
+    }
+
     // Cmd+F (Mac) or Ctrl+F (Windows/Linux) - open search
     if ((event.metaKey || event.ctrlKey) && event.key === 'f') {
       event.preventDefault();
@@ -794,7 +799,7 @@ const setupKeyboardShortcuts = () => {
     }
     
     // Cmd/Ctrl+Up - navigate to previous command
-    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowUp' && event.type === 'keydown') {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowUp') {
       if (shellIntegration?.navigateToPreviousCommand()) {
         event.preventDefault();
         return false;
@@ -802,11 +807,41 @@ const setupKeyboardShortcuts = () => {
     }
     
     // Cmd/Ctrl+Down - navigate to next command
-    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowDown' && event.type === 'keydown') {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowDown') {
       if (shellIntegration?.navigateToNextCommand()) {
         event.preventDefault();
         return false;
       }
+    }
+    
+    // Ctrl+V - paste from clipboard
+    if ((event.ctrlKey) && event.key === 'v') {
+      event.preventDefault();
+      // Use navigator.clipboard API to paste
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then((text) => {
+          if (text && terminal) {
+            terminal.write(text);
+          }
+        }).catch((err) => {
+          console.warn('Failed to read clipboard:', err);
+        });
+      }
+      return false;
+    }
+    
+    // Shift+Insert - paste (alternative)
+    if (event.shiftKey && event.key === 'Insert') {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then((text) => {
+          if (text && terminal) {
+            terminal.write(text);
+          }
+        }).catch((err) => {
+          console.warn('Failed to read clipboard:', err);
+        });
+      }
+      return false;
     }
     
     return true;

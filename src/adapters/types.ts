@@ -131,6 +131,11 @@ export interface DialogAdapter {
   }): Promise<string | null>;
   showMessage(options: { title: string; message: string; type?: 'info' | 'warning' | 'error' }): Promise<void>;
   confirm(options: { title: string; message: string }): Promise<boolean>;
+  saveFile(options?: { 
+    title?: string;
+    defaultPath?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }): Promise<string | null>;
 }
 
 /**

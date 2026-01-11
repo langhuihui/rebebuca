@@ -40,26 +40,32 @@ let tauriDialog: typeof import('@tauri-apps/plugin-dialog') | null = null;
 let tauriStore: typeof import('@tauri-apps/plugin-store') | null = null;
 let tauriOs: typeof import('@tauri-apps/plugin-os') | null = null;
 let tauriOpener: typeof import('@tauri-apps/plugin-opener') | null = null;
+let tauriShell: typeof import('@tauri-apps/plugin-shell') | null = null;
 let tauriProcess: typeof import('@tauri-apps/plugin-process') | null = null;
 let tauriNotification: typeof import('@tauri-apps/plugin-notification') | null = null;
 let tauriUpdater: typeof import('@tauri-apps/plugin-updater') | null = null;
 
 // Store instance cache
 let storeInstance: any = null;
+let loadingPromise: Promise<void> | null = null;
 
 async function loadTauriModules() {
-  if (!tauriCore) {
-    tauriCore = await import('@tauri-apps/api/core');
-    tauriEvent = await import('@tauri-apps/api/event');
-    tauriFs = await import('@tauri-apps/plugin-fs');
-    tauriDialog = await import('@tauri-apps/plugin-dialog');
-    tauriStore = await import('@tauri-apps/plugin-store');
-    tauriOs = await import('@tauri-apps/plugin-os');
-    tauriOpener = await import('@tauri-apps/plugin-opener');
-    tauriProcess = await import('@tauri-apps/plugin-process');
-    tauriNotification = await import('@tauri-apps/plugin-notification');
-    tauriUpdater = await import('@tauri-apps/plugin-updater');
+  if (!loadingPromise) {
+    loadingPromise = (async () => {
+      tauriCore = await import('@tauri-apps/api/core');
+      tauriEvent = await import('@tauri-apps/api/event');
+      tauriFs = await import('@tauri-apps/plugin-fs');
+      tauriDialog = await import('@tauri-apps/plugin-dialog');
+      tauriStore = await import('@tauri-apps/plugin-store');
+      tauriOs = await import('@tauri-apps/plugin-os');
+      tauriShell = await import('@tauri-apps/plugin-shell');
+      tauriOpener = await import('@tauri-apps/plugin-opener');
+      tauriProcess = await import('@tauri-apps/plugin-process');
+      tauriNotification = await import('@tauri-apps/plugin-notification');
+      tauriUpdater = await import('@tauri-apps/plugin-updater');
+    })();
   }
+  await loadingPromise;
 }
 
 /**
@@ -264,6 +270,20 @@ class TauriDialogAdapter implements DialogAdapter {
     await loadTauriModules();
     return await tauriDialog!.confirm(options.message, { title: options.title });
   }
+
+  async saveFile(options?: {
+    title?: string;
+    defaultPath?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }): Promise<string | null> {
+    await loadTauriModules();
+    const result = await tauriDialog!.save({
+      title: options?.title,
+      defaultPath: options?.defaultPath,
+      filters: options?.filters,
+    });
+    return result as string | null;
+  }
 }
 
 /**
@@ -279,11 +299,21 @@ class TauriStorageAdapter implements StorageAdapter {
   private async getStore() {
     if (!storeInstance) {
       await loadTauriModules();
-      if (!tauriStore?.Store) {
-        console.error('[TauriStorageAdapter] Store plugin not available');
+      
+      // Check for named export or default export (handling different bundler behaviors)
+      const StoreClass = tauriStore?.Store || (tauriStore as any)?.default?.Store;
+
+      if (!StoreClass) {
+        console.error('[TauriStorageAdapter] Store plugin not available. Module content:', tauriStore);
         throw new Error('Store plugin not available');
       }
-      storeInstance = await tauriStore.Store.load(this.storeName);
+      
+      try {
+        storeInstance = await StoreClass.load(this.storeName);
+      } catch (err) {
+        console.error('[TauriStorageAdapter] Failed to load store instance:', err);
+        throw err;
+      }
     }
     return storeInstance;
   }
@@ -333,7 +363,32 @@ class TauriSystemAdapter implements SystemAdapter {
 
   async openExternal(url: string): Promise<void> {
     await loadTauriModules();
-    await tauriOpener!.openUrl(url);
+    try {
+      // Try using opener plugin (preferred in v2)
+      // @ts-ignore - The type definition might be missing 'open' in some versions
+      const opener = tauriOpener as any;
+      if (opener.openPath && !url.includes('://')) {
+          await opener.openPath(url);
+          return;
+      }
+      if (opener.open) {
+        await opener.open(url);
+        return;
+      } 
+      if (opener.openUrl) {
+        await opener.openUrl(url);
+        return;
+      }
+    } catch (error) {
+      console.warn('[TauriAdapter] opener plugin failed:', error);
+      // Fallback to shell plugin (v1 style, but still available in v2 via plugin-shell)
+      if (tauriShell && tauriShell.open) {
+        console.log('[TauriAdapter] Falling back to shell.open');
+        await tauriShell.open(url);
+        return;
+      }
+      throw error;
+    }
   }
 
   async openInSystemTerminal(command: string, cwd?: string): Promise<void> {

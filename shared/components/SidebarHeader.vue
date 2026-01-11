@@ -6,21 +6,19 @@
 <template>
   <div class="sidebar-header">
     <div class="sidebar-header-content">
-      <div class="header-row">
-        <!-- Logo with version -->
-        <div class="logo-version">
-          <img
-            :src="logoSrc"
-            alt="Logo"
-            class="logo-image"
-          />
-          <span class="version-text">{{ version }}</span>
-          <slot name="update-indicator"></slot>
-        </div>
-        <!-- Action buttons -->
-        <div class="header-actions">
-          <slot name="actions"></slot>
-        </div>
+      <!-- Logo with version -->
+      <div class="logo-version">
+        <img
+          :src="logoSrc"
+          alt="Logo"
+          class="logo-image"
+        />
+        <span class="version-text">{{ version }}</span>
+        <slot name="update-indicator"></slot>
+      </div>
+      <!-- Action buttons -->
+      <div class="header-actions">
+        <slot name="actions"></slot>
       </div>
     </div>
   </div>
@@ -41,9 +39,6 @@ defineProps<{
 .sidebar-header-content {
   padding: 12px 16px;
   border-bottom: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.1));
-}
-
-.header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;

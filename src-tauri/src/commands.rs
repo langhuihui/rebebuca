@@ -1059,13 +1059,19 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
 
 /// Execute a PowerShell command and return the output
 /// This is used for checking if tools are installed on Windows
-/// Uses subprocess approach to prevent popup windows on Windows
+/// Uses hidden window style to prevent popup windows on Windows
 #[tauri::command]
 pub async fn execute_powershell_command(command: String) -> Result<String, String> {
+    // Use STARTUPINFO to hide the window completely on Windows
+    use std::os::windows::process::CommandExt;
+    
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    
     // Try pwsh first (PowerShell 7+), then fallback to powershell.exe
-    // Use -WindowStyle Hidden to prevent any popup windows on Windows
+    // Use CREATE_NO_WINDOW flag to completely prevent any window from appearing
     let output = Command::new("pwsh")
         .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
+        .creation_flags(CREATE_NO_WINDOW)
         .output();
 
     let output = match output {
@@ -1074,6 +1080,7 @@ pub async fn execute_powershell_command(command: String) -> Result<String, Strin
             // Fallback to Windows PowerShell
             Command::new("powershell.exe")
                 .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output()
                 .map_err(|e| format!("Failed to execute PowerShell command: {}", e))?
         }

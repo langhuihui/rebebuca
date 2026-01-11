@@ -585,12 +585,17 @@ onMounted(async () => {
   initSelectedInstallMethods();
   
   // Check the initially selected tool on mount
+  // Add delay to avoid terminal flash during startup on Windows
+  // The detection will run silently in the background
   if (!checkedTools.value[activeToolTab.value] && !checkingInstall.value[activeToolTab.value]) {
-    await checkSingleTool(activeToolTab.value);
-    // Check version if tool is installed
-    if (toolVersions.value[activeToolTab.value]) {
-      checkLatestVersion(activeToolTab.value);
-    }
+    // Small delay to let the UI render first
+    setTimeout(async () => {
+      await checkSingleTool(activeToolTab.value);
+      // Check version if tool is installed
+      if (toolVersions.value[activeToolTab.value]) {
+        checkLatestVersion(activeToolTab.value);
+      }
+    }, 100);
   }
 });
 

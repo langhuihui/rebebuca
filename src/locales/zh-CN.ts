@@ -135,6 +135,16 @@ export default {
     importSelected: '导入选中',
     importSuccess: '成功导入 {count} 个配置',
     importButton: '导入',
+    menu: '导入任务列表',
+    success: '任务导入成功',
+    failed: '任务导入失败',
+  },
+  export: {
+    title: '导出任务',
+    menu: '导出',
+    filename: 'rebebuca-tasks.json',
+    success: '任务导出成功',
+    failed: '任务导出失败',
   },
   terminal: {
     open: '打开终端',
@@ -145,6 +155,7 @@ export default {
     new: '新建终端',
   },
   task: {
+    title: '任务',
     scan: '扫描任务',
     openFolder: '打开文件夹',
     openInExplorer: '在文件管理器中打开',

@@ -434,6 +434,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         type: 'folder',
         expanded: true,
         children: [],
+        hasError: folder.hasError,
+        errorMessage: folder.errorMessage
       };
       
       // Group tasks by their cwd (subfolder), then by source
@@ -537,9 +539,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         }
       }
       
-      if (folderItem.children && folderItem.children.length > 0) {
-        items.push(folderItem);
-      }
+      // Always add folder item even if empty, so users can remove invalid/empty folders
+      items.push(folderItem);
     }
     
     return items;
@@ -589,6 +590,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     console.log(`[TaskManager] Scanning folder: ${folderPath}`);
     const tasksBySource = new Map<TaskSource, Task[]>();
     const folderErrors: string[] = [];
+    let hasPermissionError = false;
     
     for (const provider of providers.value) {
       try {
@@ -610,12 +612,30 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         }
       } catch (error) {
         console.error(`[TaskManager] Provider ${provider.id} failed:`, error);
-        folderErrors.push(`${provider.name}: ${String(error)}`);
+        const errorMessage = String(error);
+        folderErrors.push(`${provider.name}: ${errorMessage}`);
+        
+        if (
+          errorMessage.toLowerCase().includes('permission') || 
+          errorMessage.toLowerCase().includes('access is denied') ||
+          errorMessage.toLowerCase().includes('eacces')
+        ) {
+          hasPermissionError = true;
+        }
       }
     }
     
     if (folderErrors.length > 0) {
       errors.value.push(...folderErrors);
+      
+      if (hasPermissionError) {
+        const notificationStore = useNotificationStore();
+        notificationStore.addError(
+          'Folder Access Failed',
+          `No permission to access folder: ${folderPath}\nPlease check permissions or try removing and re-adding the folder.`,
+          'system'
+        );
+      }
     }
     
     // Extract folder name
@@ -626,6 +646,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       path: folderPath,
       name,
       tasksBySource,
+      hasError: folderErrors.length > 0,
+      errorMessage: folderErrors.join('\n')
     };
   }
   
@@ -1077,6 +1099,57 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     console.log(`[TaskManager] Imported ${importedCount} tasks to group ${groupId} (with overwrite)`);
     return importedCount;
+  }
+
+  /**
+   * Export user groups to JSON string
+   */
+  async function exportUserGroups(): Promise<string> {
+    const exportData = {
+      version: '1.0',
+      timestamp: Date.now(),
+      groups: userGroups.value
+    };
+    return JSON.stringify(exportData, null, 2);
+  }
+
+  /**
+   * Import user groups from JSON string
+   */
+  async function importUserGroups(jsonContent: string, mode: 'merge' | 'replace' = 'merge'): Promise<void> {
+    try {
+      const data = JSON.parse(jsonContent);
+      if (!data.groups || !Array.isArray(data.groups)) {
+        throw new Error('Invalid task configuration file');
+      }
+
+      if (mode === 'replace') {
+        userGroups.value = data.groups;
+      } else {
+        // Merge
+        for (const importedGroup of data.groups as UserTaskGroup[]) {
+          const existingGroup = userGroups.value.find(g => g.name === importedGroup.name);
+          if (existingGroup) {
+             // Simplest merge: Append tasks from imported group to existing group (avoiding dups by ID)
+             for (const task of importedGroup.tasks) {
+                // Generate new ID to avoid conflict
+                if (!existingGroup.tasks.some(t => t.name === task.name && t.command === task.command)) {
+                    // Clone task with new ID
+                    const newTask = { ...task, id: `user-task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` };
+                    existingGroup.tasks.push(newTask);
+                }
+             }
+          } else {
+             // Create new group
+             userGroups.value.push(importedGroup);
+          }
+        }
+      }
+      await saveUserGroups();
+    } catch (error) {
+       console.error('Failed to import tasks:', error);
+       throw error;
+    }
   }
   
   /**
@@ -2196,6 +2269,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     importTasksToGroup,
     importTasksToGroupWithOverwrite,
     scanFolderForTasks,
+    exportUserGroups,
+    importUserGroups,
   };
 });
 

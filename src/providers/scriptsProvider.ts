@@ -36,7 +36,7 @@ const SCRIPT_EXTENSIONS = {
   windows: ['.bat', '.cmd', '.ps1'],
   unix: ['.sh', '.bash', '.zsh', '.fish'],
   python: ['.py'],
-  other: ['.rb', '.pl', '.js', '.ts'],
+  other: ['.rb', '.pl'],
 };
 
 /**
@@ -178,7 +178,7 @@ export class ScriptsProvider implements TaskProvider {
     
     // Check current folder
     const result = await this.scanFolder(folderPath);
-    if (result && result.tasks.length > 0) {
+    if (result && (result.tasks.length > 0 || (result.errors && result.errors.length > 0))) {
       results.push(result);
     }
     
@@ -269,16 +269,6 @@ export class ScriptsProvider implements TaskProvider {
       // Perl scripts
       else if (extension === '.pl') {
         command = 'perl';
-        args = [scriptPath];
-      }
-      // JavaScript/TypeScript scripts (using Node.js)
-      else if (extension === '.js') {
-        command = 'node';
-        args = [scriptPath];
-      }
-      else if (extension === '.ts') {
-        // Try ts-node if available, otherwise use node
-        command = 'ts-node';
         args = [scriptPath];
       }
       else {

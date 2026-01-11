@@ -20,23 +20,96 @@
   <div
     class="custom-titlebar"
     :class="{ 'light-theme': effectiveTheme === 'light' }"
-    @mousedown="startDrag"
   >
     <div
       class="titlebar-content"
       :class="{ 'windows-layout': uiStore.isWindowsPlatform }"
     >
-      <!-- Left side for Windows title logo (hidden in mini mode) -->
-      <div class="titlebar-left" v-if="uiStore.isWindowsPlatform && !uiStore.miniMode">
-        <img
-          :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
-          alt="Rebebuca"
-          :class="
-            effectiveTheme === 'light' ? 'text-logo-light' : 'text-logo-dark'
-          "
-          class="title-logo"
-        />
-      </div>
+      <!-- Left side for Windows: logo + buttons -->
+      <template v-if="uiStore.isWindowsPlatform && !uiStore.miniMode">
+        <div class="titlebar-left-group">
+          <img
+            :src="effectiveTheme === 'light' ? '/text.svg' : '/text.svg'"
+            alt="Rebebuca"
+            :class="
+              effectiveTheme === 'light' ? 'text-logo-light' : 'text-logo-dark'
+            "
+            class="title-logo"
+          />
+          <div class="titlebar-actions">
+            <n-space :size="4">
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="handleAddFolder"
+                    class="titlebar-action-button"
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.folderPlus" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('task.addFolder') }}
+              </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="handleAddTask"
+                    class="titlebar-action-button"
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.plus" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('task.addTask') }}
+              </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="handlePortManagement"
+                    class="titlebar-action-button"
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.network" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('task.portManagement') }}
+              </n-tooltip>
+              <n-tooltip v-if="featureFlagsStore.flags.aiCollab">
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="handleAICollab"
+                    class="titlebar-action-button"
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.robot" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('aiCollab.title') }}
+              </n-tooltip>
+            </n-space>
+          </div>
+        </div>
+      </template>
 
       <!-- Logo in mini mode for Windows (centered) -->
       <div class="titlebar-center" v-if="uiStore.isWindowsPlatform && uiStore.miniMode">
@@ -108,13 +181,85 @@
       <!-- Logo after window controls (macOS, hidden in mini mode) -->
       <div
         v-if="!uiStore.isWindowsPlatform && !uiStore.miniMode"
-        class="titlebar-logo-left"
+        class="titlebar-left-section"
       >
         <img
           :src="effectiveTheme === 'light' ? '/logo.svg' : '/logo-dark.svg'"
           alt="Rebebuca"
           class="title-logo-icon"
         />
+        <div class="titlebar-actions">
+          <n-space :size="4">
+            <n-tooltip>
+              <template #trigger>
+                <n-button
+                  size="small"
+                  quaternary
+                  @click="handleAddFolder"
+                  class="titlebar-action-button"
+                >
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.folderPlus" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              {{ t('task.addFolder') }}
+            </n-tooltip>
+            <n-tooltip>
+              <template #trigger>
+                <n-button
+                  size="small"
+                  quaternary
+                  @click="handleAddTask"
+                  class="titlebar-action-button"
+                >
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.plus" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              {{ t('task.addTask') }}
+            </n-tooltip>
+            <n-tooltip>
+              <template #trigger>
+                <n-button
+                  size="small"
+                  quaternary
+                  @click="handlePortManagement"
+                  class="titlebar-action-button"
+                >
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.network" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              {{ t('task.portManagement') }}
+            </n-tooltip>
+            <n-tooltip v-if="featureFlagsStore.flags.aiCollab">
+              <template #trigger>
+                <n-button
+                  size="small"
+                  quaternary
+                  @click="handleAICollab"
+                  class="titlebar-action-button"
+                >
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.robot" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              {{ t('aiCollab.title') }}
+            </n-tooltip>
+          </n-space>
+        </div>
       </div>
 
       <!-- Title only for non-Windows (hidden in mini mode) -->
@@ -321,6 +466,7 @@ import {
   NDropdown,
   NModal,
   NScrollbar,
+  NTooltip,
   useDialog,
   NIcon,
 } from "naive-ui";
@@ -332,6 +478,7 @@ import { useTheme } from "../composables/useTheme";
 import { useSettingsStore } from "../stores/settings";
 import { useUpdaterStore } from "../stores/updater";
 import { useNotificationStore } from "../stores/notification";
+import { useFeatureFlagsStore } from "../stores/featureFlags";
 import { svgIcons } from "../utils/icons";
 import {
   minimizeWindow,
@@ -340,6 +487,23 @@ import {
   startDrag,
 } from "../utils/windowControls";
 import "../adapters";
+
+// Action button handlers
+const handleAddFolder = () => {
+  window.dispatchEvent(new CustomEvent('add-folder'));
+};
+
+const handleAddTask = () => {
+  window.dispatchEvent(new CustomEvent('add-task'));
+};
+
+const handlePortManagement = () => {
+  window.dispatchEvent(new CustomEvent('port-management'));
+};
+
+const handleAICollab = () => {
+  window.dispatchEvent(new CustomEvent('ai-collab'));
+};
 
 interface Props {
   effectiveTheme: string;
@@ -353,6 +517,7 @@ const settingsStore = useSettingsStore();
 const terminalStore = useTerminalStore();
 const updaterStore = useUpdaterStore();
 const notificationStore = useNotificationStore();
+const featureFlagsStore = useFeatureFlagsStore();
 const dialog = useDialog();
 const { setThemeMode } = useTheme();
 
@@ -839,5 +1004,29 @@ const performClose = async (behavior: "hide" | "exit") => {
 
 :global(.n-config-provider--light) .empty-notifications {
   color: rgba(0, 0, 0, 0.45);
+}
+
+/* Titlebar action buttons */
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.titlebar-action-button {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+}
+
+.titlebar-action-button :deep(.n-icon) {
+  margin-right: 0;
+}
+
+/* Left group for logo + actions */
+.titlebar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

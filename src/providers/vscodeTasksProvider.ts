@@ -131,7 +131,7 @@ export class VSCodeTasksProvider implements TaskProvider {
     
     // Check current folder
     const result = await this.scanFolder(folderPath);
-    if (result && result.tasks.length > 0) {
+    if (result && (result.tasks.length > 0 || (result.errors && result.errors.length > 0))) {
       results.push(result);
     }
     

@@ -58,7 +58,7 @@
             :autosize="{ minRows: 1, maxRows: 5 }"
             class="command-textarea"
           />
-          <n-tooltip trigger="hover">
+          <n-tooltip v-if="aiToolOptions.length > 0" trigger="hover">
             <template #trigger>
               <n-dropdown
                 trigger="click"
@@ -66,13 +66,15 @@
                 @select="handleAIToolSelect"
                 to="body"
               >
-                <n-button>
-                  <template #icon>
-                    <n-icon size="16">
-                      <component :is="svgIcons.ai" />
-                    </n-icon>
-                  </template>
-                </n-button>
+                <span>
+                  <n-button>
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.ai" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </span>
               </n-dropdown>
             </template>
             {{ t('aiTools.selectTool') }}
@@ -509,16 +511,27 @@ const groupOptionsWithNew = computed(() => [
 
 // Get available tasks for sub-task selection (exclude macro tasks and current task)
 const availableTaskOptions = computed(() => {
-  const allTasks = taskManager.allTasks;
-  return allTasks
+  const allTasks = taskManager.combinedTasks;
+  console.log('[TaskEditDialog] combinedTasks count:', allTasks.length);
+  console.log('[TaskEditDialog] allTasks count:', taskManager.allTasks.length);
+  console.log('[TaskEditDialog] userGroups count:', taskManager.userGroups.length);
+  
+  const options = allTasks
     .filter(task => {
       // Exclude macro tasks and current task being edited
-      return task.type !== 'macro' && task.id !== editingTask.value.id;
+      const shouldInclude = task.type !== 'macro' && task.id !== editingTask.value.id;
+      if (!shouldInclude) {
+        console.log('[TaskEditDialog] Excluding task:', task.name, 'type:', task.type, 'id:', task.id);
+      }
+      return shouldInclude;
     })
     .map(task => ({
       label: `${task.name} (${task.source})`,
       value: task.id,
     }));
+  
+  console.log('[TaskEditDialog] availableTaskOptions:', options.length);
+  return options;
 });
 
 // Handle sub-task selection

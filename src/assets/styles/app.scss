@@ -91,6 +91,18 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   background-color: #1a1a1a;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 100;
+  -webkit-app-region: drag;
+}
+
+/* Make interactive elements clickable */
+.custom-titlebar .n-button,
+.custom-titlebar button,
+.custom-titlebar .window-control-button,
+.custom-titlebar .titlebar-button,
+.custom-titlebar .update-button,
+.custom-titlebar .update-indicator,
+.custom-titlebar .notification-button {
+  -webkit-app-region: no-drag;
 }
 
 /* Light theme titlebar */
@@ -112,7 +124,6 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
 }
 
 .titlebar-logo-left {
-  margin-left: 12px;
   display: flex;
   align-items: center;
 }
@@ -206,6 +217,7 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   align-items: center;
   flex: 0 0 auto;
   margin-right: 12px;
+  gap: 8px;
 }
 
 .titlebar-content.windows-layout .titlebar-right {
@@ -215,6 +227,13 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
 
 .titlebar-content.windows-layout .window-controls {
   margin-right: 0;
+}
+
+/* Left section for logo + actions (non-Windows) */
+.titlebar-left-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .titlebar-center {
@@ -958,13 +977,6 @@ html, body, #app, .n-layout, .n-layout-content {
 
 .n-config-provider--light .config-header-content {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
 
 #new-config-button {

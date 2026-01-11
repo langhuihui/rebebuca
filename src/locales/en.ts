@@ -135,6 +135,16 @@ export default {
     importSelected: 'Import selected',
     importSuccess: 'Successfully imported {count} configuration(s)',
     importButton: 'Import',
+    menu: 'Import Tasks',
+    success: 'Tasks imported successfully',
+    failed: 'Failed to import tasks',
+  },
+  export: {
+    title: 'Export Tasks',
+    menu: 'Export',
+    filename: 'rebebuca-tasks.json',
+    success: 'Tasks exported successfully',
+    failed: 'Failed to export tasks',
   },
   terminal: {
     open: 'Open Terminal',
@@ -145,6 +155,7 @@ export default {
     new: 'New Terminal',
   },
   task: {
+    title: 'Tasks',
     scan: 'Scan for Tasks',
     openFolder: 'Open Folder',
     openInExplorer: 'Open in Explorer',

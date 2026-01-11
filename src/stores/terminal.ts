@@ -59,6 +59,10 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Currently active tab ID
   const activeTabId = ref<string | null>(null);
   
+  // Split screen state
+  const isSplitMode = ref(false);
+  const splitTabs = ref<(string | null)[]>([null, null, null, null]);
+
   // Event listeners cleanup function
   let unlistenExit: (() => void) | null = null;
   
@@ -197,7 +201,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     };
     
     tabs.value.push(tab);
-    activeTabId.value = id;
+    setActiveTab(id);
     
     return tab;
   };
@@ -242,7 +246,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     };
     
     tabs.value.push(tab);
-    activeTabId.value = id;
+    setActiveTab(id);
     
     console.log('[Terminal Store] Task tab created (pending):', ptyId);
     return tab;
@@ -368,8 +372,20 @@ export const useTerminalStore = defineStore('terminal', () => {
       tabs.value.splice(index, 1);
     }
     
+    // Split mode handling: remove from splitTabs
+    const splitIndex = splitTabs.value.indexOf(tabId);
+    if (splitIndex !== -1) {
+      const newSplits = [...splitTabs.value];
+      newSplits[splitIndex] = null;
+      splitTabs.value = newSplits;
+    }
+
     // Update active tab if needed
     if (activeTabId.value === tabId) {
+      // If in split mode, we might not want to jump to another tab automatically if other splits are active?
+      // But standard behavior: fall back to last tab.
+      // If split mode is active, maybe we just de-select?
+      // Let's keep existing logic but just update the pointer.
       activeTabId.value = tabs.value.length > 0 ? tabs.value[tabs.value.length - 1].id : null;
     }
   };
@@ -432,7 +448,56 @@ export const useTerminalStore = defineStore('terminal', () => {
   
   // Set active tab
   const setActiveTab = (tabId: string | null) => {
-    activeTabId.value = tabId;
+    if (!tabId) {
+      activeTabId.value = null;
+      return;
+    }
+
+    if (isSplitMode.value) {
+      // Check if target tab is already visible in a split
+      const existingSplitIndex = splitTabs.value.indexOf(tabId);
+      
+      if (existingSplitIndex !== -1) {
+        // Case 1: Tab is already visible in a split
+        // Just focus it (set as active)
+        activeTabId.value = tabId;
+      } else {
+        // Case 2: Tab is not currently visible in any split
+        // We need to show it in a split pane.
+        // Priority 1: Fill an empty split if available.
+        // Priority 2: Replace the currently active split.
+        
+        let targetSplitIndex = -1;
+        
+        // Priority 1: Check for empty slots
+        const emptySlotIndex = splitTabs.value.indexOf(null);
+        if (emptySlotIndex !== -1) {
+             targetSplitIndex = emptySlotIndex;
+        } else {
+             // Priority 2: Replace active tab's slot
+             const currentActiveTabId = activeTabId.value;
+             if (currentActiveTabId) {
+                 targetSplitIndex = splitTabs.value.indexOf(currentActiveTabId);
+             }
+             
+             // Priority 3: Fallback to first slot
+             if (targetSplitIndex === -1) {
+                 targetSplitIndex = 0;
+             }
+        }
+
+        // Replace the tab in the target split
+        const newSplits = [...splitTabs.value];
+        newSplits[targetSplitIndex] = tabId;
+        splitTabs.value = newSplits;
+        
+        // Set new tab as active
+        activeTabId.value = tabId;
+      }
+    } else {
+      // Normal mode
+      activeTabId.value = tabId;
+    }
   };
   
   // Find tab by history ID
@@ -520,7 +585,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     };
     
     tabs.value.push(tab);
-    activeTabId.value = id;
+    setActiveTab(id);
     return tab;
   };
   
@@ -529,7 +594,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     // Check if notifications tab already exists
     const existingTab = tabs.value.find(t => t.type === 'notifications');
     if (existingTab) {
-      activeTabId.value = existingTab.id;
+      setActiveTab(existingTab.id);
       return existingTab;
     }
     
@@ -544,7 +609,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     };
     
     tabs.value.push(tab);
-    activeTabId.value = id;
+    setActiveTab(id);
     return tab;
   };
   
@@ -553,7 +618,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     // Check if port management tab already exists
     const existingTab = tabs.value.find(t => t.type === 'port-management');
     if (existingTab) {
-      activeTabId.value = existingTab.id;
+      setActiveTab(existingTab.id);
       return existingTab;
     }
     
@@ -568,7 +633,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     };
     
     tabs.value.push(tab);
-    activeTabId.value = id;
+    setActiveTab(id);
     return tab;
   };
   
@@ -577,7 +642,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     // Check if a tab for this session already exists
     const existingTab = tabs.value.find(t => t.type === 'ai-collab' && t.collabSessionId === sessionId);
     if (existingTab) {
-      activeTabId.value = existingTab.id;
+      setActiveTab(existingTab.id);
       return existingTab;
     }
     
@@ -593,7 +658,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     };
     
     tabs.value.push(tab);
-    activeTabId.value = id;
+    setActiveTab(id);
     return tab;
   };
   
@@ -601,11 +666,63 @@ export const useTerminalStore = defineStore('terminal', () => {
   const findTabByCollabSessionId = (sessionId: string): TerminalTab | undefined => {
     return tabs.value.find(t => t.type === 'ai-collab' && t.collabSessionId === sessionId);
   };
+
+  // Toggle split mode
+  const toggleSplitMode = () => {
+    isSplitMode.value = !isSplitMode.value;
+    
+    if (isSplitMode.value) {
+      // Initialize split tabs with valid tabs (task or shell)
+      const validTabs = tabs.value.filter(t => t.type === 'task' || t.type === 'shell');
+      const newSplits: (string | null)[] = [null, null, null, null];
+      let availableTabs = [...validTabs];
+      
+      // If active tab is valid, put it in first slot
+      if (activeTabId.value) {
+        const activeIdx = availableTabs.findIndex(t => t.id === activeTabId.value);
+        if (activeIdx !== -1) {
+          newSplits[0] = activeTabId.value;
+          availableTabs.splice(activeIdx, 1);
+        }
+      }
+      
+      // Fill remaining slots
+      for (let i = 0; i < 4; i++) {
+        if (newSplits[i] === null && availableTabs.length > 0) {
+          newSplits[i] = availableTabs.shift()!.id;
+        }
+      }
+      
+      splitTabs.value = newSplits;
+    }
+  };
+
+  // Set a tab to a specific split index
+  const setSplitTab = (index: number, tabId: string | null) => {
+    if (index >= 0 && index < 4) {
+      const newSplits = [...splitTabs.value];
+      
+      // If tab is already in another split, remove it from there (or swap?)
+      // For simplicity, just remove it from old position. 
+      // Ideally we might want to swap if we drag one split to another.
+      if (tabId) {
+        const existingIndex = newSplits.indexOf(tabId);
+        if (existingIndex !== -1 && existingIndex !== index) {
+          newSplits[existingIndex] = null; 
+        }
+      }
+      
+      newSplits[index] = tabId;
+      splitTabs.value = newSplits;
+    }
+  };
   
   return {
     // State
     tabs,
     activeTabId,
+    isSplitMode,
+    splitTabs,
     
     // Computed
     activeTabs,
@@ -632,6 +749,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     createSettingsTab,
     createNotificationsTab,
     createPortManagementTab,
+    toggleSplitMode,
+    setSplitTab,
     createAICollabTab,
   };
 });

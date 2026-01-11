@@ -45,13 +45,9 @@
         :show="showNewIconPicker"
         @update:show="showNewIconPicker = $event"
       >
-        <n-button size="small" quaternary class="icon-button">
-          <template #icon>
-            <n-icon size="18">
-              <component :is="getIcon(newIconName)" />
-            </n-icon>
-          </template>
-        </n-button>
+        <template #icon>
+          <component :is="getIcon(newIconName) || svgIcons.task" />
+        </template>
       </IconPicker>
       <n-button
         size="small"
@@ -155,10 +151,25 @@ const columns = computed<DataTableColumns<TableRow>>(() => [
     width: 80,
     align: 'center',
     render(row) {
+      if (!row) {
+        // 如果 row 不存在，返回一个默认按钮（不应该发生，但作为安全措施）
+        return h(
+          NButton,
+          { size: 'small', quaternary: true, class: 'icon-button' },
+          {
+            icon: () =>
+              h(NIcon, { size: 18 }, { default: () => h(svgIcons.task) }),
+          }
+        );
+      }
+      
+      const iconName = row.iconName || 'task';
+      const iconComponent = getIcon(iconName) || svgIcons.task;
+      
       return h(
         IconPicker,
         {
-          modelValue: row.iconName,
+          modelValue: iconName,
           show: editingCommand.value === row.command,
           'onUpdate:modelValue': (value: string) => updateIcon(row.command, value, row.isDefault),
           'onUpdate:show': (value: boolean) => {
@@ -166,15 +177,22 @@ const columns = computed<DataTableColumns<TableRow>>(() => [
           },
         },
         {
-          default: () =>
-            h(
-              NButton,
-              { size: 'small', quaternary: true, class: 'icon-button' },
-              {
-                icon: () =>
-                  h(NIcon, { size: 18 }, { default: () => h(getIcon(row.iconName)) }),
+          icon: () => {
+            const safeIcon = iconComponent || svgIcons.task;
+            if (!safeIcon || typeof safeIcon !== 'function') {
+              return h(svgIcons.task);
+            }
+            try {
+              const iconVNode = h(safeIcon);
+              // 确保返回的是有效的 VNode
+              if (!iconVNode) {
+                return h(svgIcons.task);
               }
-            ),
+              return iconVNode;
+            } catch {
+              return h(svgIcons.task);
+            }
+          },
         }
       );
     },

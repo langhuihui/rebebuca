@@ -24,15 +24,15 @@
     @update:show="$emit('update:show', $event)"
   >
     <template #trigger>
-      <slot>
-        <n-button size="small" quaternary>
-          <template #icon>
-            <n-icon size="16">
-              <component :is="currentIcon" />
-            </n-icon>
-          </template>
-        </n-button>
-      </slot>
+      <n-button size="small" quaternary>
+        <template #icon>
+          <n-icon size="16">
+            <slot name="icon">
+              <component :is="currentIcon || (() => h('span', '?'))" />
+            </slot>
+          </n-icon>
+        </template>
+      </n-button>
     </template>
     <div class="icon-picker">
       <div class="icon-picker-header">
@@ -44,32 +44,33 @@
         />
       </div>
       <div class="icon-picker-grid">
-        <n-tooltip
-          v-for="(icon, name) in filteredIcons"
-          :key="name"
-          trigger="hover"
-          :delay="500"
-        >
-          <template #trigger>
-            <div
-              class="icon-picker-item"
-              :class="{ 'icon-picker-item-selected': name === modelValue }"
-              @click="selectIcon(name as string)"
-            >
-              <n-icon size="20">
-                <component :is="icon" />
-              </n-icon>
-            </div>
-          </template>
-          {{ name }}
-        </n-tooltip>
+        <template v-for="(icon, name) in filteredIcons" :key="name">
+          <n-tooltip
+            v-if="icon"
+            trigger="hover"
+            :delay="500"
+          >
+            <template #trigger>
+              <div
+                class="icon-picker-item"
+                :class="{ 'icon-picker-item-selected': name === modelValue }"
+                @click="selectIcon(name as string)"
+              >
+                <n-icon size="20">
+                  <component :is="icon" />
+                </n-icon>
+              </div>
+            </template>
+            {{ name }}
+          </n-tooltip>
+        </template>
       </div>
     </div>
   </n-popover>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue';
+import { computed, ref, h, type Component } from 'vue';
 import { NPopover, NButton, NIcon, NInput, NTooltip } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../utils/icons';
@@ -403,16 +404,25 @@ const allIcons = computed(() => {
 });
 
 const currentIcon = computed(() => {
-  const iconName = props.modelValue;
+  const iconName = props.modelValue || 'task';
   // 先检查 xicons
-  if (iconName in xicons) {
-    return xicons[iconName as keyof typeof xicons];
+  if (iconName && iconName in xicons) {
+    const icon = xicons[iconName as keyof typeof xicons];
+    if (icon) return icon;
   }
   // 再检查 svgIcons
-  if (iconName in svgIcons) {
-    return svgIcons[iconName as keyof typeof svgIcons];
+  if (iconName && iconName in svgIcons) {
+    const icon = svgIcons[iconName as keyof typeof svgIcons];
+    if (icon) return icon;
   }
-  return svgIcons.task;
+  // 确保总是返回一个有效的图标（使用 svgIcons.task 作为最终回退）
+  const fallback = svgIcons.task;
+  if (!fallback) {
+    // 如果 svgIcons.task 不存在，返回一个简单的占位符组件
+    console.warn('[IconPicker] svgIcons.task is not available, using fallback');
+    return () => h('span', '?');
+  }
+  return fallback;
 });
 
 const filteredIcons = computed(() => {

@@ -25,14 +25,7 @@
     :class="{ 'light-theme': effectiveTheme === 'light' }"
   >
     <div class="sidebar-container">
-      <!-- Header -->
-      <SidebarHeader
-        :effective-theme="effectiveTheme"
-        @add-folder="handleAddFolder"
-        @add-task="handleAddTask"
-        @port-management="handlePortManagement"
-        @ai-collab="handleAICollab"
-      />
+
       
       <!-- Task tree -->
       <div class="task-tree-container">
@@ -208,6 +201,7 @@
                   :is-favorite="taskManager.isFavorite(task.id)"
                   :show-icon="settingsStore.settings.showTaskIcons"
                   :show-edit="true"
+                  :show-favorite="true"
                   :show-delete="true"
                   :draggable="true"
                   node-class="group-task-node"
@@ -231,6 +225,7 @@
               <!-- Folder node -->
               <div 
                 class="tree-node folder-node"
+                :class="{ 'has-error': folder.hasError }"
                 @click="toggleNode(folder.id)"
               >
                 <n-icon size="14" class="tree-icon expand-icon">
@@ -239,7 +234,18 @@
                 <n-icon size="16" class="tree-icon folder-icon">
                   <component :is="svgIcons.folder" />
                 </n-icon>
-                <span class="tree-label">{{ folder.label }}</span>
+                
+                <!-- Error tooltip -->
+                <n-tooltip v-if="folder.hasError" trigger="hover" placement="top" :style="{ maxWidth: '300px' }">
+                  <template #trigger>
+                    <n-icon size="14" class="tree-icon error-icon" color="#d03050">
+                      <component :is="svgIcons.warning" />
+                    </n-icon>
+                  </template>
+                  {{ folder.errorMessage }}
+                </n-tooltip>
+
+                <span class="tree-label" :class="{ 'error-label': folder.hasError }">{{ folder.label }}</span>
                 <div class="folder-actions">
                   <n-tooltip trigger="hover" :delay="500">
                     <template #trigger>
@@ -493,7 +499,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue';
 import {
   NLayoutSider,
   NButton,
@@ -501,6 +507,7 @@ import {
   NTooltip,
   NIcon,
   NSpin,
+  useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../adapters';
@@ -509,12 +516,13 @@ import { useTaskManagerStore } from '../stores/taskManager';
 import { useSettingsStore } from '../stores/settings';
 import { useUpdaterStore } from '../stores/updater';
 import { useTerminalStore } from '../stores/terminal';
+import { useNotificationStore } from '../stores/notification';
 import { useTheme } from '../composables/useTheme';
 import { svgIcons } from '../utils/icons';
 import type { Task, TaskGroup, TaskTreeItem } from '../providers/types';
 
 // Sub-components
-import SidebarHeader from './sidebar/SidebarHeader.vue';
+
 import TaskNode from './sidebar/TaskNode.vue';
 import {
   TaskEditDialog,
@@ -523,8 +531,6 @@ import {
   RenameGroupDialog,
   AICollabCreateDialog,
   AICollabEditDialog,
-  type AddFolderFormData,
-  type AICollabFormData,
   type AICollabEditFormData,
 } from './sidebar/dialogs';
 
@@ -534,6 +540,8 @@ const taskManager = useTaskManagerStore();
 const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const terminalStore = useTerminalStore();
+const notificationStore = useNotificationStore();
+const message = useMessage();
 const { effectiveTheme } = useTheme();
 
 // Expanded nodes state
@@ -711,7 +719,9 @@ const handleAddFolder = () => {
   showAddFolderDialog.value = true;
 };
 
+
 // Handle confirm add folder
+
 const handleConfirmAddFolder = async (data: AddFolderFormData) => {
   addFolderFormData.value = data;
   
@@ -773,8 +783,14 @@ const handleOpenInExplorer = async (folderPath: string) => {
   if (folderPath) {
     try {
       const adapter = await getAdapter();
-      await adapter.system.openExternal(`file://${folderPath}`);
+      // Pass path directly, adapter should handle it
+      await adapter.system.openExternal(folderPath);
     } catch (error) {
+      notificationStore.addError(
+        t('task.openInExplorerFailed') || 'Failed to open folder',
+        String(error),
+        'system'
+      );
       console.error('[TaskSidebar] Failed to open folder:', error);
     }
   }
@@ -1300,13 +1316,25 @@ onMounted(async () => {
   await updaterStore.autoCheckForUpdates();
   taskManager.scanRecursively = true;
   await taskManager.initialize();
-  
+
   watch(() => taskManager.recentTasks, (newVal) => {
     console.log('[TaskSidebar] recentTasks changed:', newVal.map(t => ({ id: t.id, name: t.name })));
   }, { immediate: true });
-  
+
   expandedNodes.value.add('favorites');
   expandedNodes.value.add('recent');
+
+  window.addEventListener('add-folder', handleAddFolder);
+  window.addEventListener('add-task', handleAddTask);
+  window.addEventListener('port-management', handlePortManagement);
+  window.addEventListener('ai-collab', handleAICollab);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('add-folder', handleAddFolder);
+  window.removeEventListener('add-task', handleAddTask);
+  window.removeEventListener('port-management', handlePortManagement);
+  window.removeEventListener('ai-collab', handleAICollab);
 });
 
 </script>
@@ -1414,6 +1442,15 @@ onMounted(async () => {
   white-space: nowrap;
   font-size: 13px;
   user-select: none;
+}
+
+.tree-label.error-label {
+  color: #d03050;
+  opacity: 0.8;
+}
+
+.error-icon {
+  margin-right: 4px;
 }
 
 .tree-badge {

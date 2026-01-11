@@ -141,6 +141,10 @@ export interface TaskFolder {
   
   // Tasks in this folder, grouped by source
   tasksBySource: Map<TaskSource, Task[]>;
+  
+  // Error state
+  hasError?: boolean;
+  errorMessage?: string;
 }
 
 /**
@@ -156,6 +160,9 @@ export interface TaskTreeItem {
   expanded?: boolean;
   // Relative path from root folder (for subfolders)
   relativePath?: string;
+  // Error state for folder items
+  hasError?: boolean;
+  errorMessage?: string;
 }
 
 /**

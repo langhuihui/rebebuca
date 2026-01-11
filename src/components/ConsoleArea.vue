@@ -51,6 +51,8 @@
                 success: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'success',
                 error: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'error'
               }"
+              draggable="true"
+              @dragstart="handleDragStart($event, tab)"
               @click="terminalStore.setActiveTab(tab.id)"
             >
               <span class="tab-icon">
@@ -65,6 +67,20 @@
               </span>
             </div>
             
+            <!-- Split mode button -->
+            <div 
+              class="add-tab-button" 
+              :class="{ active: terminalStore.isSplitMode }"
+              title="Toggle Split View"
+              @click="handleToggleSplitMode"
+            >
+               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                 <line x1="12" y1="3" x2="12" y2="21"></line>
+                 <line x1="3" y1="12" x2="21" y2="12"></line>
+               </svg>
+            </div>
+
             <!-- Add terminal button -->
             <div class="add-tab-button" @click="openShellTerminal">
               <component :is="iconComponents.newConfig" />
@@ -136,20 +152,46 @@
 
           <!-- Terminal view - render all terminal tabs, show only active one -->
           <!-- IMPORTANT: Always render terminals (even when settings tab is active) to preserve instances -->
-          <div class="console-output-container terminal-wrapper">
-            <TerminalView
+          <div 
+            class="console-output-container terminal-wrapper" 
+            :class="{ 'split-grid': terminalStore.isSplitMode }"
+          >
+            <div 
               v-for="tab in terminalStore.tabs.filter(t => t.type === 'task' || t.type === 'shell')"
-              v-show="terminalStore.activeTabId === tab.id"
+              v-show="shouldShowTab(tab.id)"
               :key="tab.id"
-              :pty-id="tab.ptyId"
-              :theme="effectiveTheme"
-              :cwd="getTabCwd(tab)"
-              :attach-only="tab.type === 'task'"
-              :ref="(el) => setTerminalRef(tab.id, el)"
-              @ready="() => onTerminalReady(tab.id)"
-              @exit="(code) => onTerminalExit(tab.id, code)"
-              @error="onTerminalError"
-            />
+              class="terminal-view-wrapper"
+              :style="getTabStyle(tab.id)"
+              @click.capture="handleSplitClick(tab.id)"
+              @dragover.prevent
+              @drop="handleDropOnTab($event, tab.id)"
+            >
+              <TerminalView
+                :pty-id="tab.ptyId"
+                :theme="effectiveTheme"
+                :cwd="getTabCwd(tab)"
+                :attach-only="tab.type === 'task'"
+                :ref="(el) => setTerminalRef(tab.id, el)"
+                @ready="() => onTerminalReady(tab.id)"
+                @exit="(code) => onTerminalExit(tab.id, code)"
+                @error="onTerminalError"
+              />
+            </div>
+
+            <!-- Split Placeholders -->
+            <template v-if="terminalStore.isSplitMode">
+              <div 
+                v-for="(splitTabId, index) in terminalStore.splitTabs" 
+                v-show="!splitTabId"
+                :key="'split-placeholder-' + index"
+                class="split-placeholder"
+                :style="getSplitStyle(index)"
+                @dragover.prevent
+                @drop="handleDropOnSplit($event, index)"
+              >
+                <n-text depth="3">Drop Tab Here</n-text>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -228,6 +270,89 @@ const { effectiveTheme } = useTheme();
 const runConfigStore = useRunConfigStore();
 const terminalStore = useTerminalStore();
 const taskManager = useTaskManagerStore();
+
+// Split Mode & Drag Drop Logic
+const handleToggleSplitMode = () => {
+  terminalStore.toggleSplitMode();
+};
+
+const shouldShowTab = (tabId: string) => {
+  if (terminalStore.isSplitMode) {
+    return terminalStore.splitTabs.includes(tabId);
+  }
+  return terminalStore.activeTabId === tabId;
+};
+
+const getTabStyle = (tabId: string) => {
+  if (!terminalStore.isSplitMode) return {};
+  
+  const index = terminalStore.splitTabs.indexOf(tabId);
+  if (index === -1) return { display: 'none' };
+  
+  const row = Math.floor(index / 2) + 1;
+  const col = (index % 2) + 1;
+  
+  return {
+    gridRow: row,
+    gridColumn: col,
+    position: 'relative' as const,
+    border: terminalStore.activeTabId === tabId ? '1px solid var(--primary-color)' : '1px solid transparent',
+    boxSizing: 'border-box' as const
+  };
+};
+
+const getSplitStyle = (index: number) => {
+  const row = Math.floor(index / 2) + 1;
+  const col = (index % 2) + 1;
+  return {
+    gridRow: row,
+    gridColumn: col
+  };
+};
+
+const handleSplitClick = (tabId: string) => {
+  terminalStore.setActiveTab(tabId);
+  // Focus terminal
+  const termRef = terminalRefs.value.get(tabId);
+  if (termRef) {
+    termRef.focus();
+  }
+};
+
+const handleDragStart = (event: DragEvent, tab: TerminalTab) => {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('text/plain', tab.id);
+    event.dataTransfer.effectAllowed = 'move';
+  }
+};
+
+const handleDropOnSplit = (event: DragEvent, index: number) => {
+  const tabId = event.dataTransfer?.getData('text/plain');
+  if (tabId) {
+    terminalStore.setSplitTab(index, tabId);
+    terminalStore.setActiveTab(tabId); 
+    
+    nextTick(() => {
+        const termRef = terminalRefs.value.get(tabId);
+        if (termRef) termRef.focus();
+    });
+  }
+};
+
+const handleDropOnTab = (event: DragEvent, targetTabId: string) => {
+  const tabId = event.dataTransfer?.getData('text/plain');
+  if (tabId && tabId !== targetTabId && terminalStore.isSplitMode) {
+    const index = terminalStore.splitTabs.indexOf(targetTabId);
+    if (index !== -1) {
+      terminalStore.setSplitTab(index, tabId);
+      terminalStore.setActiveTab(tabId);
+      nextTick(() => {
+          const termRef = terminalRefs.value.get(tabId);
+          if (termRef) termRef.focus();
+      });
+    }
+  }
+};
 
 const terminalRefs = ref<Map<string, InstanceType<typeof TerminalView> | null>>(new Map());
 
@@ -835,5 +960,51 @@ const onTerminalError = (error: string) => {
 :global(.n-config-provider--light) .history-loading,
 .console-area.light-theme .history-loading {
   color: #666;
+}
+
+/* Split Mode Grid Styles */
+.terminal-wrapper.split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background-color: var(--n-border-color);
+}
+
+.terminal-view-wrapper {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  /* Use theme background to cover grid gap */
+  background-color: #1e1e1e; 
+}
+:global(.n-config-provider--light) .terminal-view-wrapper,
+.console-area.light-theme .terminal-view-wrapper {
+  background-color: #ffffff;
+}
+
+.split-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(128, 128, 128, 0.3);
+  margin: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.split-placeholder:hover {
+  background-color: rgba(128, 128, 128, 0.1);
+}
+
+.add-tab-button.active {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+:global(.n-config-provider--light) .add-tab-button.active,
+.console-area.light-theme .add-tab-button.active {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: #000;
 }
 </style>

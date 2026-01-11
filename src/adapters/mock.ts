@@ -401,6 +401,14 @@ class MockDialogAdapter implements DialogAdapter {
   async confirm(_options: { title: string; message: string }): Promise<boolean> {
     return true;
   }
+
+  async saveFile(_options?: {
+    title?: string;
+    defaultPath?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }): Promise<string | null> {
+    return '/mock/project/saved-file.json';
+  }
 }
 
 /**

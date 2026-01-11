@@ -30,6 +30,9 @@
           "path": "$HOME/**"
         },
         {
+          "path": "**"
+        },
+        {
           "path": "$DOCUMENT"
         },
         {
@@ -100,6 +103,7 @@
     "notification:allow-create-channel",
     "notification:allow-permission-state",
     "os:default",
+    "store:default",
     "fs:default",
     "fs:read-all",
     "fs:write-all",
@@ -111,6 +115,9 @@
         },
         {
           "path": "$HOME/**"
+        },
+        {
+          "path": "**"
         }
       ]
     },
