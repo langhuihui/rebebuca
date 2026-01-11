@@ -1061,39 +1061,47 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
 /// This is used for checking if tools are installed on Windows
 /// Uses hidden window style to prevent popup windows on Windows
 #[tauri::command]
-pub async fn execute_powershell_command(command: String) -> Result<String, String> {
-    // Use STARTUPINFO to hide the window completely on Windows
-    use std::os::windows::process::CommandExt;
-    
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    
-    // Try pwsh first (PowerShell 7+), then fallback to powershell.exe
-    // Use CREATE_NO_WINDOW flag to completely prevent any window from appearing
-    let output = Command::new("pwsh")
-        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output();
+pub async fn execute_powershell_command(#[allow(unused_variables)] command: String) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        
+        // Try pwsh first (PowerShell 7+), then fallback to powershell.exe
+        // Use CREATE_NO_WINDOW flag to completely prevent any window from appearing
+        let output = Command::new("pwsh")
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
 
-    let output = match output {
-        Ok(output) => output,
-        Err(_) => {
-            // Fallback to Windows PowerShell
-            Command::new("powershell.exe")
-                .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output()
-                .map_err(|e| format!("Failed to execute PowerShell command: {}", e))?
+        let output = match output {
+            Ok(output) => output,
+            Err(_) => {
+                // Fallback to Windows PowerShell
+                Command::new("powershell.exe")
+                    .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output()
+                    .map_err(|e| format!("Failed to execute PowerShell command: {}", e))?
+            }
+        };
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+        // Return stdout if successful, otherwise return stderr
+        if output.status.success() {
+            Ok(stdout)
+        } else {
+            Ok(stderr)
         }
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    // Return stdout if successful, otherwise return stderr
-    if output.status.success() {
-        Ok(stdout)
-    } else {
-        Ok(stderr)
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        // On non-Windows platforms, this command is not applicable
+        Err("PowerShell commands are only supported on Windows".to_string())
     }
 }
 
