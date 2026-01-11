@@ -20,6 +20,8 @@
   <div
     class="custom-titlebar"
     :class="{ 'light-theme': effectiveTheme === 'light' }"
+    @mousedown="handleTitlebarMousedown"
+    @dblclick="handleTitlebarDoubleClick"
   >
     <div
       class="titlebar-content"
@@ -375,6 +377,24 @@
           </template>
         </n-button>
         <n-button
+          v-if="!uiStore.miniMode"
+          text
+          size="small"
+          @click="handleToggleSplitMode"
+          class="titlebar-button"
+          :class="{ active: terminalStore.isSplitMode }"
+          :title="t('titlebar.toggleSplitMode')"
+          @mousedown.stop
+        >
+          <template #icon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="12" y1="3" x2="12" y2="21"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+            </svg>
+          </template>
+        </n-button>
+        <n-button
           text
           size="small"
           @click="uiStore.toggleMiniMode()"
@@ -484,8 +504,39 @@ import {
   minimizeWindow,
   toggleMaximize,
   closeWindow,
+  startDrag,
 } from "../utils/windowControls";
 import "../adapters";
+
+// Handle titlebar mousedown for window dragging
+const handleTitlebarMousedown = (event: MouseEvent) => {
+  startDrag(event);
+};
+
+// Handle double click on titlebar for maximize/restore (macOS behavior)
+const handleTitlebarDoubleClick = (event: MouseEvent) => {
+  // Don't toggle maximize if clicking on interactive elements
+  const target = event.target as HTMLElement;
+  if (
+    target.closest(".n-button") ||
+    target.closest(".n-dropdown") ||
+    target.closest(".n-tooltip") ||
+    target.closest(".n-space") ||
+    target.closest("button") ||
+    target.closest(".window-control-button") ||
+    target.closest(".window-controls") ||
+    target.closest(".titlebar-button") ||
+    target.closest(".titlebar-actions") ||
+    target.closest(".titlebar-action-button") ||
+    target.closest(".update-button") ||
+    target.closest(".update-indicator") ||
+    target.closest(".notification-button") ||
+    target.closest(".version-update-group")
+  ) {
+    return;
+  }
+  toggleMaximize();
+};
 
 // Action button handlers
 const handleAddFolder = () => {
@@ -502,6 +553,11 @@ const handlePortManagement = () => {
 
 const handleAICollab = () => {
   window.dispatchEvent(new CustomEvent('ai-collab'));
+};
+
+// Handle split mode toggle
+const handleToggleSplitMode = () => {
+  terminalStore.toggleSplitMode();
 };
 
 interface Props {
@@ -1010,6 +1066,7 @@ const performClose = async (behavior: "hide" | "exit") => {
   display: flex;
   align-items: center;
   margin-left: 4px;
+  -webkit-app-region: no-drag;
 }
 
 .titlebar-action-button {

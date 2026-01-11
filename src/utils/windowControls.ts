@@ -77,12 +77,23 @@ export const startDrag = async (event: MouseEvent) => {
   // Only start drag on left mouse button
   if (event.button !== 0) return;
 
-  // Don't start drag if clicking on buttons
+  // Don't start drag if clicking on interactive elements
   const target = event.target as HTMLElement;
   if (
     target.closest(".n-button") ||
+    target.closest(".n-dropdown") ||
+    target.closest(".n-tooltip") ||
+    target.closest(".n-space") ||
+    target.closest("button") ||
     target.closest(".window-control-button") ||
-    target.closest(".titlebar-button")
+    target.closest(".window-controls") ||
+    target.closest(".titlebar-button") ||
+    target.closest(".titlebar-actions") ||
+    target.closest(".titlebar-action-button") ||
+    target.closest(".update-button") ||
+    target.closest(".update-indicator") ||
+    target.closest(".notification-button") ||
+    target.closest(".version-update-group")
   ) {
     return;
   }

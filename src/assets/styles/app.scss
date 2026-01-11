@@ -234,6 +234,7 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   display: flex;
   align-items: center;
   gap: 4px;
+  -webkit-app-region: drag;
 }
 
 .titlebar-center {
@@ -242,12 +243,14 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   flex: 1;
   justify-content: center;
   position: relative;
+  -webkit-app-region: drag;
 }
 
 .titlebar-right {
   display: flex;
   align-items: center;
   gap: 4px;
+  -webkit-app-region: no-drag;
 }
 
 /* Window controls - macOS style on the left */
@@ -410,6 +413,7 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   display: flex;
   align-items: center;
   gap: 4px;
+  -webkit-app-region: no-drag;
 }
 
 .titlebar-right .n-button {
@@ -452,6 +456,11 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.titlebar-button.active {
+  color: #00d084;
+  background-color: rgba(0, 208, 132, 0.15);
+}
+
 /* Light theme titlebar buttons */
 .n-config-provider--light .titlebar-button,
 .custom-titlebar.light-theme .titlebar-button {
@@ -462,6 +471,12 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
 .custom-titlebar.light-theme .titlebar-button:hover {
   color: #000000;
   background-color: rgba(0, 0, 0, 0.05);
+}
+
+.n-config-provider--light .titlebar-button.active,
+.custom-titlebar.light-theme .titlebar-button.active {
+  color: #18a058;
+  background-color: rgba(24, 160, 88, 0.15);
 }
 
 /* Main content layout */

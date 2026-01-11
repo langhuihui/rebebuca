@@ -66,20 +66,6 @@
                 <component :is="iconComponents.close" />
               </span>
             </div>
-            
-            <!-- Split mode button -->
-            <div 
-              class="add-tab-button" 
-              :class="{ active: terminalStore.isSplitMode }"
-              title="Toggle Split View"
-              @click="handleToggleSplitMode"
-            >
-               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                 <line x1="12" y1="3" x2="12" y2="21"></line>
-                 <line x1="3" y1="12" x2="21" y2="12"></line>
-               </svg>
-            </div>
 
             <!-- Add terminal button -->
             <div class="add-tab-button" @click="openShellTerminal">
@@ -161,6 +147,7 @@
               v-show="shouldShowTab(tab.id)"
               :key="tab.id"
               class="terminal-view-wrapper"
+              :class="{ 'split-active': terminalStore.isSplitMode && terminalStore.activeTabId === tab.id }"
               :style="getTabStyle(tab.id)"
               @click.capture="handleSplitClick(tab.id)"
               @dragover.prevent
@@ -272,10 +259,6 @@ const terminalStore = useTerminalStore();
 const taskManager = useTaskManagerStore();
 
 // Split Mode & Drag Drop Logic
-const handleToggleSplitMode = () => {
-  terminalStore.toggleSplitMode();
-};
-
 const shouldShowTab = (tabId: string) => {
   if (terminalStore.isSplitMode) {
     return terminalStore.splitTabs.includes(tabId);
@@ -295,9 +278,6 @@ const getTabStyle = (tabId: string) => {
   return {
     gridRow: row,
     gridColumn: col,
-    position: 'relative' as const,
-    border: terminalStore.activeTabId === tabId ? '1px solid var(--primary-color)' : '1px solid transparent',
-    boxSizing: 'border-box' as const
   };
 };
 
@@ -976,11 +956,33 @@ const onTerminalError = (error: string) => {
   width: 100%;
   overflow: hidden;
   /* Use theme background to cover grid gap */
-  background-color: #1e1e1e; 
+  background-color: #1e1e1e;
+  position: relative;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Split mode active glow effect */
+.terminal-view-wrapper.split-active {
+  border-color: var(--primary-color, #18a058);
+  box-shadow: 
+    inset 0 0 0 1px var(--primary-color, #18a058),
+    0 0 8px rgba(24, 160, 88, 0.3),
+    inset 0 0 12px rgba(24, 160, 88, 0.1);
 }
 :global(.n-config-provider--light) .terminal-view-wrapper,
 .console-area.light-theme .terminal-view-wrapper {
   background-color: #ffffff;
+}
+
+:global(.n-config-provider--light) .terminal-view-wrapper.split-active,
+.console-area.light-theme .terminal-view-wrapper.split-active {
+  border-color: var(--primary-color, #18a058);
+  box-shadow: 
+    inset 0 0 0 1px var(--primary-color, #18a058),
+    0 0 8px rgba(24, 160, 88, 0.25),
+    inset 0 0 12px rgba(24, 160, 88, 0.08);
 }
 
 .split-placeholder {

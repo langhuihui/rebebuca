@@ -27,6 +27,7 @@ export default {
     toggleSidebar: 'Toggle Sidebar',
     toggleTheme: 'Toggle Theme',
     toggleMiniMode: 'Toggle Mini Mode',
+    toggleSplitMode: 'Toggle Split View',
     notifications: 'Notifications',
   },
   sidebar: {

@@ -27,6 +27,7 @@ export default {
     toggleSidebar: '切换侧边栏',
     toggleTheme: '切换主题',
     toggleMiniMode: '切换迷你模式',
+    toggleSplitMode: '切换四分屏',
     notifications: '通知',
   },
   sidebar: {
