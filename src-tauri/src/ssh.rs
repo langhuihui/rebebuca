@@ -1,6 +1,6 @@
 use crate::types::{
     AgentMessage, OutputType, SshAuthMethod, SshConfig, SshConnectionInfo, 
-    SshConnectionStatus, SavedSshConfig
+    SshConnectionStatus, SavedSshConfig, REQUIRED_AGENT_VERSION
 };
 use log::{error, info, warn};
 use ssh2::Session;
@@ -268,14 +268,97 @@ impl SshConnection {
         }
     }
     
-    async fn deploy_agent(&mut self, app_handle: &tauri::AppHandle) -> Result<(), String> {
-        if self.agent_deployed {
-            return Ok(());
+    async fn check_agent_version(&self, session: &Arc<Mutex<Session>>, agent_path: &str) -> Result<String, String> {
+        let session_guard = session.lock().await;
+        let mut channel = session_guard
+            .channel_session()
+            .map_err(|e| format!("Failed to open channel: {}", e))?;
+        
+        channel
+            .exec(agent_path)
+            .map_err(|e| format!("Failed to execute agent: {}", e))?;
+        
+        // Send get_version command
+        let get_version_msg = AgentMessage::GetVersion;
+        let json = serde_json::to_string(&get_version_msg)
+            .map_err(|e| format!("Failed to serialize message: {}", e))?;
+        
+        channel
+            .write_all(format!("{}\n", json).as_bytes())
+            .map_err(|e| format!("Failed to send get_version command: {}", e))?;
+        
+        channel
+            .flush()
+            .map_err(|e| format!("Failed to flush channel: {}", e))?;
+        
+        // Close stdin to signal EOF
+        channel
+            .send_eof()
+            .map_err(|e| format!("Failed to send EOF: {}", e))?;
+        
+        drop(session_guard);
+        
+        // Read response with timeout
+        let result = timeout(Duration::from_secs(5), async {
+            let reader = BufReader::new(channel);
+            for line in reader.lines() {
+                match line {
+                    Ok(line) => {
+                        if let Ok(msg) = serde_json::from_str::<AgentMessage>(&line) {
+                            if let AgentMessage::Version { version } = msg {
+                                return Ok(version);
+                            }
+                        }
+                    }
+                    Err(e) => return Err(format!("Error reading response: {}", e)),
+                }
+            }
+            Err("No version response received".to_string())
+        }).await;
+        
+        match result {
+            Ok(Ok(version)) => Ok(version),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err("Version check timeout".to_string()),
         }
-
-        info!("Deploying remote agent to {}@{}", self.config.username, self.config.host);
-
-        // Get or create session
+    }
+    
+    /// Detect remote server architecture by running `uname -m`
+    async fn detect_remote_arch(&self, session: &Arc<Mutex<ssh2::Session>>) -> Result<String, String> {
+        let session_guard = session.lock().await;
+        let mut channel = session_guard
+            .channel_session()
+            .map_err(|e| format!("Failed to open channel: {}", e))?;
+        
+        channel
+            .exec("uname -m")
+            .map_err(|e| format!("Failed to execute uname: {}", e))?;
+        
+        drop(session_guard);
+        
+        // Read output
+        let mut output = String::new();
+        let reader = BufReader::new(&mut channel);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                output = line.trim().to_string();
+                break;
+            }
+        }
+        
+        // Wait for channel to close
+        let _ = channel.wait_close();
+        
+        if output.is_empty() {
+            Err("Failed to detect remote architecture".to_string())
+        } else {
+            info!("[SSH] Detected remote architecture: {}", output);
+            Ok(output)
+        }
+    }
+    
+    async fn deploy_agent(&mut self, app_handle: &tauri::AppHandle) -> Result<(), String> {
+        // Get or create session first
         let session = if let Some(ref sess) = self.session {
             sess.clone()
         } else {
@@ -284,16 +367,51 @@ impl SshConnection {
             new_session
         };
 
+        // Always deploy a fresh agent to ensure we have the latest version
+        // This avoids version mismatch issues and is fast enough for most use cases
+        info!("Deploying remote agent to {}@{}", self.config.username, self.config.host);
+
+        // Detect remote architecture
+        let remote_arch = self.detect_remote_arch(&session).await?;
+        
+        // Map architecture to agent binary suffix
+        // uname -m returns: x86_64, aarch64, arm64, armv7l, i686, etc.
+        let arch_suffix = match remote_arch.as_str() {
+            "x86_64" | "amd64" => "x86_64",
+            "aarch64" | "arm64" => "aarch64",
+            _ => {
+                return Err(format!("Unsupported remote architecture: {}. Supported: x86_64, aarch64", remote_arch));
+            }
+        };
+        
         // Get the agent binary path from the app resources
-        let agent_path = app_handle
+        // Try architecture-specific binary first, fall back to generic
+        let resource_dir = app_handle
             .path()
             .resource_dir()
-            .map_err(|e| format!("Failed to get resource dir: {}", e))?
-            .join("rebebuca-remote-agent");
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+        
+        let arch_specific_path = resource_dir.join(format!("rebebuca-remote-agent-{}", arch_suffix));
+        let generic_path = resource_dir.join("rebebuca-remote-agent");
+        
+        let agent_path = if arch_specific_path.exists() {
+            info!("[SSH] Using architecture-specific agent: {:?}", arch_specific_path);
+            arch_specific_path
+        } else if generic_path.exists() {
+            info!("[SSH] Using generic agent (may not match remote arch): {:?}", generic_path);
+            generic_path
+        } else {
+            return Err(format!(
+                "Agent binary not found. Looked for: {:?} and {:?}",
+                arch_specific_path, generic_path
+            ));
+        };
+
+        info!("[SSH] Agent binary path: {:?}", agent_path);
 
         // Read the agent binary
         let agent_binary = std::fs::read(&agent_path)
-            .map_err(|e| format!("Failed to read agent binary: {}", e))?;
+            .map_err(|e| format!("Failed to read agent binary from {:?}: {}", agent_path, e))?;
 
         // Transfer the agent to remote
         let remote_path = format!("/tmp/rebebuca-remote-agent-{}", Uuid::new_v4());
@@ -404,11 +522,16 @@ impl SshConnection {
             self.connect(app_handle).await?;
         }
         
+        // Always deploy fresh agent to ensure we have the latest version
+        self.deploy_agent(app_handle).await?;
+        
         // Increment task count
         self.increment_task_count();
 
         let agent_path = self.agent_path.as_ref()
             .ok_or("Agent path not available")?;
+        
+        info!("[SSH] Executing command on agent: {}", agent_path);
 
         let session = self.session.as_ref()
             .ok_or("Session not available")?
@@ -437,6 +560,8 @@ impl SshConnection {
         let json = serde_json::to_string(&execute_msg)
             .map_err(|e| format!("Failed to serialize message: {}", e))?;
 
+        info!("[SSH] Sending execute command to agent: {}", json);
+
         channel
             .write_all(format!("{}\n", json).as_bytes())
             .map_err(|e| format!("Failed to send execute command: {}", e))?;
@@ -452,15 +577,27 @@ impl SshConnection {
         let app_handle_clone = app_handle.clone();
         let task_id_clone = task_id.clone();
         let config_id_clone = self.config_id.clone();
+        let exec_id_clone = exec_id.clone();
         let reader = BufReader::new(channel);
 
+        info!("[SSH] Starting reader loop for exec_id: {}", exec_id_clone);
+
         tokio::spawn(async move {
+            // Delay to allow frontend to set up event listeners
+            // This is necessary because SSH tasks can complete very quickly
+            // and the frontend needs time to mount the terminal component
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            
+            info!("[SSH] After delay, starting to read from channel");
+            
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
+                        info!("[SSH] Read line from channel: {} bytes", line.len());
                         if let Ok(msg) = serde_json::from_str::<AgentMessage>(&line) {
                             match msg {
                                 AgentMessage::Output { id: _, output_type, content } => {
+                                    // Send ssh-output event for history tracking
                                     let _ = app_handle_clone.emit(
                                         "ssh-output",
                                         serde_json::json!({
@@ -470,7 +607,15 @@ impl SshConnection {
                                                 OutputType::Stderr => "stderr",
                                                 OutputType::System => "system",
                                             },
-                                            "content": content,
+                                            "content": content.clone(),
+                                        }),
+                                    );
+                                    // Also send pty-output event so TerminalView can display it
+                                    let _ = app_handle_clone.emit(
+                                        "pty-output",
+                                        serde_json::json!({
+                                            "pty_id": exec_id_clone,
+                                            "data": content,
                                         }),
                                     );
                                 }

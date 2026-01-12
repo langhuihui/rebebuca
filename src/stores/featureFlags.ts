@@ -62,7 +62,7 @@ export interface FeatureFlags {
  */
 const defaultProductionFlags: FeatureFlags = {
   aiCollab: false,
-  ssh: false,
+  ssh: true,
 };
 
 /**

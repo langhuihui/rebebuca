@@ -1850,6 +1850,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     const sshStore = useSshStore();
     const runConfigStore = useRunConfigStore();
     const notificationStore = useNotificationStore();
+    const terminalStore = useTerminalStore();
     
     // Ensure SSH store is initialized
     await sshStore.initialize();
@@ -1977,9 +1978,11 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     try {
       // Execute via SSH using config ID
+      console.log(`[TaskManager] SSH task.sshConfigId: ${task.sshConfigId}, task:`, task);
+      console.log(`[TaskManager] SSH command: "${command}", args:`, args, 'cwd:', cwd, 'env:', env);
       const execId = await safeInvoke<string>('execute_ssh_command_by_id', {
-        config_id: task.sshConfigId,
-        task_id: task.id,
+        configId: task.sshConfigId,
+        taskId: task.id,
         command,
         args: args.length > 0 ? args : undefined,
         cwd,
@@ -1992,23 +1995,31 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       
       console.log(`[TaskManager] SSH execution started with id: ${execId}`);
       
-      // Track this task as running
-      runningTasks.value.set(task.id, execId);
+      // Create SSH terminal tab to display output
+      const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      const tab = await terminalStore.executeSshTask({
+        sshConfigId: task.sshConfigId!,
+        sshConfigName: sshConfig.name,
+        sshExecId: execId,
+        command: fullCommand,
+        taskId: task.id,
+        historyId: historyRecord.id,
+        label: task.name,
+      });
+      
+      // Track this task as running (use tab.id for consistency with local tasks)
+      runningTasks.value.set(task.id, tab.id);
       
       // Update task run statistics
       await updateTaskRunStats(task.id);
       
-      // Update history with SSH execution ID
-      const index = runConfigStore.history.findIndex(h => h.id === historyRecord.id);
-      if (index !== -1) {
-        runConfigStore.history[index] = {
-          ...runConfigStore.history[index],
-          ptyId: execId,
-        };
-        await runConfigStore.saveHistory();
-      }
+      // Update history with SSH execution ID and terminal tab ID
+      await runConfigStore.updateHistory(historyRecord.id, {
+        ptyId: execId,
+        terminalTabId: tab.id,
+      });
       
-      console.log(`[TaskManager] SSH task started: ${task.name}, execId: ${execId}`);
+      console.log(`[TaskManager] SSH task started: ${task.name}, execId: ${execId}, tabId: ${tab.id}`);
     } catch (error) {
       // Update history to error status if execution failed
       const errorMessage = error instanceof Error ? error.message : String(error);

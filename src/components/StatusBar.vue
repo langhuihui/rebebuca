@@ -264,10 +264,7 @@ const taskLocation = computed(() => {
 }
 
 .status-command {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 400px;
 }
 
 .status-placeholder {

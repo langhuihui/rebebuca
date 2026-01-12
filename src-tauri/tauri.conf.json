@@ -57,7 +57,10 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "shell-integration/*"
+      "shell-integration/*",
+      "rebebuca-remote-agent",
+      "rebebuca-remote-agent-x86_64",
+      "rebebuca-remote-agent-aarch64"
     ],
     "macOS": {
       "frameworks": [],

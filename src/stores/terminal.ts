@@ -50,6 +50,8 @@ export interface TerminalTab {
   initialTab?: string;  // 对于 settings 类型，可以指定初始 tab
   shellName?: string;   // 终端类型名称（用于状态栏显示）
   collabSessionId?: string; // 对于 ai-collab 类型，关联的协作会话 ID
+  sshConfigId?: string; // SSH 配置 ID（用于 SSH 任务）
+  sshExecId?: string;   // SSH 执行 ID（用于 SSH 任务）
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -252,6 +254,42 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
   
+  // Execute an SSH task in a new terminal tab
+  const executeSshTask = async (options: {
+    sshConfigId: string;
+    sshConfigName: string;
+    sshExecId: string;
+    command: string;
+    taskId?: string;
+    historyId?: string;
+    label: string;
+  }): Promise<TerminalTab> => {
+    const id = generateId();
+    // Use sshExecId as ptyId so TerminalView can receive pty-output events
+    const ptyId = options.sshExecId;
+    
+    const tab: TerminalTab = {
+      id,
+      type: 'task',
+      label: `[SSH] ${options.label}`,
+      ptyId,
+      taskId: options.taskId,
+      historyId: options.historyId,
+      status: 'running',
+      startTime: Date.now(),
+      command: options.command,
+      shellName: `SSH: ${options.sshConfigName}`,
+      sshConfigId: options.sshConfigId,
+      sshExecId: options.sshExecId,
+    };
+    
+    tabs.value.push(tab);
+    setActiveTab(id);
+    
+    console.log('[Terminal Store] SSH task tab created:', ptyId, 'execId:', options.sshExecId);
+    return tab;
+  };
+  
   // Start a pending task - call this after terminal is ready (only for task tabs)
   const startTask = async (tabId: string): Promise<void> => {
     const tab = tabs.value.find(t => t.id === tabId);
@@ -394,6 +432,13 @@ export const useTerminalStore = defineStore('terminal', () => {
   const stopTask = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running') return;
+    
+    // SSH tasks don't have a local PTY to kill
+    if (tab.sshConfigId) {
+      console.log('[Terminal Store] SSH task stopped (no PTY to kill):', tab.sshExecId);
+      tab.status = 'success'; // SSH tasks that are stopped are considered successful
+      return;
+    }
     
     try {
       const adapterInstance = await getAdapterInstance();
@@ -734,6 +779,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     cleanupListeners,
     createShellTerminal,
     executeTask,
+    executeSshTask,
     startTask,
     closeTab,
     stopTask,

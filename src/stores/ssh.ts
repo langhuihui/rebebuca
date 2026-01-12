@@ -73,8 +73,8 @@ export const useSshStore = defineStore('ssh', () => {
   // SSH configurations (loaded from storage)
   const configs = ref<SshConfig[]>([]);
   
-  // Connection statuses (keyed by config ID)
-  const connectionStatuses = ref<Map<string, SshConnectionInfo>>(new Map());
+  // Connection statuses (keyed by config ID) - use object instead of Map for better Vue reactivity
+  const connectionStatuses = ref<Record<string, SshConnectionInfo>>({});
   
   // Initialization flag
   const initialized = ref(false);
@@ -125,6 +125,29 @@ export const useSshStore = defineStore('ssh', () => {
     initialized.value = true;
     await loadConfigs();
     
+    // Add test SSH config in development mode
+    if (import.meta.env.DEV) {
+      const testConfigId = 'ssh-dev-test-config';
+      const existingTestConfig = configs.value.find(c => c.id === testConfigId);
+      if (!existingTestConfig) {
+        const testConfig: SshConfig = {
+          id: testConfigId,
+          name: '[DEV] SSH Test Container',
+          host: '127.0.0.1',
+          port: 2222,
+          username: 'testuser',
+          auth: {
+            type: 'password',
+            password: 'test123',
+          },
+          keepAliveInterval: 60,
+          keepConnection: false,
+        };
+        configs.value.unshift(testConfig);
+        console.log('[SSH] Added dev test config');
+      }
+    }
+    
     // Sync saved configs to backend
     for (const config of configs.value) {
       try {
@@ -158,16 +181,19 @@ export const useSshStore = defineStore('ssh', () => {
    * Refresh connection status for all configs
    */
   async function refreshConnectionStatuses(): Promise<void> {
+    const newStatuses: Record<string, SshConnectionInfo> = { ...connectionStatuses.value };
     for (const config of configs.value) {
       try {
         const status = await safeInvoke<SshConnectionInfo>('get_ssh_connection_status', { id: config.id });
         if (status) {
-          connectionStatuses.value.set(config.id, status);
+          newStatuses[config.id] = status;
         }
       } catch (error) {
         console.error(`[SSH] Failed to get status for ${config.id}:`, error);
       }
     }
+    // Trigger Vue reactivity by assigning a new object
+    connectionStatuses.value = newStatuses;
   }
   
   /**
@@ -175,9 +201,16 @@ export const useSshStore = defineStore('ssh', () => {
    */
   async function refreshConnectionStatus(configId: string): Promise<void> {
     try {
+      console.log(`[SSH] Refreshing status for ${configId}...`);
       const status = await safeInvoke<SshConnectionInfo>('get_ssh_connection_status', { id: configId });
+      console.log(`[SSH] Got status for ${configId}:`, status);
       if (status) {
-        connectionStatuses.value.set(configId, status);
+        // Create a new object to trigger Vue reactivity
+        connectionStatuses.value = {
+          ...connectionStatuses.value,
+          [configId]: status
+        };
+        console.log(`[SSH] Updated connectionStatuses:`, connectionStatuses.value);
       }
     } catch (error) {
       console.error(`[SSH] Failed to get status for ${configId}:`, error);
@@ -267,7 +300,9 @@ export const useSshStore = defineStore('ssh', () => {
     }
     
     configs.value.splice(index, 1);
-    connectionStatuses.value.delete(id);
+    // Delete from connectionStatuses object
+    const { [id]: _, ...rest } = connectionStatuses.value;
+    connectionStatuses.value = rest;
     await saveConfigs();
     
     // Delete from backend
@@ -289,10 +324,14 @@ export const useSshStore = defineStore('ssh', () => {
    * Connect to SSH server
    */
   async function connect(id: string): Promise<void> {
+    console.log(`[SSH] connect() called with id: ${id}`);
     loading.value = true;
     try {
+      console.log(`[SSH] Calling connect_ssh...`);
       await safeInvoke('connect_ssh', { id });
+      console.log(`[SSH] connect_ssh completed, refreshing status...`);
       await refreshConnectionStatus(id);
+      console.log(`[SSH] Status refresh completed`);
     } catch (error) {
       console.error(`[SSH] Failed to connect ${id}:`, error);
       throw error;
@@ -359,14 +398,14 @@ export const useSshStore = defineStore('ssh', () => {
    * Get connection status for a config
    */
   function getConnectionStatus(id: string): SshConnectionInfo | undefined {
-    return connectionStatuses.value.get(id);
+    return connectionStatuses.value[id];
   }
   
   /**
    * Check if a config is connected
    */
   function isConnected(id: string): boolean {
-    const status = connectionStatuses.value.get(id);
+    const status = connectionStatuses.value[id];
     return status?.status === 'connected' || status?.status === 'agent_ready';
   }
   
@@ -374,7 +413,7 @@ export const useSshStore = defineStore('ssh', () => {
    * Check if agent is ready
    */
   function isAgentReady(id: string): boolean {
-    const status = connectionStatuses.value.get(id);
+    const status = connectionStatuses.value[id];
     return status?.status === 'agent_ready';
   }
   
@@ -388,6 +427,145 @@ export const useSshStore = defineStore('ssh', () => {
       username: config.username,
     }));
   });
+  
+  /**
+   * Parse SSH config file content and extract host configurations
+   */
+  function parseSshConfigContent(content: string): Array<{
+    host: string;
+    hostname: string;
+    port: number;
+    user: string;
+    identityFile?: string;
+  }> {
+    const hosts: Array<{
+      host: string;
+      hostname: string;
+      port: number;
+      user: string;
+      identityFile?: string;
+    }> = [];
+    
+    const lines = content.split('\n');
+    let currentHost: {
+      host: string;
+      hostname: string;
+      port: number;
+      user: string;
+      identityFile?: string;
+    } | null = null;
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Skip comments and empty lines
+      if (trimmed.startsWith('#') || trimmed === '') {
+        continue;
+      }
+      
+      // Parse key-value pairs (supports both "Key Value" and "Key=Value" formats)
+      const match = trimmed.match(/^(\S+)\s*[=\s]\s*(.+)$/);
+      if (!match) continue;
+      
+      const [, key, value] = match;
+      const keyLower = key.toLowerCase();
+      
+      if (keyLower === 'host') {
+        // Save previous host if exists and has required fields
+        if (currentHost && currentHost.hostname && currentHost.host !== '*') {
+          hosts.push(currentHost);
+        }
+        
+        // Start new host (skip wildcard patterns)
+        if (value !== '*' && !value.includes('*') && !value.includes('?')) {
+          currentHost = {
+            host: value,
+            hostname: '',
+            port: 22,
+            user: '',
+          };
+        } else {
+          currentHost = null;
+        }
+      } else if (currentHost) {
+        switch (keyLower) {
+          case 'hostname':
+            currentHost.hostname = value;
+            break;
+          case 'port':
+            currentHost.port = parseInt(value, 10) || 22;
+            break;
+          case 'user':
+            currentHost.user = value;
+            break;
+          case 'identityfile':
+            // Expand ~ to home directory placeholder (will be handled later)
+            currentHost.identityFile = value;
+            break;
+        }
+      }
+    }
+    
+    // Don't forget the last host
+    if (currentHost && currentHost.hostname && currentHost.host !== '*') {
+      hosts.push(currentHost);
+    }
+    
+    return hosts;
+  }
+  
+  /**
+   * Import SSH configs from parsed SSH config file entries
+   */
+  async function importFromSshConfig(
+    entries: Array<{
+      host: string;
+      hostname: string;
+      port: number;
+      user: string;
+      identityFile?: string;
+    }>,
+    homeDir: string
+  ): Promise<{ imported: number; skipped: number }> {
+    let imported = 0;
+    let skipped = 0;
+    
+    for (const entry of entries) {
+      // Check if a config with same host/port/user already exists
+      const exists = configs.value.some(
+        c => c.host === entry.hostname && c.port === entry.port && c.username === entry.user
+      );
+      
+      if (exists) {
+        skipped++;
+        continue;
+      }
+      
+      // Expand ~ in identity file path
+      let keyPath = entry.identityFile;
+      if (keyPath) {
+        keyPath = keyPath.replace(/^~/, homeDir);
+      }
+      
+      const auth: SshAuthMethod = keyPath
+        ? { type: 'privateKey', key_path: keyPath }
+        : { type: 'password', password: '' };
+      
+      await addConfig({
+        name: entry.host,
+        host: entry.hostname,
+        port: entry.port,
+        username: entry.user || 'root',
+        auth,
+        keepAliveInterval: 60,
+        keepConnection: false,
+      });
+      
+      imported++;
+    }
+    
+    return { imported, skipped };
+  }
   
   return {
     // State
@@ -416,5 +594,7 @@ export const useSshStore = defineStore('ssh', () => {
     getConnectionStatus,
     isConnected,
     isAgentReady,
+    parseSshConfigContent,
+    importFromSshConfig,
   };
 });

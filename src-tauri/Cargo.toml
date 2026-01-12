@@ -15,9 +15,9 @@ default-run = "tauri-app"
 name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-[[bin]]
-name = "rebebuca-remote-agent"
-path = "src/remote_agent.rs"
+# Note: rebebuca-remote-agent is built separately in ../remote-agent/ 
+# and cross-compiled for Linux. The binary is stored in src-tauri/rebebuca-remote-agent
+# and copied to resources during build.
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

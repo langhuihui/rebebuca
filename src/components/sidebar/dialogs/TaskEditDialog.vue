@@ -60,13 +60,13 @@
           />
           <n-tooltip v-if="aiToolOptions.length > 0" trigger="hover">
             <template #trigger>
-              <n-dropdown
-                trigger="click"
-                :options="aiToolOptions"
-                @select="handleAIToolSelect"
-                to="body"
-              >
-                <span>
+              <span>
+                <n-dropdown
+                  trigger="click"
+                  :options="aiToolOptions"
+                  @select="handleAIToolSelect"
+                  to="body"
+                >
                   <n-button>
                     <template #icon>
                       <n-icon size="16">
@@ -74,8 +74,8 @@
                       </n-icon>
                     </template>
                   </n-button>
-                </span>
-              </n-dropdown>
+                </n-dropdown>
+              </span>
             </template>
             {{ t('aiTools.selectTool') }}
           </n-tooltip>
@@ -231,33 +231,22 @@
             style="min-width: 200px;"
             @update:value="handleSshConfigChange"
           />
-          <n-button
-            v-if="editingTask.useSsh && editingTask.sshConfigId"
-            size="small"
-            :loading="testingSsh"
-            @click="testSshConnection"
-          >
-            {{ t('task.testSshConnection') }}
-          </n-button>
-        </n-space>
-      </n-form-item>
-      
-      <!-- SSH Connection Status -->
-      <n-form-item v-if="featureFlagsStore.flags.ssh && editingTask.useSsh && editingTask.sshConfigId && editingTask.type !== 'macro'">
-        <n-space align="center" :size="8">
+          <!-- Show status tag inline if connected -->
           <n-tag
+            v-if="editingTask.useSsh && editingTask.sshConfigId && isSshConnected(editingTask.sshConfigId)"
             :type="getSshStatusTagType(editingTask.sshConfigId)"
             size="small"
           >
             {{ getSshStatusLabel(editingTask.sshConfigId) }}
           </n-tag>
+          <!-- Show test connection button only when not connected -->
           <n-button
-            v-if="!isSshConnected(editingTask.sshConfigId)"
-            size="tiny"
-            :loading="sshStore.loading"
-            @click="connectSsh(editingTask.sshConfigId!)"
+            v-if="editingTask.useSsh && editingTask.sshConfigId && !isSshConnected(editingTask.sshConfigId)"
+            size="small"
+            :loading="testingSsh"
+            @click="testSshConnection"
           >
-            {{ t('task.connectSsh') }}
+            {{ t('task.testSshConnection') }}
           </n-button>
         </n-space>
       </n-form-item>
@@ -684,19 +673,6 @@ const isSshConnected = (configId: string | null): boolean => {
   return sshStore.isConnected(configId);
 };
 
-const connectSsh = async (configId: string) => {
-  try {
-    await sshStore.connect(configId);
-    const { useMessage } = await import('naive-ui');
-    const message = useMessage();
-    message.success(t('task.sshConnected'));
-  } catch (error) {
-    const { useMessage } = await import('naive-ui');
-    const message = useMessage();
-    message.error(t('task.sshConnectFailed') + ': ' + (error instanceof Error ? error.message : String(error)));
-  }
-};
-
 const handleSave = async () => {
   try {
     await taskFormRef.value?.validate();
@@ -730,8 +706,26 @@ watch(showDialog, (show) => {
   }
 });
 
+// Track whether this is an initial load (dialog just opened with new task data)
+// vs user manually switching task type
+const isInitialLoad = ref(true);
+
+// Reset initial load flag when dialog opens
+watch(showDialog, (show) => {
+  if (show) {
+    // Mark as initial load, will be cleared after first type change
+    isInitialLoad.value = true;
+  }
+});
+
 // Watch task type changes to reset macro-specific fields
 watch(() => editingTask.value.type, (newType, oldType) => {
+  // Skip reset on initial load - the task data already contains correct values
+  if (isInitialLoad.value) {
+    isInitialLoad.value = false;
+    return;
+  }
+  
   if (newType !== 'macro' && oldType === 'macro') {
     // Switching from macro to regular task
     editingTask.value.executionMode = undefined;

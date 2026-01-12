@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+
+// Agent version - update this when making changes
+const AGENT_VERSION: &str = "0.1.1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -40,6 +45,10 @@ enum AgentMessage {
     },
     Ping,
     Pong,
+    GetVersion,
+    Version {
+        version: String,
+    },
 }
 
 fn send_message(msg: &AgentMessage) -> io::Result<()> {
@@ -55,16 +64,30 @@ fn execute_command(
     args: Option<Vec<String>>,
     cwd: Option<String>,
     env: Option<HashMap<String, String>>,
+    running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
 ) {
-    tokio::spawn(async move {
-        let mut cmd = Command::new(&command);
+    let handle = std::thread::spawn(move || {
+        // Build the full command string
+        let full_command = if let Some(args) = &args {
+            if args.is_empty() {
+                command.clone()
+            } else {
+                format!("{} {}", command, args.join(" "))
+            }
+        } else {
+            command.clone()
+        };
         
-        if let Some(args) = args {
-            cmd.args(args);
-        }
+        // Use absolute path /bin/sh to execute the command
+        // This is necessary because the agent runs without PATH set
+        let mut cmd = Command::new("/bin/sh");
+        cmd.arg("-c").arg(&full_command);
         
-        if let Some(cwd) = cwd {
-            cmd.current_dir(cwd);
+        // Only set current_dir if cwd is Some and not empty
+        if let Some(ref cwd_path) = cwd {
+            if !cwd_path.is_empty() {
+                cmd.current_dir(cwd_path);
+            }
         }
         
         if let Some(env) = env {
@@ -85,38 +108,50 @@ fn execute_command(
                     pid,
                 });
                 
-                // Handle stdout
-                if let Some(stdout) = child.stdout.take() {
-                    let id_clone = id.clone();
-                    tokio::spawn(async move {
+                // Read stdout in a separate thread
+                let stdout_id = id.clone();
+                let stdout_handle = if let Some(stdout) = child.stdout.take() {
+                    Some(std::thread::spawn(move || {
                         let reader = BufReader::new(stdout);
                         for line in reader.lines() {
                             if let Ok(line) = line {
                                 let _ = send_message(&AgentMessage::Output {
-                                    id: id_clone.clone(),
+                                    id: stdout_id.clone(),
                                     output_type: OutputType::Stdout,
                                     content: format!("{}\n", line),
                                 });
                             }
                         }
-                    });
-                }
+                    }))
+                } else {
+                    None
+                };
                 
-                // Handle stderr
-                if let Some(stderr) = child.stderr.take() {
-                    let id_clone = id.clone();
-                    tokio::spawn(async move {
+                // Read stderr in a separate thread
+                let stderr_id = id.clone();
+                let stderr_handle = if let Some(stderr) = child.stderr.take() {
+                    Some(std::thread::spawn(move || {
                         let reader = BufReader::new(stderr);
                         for line in reader.lines() {
                             if let Ok(line) = line {
                                 let _ = send_message(&AgentMessage::Output {
-                                    id: id_clone.clone(),
+                                    id: stderr_id.clone(),
                                     output_type: OutputType::Stderr,
                                     content: format!("{}\n", line),
                                 });
                             }
                         }
-                    });
+                    }))
+                } else {
+                    None
+                };
+                
+                // Wait for output threads to finish
+                if let Some(handle) = stdout_handle {
+                    let _ = handle.join();
+                }
+                if let Some(handle) = stderr_handle {
+                    let _ = handle.join();
                 }
                 
                 // Wait for process to finish
@@ -143,11 +178,17 @@ fn execute_command(
             }
         }
     });
+    
+    // Store the handle so we can wait for it later
+    running_tasks.lock().unwrap().push(handle);
 }
 
 #[tokio::main]
 async fn main() {
     eprintln!("Rebebuca Remote Agent started");
+    
+    // Track running tasks so we can wait for them before exiting
+    let running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>> = Arc::new(Mutex::new(Vec::new()));
     
     let stdin = io::stdin();
     let reader = BufReader::new(stdin);
@@ -163,10 +204,15 @@ async fn main() {
                     Ok(msg) => {
                         match msg {
                             AgentMessage::Execute { id, command, args, cwd, env } => {
-                                execute_command(id, command, args, cwd, env);
+                                execute_command(id, command, args, cwd, env, running_tasks.clone());
                             }
                             AgentMessage::Ping => {
                                 let _ = send_message(&AgentMessage::Pong);
+                            }
+                            AgentMessage::GetVersion => {
+                                let _ = send_message(&AgentMessage::Version {
+                                    version: AGENT_VERSION.to_string(),
+                                });
                             }
                             _ => {
                                 eprintln!("Unexpected message from client");
@@ -183,6 +229,16 @@ async fn main() {
                 break;
             }
         }
+    }
+    
+    // Wait for all running tasks to complete before exiting
+    let handles: Vec<JoinHandle<()>> = {
+        let mut tasks = running_tasks.lock().unwrap();
+        std::mem::take(&mut *tasks)
+    };
+    
+    for handle in handles {
+        let _ = handle.join();
     }
     
     eprintln!("Rebebuca Remote Agent stopped");

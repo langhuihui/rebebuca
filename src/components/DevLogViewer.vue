@@ -91,9 +91,15 @@
             <n-button size="small" @click="openLogFolder">
               {{ t('devLog.openFolder') }}
             </n-button>
+            <n-button size="small" type="error" @click="clearTauriLogs">
+              {{ t('devLog.clear') }}
+            </n-button>
+            <n-button size="small" :type="tauriAutoScroll ? 'primary' : 'default'" @click="toggleTauriAutoScroll">
+              {{ tauriAutoScroll ? t('devLog.autoScrollOn') : t('devLog.autoScrollOff') }}
+            </n-button>
           </n-space>
         </div>
-        <n-scrollbar class="log-scrollbar">
+        <n-scrollbar ref="tauriScrollbarRef" class="log-scrollbar">
           <n-spin :show="loadingLogContent">
             <pre class="log-content">{{ logFileContent || t('devLog.selectFileToView') }}</pre>
           </n-spin>
@@ -131,6 +137,8 @@ const selectedLogFile = ref<string | null>(null);
 const logFileContent = ref('');
 const loadingLogFiles = ref(false);
 const loadingLogContent = ref(false);
+const tauriScrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null);
+const tauriAutoScroll = ref(true);
 
 // Computed
 const filteredConsoleLogs = computed(() => {
@@ -228,11 +236,38 @@ async function openLogFolder() {
   }
 }
 
+function clearTauriLogs() {
+  logFileContent.value = '';
+}
+
+function scrollTauriToBottom() {
+  if (tauriAutoScroll.value && tauriScrollbarRef.value) {
+    nextTick(() => {
+      tauriScrollbarRef.value?.scrollTo({ top: 999999, behavior: 'smooth' });
+    });
+  }
+}
+
+function toggleTauriAutoScroll() {
+  tauriAutoScroll.value = !tauriAutoScroll.value;
+  if (tauriAutoScroll.value) {
+    scrollTauriToBottom();
+  }
+}
+
 // Watch for log file selection
 watch(selectedLogFile, (newFile) => {
   if (newFile) {
     loadLogFileContent(newFile);
   }
+});
+
+// Watch for Tauri log content changes and auto-scroll
+watch(logFileContent, () => {
+  // Use setTimeout to ensure content is fully rendered before scrolling
+  setTimeout(() => {
+    scrollTauriToBottom();
+  }, 50);
 });
 
 // Auto-scroll to bottom when new logs arrive
@@ -260,10 +295,11 @@ watch(filteredConsoleLogs, () => {
 onMounted(() => {
   refreshConsoleLogs();
   refreshLogFiles();
-  // Initial scroll to bottom
-  nextTick(() => {
+  // Initial scroll to bottom - use setTimeout to ensure DOM is fully rendered
+  setTimeout(() => {
     scrollToBottom();
-  });
+    scrollTauriToBottom();
+  }, 100);
 });
 </script>
 

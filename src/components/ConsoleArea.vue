@@ -688,6 +688,10 @@ const handleStopTask = async () => {
   if (tab) {
     try {
       await terminalStore.stopTask(tab.id);
+      // Also notify taskManager to update running status
+      if (tab.taskId) {
+        taskManager.onTaskExit(tab.id);
+      }
     } catch (error) {
       console.error('Failed to stop task:', error);
       message.error(t('console.stopFailed'));
@@ -716,6 +720,10 @@ const handleRestartTask = async () => {
     if (tab.status === 'running') {
       try {
         await terminalStore.stopTask(tab.id);
+        // Notify taskManager to update running status
+        if (tab.taskId) {
+          taskManager.onTaskExit(tab.id);
+        }
         await terminalStore.closeTab(tab.id);
         console.log('[ConsoleArea] Stopped and closed old task tab:', tab.id);
       } catch (error) {

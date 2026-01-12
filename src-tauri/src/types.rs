@@ -38,6 +38,7 @@ pub struct SavedSshConfig {
 
 // SSH connection status
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SshConnectionStatus {
     Disconnected,
     Connecting,
@@ -91,7 +92,14 @@ pub enum AgentMessage {
     },
     Ping,
     Pong,
+    GetVersion,
+    Version {
+        version: String,
+    },
 }
+
+// Required agent version - update this when agent protocol changes
+pub const REQUIRED_AGENT_VERSION: &str = "0.1.1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessInfo {
@@ -125,7 +133,7 @@ pub struct OutputEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum OutputType {
     Stdout,
     Stderr,

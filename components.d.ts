@@ -22,6 +22,8 @@ declare module 'vue' {
     DevLogViewer: typeof import('./src/components/DevLogViewer.vue')['default']
     IconPicker: typeof import('./src/components/IconPicker.vue')['default']
     ImportTasksDialog: typeof import('./src/components/ImportTasksDialog.vue')['default']
+    NCheckbox: typeof import('naive-ui')['NCheckbox']
+    NCheckboxGroup: typeof import('naive-ui')['NCheckboxGroup']
     NDropdown: typeof import('naive-ui')['NDropdown']
     NotificationsPanel: typeof import('./src/components/NotificationsPanel.vue')['default']
     NSpace: typeof import('naive-ui')['NSpace']
@@ -40,6 +42,9 @@ declare module 'vue' {
     TaskSidebar: typeof import('./src/components/TaskSidebar.vue')['default']
     TerminalView: typeof import('./src/components/TerminalView.vue')['default']
     TitleBar: typeof import('./src/components/TitleBar.vue')['default']
+    WebsitePortsPanel: typeof import('./src/components/website/WebsitePortsPanel.vue')['default']
+    WebsiteSettingsPanel: typeof import('./src/components/website/WebsiteSettingsPanel.vue')['default']
+    WebsiteSshPanel: typeof import('./src/components/website/WebsiteSshPanel.vue')['default']
     WelcomeScreen: typeof import('./src/components/WelcomeScreen.vue')['default']
   }
 }

@@ -644,12 +644,49 @@ export const useRunConfigStore = defineStore('runConfig', () => {
     }
   };
 
-  // Stop current run (now supports both PTY and legacy process)
+  // Stop current run (now supports PTY, SSH tasks, and legacy process)
   const stopCurrentRun = async (processId: string) => {
     console.log(`[STORE] stopCurrentRun called with processId: ${processId}`);
     
     // Find the history item
     const historyItem = history.value.find(h => h.pid === processId || h.ptyId === processId);
+    
+    // Check if this is an SSH task by looking at the terminal tab
+    const { useTerminalStore } = await import('./terminal');
+    const terminalStore = useTerminalStore();
+    const terminalTab = historyItem?.terminalTabId 
+      ? terminalStore.tabs.find(t => t.id === historyItem.terminalTabId)
+      : terminalStore.tabs.find(t => t.ptyId === processId);
+    
+    if (terminalTab?.sshConfigId) {
+      // SSH task - these don't have local PTY or process
+      // Just close the terminal tab and update history
+      console.log(`[STORE] Stopping SSH task: ${terminalTab.sshExecId}`);
+      
+      try {
+        // Close the terminal tab
+        await terminalStore.closeTab(terminalTab.id);
+        
+        appendConsoleOutput('\n> SSH 任务已停止\n');
+        
+        // Update history
+        if (historyItem) {
+          let updateData: Partial<RunHistory> = {
+            status: 'success'
+          };
+          if (historyItem.startTime) {
+            const duration = Date.now() - historyItem.startTime;
+            updateData.duration = duration;
+          }
+          await updateHistory(historyItem.id, updateData);
+        }
+      } catch (error) {
+        console.error('[STORE] Failed to stop SSH task:', error);
+        // SSH tasks may already be finished, don't throw error
+        appendConsoleOutput('\n> SSH 任务已停止\n');
+      }
+      return;
+    }
     
     if (historyItem?.ptyId) {
       // PTY-based task - close the PTY
@@ -659,8 +696,6 @@ export const useRunConfigStore = defineStore('runConfig', () => {
         
         // Also close the terminal tab
         if (historyItem.terminalTabId) {
-          const { useTerminalStore } = await import('./terminal');
-          const terminalStore = useTerminalStore();
           await terminalStore.closeTab(historyItem.terminalTabId);
         }
         

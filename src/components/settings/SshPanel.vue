@@ -26,109 +26,41 @@
             {{ t('ssh.description') }}
           </div>
         </div>
-        <n-button type="primary" @click="showAddDialog = true">
-          <template #icon>
-            <n-icon size="16">
-              <component :is="svgIcons.plus" />
-            </n-icon>
-          </template>
-          {{ t('ssh.addConfig') }}
-        </n-button>
+        <n-space :size="8">
+          <n-button @click="showImportDialog = true">
+            <template #icon>
+              <n-icon size="16">
+                <component :is="svgIcons.import" />
+              </n-icon>
+            </template>
+            {{ t('ssh.importFromConfig') }}
+          </n-button>
+          <n-button type="primary" @click="showAddDialog = true">
+            <template #icon>
+              <n-icon size="16">
+                <component :is="svgIcons.plus" />
+              </n-icon>
+            </template>
+            {{ t('ssh.addConfig') }}
+          </n-button>
+        </n-space>
       </n-space>
     </div>
 
     <n-divider />
 
-    <!-- SSH Configs List -->
-    <div class="ssh-configs-list">
+    <!-- SSH Configs Table -->
+    <div class="ssh-configs-table">
       <n-empty v-if="sshStore.configs.length === 0" style="margin-top: 40px;" :description="t('ssh.noConfigs')" />
 
-      <n-list v-else bordered>
-        <n-list-item v-for="config in sshStore.configs" :key="config.id">
-          <template #prefix>
-            <n-icon size="20" :style="{ color: getStatusColor(config.id) }">
-              <component :is="svgIcons.server" />
-            </n-icon>
-          </template>
-          
-          <n-thing>
-            <template #header>
-              <n-space justify="space-between" align="center">
-                <div>
-                  <strong>{{ config.name }}</strong>
-                  <n-tag
-                    :type="getStatusTagType(config.id)"
-                    size="small"
-                    style="margin-left: 8px"
-                  >
-                    {{ getStatusLabel(config.id) }}
-                  </n-tag>
-                  <n-tag
-                    v-if="getConnectionStatus(config.id)?.task_count"
-                    type="info"
-                    size="small"
-                    style="margin-left: 4px"
-                  >
-                    {{ getConnectionStatus(config.id)?.task_count }} {{ t('ssh.tasks') }}
-                  </n-tag>
-                </div>
-                
-                <n-space :size="8">
-                  <n-button
-                    size="small"
-                    :loading="testingConnection[config.id] || testingAgent[config.id]"
-                    @click="testConnection(config)"
-                  >
-                    {{ t('ssh.testConnection') }}
-                  </n-button>
-                  <n-button
-                    v-if="!isConnected(config.id)"
-                    size="small"
-                    type="primary"
-                    :loading="sshStore.loading"
-                    @click="connect(config.id)"
-                  >
-                    {{ t('ssh.connect') }}
-                  </n-button>
-                  <n-button
-                    v-else
-                    size="small"
-                    :loading="sshStore.loading"
-                    @click="disconnect(config.id)"
-                  >
-                    {{ t('ssh.disconnect') }}
-                  </n-button>
-                  <n-button
-                    size="small"
-                    @click="editConfig(config)"
-                  >
-                    {{ t('ssh.edit') }}
-                  </n-button>
-                  <n-button
-                    size="small"
-                    type="error"
-                    @click="deleteConfig(config.id)"
-                  >
-                    {{ t('ssh.delete') }}
-                  </n-button>
-                </n-space>
-              </n-space>
-            </template>
-            
-            <template #description>
-              <div style="font-size: 12px; color: var(--n-text-color-3); margin-top: 4px;">
-                {{ config.username }}@{{ config.host }}:{{ config.port }}
-                <span v-if="config.keepAliveInterval">
-                  · {{ t('ssh.keepAliveInterval') }}: {{ config.keepAliveInterval }}s
-                </span>
-                <span v-if="config.keepConnection">
-                  · {{ t('ssh.keepConnection') }}
-                </span>
-              </div>
-            </template>
-          </n-thing>
-        </n-list-item>
-      </n-list>
+      <n-data-table
+        v-else
+        :columns="tableColumns"
+        :data="sshStore.configs"
+        :row-key="(row: SshConfig) => row.id"
+        size="small"
+        striped
+      />
     </div>
 
     <!-- Add/Edit Dialog -->
@@ -182,7 +114,7 @@
         <n-form-item
           v-if="editingConfig.authType === 'password'"
           :label="t('ssh.password')"
-          path="auth.password"
+          path="password"
         >
           <n-input
             v-model:value="editingConfig.password"
@@ -193,7 +125,7 @@
         </n-form-item>
         
         <template v-if="editingConfig.authType === 'privateKey'">
-          <n-form-item :label="t('ssh.privateKey')" path="auth.key_path">
+          <n-form-item :label="t('ssh.privateKey')" path="keyPath">
             <n-input-group>
               <n-input
                 v-model:value="editingConfig.keyPath"
@@ -243,19 +175,105 @@
         </n-form-item>
       </n-form>
     </n-modal>
+    
+    <!-- Import from SSH Config Dialog -->
+    <n-modal
+      v-model:show="showImportDialog"
+      preset="dialog"
+      :title="t('ssh.importFromConfig')"
+      :positive-text="t('ssh.importSelected')"
+      :negative-text="t('common.cancel')"
+      style="width: 600px;"
+      to="body"
+      :positive-button-props="{ disabled: selectedImportHosts.length === 0 }"
+      @positive-click="handleImport"
+    >
+      <div style="margin-bottom: 16px;">
+        <n-space align="center" :size="8">
+          <n-input
+            v-model:value="sshConfigPath"
+            :placeholder="t('ssh.configPathPlaceholder')"
+            style="flex: 1;"
+          />
+          <n-button @click="selectSshConfigFile">
+            <template #icon>
+              <n-icon size="16">
+                <component :is="svgIcons.folderOpen" />
+              </n-icon>
+            </template>
+          </n-button>
+          <n-button
+            type="primary"
+            :loading="parsingConfig"
+            @click="parseSshConfigFile"
+          >
+            {{ t('ssh.parseConfig') }}
+          </n-button>
+        </n-space>
+        <div style="font-size: 12px; color: var(--n-text-color-3); margin-top: 8px;">
+          {{ t('ssh.configPathHint') }}
+        </div>
+      </div>
+      
+      <n-divider />
+      
+      <div v-if="parsedHosts.length === 0 && !parsingConfig" style="text-align: center; color: var(--n-text-color-3); padding: 20px;">
+        {{ t('ssh.noHostsFound') }}
+      </div>
+      
+      <template v-else>
+        <!-- Select All / Deselect All -->
+        <div style="margin-bottom: 8px;">
+          <n-space :size="8">
+            <n-button size="small" @click="selectAllHosts">
+              {{ t('ssh.selectAll') }}
+            </n-button>
+            <n-button size="small" @click="deselectAllHosts">
+              {{ t('ssh.deselectAll') }}
+            </n-button>
+            <span style="font-size: 12px; color: var(--n-text-color-3); line-height: 28px;">
+              {{ t('ssh.selectedCount', { selected: selectedImportHosts.length, total: parsedHosts.length }) }}
+            </span>
+          </n-space>
+        </div>
+        
+        <!-- Host List with scroll -->
+        <n-checkbox-group v-model:value="selectedImportHosts">
+          <n-list bordered style="max-height: 300px; overflow-y: auto;">
+            <n-list-item v-for="host in parsedHosts" :key="host.host">
+              <template #prefix>
+                <n-checkbox :value="host.host" />
+              </template>
+              <n-thing>
+                <template #header>
+                  <strong>{{ host.host }}</strong>
+                </template>
+                <template #description>
+                  <div style="font-size: 12px; color: var(--n-text-color-3);">
+                    {{ host.user || 'root' }}@{{ host.hostname }}:{{ host.port }}
+                    <span v-if="host.identityFile">
+                      · {{ t('ssh.authPrivateKey') }}: {{ host.identityFile }}
+                    </span>
+                  </div>
+                </template>
+              </n-thing>
+            </n-list-item>
+          </n-list>
+        </n-checkbox-group>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, h } from 'vue';
 import {
   NButton,
   NIcon,
   NSpace,
   NTag,
-  NList,
-  NListItem,
-  NThing,
+  NDataTable,
+  NTooltip,
   NEmpty,
   NDivider,
   NModal,
@@ -267,6 +285,8 @@ import {
   NRadioGroup,
   NRadio,
   NSwitch,
+  NCheckbox,
+  NCheckboxGroup,
   useMessage,
   type FormRules,
 } from 'naive-ui';
@@ -274,6 +294,7 @@ import { useI18n } from 'vue-i18n';
 import { useSshStore, type SshConfig, type SshAuthMethod } from '../../stores/ssh';
 import { svgIcons } from '../../utils/icons';
 import { getAdapter } from '../../adapters';
+import { homeDir as getHomeDir } from '@tauri-apps/api/path';
 
 const { t } = useI18n();
 const message = useMessage();
@@ -281,9 +302,34 @@ const sshStore = useSshStore();
 
 const showAddDialog = ref(false);
 const showEditDialog = ref(false);
+const showImportDialog = ref(false);
 const configFormRef = ref<any>(null);
 const testingConnection = ref<Record<string, boolean>>({});
 const testingAgent = ref<Record<string, boolean>>({});
+
+// Import from SSH config state
+const sshConfigPath = ref('');
+const parsingConfig = ref(false);
+const parsedHosts = ref<Array<{
+  host: string;
+  hostname: string;
+  port: number;
+  user: string;
+  identityFile?: string;
+}>>([]);
+const selectedImportHosts = ref<string[]>([]);
+
+// Computed map for connection statuses to ensure reactivity
+const connectionStatusMap = computed(() => {
+  // Access the object to create reactive dependency
+  const statuses = sshStore.connectionStatuses;
+  const result: Record<string, boolean> = {};
+  for (const config of sshStore.configs) {
+    const status = statuses[config.id];
+    result[config.id] = status?.status === 'connected' || status?.status === 'agent_ready';
+  }
+  return result;
+});
 
 // Computed property for dialog visibility
 const showConfigDialog = computed({
@@ -320,12 +366,127 @@ const editingConfig = ref<EditingConfig>({
   keepConnection: false,
 });
 
+// Table columns definition
+const tableColumns = computed(() => [
+  {
+    title: t('ssh.name'),
+    key: 'name',
+    width: 150,
+    render: (row: SshConfig) => {
+      return h('div', { class: 'ssh-name-cell' }, [
+        h(NIcon, { size: 16, style: { color: getStatusColor(row.id), marginRight: '8px', verticalAlign: 'middle' } }, {
+          default: () => h(svgIcons.server)
+        }),
+        h('span', { style: { fontWeight: '500' } }, row.name)
+      ]);
+    }
+  },
+  {
+    title: t('ssh.host'),
+    key: 'connection',
+    width: 200,
+    render: (row: SshConfig) => {
+      return h('span', { style: { fontSize: '12px' } }, `${row.username}@${row.host}:${row.port}`);
+    }
+  },
+  {
+    title: t('ssh.statusLabel'),
+    key: 'status',
+    width: 120,
+    render: (row: SshConfig) => {
+      const status = getConnectionStatus(row.id);
+      const taskCount = status?.task_count;
+      return h('div', { style: { display: 'flex', gap: '4px', alignItems: 'center' } }, [
+        h(NTag, { type: getStatusTagType(row.id), size: 'small' }, { default: () => getStatusLabel(row.id) }),
+        taskCount ? h(NTag, { type: 'info', size: 'small' }, { default: () => `${taskCount} ${t('ssh.tasks')}` }) : null
+      ].filter(Boolean));
+    }
+  },
+  {
+    title: t('ssh.actions'),
+    key: 'actions',
+    width: 180,
+    render: (row: SshConfig) => {
+      const isConnected = connectionStatusMap.value[row.id];
+      const isTesting = testingConnection.value[row.id] || testingAgent.value[row.id];
+      
+      return h('div', { class: 'ssh-actions-cell' }, [
+        // Test connection button
+        h(NTooltip, { trigger: 'hover' }, {
+          trigger: () => h(NButton, {
+            size: 'small',
+            quaternary: true,
+            circle: true,
+            loading: isTesting,
+            onClick: () => testConnection(row)
+          }, {
+            icon: () => h(NIcon, { size: 16 }, { default: () => h(svgIcons.network) })
+          }),
+          default: () => t('ssh.testConnection')
+        }),
+        // Connect/Disconnect button
+        isConnected
+          ? h(NTooltip, { trigger: 'hover' }, {
+              trigger: () => h(NButton, {
+                size: 'small',
+                quaternary: true,
+                circle: true,
+                loading: sshStore.loading,
+                onClick: () => disconnect(row.id)
+              }, {
+                icon: () => h(NIcon, { size: 16 }, { default: () => h(svgIcons.stop) })
+              }),
+              default: () => t('ssh.disconnect')
+            })
+          : h(NTooltip, { trigger: 'hover' }, {
+              trigger: () => h(NButton, {
+                size: 'small',
+                quaternary: true,
+                circle: true,
+                type: 'primary',
+                loading: sshStore.loading,
+                onClick: () => connect(row.id)
+              }, {
+                icon: () => h(NIcon, { size: 16 }, { default: () => h(svgIcons.play) })
+              }),
+              default: () => t('ssh.connect')
+            }),
+        // Edit button
+        h(NTooltip, { trigger: 'hover' }, {
+          trigger: () => h(NButton, {
+            size: 'small',
+            quaternary: true,
+            circle: true,
+            onClick: () => editConfig(row)
+          }, {
+            icon: () => h(NIcon, { size: 16 }, { default: () => h(svgIcons.edit) })
+          }),
+          default: () => t('ssh.edit')
+        }),
+        // Delete button
+        h(NTooltip, { trigger: 'hover' }, {
+          trigger: () => h(NButton, {
+            size: 'small',
+            quaternary: true,
+            circle: true,
+            type: 'error',
+            onClick: () => deleteConfig(row.id)
+          }, {
+            icon: () => h(NIcon, { size: 16 }, { default: () => h(svgIcons.clean) })
+          }),
+          default: () => t('ssh.delete')
+        })
+      ]);
+    }
+  }
+]);
+
 const configRules: FormRules = {
   name: [{ required: true, message: () => t('ssh.nameRequired') }],
   host: [{ required: true, message: () => t('ssh.hostRequired') }],
   port: [{ required: true, message: () => t('ssh.portRequired') }],
   username: [{ required: true, message: () => t('ssh.usernameRequired') }],
-  'auth.password': [
+  password: [
     {
       required: true,
       validator: (_rule, value) => {
@@ -337,11 +498,11 @@ const configRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  'auth.key_path': [
+  keyPath: [
     {
       required: true,
-      validator: () => {
-        if (editingConfig.value.authType === 'privateKey' && !editingConfig.value.keyPath) {
+      validator: (_rule, value) => {
+        if (editingConfig.value.authType === 'privateKey' && !value) {
           return new Error(t('ssh.privateKeyRequired'));
         }
         return true;
@@ -401,10 +562,6 @@ const getStatusLabel = (id: string): string => {
 
 const getConnectionStatus = (id: string) => {
   return sshStore.getConnectionStatus(id);
-};
-
-const isConnected = (id: string): boolean => {
-  return sshStore.isConnected(id);
 };
 
 const testConnection = async (config: SshConfig) => {
@@ -583,6 +740,133 @@ watch(showConfigDialog, (isOpen) => {
   }
 });
 
+// Watch import dialog state
+watch(showImportDialog, (isOpen) => {
+  if (!isOpen) {
+    // Reset import state when dialog closes
+    parsedHosts.value = [];
+    selectedImportHosts.value = [];
+  } else {
+    // Set default path when dialog opens
+    initDefaultSshConfigPath();
+  }
+});
+
+// Initialize default SSH config path
+const initDefaultSshConfigPath = async () => {
+  try {
+    const homeDir = await getHomeDir();
+    sshConfigPath.value = `${homeDir}/.ssh/config`;
+  } catch (error) {
+    console.error('[SSH Panel] Failed to get home directory:', error);
+    sshConfigPath.value = '~/.ssh/config';
+  }
+};
+
+// Select all hosts
+const selectAllHosts = () => {
+  selectedImportHosts.value = parsedHosts.value.map(h => h.host);
+};
+
+// Deselect all hosts
+const deselectAllHosts = () => {
+  selectedImportHosts.value = [];
+};
+
+// Select SSH config file
+const selectSshConfigFile = async () => {
+  try {
+    const adapter = await getAdapter();
+    const selected = await adapter.dialog.selectFile({
+      title: t('ssh.selectConfigFile'),
+      filters: [{
+        name: 'SSH Config',
+        extensions: ['', 'config'],
+      }],
+    });
+    
+    if (selected) {
+      sshConfigPath.value = selected;
+    }
+  } catch (error) {
+    console.error('[SSH Panel] Failed to select config file:', error);
+  }
+};
+
+// Parse SSH config file
+const parseSshConfigFile = async () => {
+  if (!sshConfigPath.value) {
+    message.warning(t('ssh.configPathRequired'));
+    return;
+  }
+  
+  parsingConfig.value = true;
+  try {
+    const adapter = await getAdapter();
+    
+    // Expand ~ to home directory
+    let path = sshConfigPath.value;
+    if (path.startsWith('~')) {
+      const homeDir = await getHomeDir();
+      path = path.replace(/^~/, homeDir);
+    }
+    
+    // Read file content
+    const content = await adapter.fs.readTextFile(path);
+    
+    // Parse content
+    const hosts = sshStore.parseSshConfigContent(content);
+    parsedHosts.value = hosts;
+    
+    // Select all by default
+    selectedImportHosts.value = hosts.map(h => h.host);
+    
+    if (hosts.length === 0) {
+      message.info(t('ssh.noHostsFound'));
+    } else {
+      message.success(t('ssh.hostsFound', { count: hosts.length }));
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    message.error(t('ssh.parseConfigFailed') + ': ' + errorMessage);
+    console.error('[SSH Panel] Failed to parse SSH config:', error);
+  } finally {
+    parsingConfig.value = false;
+  }
+};
+
+// Handle import
+const handleImport = async () => {
+  if (selectedImportHosts.value.length === 0) {
+    return false;
+  }
+  
+  try {
+    const homeDir = await getHomeDir();
+    
+    // Filter selected hosts
+    const hostsToImport = parsedHosts.value.filter(h => 
+      selectedImportHosts.value.includes(h.host)
+    );
+    
+    const result = await sshStore.importFromSshConfig(hostsToImport, homeDir);
+    
+    if (result.imported > 0) {
+      message.success(t('ssh.importSuccess', { imported: result.imported, skipped: result.skipped }));
+    } else if (result.skipped > 0) {
+      message.info(t('ssh.allSkipped'));
+    }
+    
+    showImportDialog.value = false;
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    message.error(t('ssh.importFailed') + ': ' + errorMessage);
+    console.error('[SSH Panel] Failed to import SSH configs:', error);
+    return false;
+  }
+};
+
 onMounted(async () => {
   await sshStore.initialize();
 });
@@ -599,7 +883,18 @@ onMounted(async () => {
   margin-bottom: 16px;
 }
 
-.ssh-configs-list {
+.ssh-configs-table {
   margin-top: 16px;
+}
+
+.ssh-name-cell {
+  display: flex;
+  align-items: center;
+}
+
+.ssh-actions-cell {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 </style>

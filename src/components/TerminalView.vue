@@ -62,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, onBeforeMount, watch, nextTick } from 'vue';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -127,6 +127,10 @@ let intersectionObserver: IntersectionObserver | null = null;
 let mutationObserver: MutationObserver | null = null;
 let isInitialized = false;
 let wasHidden = false;
+
+// Buffer for output received before terminal is ready
+let pendingOutputBuffer: string[] = [];
+let isTerminalReady = false;
 
 // WebGL setting - enabled for better performance
 const USE_WEBGL = true;
@@ -198,6 +202,7 @@ const initTerminal = async () => {
     theme: props.theme === 'dark' ? darkTheme : lightTheme,
     allowProposedApi: true,
     scrollback: 10000,
+    convertEol: true,  // Convert \n to \r\n for proper line breaks
   });
 
   // Add addons
@@ -323,18 +328,8 @@ const initTerminal = async () => {
       }
     }
 
-    // Listen for PTY output - use global listener and filter by ptyId
-    const outputUnlisten = adapterInstance.terminal.onData((event) => {
-      if (event.ptyId === props.ptyId && terminal) {
-        // Process data through shell integration if available
-        let data = event.data;
-        if (shellIntegration) {
-          data = shellIntegration.processData(data);
-        }
-        terminal.write(data);
-      }
-    });
-    unlistenOutput = outputUnlisten;
+    // Note: PTY output listener is set up early in onMounted to capture output
+    // from fast-completing tasks. We don't need to set it up here again.
 
     // Listen for PTY exit
     const exitUnlisten = adapterInstance.terminal.onExit((event) => {
@@ -438,6 +433,20 @@ const initTerminal = async () => {
     setupKeyboardShortcuts();
 
     isInitialized = true;
+    isTerminalReady = true;
+    
+    // Flush any buffered output that arrived before terminal was ready
+    if (pendingOutputBuffer.length > 0) {
+      for (const data of pendingOutputBuffer) {
+        let processedData = data;
+        if (shellIntegration) {
+          processedData = shellIntegration.processData(data);
+        }
+        terminal.write(processedData);
+      }
+      pendingOutputBuffer = [];
+    }
+    
     console.log('[TerminalView] Terminal initialized successfully, buffer length:', terminal.buffer.active.length);
     emit('ready');
   } catch (error) {
@@ -447,6 +456,10 @@ const initTerminal = async () => {
 };
 
 const dispose = async () => {
+  // Reset buffering state
+  isTerminalReady = false;
+  pendingOutputBuffer = [];
+  
   if (unlistenOutput) {
     unlistenOutput();
     unlistenOutput = null;
@@ -1009,7 +1022,31 @@ defineExpose({
   restoreRenderer,
 });
 
-onMounted(() => {
+// Setup early listener in onBeforeMount to catch output before terminal is ready
+onBeforeMount(async () => {
+  try {
+    const { listen } = await import('@tauri-apps/api/event');
+    const unlisten = await listen<{ pty_id: string; data: string }>('pty-output', (e) => {
+      if (e.payload.pty_id === props.ptyId) {
+        if (isTerminalReady && terminal) {
+          let data = e.payload.data;
+          if (shellIntegration) {
+            data = shellIntegration.processData(data);
+          }
+          terminal.write(data);
+        } else {
+          // Buffer output until terminal is ready
+          pendingOutputBuffer.push(e.payload.data);
+        }
+      }
+    });
+    unlistenOutput = unlisten;
+  } catch (err) {
+    console.error('[TerminalView] Failed to setup early listener:', err);
+  }
+});
+
+onMounted(async () => {
   console.log('[TerminalView] Component mounted for ptyId:', props.ptyId);
   initTerminal();
   setupDragDropListener();
