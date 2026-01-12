@@ -70,10 +70,8 @@
       <div v-if="connectionError" class="connection-error">
         <n-alert type="error" :title="t('task.connectionError')">
           {{ connectionError }}
-          <template #action>
-            <n-button size="small" @click="reconnect">{{ t('task.reconnect') }}</n-button>
-          </template>
         </n-alert>
+        <n-button size="small" style="margin-top: 8px;" @click="reconnect">{{ t('task.reconnect') }}</n-button>
       </div>
 
       <!-- Directory listing -->
@@ -109,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   NModal,
   NInputGroup,
