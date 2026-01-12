@@ -1105,3 +1105,55 @@ pub async fn execute_powershell_command(#[allow(unused_variables)] command: Stri
     }
 }
 
+/// Check if the app has Full Disk Access permission on macOS
+/// This is detected by trying to read a TCC-protected directory
+#[tauri::command]
+pub fn check_full_disk_access() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        // Try to read ~/Library/Application Support/com.apple.TCC directory
+        // This directory is protected and requires Full Disk Access
+        let home = std::env::var("HOME").unwrap_or_default();
+        let tcc_path = format!("{}/Library/Application Support/com.apple.TCC", home);
+        
+        // If we can read this directory, we have Full Disk Access
+        if std::fs::read_dir(&tcc_path).is_ok() {
+            return true;
+        }
+        
+        // Alternative check: try to read Safari's history (also protected)
+        let safari_path = format!("{}/Library/Safari/History.db", home);
+        if std::fs::metadata(&safari_path).is_ok() {
+            return true;
+        }
+        
+        false
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        // On non-macOS platforms, this check is not applicable
+        true
+    }
+}
+
+/// Open macOS System Settings to the Full Disk Access panel
+#[tauri::command]
+pub fn open_full_disk_access_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        // Open System Settings (macOS 13+) or System Preferences (older)
+        // x-apple.systempreferences URL scheme opens the Privacy & Security pane
+        Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+            .spawn()
+            .map_err(|e| format!("Failed to open System Settings: {}", e))?;
+        Ok(())
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("This feature is only available on macOS".to_string())
+    }
+}
+

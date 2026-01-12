@@ -230,6 +230,7 @@ export type SSEEventType =
   | 'decision_response'
   | 'agent_status'
   | 'session_status'
+  | 'terminal_screenshot'  // 终端截图事件
   | 'error'
   | 'heartbeat';
 
@@ -240,6 +241,34 @@ export interface SSEEvent {
   type: SSEEventType;
   data: any;
   timestamp: number;
+}
+
+/**
+ * 终端截图数据
+ */
+export interface TerminalScreenshotData {
+  /** Base64 编码的 PNG 图片 (data URL 格式) */
+  screenshot: string | null;
+  /** 终端文本内容 */
+  textContent: string | null;
+  /** 终端 Tab ID */
+  tabId: string;
+  /** PTY ID */
+  ptyId: string;
+}
+
+/**
+ * 终端列表项
+ */
+export interface TerminalListItem {
+  tabId: string;
+  ptyId: string;
+  label: string;
+  status: 'pending' | 'running' | 'success' | 'error' | 'closed';
+  /** 是否是当前会话的 Worker 终端 */
+  isSessionWorker?: boolean;
+  /** Worker 索引 */
+  workerIndex?: number;
 }
 
 /**

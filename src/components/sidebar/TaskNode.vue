@@ -214,6 +214,11 @@ const taskIcon = computed(() => {
       : svgIcons.task; // use task icon for serial
   }
   
+  // Show AI icon for ai-collab tasks
+  if (props.task.type === 'ai-collab') {
+    return svgIcons.robot || svgIcons.ai || svgIcons.task;
+  }
+  
   const customIcons = settingsStore.settings.commandIcons || {};
   const iconName = getCommandIconName(props.task.command || '', customIcons);
   if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {

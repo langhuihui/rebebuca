@@ -75,13 +75,39 @@ export const useAICollabStore = defineStore('aiCollab', () => {
     const id = generateId();
     const now = Date.now();
     
+    // 初始化 workers 数组 - 根据配置创建初始 worker 实例（idle 状态）
+    const initialWorkers: AgentInstance[] = [];
+    
+    // 如果配置中有 workers 数组，使用它
+    if (config.workers && config.workers.length > 0) {
+      for (let i = 0; i < config.workers.length; i++) {
+        const workerConfig = config.workers[i];
+        initialWorkers.push({
+          id: workerConfig.id || `worker-${i}`,
+          config: workerConfig,
+          status: 'idle',
+          workerIndex: i,
+          busy: false,
+        });
+      }
+    } else if (config.worker) {
+      // 兼容单个 worker 配置
+      initialWorkers.push({
+        id: config.worker.id || 'worker-0',
+        config: config.worker,
+        status: 'idle',
+        workerIndex: 0,
+        busy: false,
+      });
+    }
+    
     const session: CollabSession = {
       id,
       projectPath: config.projectPath,
       config,
       status: 'idle',
       messages: [],
-      workers: [],  // 初始化 workers 数组
+      workers: initialWorkers,
       startTime: now,
       lastActivity: now,
       iterationCount: 0,
@@ -1104,6 +1130,7 @@ ${session.pendingDecision.options ? `选项: ${session.pendingDecision.options.j
     startSession,
     stopSession,
     restartAgent,
+    startAgent,
     deleteSession,
     setActiveSession,
     addMessage,

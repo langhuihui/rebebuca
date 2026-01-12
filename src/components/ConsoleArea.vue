@@ -261,7 +261,7 @@ import { useI18n } from "vue-i18n";
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
-import { useTerminalStore, type TerminalTab } from "../stores/terminal";
+import { useTerminalStore, type TerminalTab, type TerminalScreenshotResult } from "../stores/terminal";
 import { useSettingsStore } from "../stores/settings";
 import { useTaskManagerStore } from "../stores/taskManager";
 import { iconComponents, svgIcons, getCommandIconName } from "../utils/icons";
@@ -405,6 +405,31 @@ const getActiveTerminalRef = () => {
   return activeTabId ? terminalRefs.value.get(activeTabId) : null;
 };
 
+// Screenshot handler for terminal store
+const handleTerminalScreenshot = async (tabId: string): Promise<TerminalScreenshotResult | null> => {
+  const termRef = terminalRefs.value.get(tabId);
+  const tab = terminalStore.tabs.find(t => t.id === tabId);
+  
+  if (!termRef || !tab) {
+    return null;
+  }
+  
+  try {
+    const screenshot = await termRef.takeScreenshot();
+    const textContent = termRef.getTextContent(500); // 最近 500 行
+    
+    return {
+      screenshot,
+      textContent,
+      tabId: tab.id,
+      ptyId: tab.ptyId,
+    };
+  } catch (error) {
+    console.error('[ConsoleArea] Failed to take screenshot:', error);
+    return null;
+  }
+};
+
 // History output content (may be loaded from log file)
 const historyOutputContent = ref<string>('');
 const isLoadingHistoryOutput = ref(false);
@@ -492,6 +517,9 @@ const refreshProcessStats = async () => {
 onMounted(async () => {
   await terminalStore.initListeners();
   
+  // Register screenshot handler
+  terminalStore.registerScreenshotHandler(handleTerminalScreenshot);
+  
   // Start stats refresh interval (every 2 seconds)
   statsInterval = setInterval(refreshProcessStats, 2000);
   // Initial refresh
@@ -500,6 +528,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   terminalStore.cleanupListeners();
+  
+  // Unregister screenshot handler
+  terminalStore.unregisterScreenshotHandler();
   
   // Clear stats interval
   if (statsInterval) {

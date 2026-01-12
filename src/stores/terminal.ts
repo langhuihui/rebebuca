@@ -17,11 +17,29 @@
  */
 
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, shallowRef } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
 export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab';
+
+/**
+ * 终端截图结果
+ */
+export interface TerminalScreenshotResult {
+  /** Base64 编码的 PNG 图片 (data URL 格式) */
+  screenshot: string | null;
+  /** 终端文本内容 */
+  textContent: string | null;
+  /** 终端 Tab ID */
+  tabId: string;
+  /** PTY ID */
+  ptyId: string;
+  /** 终端尺寸 (列数) */
+  cols?: number;
+  /** 终端尺寸 (行数) */
+  rows?: number;
+}
 
 export interface TaskExecutionParams {
   command: string;
@@ -70,6 +88,60 @@ export const useTerminalStore = defineStore('terminal', () => {
   
   // Adapter instance (cached)
   let adapter: BackendAdapter | null = null;
+  
+  // Terminal screenshot handler (will be set by ConsoleArea)
+  // 使用 shallowRef 来存储函数引用，避免深度响应式
+  const screenshotHandler = shallowRef<((tabId: string) => Promise<TerminalScreenshotResult | null>) | null>(null);
+  
+  // 注册截图处理器（由 ConsoleArea 调用）
+  const registerScreenshotHandler = (handler: (tabId: string) => Promise<TerminalScreenshotResult | null>) => {
+    screenshotHandler.value = handler;
+  };
+  
+  // 注销截图处理器
+  const unregisterScreenshotHandler = () => {
+    screenshotHandler.value = null;
+  };
+  
+  // 获取终端截图（供外部调用，如 MCP Server）
+  const takeTerminalScreenshot = async (tabIdOrPtyId: string): Promise<TerminalScreenshotResult | null> => {
+    // 首先尝试按 tabId 查找
+    let tab = tabs.value.find(t => t.id === tabIdOrPtyId);
+    
+    // 如果没找到，尝试按 ptyId 查找
+    if (!tab) {
+      tab = tabs.value.find(t => t.ptyId === tabIdOrPtyId);
+    }
+    
+    if (!tab) {
+      console.warn('[Terminal Store] Cannot take screenshot: tab not found:', tabIdOrPtyId);
+      return null;
+    }
+    
+    if (tab.type !== 'task' && tab.type !== 'shell') {
+      console.warn('[Terminal Store] Cannot take screenshot: not a terminal tab:', tab.type);
+      return null;
+    }
+    
+    if (!screenshotHandler.value) {
+      console.warn('[Terminal Store] Cannot take screenshot: no handler registered');
+      return null;
+    }
+    
+    return await screenshotHandler.value(tab.id);
+  };
+  
+  // 获取所有可用于截图的终端列表
+  const getScreenshotableTerminals = (): Array<{ tabId: string; ptyId: string; label: string; status: TerminalStatus }> => {
+    return tabs.value
+      .filter(t => t.type === 'task' || t.type === 'shell')
+      .map(t => ({
+        tabId: t.id,
+        ptyId: t.ptyId,
+        label: t.label,
+        status: t.status,
+      }));
+  };
   
   // Get adapter instance
   const getAdapterInstance = async (): Promise<BackendAdapter> => {
@@ -798,5 +870,10 @@ export const useTerminalStore = defineStore('terminal', () => {
     toggleSplitMode,
     setSplitTab,
     createAICollabTab,
+    // Screenshot related
+    registerScreenshotHandler,
+    unregisterScreenshotHandler,
+    takeTerminalScreenshot,
+    getScreenshotableTerminals,
   };
 });

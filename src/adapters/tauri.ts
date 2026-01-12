@@ -504,6 +504,16 @@ class TauriSystemAdapter implements SystemAdapter {
     });
     return newFilename;
   }
+
+  async checkFullDiskAccess(): Promise<boolean> {
+    await loadTauriModules();
+    return await tauriCore!.invoke<boolean>('check_full_disk_access');
+  }
+
+  async openFullDiskAccessSettings(): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('open_full_disk_access_settings');
+  }
 }
 
 /**

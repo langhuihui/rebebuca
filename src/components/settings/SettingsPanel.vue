@@ -133,6 +133,42 @@
               <span class="setting-hint" style="display: block; margin-top: 4px;">{{ t('settings.sudoPasswordHint') }}</span>
             </n-form-item>
           </template>
+
+          <!-- macOS Full Disk Access -->
+          <template v-if="currentPlatform === 'macos'">
+            <n-divider />
+            <n-form-item :label="t('settings.fullDiskAccess')">
+              <n-space align="center">
+                <n-tag :type="hasFullDiskAccess ? 'success' : 'warning'" size="small">
+                  {{ hasFullDiskAccess ? t('settings.granted') : t('settings.notGranted') }}
+                </n-tag>
+                <n-button 
+                  size="small" 
+                  @click="openFullDiskAccessSettings"
+                  :type="hasFullDiskAccess ? 'default' : 'primary'"
+                >
+                  {{ t('settings.openSystemSettings') }}
+                </n-button>
+                <n-button 
+                  size="small" 
+                  quaternary
+                  @click="checkFullDiskAccess"
+                  :loading="checkingFullDiskAccess"
+                >
+                  {{ t('settings.refresh') }}
+                </n-button>
+              </n-space>
+            </n-form-item>
+            <n-alert 
+              v-if="!hasFullDiskAccess" 
+              type="info" 
+              :title="t('settings.fullDiskAccessTip')" 
+              style="margin-top: 8px;"
+              closable
+            >
+              {{ t('settings.fullDiskAccessTipContent') }}
+            </n-alert>
+          </template>
         </n-form>
       </n-tab-pane>
 
@@ -388,6 +424,39 @@ const shellOptions = computed(() => {
 
 // Current platform detection
 const currentPlatform = ref<"macos" | "linux" | "windows">("macos");
+
+// Full Disk Access (macOS only)
+const hasFullDiskAccess = ref(true);
+const checkingFullDiskAccess = ref(false);
+
+const checkFullDiskAccess = async () => {
+  if (currentPlatform.value !== 'macos') {
+    hasFullDiskAccess.value = true;
+    return;
+  }
+  
+  checkingFullDiskAccess.value = true;
+  try {
+    const adapter = await getAdapter();
+    hasFullDiskAccess.value = await adapter.system.checkFullDiskAccess();
+  } catch (error) {
+    console.error('Failed to check Full Disk Access:', error);
+    // Assume granted if check fails
+    hasFullDiskAccess.value = true;
+  } finally {
+    checkingFullDiskAccess.value = false;
+  }
+};
+
+const openFullDiskAccessSettings = async () => {
+  try {
+    const adapter = await getAdapter();
+    await adapter.system.openFullDiskAccessSettings();
+  } catch (error) {
+    console.error('Failed to open Full Disk Access settings:', error);
+    message.error(t('settings.failedToOpenSettings'));
+  }
+};
 
 const loadAvailableTerminals = async () => {
   loadingTerminals.value = true;
@@ -668,6 +737,7 @@ onMounted(async () => {
   await Promise.all([
     loadAvailableTerminals(),
     loadAvailableShells(),
+    checkFullDiskAccess(),
   ]);
   
   // Load sudo password if exists (but don't display the actual password)

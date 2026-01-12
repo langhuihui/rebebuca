@@ -259,7 +259,61 @@
     
     <!-- Agent 配置对话框 -->
     <n-modal v-model:show="showAgentConfigModal" preset="card" :title="agentConfigTitle" style="width: 700px; max-height: 80vh;">
-      <n-tabs v-model:value="agentConfigTab" type="line">
+      <!-- 添加新 Worker 时，直接显示配置表单（不使用 Tab） -->
+      <template v-if="isAddingNewWorker">
+        <n-form label-placement="left" label-width="120">
+          <n-form-item :label="t('aiCollab.agentType')">
+            <n-radio-group v-model:value="agentConfigForm.type">
+              <n-radio value="ai-tool">{{ t('aiCollab.agentTypeAITool') }}</n-radio>
+              <n-radio value="custom-cli">{{ t('aiCollab.agentTypeCustomCLI') }}</n-radio>
+            </n-radio-group>
+          </n-form-item>
+          
+          <template v-if="agentConfigForm.type === 'ai-tool'">
+            <n-form-item :label="t('aiCollab.selectAITool')">
+              <n-select
+                v-model:value="agentConfigForm.aiTool"
+                :options="aiToolOptions"
+                :render-label="renderAIToolLabel"
+              />
+            </n-form-item>
+          </template>
+          
+          <template v-else>
+            <n-form-item :label="t('aiCollab.customCommand')">
+              <n-input
+                v-model:value="agentConfigForm.command"
+                :placeholder="t('task.commandPlaceholder')"
+              />
+            </n-form-item>
+            <n-form-item :label="t('task.cwd')">
+              <n-input
+                v-model:value="agentConfigForm.cwd"
+                :placeholder="t('task.cwdPlaceholder')"
+              />
+            </n-form-item>
+          </template>
+        </n-form>
+      </template>
+      
+      <!-- 编辑现有 Agent 时，使用 Tab 显示终端和配置 -->
+      <n-tabs v-else v-model:value="agentConfigTab" type="line">
+        <!-- 终端 Tab -->
+        <n-tab-pane name="terminal" :tab="t('aiCollab.terminalTab')">
+          <div class="agent-terminal-container">
+            <div v-if="currentAgentPtyId" class="terminal-wrapper">
+              <div ref="agentTerminalRef" class="agent-terminal"></div>
+            </div>
+            <div v-else class="terminal-empty">
+              <n-empty :description="t('aiCollab.agentNotRunning')">
+                <template #extra>
+                  <n-text depth="3">{{ t('aiCollab.startAgentHint') }}</n-text>
+                </template>
+              </n-empty>
+            </div>
+          </div>
+        </n-tab-pane>
+        
         <!-- 配置 Tab -->
         <n-tab-pane name="config" :tab="t('aiCollab.configTab')">
           <n-form label-placement="left" label-width="120">
@@ -296,27 +350,13 @@
             </template>
           </n-form>
         </n-tab-pane>
-        
-        <!-- 终端 Tab -->
-        <n-tab-pane name="terminal" :tab="t('aiCollab.terminalTab')">
-          <div class="agent-terminal-container">
-            <div v-if="currentAgentPtyId" class="terminal-wrapper">
-              <div ref="agentTerminalRef" class="agent-terminal"></div>
-            </div>
-            <div v-else class="terminal-empty">
-              <n-empty :description="t('aiCollab.agentNotRunning')">
-                <template #extra>
-                  <n-text depth="3">{{ t('aiCollab.startAgentHint') }}</n-text>
-                </template>
-              </n-empty>
-            </div>
-          </div>
-        </n-tab-pane>
       </n-tabs>
       <template #footer>
         <n-space justify="end">
           <n-button @click="showAgentConfigModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" @click="handleLaunchAgent">{{ t('aiCollab.launchAgent') }}</n-button>
+          <!-- 添加新 Worker 时显示"确定"，编辑现有 Agent 时显示"启动" -->
+          <n-button v-if="isAddingNewWorker" type="primary" @click="handleAddWorkerConfig">{{ t('common.confirm') }}</n-button>
+          <n-button v-else type="primary" @click="handleLaunchAgent">{{ t('aiCollab.launchAgent') }}</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -381,7 +421,7 @@ const settingsForm = ref({
 
 // Agent 配置对话框状态
 const showAgentConfigModal = ref(false);
-const agentConfigTab = ref<'config' | 'terminal'>('config');
+const agentConfigTab = ref<'config' | 'terminal'>('terminal');
 const currentAgentRole = ref<AgentRole>('supervisor');
 const agentConfigForm = ref<{
   type: 'ai-tool' | 'custom-cli';
@@ -453,6 +493,13 @@ let aliveCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 // 当前编辑的 worker 索引
 const currentWorkerIndex = ref<number | undefined>(undefined);
+
+// 是否是添加新 Worker 模式（而非编辑现有 Agent）
+const isAddingNewWorker = computed(() => {
+  if (currentAgentRole.value !== 'worker') return false;
+  const idx = currentWorkerIndex.value ?? 0;
+  return idx >= (session.value?.workers?.length || 0);
+});
 
 // 计算属性
 const session = computed(() => collabStore.sessions.get(props.sessionId));
@@ -611,7 +658,42 @@ const handleAddWorker = async () => {
     command: '',
     cwd: '',
   };
+  agentConfigTab.value = 'config'; // 确保打开时是配置 Tab
   showAgentConfigModal.value = true;
+};
+
+// 添加新 Worker 配置（只保存配置，不启动）
+const handleAddWorkerConfig = async () => {
+  if (!session.value) return;
+  
+  const config = agentConfigForm.value;
+  const projectPath = session.value.config.projectPath;
+  
+  // 验证配置
+  if (config.type === 'custom-cli' && !config.command?.trim()) {
+    message.error(t('aiCollab.commandRequired'));
+    return;
+  }
+  
+  try {
+    // 构建 AgentConfig
+    const agentConfig: AgentConfig = {
+      id: `worker-${Date.now()}`,
+      role: 'worker',
+      type: config.type,
+      aiTool: config.type === 'ai-tool' ? config.aiTool : undefined,
+      command: config.type === 'custom-cli' ? config.command : undefined,
+      cwd: config.cwd || projectPath,
+    };
+    
+    // 调用 store 添加 Worker
+    await collabStore.addWorker(props.sessionId, agentConfig);
+    
+    showAgentConfigModal.value = false;
+    message.success(t('aiCollab.workerAdded'));
+  } catch (error) {
+    message.error(t('aiCollab.addWorkerFailed', { error: String(error) }));
+  }
 };
 
 const handleSettings = () => {
@@ -673,7 +755,7 @@ const openAgentConfigModal = (role: AgentRole, workerIndex?: number) => {
   showAgentConfigModal.value = true;
 };
 
-// 启动 Agent（单独启动，不需要保存配置）
+// 启动 Agent（在对话框内的终端中启动，不关闭对话框）
 const handleLaunchAgent = async () => {
   if (!session.value) return;
   
@@ -681,43 +763,56 @@ const handleLaunchAgent = async () => {
   const config = agentConfigForm.value;
   const projectPath = session.value.config.projectPath;
   
-  // 构建命令
-  let command: string;
-  let taskEnv: Record<string, string> | undefined;
-  
-  if (config.type === 'ai-tool' && config.aiTool) {
-    // 使用 AI 工具启动器获取命令
-    const { createAIToolQuickLaunchTask } = await import('../utils/aiToolLauncher');
-    const toolConfig = aiToolsStore.toolConfigs[config.aiTool];
-    const task = createAIToolQuickLaunchTask(config.aiTool, toolConfig, config.cwd || projectPath);
-    command = task.command || '';
-    taskEnv = task.env;
-  } else {
-    command = config.command || '';
-  }
-  
-  if (!command) {
+  // 验证配置
+  if (config.type === 'custom-cli' && !config.command?.trim()) {
     message.error(t('aiCollab.commandRequired'));
     return;
   }
   
-  // 创建终端 tab 并启动 Agent
-  const { useTerminalStore } = await import('../stores/terminal');
-  const terminalStore = useTerminalStore();
-  
-  const tabName = currentAgentRole.value === 'supervisor' 
-    ? t('aiCollab.supervisor') 
-    : t('aiCollab.worker');
+  try {
+    // 构建 AgentConfig
+    const agentConfig: AgentConfig = {
+      id: currentAgentRole.value === 'supervisor' 
+        ? 'supervisor' 
+        : `worker-${currentWorkerIndex.value ?? 0}`,
+      role: currentAgentRole.value,
+      type: config.type,
+      aiTool: config.type === 'ai-tool' ? config.aiTool : undefined,
+      command: config.type === 'custom-cli' ? config.command : undefined,
+      cwd: config.cwd || projectPath,
+    };
     
-  await terminalStore.executeTask({
-    command,
-    cwd: config.cwd || projectPath,
-    env: taskEnv,
-    label: tabName,
-  });
-  
-  showAgentConfigModal.value = false;
-  message.success(t('aiCollab.agentLaunched', { role: tabName }));
+    // 使用 collabStore 启动 Agent（会创建 PTY 并更新 session）
+    const workerIndex = currentAgentRole.value === 'worker' ? (currentWorkerIndex.value ?? 0) : undefined;
+    const agentInstance = await collabStore.startAgent(agentConfig, props.sessionId, workerIndex);
+    
+    // 更新 session 中的 agent 实例
+    if (currentAgentRole.value === 'supervisor') {
+      session.value.supervisor = agentInstance;
+    } else if (workerIndex !== undefined) {
+      // 确保 workers 数组足够长
+      while (session.value.workers.length <= workerIndex) {
+        session.value.workers.push({
+          id: `worker-${session.value.workers.length}`,
+          config: agentConfig,
+          status: 'idle',
+          workerIndex: session.value.workers.length,
+          busy: false,
+        });
+      }
+      session.value.workers[workerIndex] = agentInstance;
+    }
+    
+    // 切换到终端 Tab 显示启动的终端
+    agentConfigTab.value = 'terminal';
+    
+    const roleName = currentAgentRole.value === 'supervisor' 
+      ? t('aiCollab.supervisor') 
+      : t('aiCollab.worker');
+    message.success(t('aiCollab.agentLaunched', { role: roleName }));
+  } catch (error) {
+    message.error(t('aiCollab.launchFailed', { error: String(error) }));
+  }
 };
 
 const handleSend = async () => {
@@ -869,13 +964,30 @@ watch(
   }
 );
 
-// 监听弹窗关闭
+// 监听弹窗打开/关闭
 watch(
   () => showAgentConfigModal.value,
-  (show) => {
-    if (!show) {
+  async (show) => {
+    if (show) {
+      // 弹窗打开时，如果是终端 tab 且有 ptyId，初始化终端
+      if (agentConfigTab.value === 'terminal' && currentAgentPtyId.value) {
+        await nextTick();
+        await initAgentTerminal();
+      }
+    } else {
       disposeAgentTerminal();
-      agentConfigTab.value = 'config';
+      agentConfigTab.value = 'terminal';
+    }
+  }
+);
+
+// 监听 ptyId 变化，在终端 tab 激活时重新初始化终端
+watch(
+  () => currentAgentPtyId.value,
+  async (newPtyId) => {
+    if (newPtyId && agentConfigTab.value === 'terminal') {
+      await nextTick();
+      await initAgentTerminal();
     }
   }
 );

@@ -24,6 +24,7 @@ import type {
   AgentRole,
 } from '../types/aiCollab';
 import { useAICollabStore } from '../stores/aiCollab';
+import { useTerminalStore } from '../stores/terminal';
 import { getAdapter } from '../adapters';
 
 /**
@@ -283,6 +284,64 @@ class MCPServer {
           },
         },
         required: ['sessionId', 'workerIndex', 'busy'],
+      },
+    },
+    {
+      name: 'get_terminal_screenshot',
+      description: '获取指定终端的截图和文本内容。可用于监工 AI 查看 Worker 终端的当前状态，特别是在 CLI 工具需要交互输入时（如箭头键选择选项）',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sessionId: {
+            type: 'string',
+            description: '会话 ID',
+          },
+          ptyId: {
+            type: 'string',
+            description: '终端 PTY ID（可选，默认获取会话关联的 Worker 终端）',
+          },
+          workerIndex: {
+            type: 'number',
+            description: 'Worker 索引（可选，指定获取哪个 Worker 的终端，默认 0）',
+          },
+        },
+        required: ['sessionId'],
+      },
+    },
+    {
+      name: 'list_terminals',
+      description: '列出所有可用的终端，包括它们的 PTY ID、标签和状态',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sessionId: {
+            type: 'string',
+            description: '会话 ID',
+          },
+        },
+        required: ['sessionId'],
+      },
+    },
+    {
+      name: 'send_terminal_input',
+      description: '向指定终端发送输入（如按键、文本）。用于 AI 协作时自动操作终端，例如发送箭头键选择选项或回车确认',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sessionId: {
+            type: 'string',
+            description: '会话 ID',
+          },
+          ptyId: {
+            type: 'string',
+            description: '终端 PTY ID',
+          },
+          input: {
+            type: 'string',
+            description: '要发送的输入内容。支持特殊按键：\\x1b[A (上箭头), \\x1b[B (下箭头), \\x1b[C (右箭头), \\x1b[D (左箭头), \\r (回车)',
+          },
+        },
+        required: ['sessionId', 'ptyId', 'input'],
       },
     },
   ];
@@ -631,6 +690,94 @@ class MCPServer {
         });
         
         return { success: true };
+      }
+      
+      case 'get_terminal_screenshot': {
+        const { sessionId, ptyId, workerIndex = 0 } = args;
+        const session = collabStore.sessions.get(sessionId);
+        if (!session) {
+          throw new Error('Session not found');
+        }
+        
+        const terminalStore = useTerminalStore();
+        let targetPtyId = ptyId;
+        
+        // 如果没有指定 ptyId，尝试获取 Worker 的终端
+        if (!targetPtyId) {
+          const worker = session.workers[workerIndex];
+          if (worker?.ptyId) {
+            targetPtyId = worker.ptyId;
+          }
+        }
+        
+        if (!targetPtyId) {
+          return { 
+            success: false, 
+            error: 'No terminal found for the specified worker',
+            terminals: terminalStore.getScreenshotableTerminals(),
+          };
+        }
+        
+        const result = await terminalStore.takeTerminalScreenshot(targetPtyId);
+        if (!result) {
+          return { 
+            success: false, 
+            error: 'Failed to take screenshot',
+            terminals: terminalStore.getScreenshotableTerminals(),
+          };
+        }
+        
+        return {
+          success: true,
+          screenshot: result.screenshot,
+          textContent: result.textContent,
+          ptyId: result.ptyId,
+          tabId: result.tabId,
+        };
+      }
+      
+      case 'list_terminals': {
+        const { sessionId } = args;
+        const session = collabStore.sessions.get(sessionId);
+        if (!session) {
+          throw new Error('Session not found');
+        }
+        
+        const terminalStore = useTerminalStore();
+        const terminals = terminalStore.getScreenshotableTerminals();
+        
+        // 标记哪些是当前会话的 Worker 终端
+        const workerPtyIds = session.workers
+          .filter(w => w.ptyId)
+          .map(w => ({ ptyId: w.ptyId, workerIndex: w.workerIndex }));
+        
+        const terminalsWithContext = terminals.map(t => ({
+          ...t,
+          isSessionWorker: workerPtyIds.some(w => w.ptyId === t.ptyId),
+          workerIndex: workerPtyIds.find(w => w.ptyId === t.ptyId)?.workerIndex,
+        }));
+        
+        return { 
+          success: true,
+          terminals: terminalsWithContext,
+        };
+      }
+      
+      case 'send_terminal_input': {
+        const { sessionId, ptyId, input } = args;
+        const session = collabStore.sessions.get(sessionId);
+        if (!session) {
+          throw new Error('Session not found');
+        }
+        
+        try {
+          // 使用 adapter 发送输入到终端
+          await adapter.terminal.write(ptyId, input);
+          
+          return { success: true };
+        } catch (error) {
+          return { success: false, error: String(error) };
+        }
       }
       
       default:

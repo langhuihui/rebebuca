@@ -247,6 +247,8 @@ pub fn run() {
             commands::open_in_specific_terminal,
             commands::get_available_shells,
             commands::execute_powershell_command,
+            commands::check_full_disk_access,
+            commands::open_full_disk_access_settings,
             // process module
             process::execute_command,
             process::kill_process_cmd,

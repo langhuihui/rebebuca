@@ -59,69 +59,23 @@ pub fn get_shell_env() -> HashMap<String, String> {
         
         println!("[SHELL_ENV] Attempting to load environment from shell: {} ({})", shell, shell_name);
         
-        // Try multiple strategies to load environment variables
-        // Strategy 1: Interactive login shell (-l -i) - most complete but may have side effects
-        // Strategy 2: Login shell only (-l) - loads .profile, .bash_profile, .zprofile
-        // Strategy 3: Source common config files directly
+        // Load environment using a SINGLE shell invocation to avoid multiple TCC permission dialogs.
+        // On macOS, each shell invocation that loads .zshrc/.bashrc may trigger a permission dialog
+        // if the shell config accesses protected directories (Downloads, Desktop, etc.)
+        //
+        // We use login+interactive shell (-l -i) which is the most complete, loading:
+        // - For zsh: .zshenv, .zprofile, .zshrc, .zlogin
+        // - For bash: .bash_profile/.profile and .bashrc
+        // This ensures tools like nvm, rbenv, pyenv etc. are properly initialized.
         
-        let mut env_map: Option<HashMap<String, String>> = None;
-        
-        // Strategy 1: Try login + interactive shell (sources both login and rc files)
-        // This is most likely to have the complete PATH including tools like nvm, rbenv, etc.
-        if env_map.is_none() {
-            // For zsh, use -l -i which sources .zshenv, .zprofile, .zshrc, .zlogin
-            // For bash, use -l -i which sources .bash_profile/.profile and .bashrc
-            env_map = try_load_env_from_shell(&shell, &["-l", "-i", "-c", "env"]);
-            if env_map.is_some() {
-                println!("[SHELL_ENV] Loaded environment using interactive login shell (-l -i)");
-            }
+        let mut env_map = try_load_env_from_shell(&shell, &["-l", "-i", "-c", "env"]);
+        if env_map.is_some() {
+            println!("[SHELL_ENV] Loaded environment using interactive login shell (-l -i)");
+        } else {
+            println!("[SHELL_ENV] Failed to load environment from shell, will use fallback paths");
         }
         
-        // Strategy 2: Try login shell only (less intrusive)
-        if env_map.is_none() {
-            env_map = try_load_env_from_shell(&shell, &["-l", "-c", "env"]);
-            if env_map.is_some() {
-                println!("[SHELL_ENV] Loaded environment using login shell (-l)");
-            }
-        }
-        
-        // Strategy 3: Try sourcing common config files directly
-        if env_map.is_none() {
-            let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
-            
-            // Build a command that sources common shell config files
-            let source_cmd = match shell_name {
-                "zsh" => format!(
-                    "[ -f /etc/zshenv ] && source /etc/zshenv; \
-                     [ -f \"{}/.zshenv\" ] && source \"{}/.zshenv\"; \
-                     [ -f /etc/zprofile ] && source /etc/zprofile; \
-                     [ -f \"{}/.zprofile\" ] && source \"{}/.zprofile\"; \
-                     [ -f \"{}/.zshrc\" ] && source \"{}/.zshrc\"; \
-                     env",
-                    home, home, home, home, home, home
-                ),
-                "bash" => format!(
-                    "[ -f /etc/profile ] && source /etc/profile; \
-                     [ -f \"{}/.bash_profile\" ] && source \"{}/.bash_profile\"; \
-                     [ -f \"{}/.bashrc\" ] && source \"{}/.bashrc\"; \
-                     env",
-                    home, home, home, home
-                ),
-                _ => format!(
-                    "[ -f /etc/profile ] && source /etc/profile; \
-                     [ -f \"{}/.profile\" ] && source \"{}/.profile\"; \
-                     env",
-                    home, home
-                ),
-            };
-            
-            env_map = try_load_env_from_shell(&shell, &["-c", &source_cmd]);
-            if env_map.is_some() {
-                println!("[SHELL_ENV] Loaded environment by sourcing config files directly");
-            }
-        }
-        
-        // Strategy 4: Try /etc/paths and /etc/paths.d (macOS specific)
+        // Fallback: /etc/paths and /etc/paths.d (macOS specific, no permission issues)
         #[cfg(target_os = "macos")]
         if env_map.is_none() || env_map.as_ref().map_or(true, |m| !m.contains_key("PATH")) {
             let mut macos_path = String::new();

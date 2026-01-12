@@ -1004,6 +1004,108 @@ const isShellIntegrationActive = () => {
   return shellIntegration?.isActive() ?? false;
 };
 
+/**
+ * 获取终端截图
+ * @returns Base64 编码的 PNG 图片数据 (data URL 格式)
+ */
+const takeScreenshot = async (): Promise<string | null> => {
+  if (!terminal || !terminalContainer.value) {
+    console.warn('[TerminalView] Cannot take screenshot: terminal or container not available');
+    return null;
+  }
+  
+  try {
+    // 获取 xterm 的渲染 canvas
+    const xtermElement = terminal.element;
+    if (!xtermElement) {
+      console.warn('[TerminalView] Cannot take screenshot: xterm element not available');
+      return null;
+    }
+    
+    // 查找渲染层 canvas（xterm 使用多层 canvas 渲染）
+    // 优先查找 WebGL canvas，如果没有则查找普通 canvas
+    const canvases = xtermElement.querySelectorAll('canvas');
+    if (canvases.length === 0) {
+      console.warn('[TerminalView] Cannot take screenshot: no canvas found');
+      return null;
+    }
+    
+    // 创建一个新的 canvas 来合并所有层
+    const compositeCanvas = document.createElement('canvas');
+    const ctx = compositeCanvas.getContext('2d');
+    if (!ctx) {
+      console.warn('[TerminalView] Cannot take screenshot: failed to get 2d context');
+      return null;
+    }
+    
+    // 设置合成 canvas 的尺寸
+    // 使用第一个 canvas 的尺寸作为基准
+    const baseCanvas = canvases[0] as HTMLCanvasElement;
+    compositeCanvas.width = baseCanvas.width;
+    compositeCanvas.height = baseCanvas.height;
+    
+    // 填充背景色
+    const bgColor = props.theme === 'dark' ? '#1a1a1a' : '#ffffff';
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+    
+    // 按顺序绘制所有 canvas 层
+    for (const canvas of canvases) {
+      const htmlCanvas = canvas as HTMLCanvasElement;
+      try {
+        ctx.drawImage(htmlCanvas, 0, 0);
+      } catch (e) {
+        // 可能由于 WebGL 上下文丢失导致绘制失败
+        console.warn('[TerminalView] Failed to draw canvas layer:', e);
+      }
+    }
+    
+    // 将合成的 canvas 转换为 base64 PNG
+    const dataUrl = compositeCanvas.toDataURL('image/png');
+    console.log('[TerminalView] Screenshot taken, size:', dataUrl.length);
+    
+    return dataUrl;
+  } catch (error) {
+    console.error('[TerminalView] Failed to take screenshot:', error);
+    return null;
+  }
+};
+
+/**
+ * 获取终端文本内容（包括滚动缓冲区）
+ * @param maxLines 最大行数，默认返回全部
+ * @returns 终端文本内容
+ */
+const getTextContent = (maxLines?: number): string | null => {
+  if (!terminal) {
+    return null;
+  }
+  
+  try {
+    const buffer = terminal.buffer.active;
+    const lines: string[] = [];
+    const totalLines = buffer.length;
+    const startLine = maxLines ? Math.max(0, totalLines - maxLines) : 0;
+    
+    for (let i = startLine; i < totalLines; i++) {
+      const line = buffer.getLine(i);
+      if (line) {
+        lines.push(line.translateToString(true));
+      }
+    }
+    
+    // 移除尾部空行
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+      lines.pop();
+    }
+    
+    return lines.join('\n');
+  } catch (error) {
+    console.error('[TerminalView] Failed to get text content:', error);
+    return null;
+  }
+};
+
 defineExpose({
   focus,
   fit,
@@ -1020,6 +1122,8 @@ defineExpose({
   getCwd,
   isShellIntegrationActive,
   restoreRenderer,
+  takeScreenshot,
+  getTextContent,
 });
 
 // Setup early listener in onBeforeMount to catch output before terminal is ready

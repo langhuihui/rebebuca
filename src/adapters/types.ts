@@ -175,6 +175,10 @@ export interface SystemAdapter {
   killProcess(pid: number): Promise<void>;
   generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo>;
   renameLogFile(oldFilename: string, taskId: string, pid: number): Promise<string>;
+  /** Check if app has Full Disk Access on macOS (always returns true on other platforms) */
+  checkFullDiskAccess(): Promise<boolean>;
+  /** Open macOS System Settings to Full Disk Access panel */
+  openFullDiskAccessSettings(): Promise<void>;
 }
 
 /**

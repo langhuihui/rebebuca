@@ -578,6 +578,16 @@ class MockSystemAdapter implements SystemAdapter {
     const newFilename = `${taskId}_${pid}_${timestamp}.log`;
     return newFilename;
   }
+
+  async checkFullDiskAccess(): Promise<boolean> {
+    console.log('[Mock] checkFullDiskAccess');
+    // Always return true in mock mode
+    return true;
+  }
+
+  async openFullDiskAccessSettings(): Promise<void> {
+    console.log('[Mock] openFullDiskAccessSettings');
+  }
 }
 
 /**

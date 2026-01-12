@@ -26,9 +26,48 @@
   >
     <div class="sidebar-container">
 
+      <div class="sidebar-search">
+        <n-input
+          v-model:value="searchQuery"
+          size="small"
+          :placeholder="t('task.searchPlaceholder') || 'Search tasks...'"
+          clearable
+        >
+          <template #prefix>
+            <n-icon :component="svgIcons.search" />
+          </template>
+        </n-input>
+      </div>
+
+      <!-- Search Results -->
+      <div v-if="searchQuery" class="task-tree-container">
+        <n-scrollbar>
+          <div class="task-tree">
+            <div v-if="filteredTasks.length === 0" class="empty-state">
+              <p class="empty-text">{{ t('task.noResults') || 'No tasks found' }}</p>
+            </div>
+            <template v-else>
+              <TaskNode
+                v-for="task in filteredTasks"
+                :key="`search-${task.id}`"
+                :task="task"
+                :is-running="taskManager.isTaskRunning(task.id)"
+                :is-favorite="taskManager.isFavorite(task.id)"
+                :show-icon="settingsStore.settings.showTaskIcons"
+                :show-edit="true"
+                @click="handleTaskClick"
+                @run="handleTaskRun"
+                @stop="handleTaskStop"
+                @edit="handleTaskEditVisual"
+                @toggle-favorite="handleToggleFavorite"
+              />
+            </template>
+          </div>
+        </n-scrollbar>
+      </div>
       
       <!-- Task tree -->
-      <div class="task-tree-container">
+      <div v-else class="task-tree-container">
         <n-scrollbar>
           <!-- Loading state -->
           <div v-if="!taskManager.initialized || taskManager.isScanning" class="loading-state">
@@ -507,6 +546,7 @@ import {
   NTooltip,
   NIcon,
   NSpin,
+  NInput,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../adapters';
@@ -541,6 +581,18 @@ const updaterStore = useUpdaterStore();
 const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
 const { effectiveTheme } = useTheme();
+
+// Search state
+const searchQuery = ref('');
+const filteredTasks = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  if (!query) return [];
+  
+  return taskManager.combinedTasks.filter(task => 
+    task.name.toLowerCase().includes(query) || 
+    (task.command && task.command.toLowerCase().includes(query))
+  );
+});
 
 // Expanded nodes state
 const expandedNodes = ref<Set<string>>(new Set());
@@ -1284,11 +1336,38 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
 // Handle task click
 const handleTaskClick = (task: Task) => {
   console.log('[TaskSidebar] Task clicked:', task.name);
+  
+  // For AI collab tasks, switch to the AI collab tab
+  if (task.type === 'ai-collab' && task.definition?.sessionId) {
+    const sessionId = task.definition.sessionId as string;
+    // Check if a tab exists for this session
+    const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
+    if (existingTab) {
+      terminalStore.setActiveTab(existingTab.id);
+    } else {
+      // Create a new AI collab tab
+      terminalStore.createAICollabTab(sessionId, task.name || 'AI 协作');
+    }
+  }
 };
 
 // Handle task run
 const handleTaskRun = async (task: Task) => {
   try {
+    // For AI collab tasks, switch to the AI collab tab
+    if (task.type === 'ai-collab' && task.definition?.sessionId) {
+      const sessionId = task.definition.sessionId as string;
+      // Check if a tab exists for this session
+      const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
+      if (existingTab) {
+        terminalStore.setActiveTab(existingTab.id);
+      } else {
+        // Create a new AI collab tab
+        terminalStore.createAICollabTab(sessionId, task.name || 'AI 协作');
+      }
+      return;
+    }
+    
     await taskManager.executeTask(task);
   } catch (error) {
     console.error('[TaskSidebar] Failed to run task:', error);
@@ -1338,6 +1417,35 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.sidebar-layout {
+  background-color: #1e1e1e;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100vh;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.light-theme.sidebar-layout {
+  background-color: #f5f5f5;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.light-theme .sidebar-search {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
 .task-tree-container {
   flex: 1;
   min-height: 0;
