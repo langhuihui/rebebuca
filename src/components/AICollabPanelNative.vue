@@ -1,0 +1,819 @@
+<!--
+ * Rebebuca
+ * Copyright (C) 2025 rebebuca contributors
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ -->
+
+<template>
+  <div class="ai-collab-panel-native">
+    <!-- 头部状态栏 -->
+    <div class="panel-header">
+      <div class="session-info">
+        <n-tag :type="sessionStatusType" size="small">
+          {{ sessionStatusText }}
+        </n-tag>
+        <span class="project-path" :title="session?.projectPath">
+          {{ truncatePath(session?.projectPath || '') }}
+        </span>
+        <n-tag v-if="session?.provider" type="info" size="small">
+          {{ session.provider.model }}
+        </n-tag>
+      </div>
+      <div class="header-actions">
+        <n-button-group size="small">
+          <n-button 
+            v-if="session?.status === 'running'"
+            type="error"
+            @click="handleStop"
+          >
+            <template #icon>
+              <component :is="iconComponents.stop" />
+            </template>
+            {{ t('aiCollab.stop') }}
+          </n-button>
+          <n-button 
+            v-else-if="session?.status === 'paused'"
+            type="primary"
+            @click="handleResume"
+          >
+            <template #icon>
+              <component :is="iconComponents.play" />
+            </template>
+            {{ t('aiCollab.resume') }}
+          </n-button>
+          <n-button @click="handleSettings">
+            <template #icon>
+              <component :is="iconComponents.settings" />
+            </template>
+          </n-button>
+        </n-button-group>
+      </div>
+    </div>
+    
+    <!-- 消息列表 -->
+    <div class="message-list" ref="messageListRef">
+      <n-scrollbar ref="scrollbarRef">
+        <div class="messages-container">
+          <div 
+            v-for="message in session?.messages || []" 
+            :key="message.id"
+            class="message-item"
+            :class="[`from-${message.from}`, `type-${message.type}`]"
+          >
+            <div class="message-avatar">
+              <n-avatar 
+                size="small" 
+                :style="{ backgroundColor: getAvatarColor(message.from) }"
+              >
+                {{ getAvatarText(message.from) }}
+              </n-avatar>
+            </div>
+            <div class="message-content">
+              <div class="message-header">
+                <span class="message-sender">{{ getSenderName(message.from) }}</span>
+                <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+              </div>
+              <div class="message-body">
+                <div v-if="(message.type as string) === 'tool'" class="tool-message">
+                  <n-tag size="small" type="info">Tool: {{ message.metadata?.toolName }}</n-tag>
+                  <pre class="message-text tool-content">{{ message.content }}</pre>
+                </div>
+                <template v-else>
+                  <div 
+                    v-if="(message.from as string) === 'assistant'" 
+                    class="markdown-body"
+                    v-html="renderMarkdown(message.content)"
+                  ></div>
+                  <pre v-else class="message-text">{{ message.content }}</pre>
+                </template>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 流式响应 -->
+          <div v-if="currentStreamingText" class="message-item from-assistant streaming">
+            <div class="message-avatar">
+              <n-avatar 
+                size="small" 
+                :style="{ backgroundColor: '#722ed1' }"
+              >
+                AI
+              </n-avatar>
+            </div>
+            <div class="message-content">
+              <div class="message-header">
+                <span class="message-sender">{{ t('aiCollab.assistant') }}</span>
+                <n-tag size="tiny" type="warning">{{ t('aiCollab.streaming') }}</n-tag>
+              </div>
+              <div class="message-body">
+                <div class="markdown-body" v-html="renderMarkdown(currentStreamingText)"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 工具调用状态 -->
+          <div v-if="currentToolCalls.length > 0" class="tool-calls-status">
+            <div v-for="call in currentToolCalls" :key="call.id" class="tool-call-item">
+              <n-spin v-if="call.status === 'running'" size="small" />
+              <n-icon v-else-if="call.status === 'completed'" color="#52c41a">
+                <component :is="iconComponents.check" />
+              </n-icon>
+              <n-icon v-else-if="call.status === 'error'" color="#ff4d4f">
+                <component :is="svgIcons.close" />
+              </n-icon>
+              <span>{{ call.name }}</span>
+            </div>
+          </div>
+          
+          <!-- 空状态 -->
+          <div v-if="!session?.messages?.length && !currentStreamingText" class="empty-messages">
+            <n-empty :description="t('aiCollab.noMessages')">
+              <template #extra>
+                <n-text depth="3">{{ t('aiCollab.startHintNative') }}</n-text>
+              </template>
+            </n-empty>
+          </div>
+        </div>
+      </n-scrollbar>
+    </div>
+    
+    <!-- 权限请求区域 -->
+    <div v-if="pendingPermissions.length > 0" class="permission-area">
+      <div class="permission-content">
+        <div class="permission-header">
+          <n-icon size="20" color="#faad14">
+            <component :is="svgIcons.warning" />
+          </n-icon>
+          <span>{{ t('aiCollab.permissionRequired') }}</span>
+        </div>
+        <div v-for="perm in pendingPermissions" :key="perm.id" class="permission-item">
+          <p class="permission-description">{{ getPermissionDescription(perm) }}</p>
+          <div class="permission-details" v-if="perm.path">
+            <code>{{ perm.path }}</code>
+          </div>
+          <div class="permission-actions">
+            <n-button size="small" @click="handlePermissionDeny(perm.id!)">
+              {{ t('common.deny') }}
+            </n-button>
+            <n-button size="small" type="primary" @click="handlePermissionAllow(perm.id!)">
+              {{ t('common.allow') }}
+            </n-button>
+            <n-button size="small" type="info" @click="handlePermissionAlways(perm.id!)">
+              {{ t('aiCollab.alwaysAllow') }}
+            </n-button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 使用统计 -->
+    <div v-if="session?.usage" class="usage-bar">
+      <span>Tokens: {{ session.usage.totalTokens.toLocaleString() }}</span>
+      <span>(Prompt: {{ session.usage.promptTokens.toLocaleString() }} / Completion: {{ session.usage.completionTokens.toLocaleString() }})</span>
+    </div>
+    
+    <!-- 输入区域 -->
+    <div class="input-area">
+      <n-input-group>
+        <n-input
+          v-model:value="inputMessage"
+          type="textarea"
+          :placeholder="t('aiCollab.inputPlaceholder')"
+          :autosize="{ minRows: 1, maxRows: 6 }"
+          @keydown="handleKeydown"
+        />
+        <n-button 
+          type="primary" 
+          @click="handleSend" 
+          :disabled="!inputMessage.trim() || session?.status === 'running'"
+          :loading="session?.status === 'running'"
+        >
+          <template #icon>
+            <component :is="iconComponents.send" />
+          </template>
+        </n-button>
+      </n-input-group>
+    </div>
+    
+    <!-- Provider 设置对话框 -->
+    <n-modal v-model:show="showSettingsModal" preset="card" :title="t('aiCollab.providerSettings')" style="width: 600px">
+      <n-form label-placement="left" label-width="120">
+        <n-form-item :label="t('aiCollab.providerType')">
+          <n-select
+            v-model:value="providerForm.type"
+            :options="providerTypeOptions"
+          />
+        </n-form-item>
+        <n-form-item :label="t('aiCollab.model')">
+          <n-select
+            v-model:value="providerForm.model"
+            :options="modelOptions"
+            filterable
+            tag
+          />
+        </n-form-item>
+        <n-form-item :label="t('aiCollab.apiKey')">
+          <n-input
+            v-model:value="providerForm.apiKey"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('aiCollab.apiKeyPlaceholder')"
+          />
+        </n-form-item>
+        <n-form-item :label="t('aiCollab.baseUrl')">
+          <n-input
+            v-model:value="providerForm.baseUrl"
+            :placeholder="t('aiCollab.baseUrlPlaceholder')"
+          />
+        </n-form-item>
+        <n-form-item :label="t('aiCollab.enabledTools')">
+          <n-checkbox-group v-model:value="providerForm.tools">
+            <n-space>
+              <n-checkbox value="read">Read</n-checkbox>
+              <n-checkbox value="write">Write</n-checkbox>
+              <n-checkbox value="edit">Edit</n-checkbox>
+              <n-checkbox value="bash">Bash</n-checkbox>
+              <n-checkbox value="glob">Glob</n-checkbox>
+              <n-checkbox value="grep">Grep</n-checkbox>
+            </n-space>
+          </n-checkbox-group>
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showSettingsModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" @click="handleSaveSettings">{{ t('common.save') }}</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import {
+  NButton,
+  NButtonGroup,
+  NTag,
+  NAvatar,
+  NScrollbar,
+  NEmpty,
+  NText,
+  NIcon,
+  NInput,
+  NInputGroup,
+  NModal,
+  NForm,
+  NFormItem,
+  NSelect,
+  NSpace,
+  NCheckbox,
+  NCheckboxGroup,
+  NSpin,
+  useMessage,
+} from 'naive-ui';
+import { useI18n } from 'vue-i18n';
+import { useAICollabNativeStore, type NativeCollabConfig } from '../stores/aiCollabNative';
+import { getModelsForProvider } from '../services/ai/provider/models';
+import type { ProviderType, PermissionRequest } from '../services/ai/types';
+import { iconComponents, svgIcons } from '../utils/icons';
+import type { MessageFrom } from '../types/aiCollab';
+
+const props = defineProps<{
+  sessionId?: string;
+  projectPath: string;
+}>();
+
+const emit = defineEmits<{
+  (e: 'session-created', sessionId: string): void;
+}>();
+
+const { t } = useI18n();
+const message = useMessage();
+const collabStore = useAICollabNativeStore();
+
+const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null);
+const messageListRef = ref<HTMLElement | null>(null);
+const inputMessage = ref('');
+const showSettingsModal = ref(false);
+
+// Provider 配置表单
+const providerForm = ref({
+  type: 'anthropic' as ProviderType,
+  model: 'claude-sonnet-4-20250514',
+  apiKey: '',
+  baseUrl: '',
+  tools: ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
+});
+
+// Provider 类型选项
+const providerTypeOptions = computed(() => [
+  { label: 'Anthropic (Claude)', value: 'anthropic' },
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'Google (Gemini)', value: 'google' },
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'GLM (智谱)', value: 'glm' },
+  { label: 'Kimi (Moonshot)', value: 'kimi' },
+]);
+
+// 模型选项
+const modelOptions = computed(() => {
+  const models = getModelsForProvider(providerForm.value.type);
+  return models.map((m: { name: string; contextWindow: number; id: string }) => ({
+    label: `${m.name} (${m.contextWindow.toLocaleString()} tokens)`,
+    value: m.id,
+  }));
+});
+
+// 当前会话
+const session = computed(() => {
+  if (props.sessionId) {
+    return collabStore.sessions.get(props.sessionId);
+  }
+  return collabStore.activeSession;
+});
+
+// 流式文本
+const currentStreamingText = computed(() => collabStore.currentStreamingText);
+
+// 工具调用
+const currentToolCalls = computed(() => collabStore.currentToolCalls);
+
+// 权限请求
+const pendingPermissions = computed(() => collabStore.pendingPermissions);
+
+// 状态
+const sessionStatusType = computed(() => {
+  switch (session.value?.status) {
+    case 'running': return 'success';
+    case 'completed': return 'info';
+    case 'error': return 'error';
+    case 'paused': return 'warning';
+    default: return 'default';
+  }
+});
+
+const sessionStatusText = computed(() => {
+  switch (session.value?.status) {
+    case 'idle': return t('aiCollab.statusIdle');
+    case 'running': return t('aiCollab.statusRunning');
+    case 'paused': return t('aiCollab.statusPaused');
+    case 'completed': return t('aiCollab.statusCompleted');
+    case 'error': return t('aiCollab.statusFailed');
+    default: return t('aiCollab.statusUnknown');
+  }
+});
+
+// 方法
+const truncatePath = (path: string): string => {
+  if (path.length <= 40) return path;
+  const parts = path.split('/');
+  if (parts.length <= 3) return path;
+  return `.../${parts.slice(-2).join('/')}`;
+};
+
+const getAvatarColor = (from: MessageFrom | 'assistant'): string => {
+  switch (from) {
+    case 'assistant': return '#722ed1';
+    case 'user': return '#1890ff';
+    case 'system': return '#8c8c8c';
+    default: return '#d9d9d9';
+  }
+};
+
+const getAvatarText = (from: MessageFrom | 'assistant'): string => {
+  switch (from) {
+    case 'assistant': return 'AI';
+    case 'user': return 'U';
+    case 'system': return 'S';
+    default: return '?';
+  }
+};
+
+const getSenderName = (from: MessageFrom | 'assistant'): string => {
+  switch (from) {
+    case 'assistant': return t('aiCollab.assistant');
+    case 'user': return t('aiCollab.user');
+    case 'system': return t('aiCollab.system');
+    default: return from;
+  }
+};
+
+const formatTime = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString();
+};
+
+const renderMarkdown = (text: string): string => {
+  // Simple markdown-like rendering without external dependency
+  // Replace **bold**, *italic*, `code`, and newlines
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    .replace(/\n/g, '<br>');
+};
+
+const getPermissionDescription = (perm: PermissionRequest): string => {
+  switch (perm.type) {
+    case 'read':
+      return `Read file: ${perm.path || perm.patterns?.join(', ') || ''}`;
+    case 'write':
+      return `Write file: ${perm.path || ''}`;
+    case 'edit':
+      return `Edit file: ${perm.path || ''}`;
+    case 'bash':
+      return `Execute command: ${perm.command || ''}`;
+    case 'external_directory':
+      return `Access external directory: ${perm.path || perm.patterns?.join(', ') || ''}`;
+    default:
+      return `${perm.type}: ${perm.path || perm.command || perm.patterns?.join(', ') || ''}`;
+  }
+};
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (scrollbarRef.value) {
+      const container = scrollbarRef.value.$el?.querySelector('.n-scrollbar-container');
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      }
+    }
+  });
+};
+
+// 事件处理
+const handleSend = async () => {
+  if (!inputMessage.value.trim()) return;
+  
+  try {
+    let sessionId = props.sessionId || session.value?.id;
+    
+    // 如果没有会话，先创建
+    if (!sessionId) {
+      const config: NativeCollabConfig = {
+        projectPath: props.projectPath,
+        provider: {
+          type: providerForm.value.type,
+          model: providerForm.value.model,
+          apiKey: providerForm.value.apiKey,
+          baseUrl: providerForm.value.baseUrl || undefined,
+        },
+        tools: providerForm.value.tools,
+      };
+      
+      if (!config.provider.apiKey) {
+        message.warning(t('aiCollab.apiKeyRequired'));
+        showSettingsModal.value = true;
+        return;
+      }
+      
+      const newSession = await collabStore.createSession(config);
+      sessionId = newSession.id;
+      emit('session-created', sessionId);
+    }
+    
+    await collabStore.sendMessage(sessionId, inputMessage.value.trim());
+    inputMessage.value = '';
+  } catch (error) {
+    message.error(t('aiCollab.sendFailed', { error: String(error) }));
+  }
+};
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleSend();
+  }
+};
+
+const handleStop = async () => {
+  if (!session.value?.id) return;
+  try {
+    await collabStore.stopSession(session.value.id);
+    message.info(t('aiCollab.stopped'));
+  } catch (error) {
+    message.error(t('aiCollab.stopFailed', { error: String(error) }));
+  }
+};
+
+const handleResume = async () => {
+  if (!session.value?.id) return;
+  try {
+    await collabStore.resumeSession(session.value.id);
+    message.success(t('aiCollab.resumed'));
+  } catch (error) {
+    message.error(t('aiCollab.resumeFailed', { error: String(error) }));
+  }
+};
+
+const handleSettings = () => {
+  // 从当前会话加载配置
+  if (session.value?.provider) {
+    providerForm.value.type = session.value.provider.type;
+    providerForm.value.model = session.value.provider.model;
+    providerForm.value.apiKey = session.value.provider.apiKey;
+    providerForm.value.baseUrl = session.value.provider.baseUrl || '';
+  }
+  if (session.value?.tools) {
+    providerForm.value.tools = [...session.value.tools];
+  }
+  showSettingsModal.value = true;
+};
+
+const handleSaveSettings = async () => {
+  if (session.value?.id) {
+    try {
+      await collabStore.updateProvider(session.value.id, {
+        type: providerForm.value.type,
+        model: providerForm.value.model,
+        apiKey: providerForm.value.apiKey,
+        baseUrl: providerForm.value.baseUrl || undefined,
+      });
+      await collabStore.updateTools(session.value.id, providerForm.value.tools);
+      message.success(t('aiCollab.settingsSaved'));
+    } catch (error) {
+      message.error(String(error));
+    }
+  }
+  showSettingsModal.value = false;
+};
+
+const handlePermissionAllow = (requestId: string) => {
+  collabStore.replyPermission(requestId, 'allow');
+};
+
+const handlePermissionDeny = (requestId: string) => {
+  collabStore.replyPermission(requestId, 'deny');
+};
+
+const handlePermissionAlways = (requestId: string) => {
+  collabStore.replyPermission(requestId, 'always');
+};
+
+// 监听消息变化
+watch(
+  () => session.value?.messages?.length,
+  () => scrollToBottom()
+);
+
+watch(
+  () => currentStreamingText.value,
+  () => scrollToBottom()
+);
+
+// 生命周期
+onMounted(async () => {
+  scrollToBottom();
+  
+  // 尝试加载已有会话
+  if (!props.sessionId && props.projectPath) {
+    const loaded = await collabStore.loadSession(props.projectPath);
+    if (loaded) {
+      emit('session-created', loaded.id);
+    }
+  }
+});
+</script>
+
+<style scoped>
+.ai-collab-panel-native {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--n-color);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.session-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.project-path {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.message-list {
+  flex: 1;
+  overflow: hidden;
+}
+
+.messages-container {
+  padding: 16px;
+}
+
+.message-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.message-item.from-system {
+  opacity: 0.7;
+}
+
+.message-item.type-error .message-body {
+  color: var(--n-error-color);
+}
+
+.message-item.streaming .message-body {
+  border-left: 3px solid #722ed1;
+}
+
+.message-avatar {
+  flex-shrink: 0;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.message-sender {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.message-time {
+  font-size: 11px;
+  color: var(--n-text-color-3);
+}
+
+.message-body {
+  background: var(--n-color-embedded);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-top-left-radius: 2px;
+}
+
+.message-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.tool-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-content {
+  font-family: 'Menlo', 'Monaco', monospace;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.markdown-body :deep(pre) {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.markdown-body :deep(code) {
+  font-family: 'Menlo', 'Monaco', monospace;
+  font-size: 13px;
+}
+
+.markdown-body :deep(p) {
+  margin: 0 0 8px 0;
+}
+
+.markdown-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.tool-calls-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--n-color-embedded);
+  border-radius: 6px;
+  margin: 8px 16px;
+}
+
+.tool-call-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--n-color);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.empty-messages {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.permission-area {
+  padding: 12px 16px;
+  background: rgba(250, 173, 20, 0.1);
+  border-top: 1px solid rgba(250, 173, 20, 0.3);
+}
+
+.permission-content {
+  max-width: 600px;
+}
+
+.permission-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.permission-item {
+  padding: 12px;
+  background: var(--n-color);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.permission-description {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+}
+
+.permission-details {
+  margin-bottom: 8px;
+}
+
+.permission-details code {
+  font-family: 'Menlo', 'Monaco', monospace;
+  font-size: 12px;
+  background: var(--n-color-embedded);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.permission-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.usage-bar {
+  display: flex;
+  gap: 12px;
+  padding: 6px 16px;
+  background: var(--n-color-embedded);
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  border-top: 1px solid var(--n-border-color);
+}
+
+.input-area {
+  padding: 12px 16px;
+  border-top: 1px solid var(--n-border-color);
+}
+</style>

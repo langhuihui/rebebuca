@@ -54,17 +54,18 @@ export type CollabMessageType =
   | 'decision_response' // 决策响应
   | 'chat'              // 普通聊天
   | 'system'            // 系统消息
+  | 'tool'              // 工具调用消息
   | 'error';            // 错误消息
 
 /**
  * 消息来源
  */
-export type MessageFrom = 'supervisor' | 'worker' | 'user' | 'system' | `worker-${number}`;
+export type MessageFrom = 'supervisor' | 'worker' | 'user' | 'system' | 'assistant' | `worker-${number}`;
 
 /**
  * 消息目标
  */
-export type MessageTo = 'supervisor' | 'worker' | 'user' | 'all' | `worker-${number}`;
+export type MessageTo = 'supervisor' | 'worker' | 'user' | 'all' | 'assistant' | `worker-${number}`;
 
 /**
  * 协作消息
