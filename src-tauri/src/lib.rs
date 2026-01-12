@@ -288,6 +288,9 @@ pub fn run() {
             ssh::connect_ssh,
             ssh::disconnect_ssh,
             ssh::test_ssh_agent,
+            ssh::list_ssh_directory,
+            ssh::get_ssh_home_directory,
+            ssh::get_ssh_shells,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

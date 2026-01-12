@@ -280,6 +280,18 @@ export default {
     sshAgentReady: 'SSH agent ready',
     sshAgentNotReady: 'SSH agent not ready',
     sshTestFailed: 'SSH test failed',
+    // Remote directory picker
+    selectRemoteDirectory: 'Select Remote Directory',
+    enterPath: 'Enter path',
+    go: 'Go',
+    connectionError: 'Connection Error',
+    reconnect: 'Reconnect',
+    emptyDirectory: 'Empty directory',
+    selectedPath: 'Selected path',
+    noSshConfigSelected: 'No SSH configuration selected',
+    // Remote shell
+    remoteShell: 'Remote Shell',
+    selectRemoteShell: 'Select remote shell',
   },
   ssh: {
     title: 'SSH Configurations',

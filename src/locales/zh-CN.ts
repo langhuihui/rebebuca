@@ -301,6 +301,18 @@ export default {
     sshAgentReady: 'SSH 代理已就绪',
     sshAgentNotReady: 'SSH 代理未就绪',
     sshTestFailed: 'SSH 测试失败',
+    // Remote directory picker
+    selectRemoteDirectory: '选择远程目录',
+    enterPath: '输入路径',
+    go: '前往',
+    connectionError: '连接错误',
+    reconnect: '重新连接',
+    emptyDirectory: '空目录',
+    selectedPath: '选择的路径',
+    noSshConfigSelected: '未选择 SSH 配置',
+    // Remote shell
+    remoteShell: '远程 Shell',
+    selectRemoteShell: '选择远程 Shell',
   },
   ssh: {
     title: 'SSH 配置',

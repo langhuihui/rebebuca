@@ -567,6 +567,72 @@ export const useSshStore = defineStore('ssh', () => {
     return { imported, skipped };
   }
   
+  /**
+   * Remote directory entry type
+   */
+  interface RemoteDirectoryEntry {
+    name: string;
+    path: string;
+    is_dir: boolean;
+    size?: number;
+  }
+  
+  /**
+   * Remote shell info type
+   */
+  interface RemoteShellInfo {
+    id: string;
+    name: string;
+    path: string;
+    is_default: boolean;
+  }
+  
+  /**
+   * List remote directory contents via SSH
+   */
+  async function listDirectory(configId: string, path: string): Promise<RemoteDirectoryEntry[]> {
+    try {
+      const result = await safeInvoke<RemoteDirectoryEntry[]>('list_ssh_directory', {
+        configId,
+        path,
+      });
+      return result || [];
+    } catch (error) {
+      console.error(`[SSH] Failed to list directory ${path}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get user's home directory on remote server
+   */
+  async function getHomeDirectory(configId: string): Promise<string> {
+    try {
+      const result = await safeInvoke<string>('get_ssh_home_directory', {
+        configId,
+      });
+      return result || '/';
+    } catch (error) {
+      console.error(`[SSH] Failed to get home directory:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get available shells on remote server
+   */
+  async function getRemoteShells(configId: string): Promise<RemoteShellInfo[]> {
+    try {
+      const result = await safeInvoke<RemoteShellInfo[]>('get_ssh_shells', {
+        configId,
+      });
+      return result || [];
+    } catch (error) {
+      console.error(`[SSH] Failed to get remote shells:`, error);
+      throw error;
+    }
+  }
+  
   return {
     // State
     configs,
@@ -596,5 +662,9 @@ export const useSshStore = defineStore('ssh', () => {
     isAgentReady,
     parseSshConfigContent,
     importFromSshConfig,
+    // Remote directory/shell operations
+    listDirectory,
+    getHomeDirectory,
+    getRemoteShells,
   };
 });

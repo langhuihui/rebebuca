@@ -15,6 +15,7 @@ export { default as RenameGroupDialog } from './RenameGroupDialog.vue';
 export { default as CommandPlazaDialog } from './CommandPlazaDialog.vue';
 export { default as AICollabCreateDialog } from './AICollabCreateDialog.vue';
 export { default as AICollabEditDialog } from './AICollabEditDialog.vue';
+export { default as RemoteDirectoryPicker } from './RemoteDirectoryPicker.vue';
 
 import type { AIToolType } from '../../../stores/aiTools';
 

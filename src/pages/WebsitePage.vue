@@ -535,69 +535,24 @@
           </footer>
         </div>
 
-        <!-- Dialogs -->
-        <n-modal
+        <!-- Dialogs - Using actual components for UI consistency -->
+        <AddFolderDialog
           v-model:show="showAddFolderDialog"
-          preset="dialog"
-          :title="t('task.addFolder')"
-          style="width: 520px"
-          :positive-text="t('common.confirm')"
-          :negative-text="t('common.cancel')"
-          @positive-click="handleAddFolder"
-        >
-          <n-form label-placement="top">
-            <n-form-item :label="t('task.selectFolder')">
-              <n-input-group>
-                <n-input
-                  v-model:value="addFolderForm.sourceFolder"
-                  :placeholder="t('task.selectSourceFolder')"
-                  clearable
-                />
-                <n-button @click="handleBrowseFolder">{{
-                  t("task.browse")
-                }}</n-button>
-              </n-input-group>
-            </n-form-item>
-          </n-form>
-        </n-modal>
+          :group-options="demoGroupOptions"
+          @confirm="handleAddFolderConfirm"
+        />
 
-        <n-modal
+        <TaskEditDialog
           v-model:show="showTaskEditDialog"
-          preset="dialog"
-          :title="t('task.addTask')"
-          style="width: 500px"
-          :positive-text="t('common.save')"
-          :negative-text="t('common.cancel')"
-          @positive-click="handleAddTask"
-        >
-          <n-form label-placement="left" label-width="auto">
-            <n-form-item :label="t('task.name')">
-              <n-input
-                v-model:value="taskEditForm.name"
-                :placeholder="t('task.namePlaceholder')"
-              />
-            </n-form-item>
-            <n-form-item :label="t('task.command')">
-              <n-input
-                v-model:value="taskEditForm.command"
-                type="textarea"
-                :placeholder="t('task.commandPlaceholder')"
-                :autosize="{ minRows: 1, maxRows: 5 }"
-              />
-            </n-form-item>
-            <n-form-item :label="t('task.cwd')">
-              <n-input-group>
-                <n-input
-                  v-model:value="taskEditForm.cwd"
-                  :placeholder="t('task.cwdPlaceholder')"
-                />
-                <n-button @click="handleBrowseCwd">{{
-                  t("task.browse")
-                }}</n-button>
-              </n-input-group>
-            </n-form-item>
-          </n-form>
-        </n-modal>
+          :is-edit-mode="false"
+          :is-user-task="true"
+          :task="editingTask"
+          :group-id="selectedGroupId"
+          :group-options="demoGroupOptions"
+          @update:task="(task) => Object.assign(editingTask, task)"
+          @update:group-id="(id) => selectedGroupId = id"
+          @save="handleTaskSave"
+        />
 
         <n-modal
           v-model:show="showAIDialog"
@@ -660,10 +615,6 @@ import {
   NButton,
   NIcon,
   NModal,
-  NForm,
-  NFormItem,
-  NInput,
-  NInputGroup,
   NTooltip,
   NDivider,
   darkTheme,
@@ -702,6 +653,10 @@ import {
   WebsiteSshPanel,
   WebsiteSettingsPanel,
 } from "../components/website";
+
+// Import actual dialog components for UI consistency
+import { AddFolderDialog, TaskEditDialog } from "../components/sidebar/dialogs";
+import type { AddFolderFormData } from "../components/sidebar/dialogs/AddFolderDialog.vue";
 
 // Import styles
 import "../assets/styles/website.scss";
@@ -856,8 +811,34 @@ const showAddFolderDialog = ref(false);
 const showTaskEditDialog = ref(false);
 const showAIDialog = ref(false);
 
-const addFolderForm = reactive({ sourceFolder: "" });
-const taskEditForm = reactive({ name: "", command: "", cwd: "" });
+// Demo group options for dialogs
+const demoGroupOptions = computed(() => [
+  { label: 'Default', value: 'default' },
+  { label: 'Docker', value: 'docker' },
+]);
+
+// For TaskEditDialog
+const selectedGroupId = ref('default');
+const editingTask = reactive({
+  id: '',
+  name: '',
+  command: '',
+  cwd: '',
+  group: 'none' as 'build' | 'test' | 'clean' | 'none',
+  type: 'shell' as 'shell' | 'process' | 'macro',
+  sourceFile: '',
+  useSystemTerminal: false,
+  systemTerminalId: null as string | null,
+  shellPath: null as string | null,
+  envStr: '',
+  pythonEnv: '',
+  runAsAdmin: false,
+  executionMode: undefined as 'serial' | 'parallel' | undefined,
+  dependsOn: undefined as string[] | undefined,
+  subTasks: undefined as string[] | undefined,
+  useSsh: false,
+  sshConfigId: null as string | null,
+});
 const aiForm = reactive({
   prompt: "",
   loading: false,
@@ -1076,29 +1057,47 @@ const runDemoTask = async (task: DemoTask) => {
   runningTaskId.value = null;
 };
 
-// Dialog handlers
-const handleAddFolder = () => {
-  message.success(t("website.demo.folderAdded"));
+// Dialog handlers - New implementations using actual dialog components
+const handleAddFolderConfirm = (data: AddFolderFormData) => {
+  // In demo mode, just show success message
+  if (data.isImportMode) {
+    message.success(t("website.demo.folderImported") || `Folder "${data.sourceFolder}" scanned for tasks`);
+  } else {
+    message.success(t("website.demo.folderAdded"));
+  }
   showAddFolderDialog.value = false;
-  addFolderForm.sourceFolder = "";
 };
 
-const handleBrowseFolder = () => {
-  addFolderForm.sourceFolder = "/Users/demo/projects";
-  message.info(t("website.demo.folderHint"));
-};
-
-const handleAddTask = () => {
-  message.success(t("website.demo.taskAdded"));
+const handleTaskSave = (
+  _task: typeof editingTask,
+  _groupId: string,
+  newGroupName: string
+) => {
+  // In demo mode, just show success message
+  const groupInfo = newGroupName ? ` to group "${newGroupName}"` : '';
+  message.success(t("website.demo.taskAdded") + groupInfo);
   showTaskEditDialog.value = false;
-  taskEditForm.name = "";
-  taskEditForm.command = "";
-  taskEditForm.cwd = "";
-};
-
-const handleBrowseCwd = () => {
-  taskEditForm.cwd = "/Users/demo/projects";
-  message.info(t("website.demo.folderHint"));
+  
+  // Reset form for next use
+  Object.assign(editingTask, {
+    id: '',
+    name: '',
+    command: '',
+    cwd: '',
+    type: 'shell',
+    envStr: '',
+    pythonEnv: '',
+    runAsAdmin: false,
+    useSystemTerminal: false,
+    systemTerminalId: null,
+    shellPath: null,
+    executionMode: undefined,
+    dependsOn: undefined,
+    subTasks: undefined,
+    useSsh: false,
+    sshConfigId: null,
+  });
+  selectedGroupId.value = 'default';
 };
 
 const handleAIGenerate = async () => {

@@ -3,6 +3,7 @@ use crate::types::{
     SshConnectionStatus, SavedSshConfig, REQUIRED_AGENT_VERSION
 };
 use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 use ssh2::Session;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -994,4 +995,270 @@ pub async fn close_ssh_connection(host: String, port: u16, username: String) -> 
     }
     
     Ok(())
+}
+
+/// Directory entry for remote file browser
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteDirectoryEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: Option<u64>,
+}
+
+/// List remote directory contents via SSH
+#[tauri::command]
+pub async fn list_ssh_directory(
+    app_handle: tauri::AppHandle,
+    config_id: String,
+    path: String,
+) -> Result<Vec<RemoteDirectoryEntry>, String> {
+    // Ensure connection is established
+    connect_ssh(app_handle.clone(), config_id.clone()).await?;
+    
+    let connections = SSH_CONNECTIONS.lock().await;
+    let conn = connections.get(&config_id)
+        .ok_or_else(|| format!("SSH connection not found: {}", config_id))?;
+    
+    let conn_guard = conn.lock().await;
+    let session = conn_guard.session.as_ref()
+        .ok_or("SSH session not available")?;
+    
+    let session_guard = session.lock().await;
+    let mut channel = session_guard
+        .channel_session()
+        .map_err(|e| format!("Failed to open channel: {}", e))?;
+    
+    // Use ls command to list directory contents
+    // -la for long format with hidden files, parse output
+    let cmd = format!("ls -la '{}' 2>/dev/null || echo 'ERROR_DIR_NOT_FOUND'", path.replace("'", "'\\''"));
+    channel
+        .exec(&cmd)
+        .map_err(|e| format!("Failed to execute ls command: {}", e))?;
+    
+    drop(session_guard);
+    
+    // Read output
+    let mut output = String::new();
+    let reader = BufReader::new(&mut channel);
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            output.push_str(&line);
+            output.push('\n');
+        }
+    }
+    
+    let _ = channel.wait_close();
+    
+    if output.contains("ERROR_DIR_NOT_FOUND") {
+        return Err(format!("Directory not found: {}", path));
+    }
+    
+    // Parse ls -la output - only include directories
+    let mut entries = Vec::new();
+    let base_path = if path.ends_with('/') { path.clone() } else { format!("{}/", path) };
+    
+    for line in output.lines().skip(1) { // Skip "total" line
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 9 {
+            continue;
+        }
+        
+        let permissions = parts[0];
+        let name = parts[8..].join(" "); // Handle filenames with spaces
+        
+        // Skip . and ..
+        if name == "." || name == ".." {
+            continue;
+        }
+        
+        let is_dir = permissions.starts_with('d');
+        
+        // Only include directories, skip files
+        if !is_dir {
+            continue;
+        }
+        
+        entries.push(RemoteDirectoryEntry {
+            name: name.clone(),
+            path: format!("{}{}", base_path, name),
+            is_dir,
+            size: None,
+        });
+    }
+    
+    // Sort alphabetically
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    
+    Ok(entries)
+}
+
+/// Get user's home directory on remote server
+#[tauri::command]
+pub async fn get_ssh_home_directory(
+    app_handle: tauri::AppHandle,
+    config_id: String,
+) -> Result<String, String> {
+    // Ensure connection is established
+    connect_ssh(app_handle.clone(), config_id.clone()).await?;
+    
+    let connections = SSH_CONNECTIONS.lock().await;
+    let conn = connections.get(&config_id)
+        .ok_or_else(|| format!("SSH connection not found: {}", config_id))?;
+    
+    let conn_guard = conn.lock().await;
+    let session = conn_guard.session.as_ref()
+        .ok_or("SSH session not available")?;
+    
+    let session_guard = session.lock().await;
+    let mut channel = session_guard
+        .channel_session()
+        .map_err(|e| format!("Failed to open channel: {}", e))?;
+    
+    channel
+        .exec("echo $HOME")
+        .map_err(|e| format!("Failed to execute command: {}", e))?;
+    
+    drop(session_guard);
+    
+    // Read output
+    let mut output = String::new();
+    let reader = BufReader::new(&mut channel);
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            output = line.trim().to_string();
+            break;
+        }
+    }
+    
+    let _ = channel.wait_close();
+    
+    if output.is_empty() {
+        Ok("/".to_string())
+    } else {
+        Ok(output)
+    }
+}
+
+/// Shell info from remote server
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteShellInfo {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub is_default: bool,
+}
+
+/// Get available shells on remote server via SSH
+#[tauri::command]
+pub async fn get_ssh_shells(
+    app_handle: tauri::AppHandle,
+    config_id: String,
+) -> Result<Vec<RemoteShellInfo>, String> {
+    // Ensure connection is established
+    connect_ssh(app_handle.clone(), config_id.clone()).await?;
+    
+    let connections = SSH_CONNECTIONS.lock().await;
+    let conn = connections.get(&config_id)
+        .ok_or_else(|| format!("SSH connection not found: {}", config_id))?;
+    
+    let conn_guard = conn.lock().await;
+    let session = conn_guard.session.as_ref()
+        .ok_or("SSH session not available")?;
+    
+    let session_guard = session.lock().await;
+    let mut channel = session_guard
+        .channel_session()
+        .map_err(|e| format!("Failed to open channel: {}", e))?;
+    
+    // Get default shell and available shells from /etc/shells
+    let cmd = r#"echo "DEFAULT:$SHELL"; cat /etc/shells 2>/dev/null | grep -v '^#' | grep -v '^$'"#;
+    channel
+        .exec(cmd)
+        .map_err(|e| format!("Failed to execute command: {}", e))?;
+    
+    drop(session_guard);
+    
+    // Read output
+    let mut output = String::new();
+    let reader = BufReader::new(&mut channel);
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            output.push_str(&line);
+            output.push('\n');
+        }
+    }
+    
+    let _ = channel.wait_close();
+    
+    // Parse output
+    let mut shells = Vec::new();
+    let mut default_shell = String::new();
+    let mut seen_paths = std::collections::HashSet::new();
+    
+    for line in output.lines() {
+        let line = line.trim();
+        if line.starts_with("DEFAULT:") {
+            default_shell = line.strip_prefix("DEFAULT:").unwrap_or("").trim().to_string();
+        } else if line.starts_with('/') {
+            // It's a shell path
+            if seen_paths.contains(line) {
+                continue;
+            }
+            seen_paths.insert(line.to_string());
+            
+            let name = std::path::Path::new(line)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(line);
+            
+            let display_name = match name {
+                "bash" => "Bash",
+                "zsh" => "Zsh",
+                "fish" => "Fish",
+                "sh" => "Sh",
+                "dash" => "Dash",
+                "ksh" | "ksh93" => "Ksh",
+                "tcsh" => "Tcsh",
+                "csh" => "Csh",
+                _ => name,
+            };
+            
+            let is_default = line == default_shell;
+            
+            shells.push(RemoteShellInfo {
+                id: name.to_string(),
+                name: display_name.to_string(),
+                path: line.to_string(),
+                is_default,
+            });
+        }
+    }
+    
+    // Sort: default first, then alphabetically
+    shells.sort_by(|a, b| {
+        match (a.is_default, b.is_default) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.cmp(&b.name),
+        }
+    });
+    
+    // If no shells found from /etc/shells, add common defaults
+    if shells.is_empty() {
+        shells.push(RemoteShellInfo {
+            id: "bash".to_string(),
+            name: "Bash".to_string(),
+            path: "/bin/bash".to_string(),
+            is_default: true,
+        });
+        shells.push(RemoteShellInfo {
+            id: "sh".to_string(),
+            name: "Sh".to_string(),
+            path: "/bin/sh".to_string(),
+            is_default: false,
+        });
+    }
+    
+    Ok(shells)
 }

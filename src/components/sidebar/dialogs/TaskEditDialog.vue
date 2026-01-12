@@ -166,7 +166,7 @@
           class="env-textarea"
         />
       </n-form-item>
-      <n-form-item v-if="editingTask.type !== 'macro'" :label="t('task.useSystemTerminal')">
+      <n-form-item v-if="editingTask.type !== 'macro' && !editingTask.useSsh" :label="t('task.useSystemTerminal')">
         <n-space align="center" :size="12">
           <n-switch v-model:value="editingTask.useSystemTerminal" />
           <!-- Terminal selection when using system terminal -->
@@ -179,7 +179,7 @@
             clearable
             style="min-width: 180px;"
           />
-          <!-- Shell selection for built-in terminal -->
+          <!-- Shell selection for built-in terminal (local) -->
           <n-select
             v-if="!editingTask.useSystemTerminal"
             v-model:value="editingTask.shellPath"
@@ -190,6 +190,18 @@
             style="min-width: 180px;"
           />
         </n-space>
+      </n-form-item>
+      
+      <!-- Shell selection for SSH remote execution -->
+      <n-form-item v-if="editingTask.type !== 'macro' && editingTask.useSsh && editingTask.sshConfigId" :label="t('task.remoteShell')">
+        <n-select
+          v-model:value="editingTask.shellPath"
+          :options="remoteShellOptions"
+          :placeholder="t('task.selectRemoteShell')"
+          :loading="loadingRemoteShells"
+          clearable
+          style="min-width: 200px;"
+        />
       </n-form-item>
       
       <!-- Python Environment (Windows/macOS/Linux) -->
@@ -268,6 +280,14 @@
     v-model:show="showCommandPlaza"
     @select="handleCommandSelect"
   />
+  
+  <!-- Remote Directory Picker -->
+  <RemoteDirectoryPicker
+    v-model:show="showRemoteDirectoryPicker"
+    :ssh-config-id="editingTask.sshConfigId || ''"
+    :initial-path="editingTask.cwd"
+    @select="handleRemoteDirectorySelect"
+  />
 </template>
 
 <script setup lang="ts">
@@ -287,6 +307,7 @@ import {
   NSpace,
   NRadio,
   NRadioGroup,
+  NTag,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -296,6 +317,7 @@ import { svgIcons } from '../../../utils/icons';
 import { isWindows } from '../../../utils/platform';
 import type { TaskGroup } from '../../../providers/types';
 import CommandPlazaDialog from './CommandPlazaDialog.vue';
+import RemoteDirectoryPicker from './RemoteDirectoryPicker.vue';
 import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
 import { createAIToolQuickLaunchTask } from '../../../utils/aiToolLauncher';
 import { useTaskManagerStore } from '../../../stores/taskManager';
@@ -350,7 +372,10 @@ const featureFlagsStore = useFeatureFlagsStore();
 const taskFormRef = ref<any>(null);
 const newGroupName = ref('');
 const showCommandPlaza = ref(false);
+const showRemoteDirectoryPicker = ref(false);
 const isWindowsPlatform = ref(false);
+const remoteShellOptions = ref<Array<{ label: string; value: string }>>([]);
+const loadingRemoteShells = ref(false);
 
 // Terminal selection
 const loadingTerminals = ref(false);
@@ -576,6 +601,13 @@ const taskRules = computed<FormRules>(() => {
 });
 
 const selectWorkingDirectory = async () => {
+  // If SSH is enabled, show the remote directory picker
+  if (editingTask.value.useSsh && editingTask.value.sshConfigId) {
+    showRemoteDirectoryPicker.value = true;
+    return;
+  }
+  
+  // Otherwise, use local folder selection
   try {
     const adapter = await getAdapter();
     const selected = await adapter.dialog.selectFolder({
@@ -588,6 +620,12 @@ const selectWorkingDirectory = async () => {
   } catch (error) {
     console.error('[TaskEditDialog] Failed to select working directory:', error);
   }
+};
+
+// Handle remote directory selection
+const handleRemoteDirectorySelect = (path: string) => {
+  editingTask.value.cwd = path;
+  showRemoteDirectoryPicker.value = false;
 };
 
 // SSH connection test
@@ -629,8 +667,51 @@ const testSshConnection = async () => {
 };
 
 // Handle SSH config change
-const handleSshConfigChange = (configId: string | null) => {
+const handleSshConfigChange = async (configId: string | null) => {
   editingTask.value.sshConfigId = configId;
+  
+  // Load remote shells when SSH config is selected
+  if (configId) {
+    await loadRemoteShells(configId);
+  } else {
+    remoteShellOptions.value = [];
+  }
+};
+
+// Load remote shells for SSH connection
+const loadRemoteShells = async (configId: string) => {
+  loadingRemoteShells.value = true;
+  remoteShellOptions.value = [];
+  
+  try {
+    // First ensure SSH is connected
+    if (!sshStore.isConnected(configId)) {
+      await sshStore.connect(configId);
+    }
+    
+    const shells = await sshStore.getRemoteShells(configId);
+    remoteShellOptions.value = shells.map(shell => ({
+      label: shell.is_default ? `${shell.name} (${t('settings.default')})` : shell.name,
+      value: shell.path,
+    }));
+    
+    // If no shell is selected yet and we have options, select the default
+    if (!editingTask.value.shellPath && remoteShellOptions.value.length > 0) {
+      const defaultShell = shells.find(s => s.is_default);
+      if (defaultShell) {
+        editingTask.value.shellPath = defaultShell.path;
+      }
+    }
+  } catch (error) {
+    console.error('[TaskEditDialog] Failed to load remote shells:', error);
+    // Fallback to basic shells
+    remoteShellOptions.value = [
+      { label: 'Bash', value: '/bin/bash' },
+      { label: 'Sh', value: '/bin/sh' },
+    ];
+  } finally {
+    loadingRemoteShells.value = false;
+  }
 };
 
 // Get SSH status
