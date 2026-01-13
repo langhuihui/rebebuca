@@ -186,6 +186,53 @@ export const MODELS: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsVision: false,
   },
+
+  // OpenCode Zen (免费网关)
+  'gpt-5-nano': {
+    id: 'gpt-5-nano',
+    name: 'GPT-5 Nano (免费)',
+    provider: 'opencode',
+    contextWindow: 400000,
+    maxOutput: 128000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'big-pickle': {
+    id: 'big-pickle',
+    name: 'Big Pickle (免费)',
+    provider: 'opencode',
+    contextWindow: 200000,
+    maxOutput: 128000,
+    supportsTools: true,
+    supportsVision: false,
+  },
+  'glm-4.7-free': {
+    id: 'glm-4.7-free',
+    name: 'GLM-4.7 Free (免费)',
+    provider: 'opencode',
+    contextWindow: 204800,
+    maxOutput: 131072,
+    supportsTools: true,
+    supportsVision: false,
+  },
+  'grok-code': {
+    id: 'grok-code',
+    name: 'Grok Code (免费)',
+    provider: 'opencode',
+    contextWindow: 256000,
+    maxOutput: 256000,
+    supportsTools: true,
+    supportsVision: false,
+  },
+  'minimax-m2.1-free': {
+    id: 'minimax-m2.1-free',
+    name: 'MiniMax M2.1 (免费)',
+    provider: 'opencode',
+    contextWindow: 204800,
+    maxOutput: 131072,
+    supportsTools: true,
+    supportsVision: false,
+  },
 };
 
 /**
@@ -207,7 +254,7 @@ export function getModelInfo(modelId: string): ModelInfo | undefined {
  */
 // Initialize MODEL_DEFINITIONS
 (function initModelDefinitions() {
-  const providers = ['anthropic', 'openai', 'google', 'deepseek', 'glm', 'kimi', 'custom'];
+  const providers = ['anthropic', 'openai', 'google', 'deepseek', 'glm', 'kimi', 'opencode', 'custom'];
   for (const p of providers) {
     MODEL_DEFINITIONS[p] = Object.values(MODELS).filter(m => m.provider === p);
   }
@@ -242,6 +289,10 @@ export const PROVIDER_CONFIG: Record<ProviderType, {
   kimi: {
     name: 'Moonshot',
     baseUrl: 'https://api.moonshot.cn/v1',
+  },
+  opencode: {
+    name: 'OpenCode Zen (免费)',
+    baseUrl: 'https://opencode.ai/zen/v1',
   },
   custom: {
     name: 'Custom',

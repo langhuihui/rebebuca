@@ -24,9 +24,18 @@ import hljs from 'highlight.js';
 import i18n from './locales';
 import './assets/styles/app.scss';
 import { initDevLogger } from './utils/devLogger';
+import { startMCPCacheUpdates } from './services/debugService';
 
 // Initialize dev logger to capture console output
 initDevLogger();
+
+// Start MCP cache updates in development mode
+if (import.meta.env.DEV) {
+  // Delay start to ensure app is fully loaded
+  setTimeout(() => {
+    startMCPCacheUpdates(5000); // Update every 5 seconds
+  }, 2000);
+}
 
 // Naive UI
 import {

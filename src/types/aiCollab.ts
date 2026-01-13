@@ -132,6 +132,22 @@ export interface AgentInstance {
   busy?: boolean;
   /** 当前正在处理的任务描述 */
   currentTask?: string;
+  /** 已发送的字节数（上传） */
+  bytesSent?: number;
+  /** 已接收的字节数（下载） */
+  bytesReceived?: number;
+  /** 最后数据传输时间 */
+  lastDataTransfer?: number;
+}
+
+/**
+ * 任务目标（来自任务配置）
+ */
+export interface TaskGoal {
+  objective: string;              // 任务目标描述
+  acceptanceCriteria: string[];    // 完成标准（验收条件）
+  context?: string;                // 上下文信息
+  constraints?: string[];          // 约束条件
 }
 
 /**
@@ -148,6 +164,7 @@ export interface ProjectCollabConfig {
   decisionTimeout: number;     // 决策超时秒数（默认30秒）
   autoDecision: boolean;       // 是否允许监工自动决策
   maxIterations?: number;      // 最大迭代次数
+  goal?: TaskGoal;              // 任务目标（可选）
 }
 
 /**

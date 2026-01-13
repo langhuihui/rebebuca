@@ -57,6 +57,13 @@ export async function streamResponse(input: StreamInput): Promise<StreamResult> 
   } = input;
 
   // Create language model
+  console.log('[Stream] Creating language model:', { 
+    type: provider.type, 
+    model: provider.model, 
+    baseUrl: provider.baseUrl || 'default',
+    hasApiKey: !!provider.apiKey 
+  });
+  
   const model = await createLanguageModel(provider);
 
   // Convert tools to AI SDK format
@@ -80,6 +87,20 @@ export async function streamResponse(input: StreamInput): Promise<StreamResult> 
   let finishReason: StreamResult['finishReason'] = 'stop';
 
   try {
+    // Validate provider config before making request
+    const finalBaseUrl = provider.baseUrl || (await import('../provider/models')).PROVIDER_CONFIG[provider.type]?.baseUrl;
+    if (!finalBaseUrl && provider.type !== 'opencode') {
+      console.warn('[Stream] No baseUrl provided for provider:', provider.type);
+    }
+    
+    console.log('[Stream] Starting stream request:', {
+      provider: provider.type,
+      model: provider.model,
+      baseUrl: finalBaseUrl || 'default',
+      messageCount: allMessages.length,
+      hasTools: Object.keys(aiTools).length > 0,
+    });
+    
     const response = streamText({
       model,
       messages: allMessages,
@@ -199,14 +220,42 @@ export async function streamResponse(input: StreamInput): Promise<StreamResult> 
       };
     }
 
+    // Enhance error message for network errors
+    let enhancedError: Error;
+    if (error instanceof TypeError && error.message.includes('Load failed')) {
+      const baseUrl = provider.baseUrl || 'default';
+      const providerType = provider.type;
+      
+      // 尝试获取更详细的错误信息
+      let detailedMessage = `网络请求失败: ${error.message}\n\n可能的原因：\n`;
+      detailedMessage += `1. API endpoint: ${baseUrl}\n`;
+      detailedMessage += `2. Provider type: ${providerType}\n`;
+      detailedMessage += `3. Model: ${provider.model}\n\n`;
+      detailedMessage += `请检查：\n`;
+      detailedMessage += `- 网络连接是否正常\n`;
+      detailedMessage += `- API endpoint 是否可访问\n`;
+      detailedMessage += `- 是否存在防火墙或代理阻止\n`;
+      
+      if (providerType === 'opencode') {
+        detailedMessage += `- OpenCode Zen 服务是否可用\n`;
+        detailedMessage += `- 可以尝试访问 https://opencode.ai 检查服务状态\n`;
+      }
+      
+      enhancedError = new Error(detailedMessage);
+      enhancedError.cause = error;
+      enhancedError.name = 'NetworkError';
+    } else {
+      enhancedError = error instanceof Error ? error : new Error(String(error));
+    }
+
     const event: TypedStreamEvent = {
       type: 'error',
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: enhancedError,
     };
     onEvent?.(event);
     aiEventBus.emit('stream:event', { sessionId, event });
 
-    throw error;
+    throw enhancedError;
   }
 }
 

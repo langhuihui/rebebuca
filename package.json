@@ -15,15 +15,17 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "release": "./scripts/release.sh",
-    "republish": "./scripts/republish.sh"
+    "republish": "./scripts/republish.sh",
+    "mcp:debug": "node scripts/mcp-debug-server-http.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.9",
     "@ai-sdk/google": "^3.0.6",
     "@ai-sdk/openai": "^3.0.8",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/plugin-dialog": "^2.5.0",
     "@tauri-apps/plugin-fs": "^2.4.4",
+    "@tauri-apps/plugin-http": "^2",
     "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-os": "~2",
@@ -44,6 +46,7 @@
     "file-saver": "^2.0.5",
     "highlight.js": "^11.11.1",
     "json5": "^2.2.3",
+    "marked": "^17.0.1",
     "naive-ui": "^2.43.2",
     "pinia": "^3.0.3",
     "vue": "^3.5.13",

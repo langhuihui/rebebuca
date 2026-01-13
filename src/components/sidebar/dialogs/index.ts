@@ -12,10 +12,12 @@ export { default as TaskEditDialog } from './TaskEditDialog.vue';
 export { default as AddFolderDialog } from './AddFolderDialog.vue';
 export { default as TaskSelectionDialog } from './TaskSelectionDialog.vue';
 export { default as RenameGroupDialog } from './RenameGroupDialog.vue';
+export { default as AICollabTaskEditDialog } from './AICollabTaskEditDialog.vue';
 export { default as CommandPlazaDialog } from './CommandPlazaDialog.vue';
-export { default as AICollabCreateDialog } from './AICollabCreateDialog.vue';
+export { default as AICollabNativeCreateDialog } from './AICollabNativeCreateDialog.vue';
 export { default as AICollabEditDialog } from './AICollabEditDialog.vue';
 export { default as RemoteDirectoryPicker } from './RemoteDirectoryPicker.vue';
+export { default as DualAgentCreateDialog } from './DualAgentCreateDialog.vue';
 
 import type { AIToolType } from '../../../stores/aiTools';
 

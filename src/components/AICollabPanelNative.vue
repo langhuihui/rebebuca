@@ -39,7 +39,7 @@
             @click="handleStop"
           >
             <template #icon>
-              <component :is="iconComponents.stop" />
+              <component :is="iconComponents.stop(true)" />
             </template>
             {{ t('aiCollab.stop') }}
           </n-button>
@@ -139,7 +139,41 @@
           
           <!-- 空状态 -->
           <div v-if="!session?.messages?.length && !currentStreamingText" class="empty-messages">
-            <n-empty :description="t('aiCollab.noMessages')">
+            <div v-if="session?.goal" class="goal-display">
+              <div class="goal-header">
+                <n-icon size="20" color="#722ed1">
+                  <component :is="svgIcons.task" />
+                </n-icon>
+                <span class="goal-title">{{ t('aiCollab.taskGoal') }}</span>
+              </div>
+              <div class="goal-content">
+                <div class="goal-objective">
+                  <strong>{{ t('aiCollab.taskObjective') }}：</strong>
+                  <span>{{ session.goal.objective }}</span>
+                </div>
+                <div v-if="session.goal.acceptanceCriteria?.length" class="goal-criteria">
+                  <strong>{{ t('aiCollab.acceptanceCriteria') }}：</strong>
+                  <ul>
+                    <li v-for="(criterion, index) in session.goal.acceptanceCriteria" :key="index">
+                      {{ criterion }}
+                    </li>
+                  </ul>
+                </div>
+                <div v-if="session.goal.context" class="goal-context">
+                  <strong>{{ t('aiCollab.context') }}：</strong>
+                  <span>{{ session.goal.context }}</span>
+                </div>
+                <div v-if="session.goal.constraints?.length" class="goal-constraints">
+                  <strong>{{ t('aiCollab.constraints') }}：</strong>
+                  <ul>
+                    <li v-for="(constraint, index) in session.goal.constraints" :key="index">
+                      {{ constraint }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <n-empty v-else :description="t('aiCollab.noMessages')">
               <template #extra>
                 <n-text depth="3">{{ t('aiCollab.startHintNative') }}</n-text>
               </template>
@@ -289,6 +323,7 @@ import { useAICollabNativeStore, type NativeCollabConfig } from '../stores/aiCol
 import { getModelsForProvider } from '../services/ai/provider/models';
 import type { ProviderType, PermissionRequest } from '../services/ai/types';
 import { iconComponents, svgIcons } from '../utils/icons';
+import { renderMarkdown } from '../utils/markdown';
 import type { MessageFrom } from '../types/aiCollab';
 
 const props = defineProps<{
@@ -311,8 +346,8 @@ const showSettingsModal = ref(false);
 
 // Provider 配置表单
 const providerForm = ref({
-  type: 'anthropic' as ProviderType,
-  model: 'claude-sonnet-4-20250514',
+  type: 'opencode' as ProviderType,
+  model: 'gpt-5-nano',
   apiKey: '',
   baseUrl: '',
   tools: ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
@@ -320,6 +355,7 @@ const providerForm = ref({
 
 // Provider 类型选项
 const providerTypeOptions = computed(() => [
+  { label: 'OpenCode Zen (免费)', value: 'opencode' },
   { label: 'Anthropic (Claude)', value: 'anthropic' },
   { label: 'OpenAI', value: 'openai' },
   { label: 'Google (Gemini)', value: 'google' },
@@ -416,19 +452,6 @@ const formatTime = (timestamp: number): string => {
   return date.toLocaleTimeString();
 };
 
-const renderMarkdown = (text: string): string => {
-  // Simple markdown-like rendering without external dependency
-  // Replace **bold**, *italic*, `code`, and newlines
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    .replace(/\n/g, '<br>');
-};
 
 const getPermissionDescription = (perm: PermissionRequest): string => {
   switch (perm.type) {
@@ -450,9 +473,25 @@ const getPermissionDescription = (perm: PermissionRequest): string => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (scrollbarRef.value) {
-      const container = scrollbarRef.value.$el?.querySelector('.n-scrollbar-container');
-      if (container) {
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      try {
+        // Try to access the scroll container through the scrollbar ref
+        const scrollbarEl = scrollbarRef.value.$el;
+        let container: HTMLElement | null = null;
+        
+        // Check if $el is a DOM element with querySelector
+        if (scrollbarEl && typeof scrollbarEl.querySelector === 'function') {
+          container = scrollbarEl.querySelector('.n-scrollbar-container');
+        } else if (messageListRef.value) {
+          // Fallback: find the container through the parent ref
+          container = messageListRef.value.querySelector('.n-scrollbar-container');
+        }
+        
+        if (container) {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        }
+      } catch (error) {
+        // Silently handle errors to prevent unhandled promise rejections
+        console.warn('Failed to scroll to bottom:', error);
       }
     }
   });
@@ -478,20 +517,30 @@ const handleSend = async () => {
         tools: providerForm.value.tools,
       };
       
-      if (!config.provider.apiKey) {
+      // OpenCode 免费模式不需要 API key
+      if (!config.provider.apiKey && config.provider.type !== 'opencode') {
         message.warning(t('aiCollab.apiKeyRequired'));
         showSettingsModal.value = true;
         return;
       }
       
+      console.log('[AICollabPanelNative] Creating new session:', config);
       const newSession = await collabStore.createSession(config);
       sessionId = newSession.id;
+      console.log('[AICollabPanelNative] Session created:', sessionId);
       emit('session-created', sessionId);
+      
+      // 新创建的会话，自动启动
+      // 新创建的会话，自动启动（发送欢迎消息）
+      // 注意：不要在 handleSend 中自动启动，因为用户已经手动发送了消息
+      // await autoStartSession(sessionId);
     }
     
+    console.log('[AICollabPanelNative] Sending message to session:', sessionId);
     await collabStore.sendMessage(sessionId, inputMessage.value.trim());
     inputMessage.value = '';
   } catch (error) {
+    console.error('[AICollabPanelNative] Error sending message:', error);
     message.error(t('aiCollab.sendFailed', { error: String(error) }));
   }
 };
@@ -578,6 +627,36 @@ watch(
   () => scrollToBottom()
 );
 
+// 监听会话变化，如果是新会话则自动启动
+// 注意：不在这里自动启动，避免与 onMounted 重复调用
+// watch(
+//   () => session.value?.id,
+//   async (sessionId, oldSessionId) => {
+//     if (sessionId && sessionId !== oldSessionId && session.value) {
+//       // 新会话，检查是否需要自动启动
+//       // 延迟一下，确保会话已完全初始化
+//       await nextTick();
+//       await new Promise(resolve => setTimeout(resolve, 300));
+//       
+//       // 如果只有系统消息（新会话），自动启动
+//       const userMessages = session.value.messages.filter(m => m.from === 'user');
+//       const assistantMessages = session.value.messages.filter(m => m.from === 'assistant');
+//       console.log('[AICollabPanelNative] Session changed, checking auto-start:', {
+//         sessionId,
+//         userMessages: userMessages.length,
+//         assistantMessages: assistantMessages.length,
+//       });
+//       if (userMessages.length === 0 && assistantMessages.length === 0) {
+//         console.log('[AICollabPanelNative] No user/assistant messages, calling autoStartSession');
+//         await autoStartSession(sessionId);
+//       } else {
+//         console.log('[AICollabPanelNative] Session has messages, skipping auto-start');
+//       }
+//     }
+//   },
+//   { immediate: false }
+// );
+
 // 生命周期
 onMounted(async () => {
   scrollToBottom();
@@ -587,9 +666,193 @@ onMounted(async () => {
     const loaded = await collabStore.loadSession(props.projectPath);
     if (loaded) {
       emit('session-created', loaded.id);
+      // 如果是新加载的会话且有历史消息，不需要自动启动
+      console.log('[AICollabPanelNative] Session loaded in onMounted:', {
+        id: loaded.id,
+        messageCount: loaded.messages.length,
+      });
+      if (loaded.messages.length <= 1) {
+        // 只有系统消息，自动发送欢迎消息
+        console.log('[AICollabPanelNative] Loaded session has <= 1 message, calling autoStartSession');
+        await autoStartSession(loaded.id);
+      } else {
+        console.log('[AICollabPanelNative] Loaded session has messages, skipping auto-start');
+      }
+    }
+  } else if (props.sessionId) {
+    // 如果已有会话 ID，检查是否需要自动启动
+    const currentSession = collabStore.sessions.get(props.sessionId);
+    console.log('[AICollabPanelNative] onMounted with sessionId:', {
+      sessionId: props.sessionId,
+      sessionExists: !!currentSession,
+      messageCount: currentSession?.messages.length || 0,
+    });
+    if (currentSession && currentSession.messages.length <= 1) {
+      // 只有系统消息，自动发送欢迎消息
+      console.log('[AICollabPanelNative] Existing session has <= 1 message, calling autoStartSession');
+      await autoStartSession(props.sessionId);
+    } else {
+      console.log('[AICollabPanelNative] Existing session has messages or not found, skipping auto-start');
     }
   }
 });
+
+// 自动启动标记，避免重复发送
+const autoStartedSessions = new Set<string>();
+// 正在启动的会话，防止并发调用
+const startingSessions = new Set<string>();
+
+// 自动启动会话（发送欢迎消息）
+const autoStartSession = async (sessionId: string) => {
+  console.log('[AICollabPanelNative] autoStartSession called for session:', sessionId);
+  
+  // 避免重复启动
+  if (autoStartedSessions.has(sessionId)) {
+    console.log('[AICollabPanelNative] Session already auto-started, skipping:', sessionId);
+    return;
+  }
+  
+  // 防止并发调用
+  if (startingSessions.has(sessionId)) {
+    console.log('[AICollabPanelNative] Session is already starting, skipping:', sessionId);
+    return;
+  }
+  
+  startingSessions.add(sessionId);
+  
+  try {
+    // 标记为已启动（在检查通过后再标记，避免重复）
+    console.log('[AICollabPanelNative] Marking session as auto-started:', sessionId);
+    
+    // 等待一小段时间，确保界面已完全渲染
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // 再次检查会话状态，确保会话仍然存在且没有用户消息
+    const currentSession = collabStore.sessions.get(sessionId);
+    if (!currentSession) {
+      console.warn('[AICollabPanelNative] Session not found after delay:', sessionId);
+      autoStartedSessions.delete(sessionId);
+      startingSessions.delete(sessionId);
+      return;
+    }
+    
+    console.log('[AICollabPanelNative] Current session messages:', {
+      total: currentSession.messages.length,
+      user: currentSession.messages.filter(m => m.from === 'user').length,
+      assistant: currentSession.messages.filter(m => m.from === 'assistant').length,
+    });
+    
+    const userMessages = currentSession.messages.filter(m => m.from === 'user');
+    if (userMessages.length > 0) {
+      // 已经有用户消息了，不需要自动启动
+      console.log('[AICollabPanelNative] Session already has user messages, skipping auto-start');
+      startingSessions.delete(sessionId);
+      return;
+    }
+    
+    // 添加欢迎消息（作为助手消息，而不是用户消息）
+    let welcomeMessage: string;
+    let shouldAutoStart = false;
+    
+    if (currentSession?.goal?.objective) {
+      // 使用任务目标构建欢迎消息 - 直接表明要开始执行
+      welcomeMessage = `你好！我将帮助你完成以下任务：\n\n**任务目标**：${currentSession.goal.objective}`;
+      if (currentSession.goal.acceptanceCriteria?.length) {
+        welcomeMessage += `\n\n**完成标准**：\n${currentSession.goal.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}`;
+      }
+      if (currentSession.goal.context) {
+        welcomeMessage += `\n\n**背景信息**：${currentSession.goal.context}`;
+      }
+      if (currentSession.goal.constraints?.length) {
+        welcomeMessage += `\n\n**约束条件**：\n${currentSession.goal.constraints.map(c => `- ${c}`).join('\n')}`;
+      }
+      welcomeMessage += '\n\n让我开始分析项目结构并执行任务...';
+      shouldAutoStart = true;
+    } else {
+      welcomeMessage = '你好！我是你的 AI 助手，可以帮助你完成各种开发任务。你可以让我帮你阅读、编辑文件，执行命令，或者回答任何问题。请告诉我你需要什么帮助？';
+    }
+    
+    console.log('[AICollabPanelNative] Adding welcome message via addAssistantMessage');
+    // 使用 addAssistantMessage 方法添加助手消息，而不是通过 sendMessage（sendMessage 会将其标记为用户消息）
+    await collabStore.addAssistantMessage(sessionId, welcomeMessage);
+    
+    // 等待一下，确保消息已添加
+    await nextTick();
+    
+    // 标记为已启动（在欢迎消息添加成功后）
+    autoStartedSessions.add(sessionId);
+    
+    // 再次检查会话状态
+    const updatedSession = collabStore.sessions.get(sessionId);
+    console.log('[AICollabPanelNative] Welcome message added successfully, session state:', {
+      messageCount: updatedSession?.messages.length || 0,
+      lastMessage: updatedSession?.messages[updatedSession.messages.length - 1],
+    });
+    
+    // 滚动到底部以显示新消息
+    scrollToBottom();
+    
+    // 如果有任务目标，自动开始执行任务
+    if (shouldAutoStart && currentSession?.goal?.objective) {
+      // 等待一下，让欢迎消息先显示
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 构建任务启动指令 - 包含完整的任务信息
+      let taskPrompt = `请开始执行以下任务：\n\n任务目标：${currentSession.goal.objective}`;
+      if (currentSession.goal.acceptanceCriteria?.length) {
+        taskPrompt += `\n\n完成标准：\n${currentSession.goal.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}`;
+      }
+      if (currentSession.goal.context) {
+        taskPrompt += `\n\n背景信息：${currentSession.goal.context}`;
+      }
+      if (currentSession.goal.constraints?.length) {
+        taskPrompt += `\n\n约束条件：\n${currentSession.goal.constraints.map(c => `- ${c}`).join('\n')}`;
+      }
+      taskPrompt += '\n\n请先了解项目结构，然后开始实现。';
+      
+      console.log('[AICollabPanelNative] Auto-starting task execution');
+      
+      // 直接调用底层 AI 会话发送消息，而不通过 collabStore.sendMessage
+      // 这样可以避免在 UI 上显示用户消息
+      const session = collabStore.sessions.get(sessionId);
+      if (session?.aiSessionId) {
+        try {
+          // 更新会话状态为运行中
+          session.status = 'running';
+          session.lastActivity = Date.now();
+          
+          // 直接调用 aiSessionManager.sendMessage
+          const { aiSessionManager } = await import('@/services/ai/session');
+          await aiSessionManager.sendMessage(session.aiSessionId, taskPrompt);
+          console.log('[AICollabPanelNative] Task execution started');
+        } catch (error) {
+          console.error('[AICollabPanelNative] Failed to start task:', error);
+          // 更新会话状态为错误
+          session.status = 'error';
+          session.error = error instanceof Error ? error.message : String(error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[AICollabPanelNative] Failed to auto-start session:', error);
+    
+    // 如果是网络错误，显示更友好的提示
+    if (error instanceof Error && (error.name === 'NetworkError' || error.message.includes('Load failed'))) {
+      message.warning(
+        `无法连接到 AI 服务。请检查网络连接和 API 配置。`,
+        { duration: 8000 }
+      );
+      console.error('[AICollabPanelNative] Network error details:', error);
+    }
+    
+    // 失败时移除标记，允许重试
+    autoStartedSessions.delete(sessionId);
+    // 不抛出错误，允许用户手动重试
+  } finally {
+    // 无论成功还是失败，都要移除正在启动的标记
+    startingSessions.delete(sessionId);
+  }
+};
 </script>
 
 <style scoped>
@@ -706,19 +969,27 @@ onMounted(async () => {
 .markdown-body {
   font-size: 14px;
   line-height: 1.6;
+  color: var(--n-text-color);
 }
 
-.markdown-body :deep(pre) {
-  background: rgba(0, 0, 0, 0.1);
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4),
+.markdown-body :deep(h5),
+.markdown-body :deep(h6) {
+  margin: 12px 0 6px 0;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--n-text-color);
 }
 
-.markdown-body :deep(code) {
-  font-family: 'Menlo', 'Monaco', monospace;
-  font-size: 13px;
-}
+.markdown-body :deep(h1) { font-size: 1.4em; }
+.markdown-body :deep(h2) { font-size: 1.3em; }
+.markdown-body :deep(h3) { font-size: 1.1em; }
+.markdown-body :deep(h4) { font-size: 1em; }
+.markdown-body :deep(h5) { font-size: 0.9em; }
+.markdown-body :deep(h6) { font-size: 0.85em; }
 
 .markdown-body :deep(p) {
   margin: 0 0 8px 0;
@@ -726,6 +997,86 @@ onMounted(async () => {
 
 .markdown-body :deep(p:last-child) {
   margin-bottom: 0;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.markdown-body :deep(li) {
+  margin: 3px 0;
+}
+
+.markdown-body :deep(blockquote) {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--n-border-color);
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--n-text-color-2);
+}
+
+.markdown-body :deep(pre) {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+.markdown-body :deep(code) {
+  font-family: 'Menlo', 'Monaco', monospace;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.markdown-body :deep(pre code) {
+  background: transparent;
+  padding: 0;
+}
+
+.markdown-body :deep(a) {
+  color: var(--n-primary-color);
+  text-decoration: none;
+}
+
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-body :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  border: 1px solid var(--n-border-color);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.markdown-body :deep(th) {
+  background: var(--n-color-embedded);
+  font-weight: 600;
+}
+
+.markdown-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--n-border-color);
+  margin: 12px 0;
+}
+
+.markdown-body :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 6px 0;
 }
 
 .tool-calls-status {
@@ -753,6 +1104,65 @@ onMounted(async () => {
   justify-content: center;
   align-items: center;
   height: 200px;
+}
+
+.goal-display {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+  background: var(--n-color-embedded);
+  border-radius: 8px;
+  border: 1px solid var(--n-border-color);
+}
+
+.goal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.goal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--n-text-color);
+}
+
+.goal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goal-objective,
+.goal-criteria,
+.goal-context,
+.goal-constraints {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--n-text-color);
+}
+
+.goal-objective strong,
+.goal-criteria strong,
+.goal-context strong,
+.goal-constraints strong {
+  color: var(--n-text-color-1);
+  margin-right: 8px;
+}
+
+.goal-criteria ul,
+.goal-constraints ul {
+  margin: 8px 0 0 0;
+  padding-left: 24px;
+}
+
+.goal-criteria li,
+.goal-constraints li {
+  margin-bottom: 6px;
 }
 
 .permission-area {

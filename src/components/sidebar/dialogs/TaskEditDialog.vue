@@ -316,6 +316,7 @@ import type { SystemTerminalInfo, ShellInfo } from '../../../adapters/types';
 import { svgIcons } from '../../../utils/icons';
 import { isWindows } from '../../../utils/platform';
 import type { TaskGroup } from '../../../providers/types';
+import { TaskType } from '../../../providers/types';
 import CommandPlazaDialog from './CommandPlazaDialog.vue';
 import RemoteDirectoryPicker from './RemoteDirectoryPicker.vue';
 import { useAIToolsStore, type AIToolType } from '../../../stores/aiTools';
@@ -330,7 +331,7 @@ interface EditingTask {
   command: string;
   cwd: string;
   group: TaskGroup;
-  type: 'shell' | 'process' | 'macro';
+  type: TaskType;
   sourceFile: string;
   useSystemTerminal: boolean;
   systemTerminalId?: string | null;  // Selected terminal ID for system terminal
@@ -439,6 +440,7 @@ const aiToolOptions = computed(() => {
     .map(toolType => {
       const logoUrl = aiToolsStore.getToolLogoUrl(toolType);
       const displayName = aiToolsStore.getToolDisplayName(toolType);
+      const needsInvert = ['opencode', 'augment-cli', 'ampcode'].includes(toolType);
       
       return {
         label: () => {
@@ -447,6 +449,7 @@ const aiToolOptions = computed(() => {
               h('img', {
                 src: logoUrl,
                 alt: displayName,
+                class: needsInvert ? 'tool-logo-invert-dark' : '',
                 style: 'width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;',
                 onError: (e: Event) => {
                   const img = e.target as HTMLImageElement;
@@ -807,12 +810,12 @@ watch(() => editingTask.value.type, (newType, oldType) => {
     return;
   }
   
-  if (newType !== 'macro' && oldType === 'macro') {
+  if (newType !== TaskType.MACRO && oldType === TaskType.MACRO) {
     // Switching from macro to regular task
     editingTask.value.executionMode = undefined;
     editingTask.value.dependsOn = undefined;
     editingTask.value.subTasks = undefined;
-  } else if (newType === 'macro' && oldType !== 'macro') {
+  } else if (newType === TaskType.MACRO && oldType !== TaskType.MACRO) {
     // Switching to macro task
     editingTask.value.command = '';
     editingTask.value.executionMode = 'serial'; // Default to serial

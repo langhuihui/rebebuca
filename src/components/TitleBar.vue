@@ -96,17 +96,17 @@
                   <n-button
                     size="small"
                     quaternary
-                    @click="handleAICollab"
+                    @click="handleAICollabNative"
                     class="titlebar-action-button"
                   >
                     <template #icon>
                       <n-icon size="16">
-                        <component :is="svgIcons.robot" />
+                        <component :is="svgIcons.zap" />
                       </n-icon>
                     </template>
                   </n-button>
                 </template>
-                {{ t('aiCollab.title') }}
+                {{ t('aiCollab.nativeMode') }}
               </n-tooltip>
             </n-space>
           </div>
@@ -248,17 +248,17 @@
                 <n-button
                   size="small"
                   quaternary
-                  @click="handleAICollab"
+                  @click="handleAICollabNative"
                   class="titlebar-action-button"
                 >
                   <template #icon>
                     <n-icon size="16">
-                      <component :is="svgIcons.robot" />
+                      <component :is="svgIcons.zap" />
                     </n-icon>
                   </template>
                 </n-button>
               </template>
-              {{ t('aiCollab.title') }}
+              {{ t('aiCollab.nativeMode') }}
             </n-tooltip>
           </n-space>
         </div>
@@ -483,7 +483,6 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import {
   NButton,
-  NDropdown,
   NModal,
   NScrollbar,
   NTooltip,
@@ -551,8 +550,8 @@ const handlePortManagement = () => {
   window.dispatchEvent(new CustomEvent('port-management'));
 };
 
-const handleAICollab = () => {
-  window.dispatchEvent(new CustomEvent('ai-collab'));
+const handleAICollabNative = () => {
+  window.dispatchEvent(new CustomEvent('ai-collab-native'));
 };
 
 // Handle split mode toggle

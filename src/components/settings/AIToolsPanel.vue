@@ -33,7 +33,7 @@
             v-if="aiToolsStore.getToolLogoUrl(toolType)"
             :src="aiToolsStore.getToolLogoUrl(toolType)"
             :alt="AI_TOOL_METADATA[toolType].name"
-            class="tool-logo"
+            :class="['tool-logo', { 'tool-logo-invert-dark': ['opencode', 'augment-cli', 'ampcode'].includes(toolType) }]"
             @error="handleLogoError"
           />
           {{ AI_TOOL_METADATA[toolType].name }}
@@ -525,6 +525,7 @@ const availableTools: AIToolType[] = [
   "augment-cli",
   "cursor-cli",
   "crush",
+  "ampcode",
 ];
 
 // Active tool tab

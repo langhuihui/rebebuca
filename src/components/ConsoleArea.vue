@@ -125,11 +125,21 @@
           <PortManagementPanel v-if="terminalStore.activeTab?.type === 'port-management'" />
         </div>
         
-        <!-- AI Collaboration tab -->
-        <div v-show="terminalStore.activeTab?.type === 'ai-collab'" class="ai-collab-content-wrapper">
-          <AICollabPanel 
-            v-if="terminalStore.activeTab?.type === 'ai-collab' && terminalStore.activeTab.collabSessionId" 
-            :session-id="terminalStore.activeTab.collabSessionId" 
+        <!-- AI Collaboration Native tab -->
+        <div v-show="terminalStore.activeTab?.type === 'ai-collab-native'" class="ai-collab-content-wrapper">
+          <AICollabPanelNative 
+            v-if="terminalStore.activeTab?.type === 'ai-collab-native'" 
+            :session-id="terminalStore.activeTab.collabSessionId"
+            :project-path="terminalStore.activeTab.command || ''"
+            @session-created="handleNativeSessionCreated"
+          />
+        </div>
+        
+        <!-- Dual Agent tab -->
+        <div v-show="terminalStore.activeTab?.type === 'dual-agent'" class="ai-collab-content-wrapper">
+          <DualAgentPanel 
+            v-if="terminalStore.activeTab?.type === 'dual-agent' && terminalStore.activeTab.collabSessionId" 
+            :session-id="terminalStore.activeTab.collabSessionId"
           />
         </div>
         
@@ -271,7 +281,8 @@ import TerminalView from "./TerminalView.vue";
 import SettingsPanel from "./settings/SettingsPanel.vue";
 import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
-import AICollabPanel from "./AICollabPanel.vue";
+import AICollabPanelNative from "./AICollabPanelNative.vue";
+import DualAgentPanel from "./DualAgentPanel.vue";
 
 const { t } = useI18n();
 const message = useMessage();
@@ -640,9 +651,14 @@ const getTabIcon = (tab: TerminalTab) => {
     return svgIcons.network;
   }
   
-  // For AI collaboration tab
-  if (tab.type === 'ai-collab') {
-    return iconComponents.robot;
+  // For AI collaboration Native tab
+  if (tab.type === 'ai-collab-native') {
+    return svgIcons.zap;
+  }
+  
+  // For dual agent tab
+  if (tab.type === 'dual-agent') {
+    return svgIcons.zap;
   }
   
   // For task tabs, use command-based icon
@@ -681,7 +697,10 @@ const getTabLabel = (tab: TerminalTab): string => {
   if (tab.type === 'port-management') {
     return t('task.portManagement');
   }
-  if (tab.type === 'ai-collab') {
+  if (tab.type === 'ai-collab-native') {
+    return tab.label || t('aiCollab.assistant');
+  }
+  if (tab.type === 'dual-agent') {
     return tab.label || t('aiCollab.title');
   }
   return tab.label;
@@ -775,6 +794,15 @@ const handleRestartTask = async () => {
 // Clear terminal
 const handleClearTerminal = () => {
   getActiveTerminalRef()?.clear();
+};
+
+// Handle native AI session created
+const handleNativeSessionCreated = (sessionId: string) => {
+  // Update the current tab with the session ID
+  const activeTab = terminalStore.activeTab;
+  if (activeTab && activeTab.type === 'ai-collab-native') {
+    activeTab.collabSessionId = sessionId;
+  }
 };
 
 // Terminal event handlers

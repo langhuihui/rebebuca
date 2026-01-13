@@ -69,6 +69,21 @@
         }
       ]
     },
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        {
+          "url": "https://opencode.ai/**"
+        },
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        }
+      ]
+    },
     "store:default",
     "store:allow-get",
     "store:allow-set",

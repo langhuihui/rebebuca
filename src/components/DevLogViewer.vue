@@ -236,8 +236,17 @@ async function openLogFolder() {
   }
 }
 
-function clearTauriLogs() {
-  logFileContent.value = '';
+async function clearTauriLogs() {
+  if (!selectedLogFile.value) {
+    return;
+  }
+  
+  try {
+    await invoke('clear_app_log_file', { filename: selectedLogFile.value });
+    logFileContent.value = '';
+  } catch (error) {
+    console.error('Failed to clear log file:', error);
+  }
 }
 
 function scrollTauriToBottom() {
@@ -262,12 +271,23 @@ watch(selectedLogFile, (newFile) => {
   }
 });
 
+// Watch for tab changes to scroll when switching to tauri tab
+watch(activeTab, (newTab) => {
+  if (newTab === 'tauri') {
+    nextTick(() => {
+      setTimeout(() => {
+        scrollTauriToBottom();
+      }, 100);
+    });
+  }
+});
+
 // Watch for Tauri log content changes and auto-scroll
 watch(logFileContent, () => {
   // Use setTimeout to ensure content is fully rendered before scrolling
   setTimeout(() => {
     scrollTauriToBottom();
-  }, 50);
+  }, 100);
 });
 
 // Auto-scroll to bottom when new logs arrive

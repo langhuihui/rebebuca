@@ -10,6 +10,7 @@ import { editTool } from './edit';
 import { bashTool } from './bash';
 import { globTool } from './glob';
 import { grepTool } from './grep';
+import { debugTool } from './debug';
 
 // Re-export types
 export * from './types';
@@ -22,12 +23,20 @@ const ALL_TOOLS: Tool[] = [
   bashTool,
   globTool,
   grepTool,
+  debugTool,
 ];
 
 // Tool ID to Tool mapping
 const toolMap = new Map<string, Tool>();
 for (const tool of ALL_TOOLS) {
   toolMap.set(tool.id, tool);
+}
+
+/**
+ * Get the tool registry map
+ */
+export function getToolRegistry(): Map<string, Tool> {
+  return toolMap;
 }
 
 /**
@@ -96,3 +105,4 @@ export { editTool } from './edit';
 export { bashTool } from './bash';
 export { globTool } from './glob';
 export { grepTool } from './grep';
+export { debugTool } from './debug';

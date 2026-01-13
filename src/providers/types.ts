@@ -38,6 +38,15 @@ export type TaskGroup =
   | 'clean'
   | 'none';
 
+// Task execution types
+export enum TaskType {
+  SHELL = 'shell',        // Shell command execution (default)
+  PROCESS = 'process',    // Direct process execution
+  NPM = 'npm',           // npm script execution
+  MACRO = 'macro',       // Macro task (orchestrates other tasks)
+  AI_COLLAB = 'ai-collab', // AI collaboration task
+}
+
 /**
  * Represents a task that can be executed
  */
@@ -69,8 +78,8 @@ export interface Task {
   // Environment variables
   env?: Record<string, string>;
   
-  // Task type (e.g., 'shell', 'process', 'npm', 'macro')
-  type?: string;
+  // Task type
+  type?: TaskType;
   
   // Whether to use system terminal to run the task
   useSystemTerminal?: boolean;

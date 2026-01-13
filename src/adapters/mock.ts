@@ -32,6 +32,7 @@ import type {
   SystemTerminalInfo,
   ShellInfo,
 } from './types';
+import { TaskType } from '../providers/types';
 
 // Simulated file system
 const mockFileSystem: Map<string, string> = new Map();
@@ -58,7 +59,7 @@ const mockDemoData = {
           args: ['run', 'dev'],
           cwd: '/demo/my-vue-app',
           source: 'user',
-          type: 'shell',
+          type: TaskType.SHELL,
           group: 'build',
         },
         {
@@ -68,7 +69,7 @@ const mockDemoData = {
           args: ['run', 'build'],
           cwd: '/demo/my-vue-app',
           source: 'user',
-          type: 'shell',
+          type: TaskType.SHELL,
           group: 'build',
         },
         {
@@ -78,7 +79,7 @@ const mockDemoData = {
           args: ['test'],
           cwd: '/demo/my-vue-app',
           source: 'user',
-          type: 'shell',
+          type: TaskType.SHELL,
           group: 'test',
         },
         {
@@ -88,7 +89,7 @@ const mockDemoData = {
           args: ['run', 'lint:fix'],
           cwd: '/demo/my-vue-app',
           source: 'user',
-          type: 'shell',
+          type: TaskType.SHELL,
         },
       ],
     },
@@ -103,7 +104,7 @@ const mockDemoData = {
           args: ['build', '-t', 'my-app', '.'],
           cwd: '/demo/my-vue-app',
           source: 'user',
-          type: 'shell',
+          type: TaskType.SHELL,
         },
         {
           id: 'user-task-6',
@@ -112,7 +113,7 @@ const mockDemoData = {
           args: ['run', '-p', '3000:3000', 'my-app'],
           cwd: '/demo/my-vue-app',
           source: 'user',
-          type: 'shell',
+          type: TaskType.SHELL,
         },
       ],
     },

@@ -171,7 +171,7 @@
                     v-if="tool.logo"
                     :src="tool.logo"
                     :alt="tool.name"
-                    class="tool-logo"
+                    :class="['tool-logo', { 'tool-logo-invert-dark': ['opencode', 'augment-cli', 'ampcode'].includes(tool.id) }]"
                     @error="(e: Event) => ((e.target as HTMLImageElement).style.display = 'none')"
                   />
                   <span>{{ tool.name }}</span>

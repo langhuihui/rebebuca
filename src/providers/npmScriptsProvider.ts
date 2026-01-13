@@ -27,6 +27,7 @@ import {
   Task, 
   ScanResult, 
   TaskGroup,
+  TaskType,
   PackageJson,
 } from './types';
 
@@ -210,7 +211,7 @@ export class NpmScriptsProvider implements TaskProvider {
       command: 'npm',
       args: ['run', scriptName],
       cwd: folderPath,
-      type: 'npm',
+      type: TaskType.NPM,
       definition: {
         script: scriptName,
         command: scriptCommand,

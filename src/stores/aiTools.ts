@@ -34,8 +34,9 @@ import { getAdapter, type BackendAdapter } from '../adapters';
  * - augment-cli: Augment Code CLI (Auggie)
  * - cursor-cli: Cursor CLI (cursor-agent)
  * - crush: Charmbracelet Crush AI coding agent
+ * - ampcode: AmpCode AI coding assistant
  */
-export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli' | 'crush';
+export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli' | 'crush' | 'ampcode';
 
 // Provider presets
 export interface ProviderPreset {
@@ -51,52 +52,52 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   original: {
     id: 'original',
     name: 'Original',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli', 'crush', 'ampcode'],
   },
   glm: {
     id: 'glm',
     name: 'GLM (智谱AI)',
     getKeyUrl: 'https://open.bigmodel.cn/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   kimi: {
     id: 'kimi',
     name: 'Kimi (月之暗面)',
     getKeyUrl: 'https://platform.moonshot.cn/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   doubao: {
     id: 'doubao',
     name: 'Doubao (豆包)',
     getKeyUrl: 'https://console.volcengine.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   minimax: {
     id: 'minimax',
     name: 'MiniMax',
     getKeyUrl: 'https://www.minimaxi.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   deepseek: {
     id: 'deepseek',
     name: 'DeepSeek',
     getKeyUrl: 'https://platform.deepseek.com/',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   aigocode: {
     id: 'aigocode',
     name: 'AIgoCode',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   aicodemirror: {
     id: 'aicodemirror',
     name: 'AiCodeMirror',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'copilot-cli', 'droid', 'crush', 'ampcode'],
   },
   custom: {
     id: 'custom',
     name: 'Custom',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'crush'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'crush', 'ampcode'],
   },
 };
 
@@ -306,6 +307,15 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     versionCommand: 'crush --version',
     launchCommand: 'crush',
   },
+  'ampcode': {
+    name: 'AmpCode',
+    website: 'https://ampcode.com',
+    installMethods: [
+      { id: 'script', name: 'Install Script', command: 'curl -fsSL https://ampcode.com/install.sh | bash', platform: 'all' },
+    ],
+    versionCommand: 'ampcode --version',
+    launchCommand: 'ampcode',
+  },
 };
 
 // Provider API Key storage (for syncing across tools)
@@ -368,6 +378,11 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     },
     'crush': {
       toolType: 'crush',
+      provider: 'original',
+      enabled: false,
+    },
+    'ampcode': {
+      toolType: 'ampcode',
       provider: 'original',
       enabled: false,
     },
@@ -481,6 +496,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'augment-cli': 'Augment CLI (Auggie)',
       'cursor-cli': 'Cursor CLI',
       'crush': 'Crush',
+      'ampcode': 'AmpCode',
     };
     return names[toolType];
   };
@@ -499,6 +515,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'augment-cli': '/ai-tools-logos/augment-cli.ico',
       'cursor-cli': '/ai-tools-logos/cursor-cli.ico',
       'crush': '/ai-tools-logos/crush.svg',
+      'ampcode': '/ai-tools-logos/ampcode.svg',
     };
     return logos[toolType];
   };

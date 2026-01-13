@@ -108,8 +108,8 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
 /* Light theme titlebar */
 .n-config-provider--light .custom-titlebar,
 .custom-titlebar.light-theme {
-  background-color: #f5f5f5;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: #f5f5f5 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
 .title-logo {
@@ -153,6 +153,11 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
   100% {
     background-position: 100% 50%;
   }
+}
+
+/* Invert black logos in dark theme - global rule */
+.n-config-provider:not(.n-config-provider--light) .tool-logo-invert-dark {
+  filter: invert(1);
 }
 
 /* Running tab status indicator breathing effect */
@@ -1119,8 +1124,8 @@ html, body, #app, .n-layout, .n-layout-content {
 
 /* Light theme - Sidebar */
 .n-config-provider--light .sidebar-layout {
-  background-color: #fafafa;
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  background-color: #fafafa !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
 /* Light theme - Tree nodes hover */

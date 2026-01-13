@@ -26,6 +26,7 @@ import {
   TaskFolder,
   TaskTreeItem,
   TaskExecutionOptions,
+  TaskType,
 } from '../providers/types';
 import { vscodeTasksProvider } from '../providers/vscodeTasksProvider';
 import { npmScriptsProvider } from '../providers/npmScriptsProvider';
@@ -1424,9 +1425,86 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * If the task is not running, a new terminal tab will be created
    */
   async function executeTask(task: Task, options?: TaskExecutionOptions): Promise<void> {
+    // Handle AI collaboration tasks - these don't have commands, they open a special tab
+    if (task.type === TaskType.AI_COLLAB) {
+      const terminalStore = useTerminalStore();
+      
+      if (task.definition?.sessionId) {
+        const sessionId = task.definition.sessionId as string;
+        // Check if a tab exists for this session
+        const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
+        if (existingTab) {
+          terminalStore.setActiveTab(existingTab.id);
+        } else {
+          // Create a new Native AI collab tab
+          terminalStore.createAICollabNativeTab(sessionId, task.name || 'AI 协作', task.cwd);
+        }
+        // Update task run statistics
+        await updateTaskRunStats(task.id);
+      } else {
+        // AI collab task without session - create a new Native AI collab session
+        const { useAICollabNativeStore } = await import('./aiCollabNative');
+        const aiCollabNativeStore = useAICollabNativeStore();
+        
+        // Create a new session with task's provider config
+        const taskProvider = task.definition?.provider;
+        const providerType = (taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider)
+          ? taskProvider.type
+          : 'opencode';
+        
+        // 获取 provider 的默认配置
+        const { PROVIDER_CONFIG } = await import('../services/ai/provider/models');
+        const defaultProviderConfig = PROVIDER_CONFIG[providerType as keyof typeof PROVIDER_CONFIG];
+        
+        const providerConfig = taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider
+          ? {
+              type: taskProvider.type || 'opencode',
+              model: taskProvider.model || 'gpt-5-nano',
+              apiKey: taskProvider.apiKey || '',
+              baseUrl: taskProvider.baseUrl || defaultProviderConfig?.baseUrl,
+            }
+          : {
+              type: 'opencode' as const,
+              model: 'gpt-5-nano',
+              apiKey: '',
+              baseUrl: defaultProviderConfig?.baseUrl,
+            };
+        
+        console.log('[TaskManager] Creating Native AI collab session with provider:', {
+          type: providerConfig.type,
+          model: providerConfig.model,
+          baseUrl: providerConfig.baseUrl || 'default',
+        });
+        
+        try {
+          const session = await aiCollabNativeStore.createSession({
+            projectPath: task.cwd || options?.cwd || '',
+            provider: providerConfig,
+            systemPrompts: [],
+            tools: task.definition?.tools || ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
+            goal: task.definition?.goal,
+          });
+          
+          // Update task with session ID
+          task.definition = task.definition || {};
+          task.definition.sessionId = session.id;
+          
+          // Create tab for the session
+          terminalStore.createAICollabNativeTab(session.id, task.name || 'AI 协作', task.cwd);
+          
+          // Update task run statistics
+          await updateTaskRunStats(task.id);
+        } catch (error) {
+          console.error('[TaskManager] Failed to create native AI collab session:', error);
+          throw error;
+        }
+      }
+      return;
+    }
+    
     // Handle macro tasks (tasks that orchestrate other tasks, no command of their own)
     // Only tasks explicitly marked as 'macro' or compound tasks without commands are macro tasks
-    const isMacroTask = task.type === 'macro' || (!task.command && (task.dependsOn || task.subTasks));
+    const isMacroTask = task.type === TaskType.MACRO || (!task.command && (task.dependsOn || task.subTasks));
     
     if (isMacroTask) {
       console.log('[TaskManager] Executing macro task:', task.name);

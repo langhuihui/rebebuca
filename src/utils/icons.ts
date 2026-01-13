@@ -60,6 +60,7 @@ export const defaultCommandIcons: Record<string, string> = {
   'auggie': 'ai',
   'cursor-agent': 'ai',
   'crush': 'ai',
+  'ampcode': 'ai',
 };
 
 /**
@@ -131,6 +132,12 @@ export const iconComponents = {
   // 播放图标
   play: createIconComponent([
     h('polygon', { points: '5 3 19 12 5 21 5 3' })
+  ]),
+
+  // 暂停图标
+  pause: createIconComponent([
+    h('rect', { x: '6', y: '4', width: '4', height: '16' }),
+    h('rect', { x: '14', y: '4', width: '4', height: '16' })
   ]),
 
   // 编辑图标
@@ -396,6 +403,13 @@ export const iconComponents = {
     h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })
   ]),
 
+  // 上传图标
+  upload: createIconComponent([
+    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+    h('polyline', { points: '17 8 12 3 7 8' }),
+    h('line', { x1: '12', y1: '3', x2: '12', y2: '15' })
+  ]),
+
   // 机器人图标
   robot: createIconComponent([
     h('rect', { x: '3', y: '11', width: '18', height: '10', rx: '2' }),
@@ -475,8 +489,22 @@ export const svgIcons = {
     h('polyline', { points: '9 18 15 12 9 6' })
   ]),
 
+  zap: createSvgIcon([
+    h('path', { d: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', fill: 'currentColor' })
+  ]),
+
+  terminal: createSvgIcon([
+    h('polyline', { points: '4 17 10 11 4 5' }),
+    h('line', { x1: '12', y1: '19', x2: '20', y2: '19' })
+  ]),
+
   play: createSvgIcon([
     h('polygon', { points: '5 3 19 12 5 21 5 3' })
+  ]),
+
+  pause: createSvgIcon([
+    h('rect', { x: '6', y: '4', width: '4', height: '16' }),
+    h('rect', { x: '14', y: '4', width: '4', height: '16' })
   ]),
 
   close: createSvgIcon([

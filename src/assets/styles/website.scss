@@ -10,13 +10,23 @@
   height: 750px;
   max-width: calc(100vw - 80px);
   max-height: calc(100vh - 80px);
-  background: #18181c;
   border-radius: 12px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
   position: relative;
   z-index: 1;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+  
+  &.theme-dark {
+    background: #18181c;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  
+  &.theme-light {
+    background: #ffffff;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
 }
 
 /* Titlebar (macOS style) */
@@ -25,10 +35,19 @@
   align-items: center;
   height: 38px;
   padding: 0 12px;
-  background: #252529;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px 12px 0 0;
   gap: 12px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  
+  .theme-dark & {
+    background: #252529;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .theme-light & {
+    background: #f5f5f5;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
 }
 
 /* Traffic light buttons */
@@ -134,24 +153,49 @@
   flex: 1;
   display: flex;
   overflow: hidden;
-  background: #18181c;
+  transition: background 0.3s ease;
+  
+  .theme-dark & {
+    background: #18181c;
+  }
+  
+  .theme-light & {
+    background: #fafafa;
+  }
 }
 
 /* Sidebar */
 .website-sidebar {
   width: 260px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  background: #1e1e22;
   display: flex;
   flex-direction: column;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  
+  .theme-dark & {
+    background: #1e1e22;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .theme-light & {
+    background: #f0f0f0;
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+  }
 }
 
 .sidebar-header {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
+  transition: border-color 0.3s ease;
+  
+  .theme-dark & {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .theme-light & {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
 }
 
 .sidebar-title {
@@ -367,10 +411,19 @@
 /* Tabs */
 .tabs-bar {
   display: flex;
-  background: #252529;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   min-height: 36px;
   overflow-x: auto;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  
+  .theme-dark & {
+    background: #252529;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .theme-light & {
+    background: #f5f5f5;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
 }
 
 .tab-item {
@@ -379,31 +432,49 @@
   gap: 6px;
   padding: 8px 12px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.2s;
   position: relative;
   white-space: nowrap;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
+  
+  .theme-dark & {
+    color: rgba(255, 255, 255, 0.6);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    &.active {
+      background: #18181c;
+      color: #fff;
+      box-shadow: 0 -2px 8px rgba(36, 200, 219, 0.2);
+    }
+  }
+  
+  .theme-light & {
+    color: rgba(0, 0, 0, 0.6);
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    
+    &.active {
+      background: #ffffff;
+      color: #333;
+      box-shadow: 0 -2px 8px rgba(36, 200, 219, 0.2);
+    }
   }
 
-  &.active {
-    background: #18181c;
-    color: #fff;
-    box-shadow: 0 -2px 8px rgba(36, 200, 219, 0.2);
-
-    &::after {
-      content: "";
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #24c8db, #41d1ff);
-    }
+  &.active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #24c8db, #41d1ff);
   }
 
   &.running {
@@ -748,10 +819,19 @@
   justify-content: space-between;
   height: 22px;
   padding: 0 12px;
-  background: #252529;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0 0 12px 12px;
   font-size: 11px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  
+  .theme-dark & {
+    background: #252529;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .theme-light & {
+    background: #f5f5f5;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
 }
 
 .statusbar-left,

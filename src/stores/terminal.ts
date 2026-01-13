@@ -21,7 +21,7 @@ import { ref, computed, shallowRef } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab-native' | 'dual-agent';
 
 /**
  * 终端截图结果
@@ -464,15 +464,15 @@ export const useTerminalStore = defineStore('terminal', () => {
       }
     }
     
-    // For AI collab tabs, stop the session and all child processes
-    if (tab.type === 'ai-collab' && tab.collabSessionId) {
+    // For native AI collab tabs, stop the session
+    if (tab.type === 'ai-collab-native' && tab.collabSessionId) {
       try {
-        const { useAICollabStore } = await import('./aiCollab');
-        const collabStore = useAICollabStore();
-        await collabStore.stopSession(tab.collabSessionId);
-        console.log('[Terminal Store] Stopped AI collab session:', tab.collabSessionId);
+        const { useAICollabNativeStore } = await import('./aiCollabNative');
+        const nativeStore = useAICollabNativeStore();
+        await nativeStore.stopSession(tab.collabSessionId);
+        console.log('[Terminal Store] Stopped native AI collab session:', tab.collabSessionId);
       } catch (error) {
-        console.warn('[Terminal Store] Failed to stop AI collab session:', error);
+        console.warn('[Terminal Store] Failed to stop native AI collab session:', error);
       }
     }
     
@@ -754,10 +754,15 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
   
-  // Create an AI collaboration tab
-  const createAICollabTab = (sessionId: string, label?: string): TerminalTab => {
+  // Find tab by collab session ID
+  const findTabByCollabSessionId = (sessionId: string): TerminalTab | undefined => {
+    return tabs.value.find(t => t.type === 'ai-collab-native' && t.collabSessionId === sessionId);
+  };
+  
+  // Create an AI collaboration tab (Native mode - direct LLM communication)
+  const createAICollabNativeTab = (sessionId: string, label?: string, projectPath?: string): TerminalTab => {
     // Check if a tab for this session already exists
-    const existingTab = tabs.value.find(t => t.type === 'ai-collab' && t.collabSessionId === sessionId);
+    const existingTab = tabs.value.find(t => t.type === 'ai-collab-native' && t.collabSessionId === sessionId);
     if (existingTab) {
       setActiveTab(existingTab.id);
       return existingTab;
@@ -766,22 +771,44 @@ export const useTerminalStore = defineStore('terminal', () => {
     const id = generateId();
     const tab: TerminalTab = {
       id,
-      type: 'ai-collab',
-      label: label || 'AI 协作',
-      ptyId: '', // No PTY for AI collab tab
+      type: 'ai-collab-native',
+      label: label || 'AI Native',
+      ptyId: '', // No PTY for native AI tab
       status: 'running',
       startTime: Date.now(),
       collabSessionId: sessionId,
+      command: projectPath, // Store project path in command field for display
     };
     
     tabs.value.push(tab);
     setActiveTab(id);
     return tab;
   };
-  
-  // Find tab by collab session ID
-  const findTabByCollabSessionId = (sessionId: string): TerminalTab | undefined => {
-    return tabs.value.find(t => t.type === 'ai-collab' && t.collabSessionId === sessionId);
+
+  // Create a dual agent tab
+  const createDualAgentTab = (sessionId: string, label?: string, projectPath?: string): TerminalTab => {
+    // Check if a tab for this session already exists
+    const existingTab = tabs.value.find(t => t.type === 'dual-agent' && t.collabSessionId === sessionId);
+    if (existingTab) {
+      setActiveTab(existingTab.id);
+      return existingTab;
+    }
+    
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'dual-agent',
+      label: label || 'Dual Agent',
+      ptyId: '', // No PTY for dual agent tab
+      status: 'running',
+      startTime: Date.now(),
+      collabSessionId: sessionId,
+      command: projectPath, // Store project path in command field for display
+    };
+    
+    tabs.value.push(tab);
+    setActiveTab(id);
+    return tab;
   };
 
   // Toggle split mode
@@ -869,7 +896,8 @@ export const useTerminalStore = defineStore('terminal', () => {
     createPortManagementTab,
     toggleSplitMode,
     setSplitTab,
-    createAICollabTab,
+    createAICollabNativeTab,
+    createDualAgentTab,
     // Screenshot related
     registerScreenshotHandler,
     unregisterScreenshotHandler,

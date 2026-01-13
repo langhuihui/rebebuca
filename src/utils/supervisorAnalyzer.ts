@@ -383,6 +383,47 @@ export const AI_TOOL_PATTERNS: Record<AIToolType, OutputPatterns> = {
       /Failed:\s*(.+)/i,
     ],
   },
+  
+  'ampcode': {
+    completion: [
+      /✓ Complete/i,
+      /Task completed/i,
+      /Done/i,
+      /Finished/i,
+      /All changes applied/i,
+      /Successfully/i,
+    ],
+    error: [
+      /Error:/i,
+      /Failed/i,
+      /Exception/i,
+      /✗/,
+      /Permission denied/i,
+      /Command failed/i,
+    ],
+    waitingInput: [
+      /\?\s*$/,
+      />\s*$/,
+      /\[Y\/n\]/i,
+      /\(y\/n\)/i,
+      /Enter your choice/i,
+      /What would you like/i,
+      /How can I help/i,
+    ],
+    working: [
+      /Working/i,
+      /Processing/i,
+      /Analyzing/i,
+      /Generating/i,
+      /Thinking/i,
+      /⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/,
+    ],
+    errorExtract: [
+      /Error:\s*(.+)/i,
+      /Failed:\s*(.+)/i,
+      /Exception:\s*(.+)/i,
+    ],
+  },
 };
 
 /**

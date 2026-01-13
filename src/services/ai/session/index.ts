@@ -154,6 +154,14 @@ class AISessionManager {
         });
 
         // Stream response
+        console.log('[AISessionManager] Starting stream response:', {
+          sessionId,
+          provider: session.provider.type,
+          model: session.provider.model,
+          baseUrl: session.provider.baseUrl || 'default',
+          messageCount: coreMessages.length,
+        });
+        
         const result = await streamResponse({
           sessionId,
           messages: coreMessages,

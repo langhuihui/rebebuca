@@ -22,6 +22,7 @@ import type {
   CollabMessage,
   DecisionRequest,
   TaskProgress,
+  TaskGoal,
 } from '../types/aiCollab';
 
 // 生成唯一 ID
@@ -40,6 +41,7 @@ export interface NativeCollabSession {
   startTime: number;
   lastActivity: number;
   error?: string;
+  goal?: TaskGoal;  // 任务目标
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -53,6 +55,7 @@ export interface NativeCollabConfig {
   provider: ProviderConfig;
   tools?: string[];
   systemPrompts?: string[];
+  goal?: TaskGoal;  // 任务目标
 }
 
 export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
@@ -102,25 +105,38 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
     return activeSessionId.value ? streamingToolCalls.value.get(activeSessionId.value) || [] : [];
   });
   
+  // 事件监听器取消订阅函数
+  let eventUnsubscribers: Array<() => void> = [];
+  
   // 设置事件监听
   const setupEventListeners = () => {
+    // 如果已经设置过，先清理旧的监听器
+    if (eventUnsubscribers.length > 0) {
+      eventUnsubscribers.forEach(unsub => unsub());
+      eventUnsubscribers = [];
+    }
+    
     // 监听流式事件
-    aiEventBus.on('stream:event', ({ sessionId, event }) => {
+    const unsub1 = aiEventBus.on('stream:event', ({ sessionId, event }) => {
+      console.log('[AICollabNative] Stream event received:', { sessionId, eventType: event.type });
       handleStreamEvent(sessionId, event);
     });
+    eventUnsubscribers.push(unsub1);
     
     // 监听权限请求
-    aiEventBus.on('permission:request', ({ request }) => {
+    const unsub2 = aiEventBus.on('permission:request', ({ request }) => {
       pendingPermissions.value.push(request);
     });
+    eventUnsubscribers.push(unsub2);
     
     // 监听会话消息
-    aiEventBus.on('session:message', ({ sessionId, message }) => {
+    const unsub3 = aiEventBus.on('session:message', ({ sessionId, message }) => {
       handleSessionMessage(sessionId, message);
     });
+    eventUnsubscribers.push(unsub3);
     
     // 监听会话状态
-    aiEventBus.on('session:status', ({ sessionId, status }) => {
+    const unsub4 = aiEventBus.on('session:status', ({ sessionId, status }) => {
       const session = findSessionByAIId(sessionId);
       if (session) {
         session.status = status === 'running' ? 'running' : 
@@ -129,9 +145,10 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
         session.lastActivity = Date.now();
       }
     });
+    eventUnsubscribers.push(unsub4);
     
     // 监听工具执行
-    aiEventBus.on('tool:start', ({ sessionId, toolCallId, toolName }) => {
+    const unsub5 = aiEventBus.on('tool:start', ({ sessionId, toolCallId, toolName }) => {
       const session = findSessionByAIId(sessionId);
       if (session) {
         const calls = streamingToolCalls.value.get(session.id) || [];
@@ -139,8 +156,9 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
         streamingToolCalls.value.set(session.id, calls);
       }
     });
+    eventUnsubscribers.push(unsub5);
     
-    aiEventBus.on('tool:complete', ({ sessionId, toolCallId }) => {
+    const unsub6 = aiEventBus.on('tool:complete', ({ sessionId, toolCallId }) => {
       const session = findSessionByAIId(sessionId);
       if (session) {
         const calls = streamingToolCalls.value.get(session.id) || [];
@@ -148,8 +166,9 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
         if (call) call.status = 'completed';
       }
     });
+    eventUnsubscribers.push(unsub6);
     
-    aiEventBus.on('tool:error', ({ sessionId, toolCallId }) => {
+    const unsub7 = aiEventBus.on('tool:error', ({ sessionId, toolCallId }) => {
       const session = findSessionByAIId(sessionId);
       if (session) {
         const calls = streamingToolCalls.value.get(session.id) || [];
@@ -157,6 +176,9 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
         if (call) call.status = 'error';
       }
     });
+    eventUnsubscribers.push(unsub7);
+    
+    console.log('[AICollabNative] Event listeners set up');
   };
   
   // 查找会话（通过 AI session ID）
@@ -172,7 +194,10 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
   // 处理流式事件
   const handleStreamEvent = (aiSessionId: string, event: TypedStreamEvent) => {
     const session = findSessionByAIId(aiSessionId);
-    if (!session) return;
+    if (!session) {
+      console.warn('[AICollabNative] Session not found for AI session ID:', aiSessionId);
+      return;
+    }
     
     switch (event.type) {
       case 'text-delta':
@@ -205,6 +230,12 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
         
       case 'error':
         session.error = event.error.message;
+        addMessageToSession(session.id, {
+          from: 'system',
+          to: 'all',
+          type: 'error',
+          content: `错误: ${event.error.message}`,
+        });
         break;
     }
   };
@@ -243,8 +274,12 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
       ...message,
     };
     
-    session.messages.push(fullMessage);
+    // 使用数组展开来触发 Vue 响应式更新
+    session.messages = [...session.messages, fullMessage];
     session.lastActivity = fullMessage.timestamp;
+    
+    // 触发 Map 更新（通过重新设置来确保响应式）
+    sessions.value.set(sessionId, { ...session });
     
     return fullMessage;
   };
@@ -254,6 +289,8 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
     const id = generateId();
     const now = Date.now();
     
+    console.log('[AICollabNative] Creating session:', { id, config });
+    
     // 创建底层 AI session
     const aiSession = await aiSessionManager.createSession({
       projectPath: config.projectPath,
@@ -261,6 +298,8 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
       tools: config.tools,
       systemPrompts: config.systemPrompts,
     });
+    
+    console.log('[AICollabNative] AI session created:', { collabSessionId: id, aiSessionId: aiSession.id });
     
     const session: NativeCollabSession = {
       id,
@@ -272,6 +311,7 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
       aiSessionId: aiSession.id,
       startTime: now,
       lastActivity: now,
+      goal: config.goal,
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     };
     
@@ -293,9 +333,16 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
   // 发送消息
   const sendMessage = async (sessionId: string, content: string): Promise<void> => {
     const session = sessions.value.get(sessionId);
-    if (!session || !session.aiSessionId) {
+    if (!session) {
       throw new Error(`Session not found: ${sessionId}`);
     }
+    
+    if (!session.aiSessionId) {
+      console.error('[AICollabNative] Session has no AI session ID:', sessionId, session);
+      throw new Error(`Session has no AI session ID: ${sessionId}`);
+    }
+    
+    console.log('[AICollabNative] Sending message:', { sessionId, aiSessionId: session.aiSessionId, content });
     
     // 添加用户消息
     addMessageToSession(sessionId, {
@@ -310,17 +357,41 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
     
     // 发送到 AI session
     try {
+      console.log('[AICollabNative] Sending message to AI session:', {
+        sessionId,
+        aiSessionId: session.aiSessionId,
+        provider: session.provider.type,
+        model: session.provider.model,
+        baseUrl: session.provider.baseUrl || 'default',
+      });
+      
       await aiSessionManager.sendMessage(session.aiSessionId, content);
+      console.log('[AICollabNative] Message sent successfully');
     } catch (error) {
+      console.error('[AICollabNative] Error sending message:', error);
       session.status = 'error';
-      session.error = error instanceof Error ? error.message : String(error);
+      
+      // 提供更详细的错误信息
+      let errorMessage: string;
+      if (error instanceof TypeError && error.message.includes('Load failed')) {
+        errorMessage = `网络请求失败。请检查：\n` +
+          `1. API endpoint 是否正确 (${session.provider.baseUrl || '使用默认地址'})\n` +
+          `2. 网络连接是否正常\n` +
+          `3. 是否存在 CORS 问题\n` +
+          `4. API 服务是否可用`;
+      } else {
+        errorMessage = error instanceof Error ? error.message : String(error);
+      }
+      
+      session.error = errorMessage;
       
       addMessageToSession(sessionId, {
         from: 'system',
         to: 'all',
         type: 'error',
-        content: `错误: ${session.error}`,
+        content: `错误: ${errorMessage}`,
       });
+      throw error;
     }
   };
   
@@ -447,6 +518,7 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
         startTime: session.startTime,
         lastActivity: session.lastActivity,
         usage: session.usage,
+        goal: session.goal, // 保存任务目标
       };
       
       await adapterInstance.fs.writeTextFile(
@@ -561,6 +633,36 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
     }
   };
   
+  // 添加助手消息（用于欢迎消息等）
+  const addAssistantMessage = async (sessionId: string, content: string): Promise<void> => {
+    const session = sessions.value.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    
+    console.log('[AICollabNative] addAssistantMessage called:', {
+      sessionId,
+      contentLength: content.length,
+      currentMessageCount: session.messages.length,
+    });
+    
+    const message = addMessageToSession(sessionId, {
+      from: 'assistant',
+      to: 'user',
+      type: 'chat',
+      content,
+    });
+    
+    console.log('[AICollabNative] Message added:', {
+      messageId: message?.id,
+      newMessageCount: session.messages.length,
+    });
+    
+    await saveSessionToStorage(session);
+    
+    console.log('[AICollabNative] Session saved to storage');
+  };
+  
   // 初始化
   setupEventListeners();
   
@@ -593,5 +695,6 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
     loadSession,
     updateProgress,
     getProgress,
+    addAssistantMessage,
   };
 });

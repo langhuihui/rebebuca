@@ -1,5 +1,8 @@
 mod admin;
 mod commands;
+mod debug;
+mod mcp_http_server;
+mod mcp_server;
 mod port;
 mod process;
 mod pty;
@@ -8,9 +11,10 @@ mod ssh;
 mod tray;
 mod types;
 
-use log::info;
+use log::{info, warn};
 use pty::{close_pty, create_pty, execute_task, force_kill_task, get_pty_process_stats, get_shell_integration_path, is_task_running, kill_task, resize_pty, write_pty, PtyManager};
 use tauri::{
+    async_runtime,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
     Emitter, Manager,
@@ -35,6 +39,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .target(tauri_plugin_log::Target::new(
@@ -48,6 +53,25 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            // Initialize debug module startup time
+            debug::init_startup_time();
+            
+            // Start MCP HTTP server in dev mode
+            #[cfg(debug_assertions)]
+            {
+                let app_handle = app.app_handle().clone();
+                async_runtime::spawn(async move {
+                    // Small delay to ensure app is fully initialized
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    
+                    if let Err(e) = mcp_http_server::start_server(app_handle, 3001).await {
+                        warn!("[MCP] Failed to start MCP HTTP server: {}", e);
+                    } else {
+                        info!("[MCP] MCP HTTP server started successfully");
+                    }
+                });
+            }
+            
             info!("[APP] Rebebuca starting up...");
 
             // Ensure main window is visible
@@ -243,6 +267,7 @@ pub fn run() {
             commands::open_app_log_folder,
             commands::list_app_log_files,
             commands::read_app_log_file,
+            commands::clear_app_log_file,
             commands::get_available_terminals,
             commands::open_in_specific_terminal,
             commands::get_available_shells,
@@ -293,6 +318,13 @@ pub fn run() {
             ssh::list_ssh_directory,
             ssh::get_ssh_home_directory,
             ssh::get_ssh_shells,
+            // debug module
+            debug::get_frontend_logs,
+            debug::get_tauri_logs,
+            debug::get_dom_tree,
+            debug::get_all_debug_info,
+            debug::mcp_update_frontend_logs,
+            debug::mcp_update_dom_tree,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

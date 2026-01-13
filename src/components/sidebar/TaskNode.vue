@@ -131,7 +131,7 @@
       </div>
     </template>
     <div class="task-tooltip">
-      <div v-if="task.type === 'macro'" class="tooltip-macro-info">
+      <div v-if="task.type === TaskType.MACRO" class="tooltip-macro-info">
         <div class="tooltip-label">
           {{ task.executionMode === 'parallel' ? 'Parallel Macro Task' : 'Serial Macro Task' }}
         </div>
@@ -156,6 +156,7 @@ import { NTooltip, NIcon, NButton } from 'naive-ui';
 import { svgIcons, getCommandIconName } from '../../utils/icons';
 import { useSettingsStore } from '../../stores/settings';
 import type { Task } from '../../providers/types';
+import { TaskType } from '../../providers/types';
 
 const props = defineProps<{
   task: Task;
@@ -208,14 +209,14 @@ const fullCommand = computed(() => {
 
 const taskIcon = computed(() => {
   // Show a special icon for macro tasks
-  if (props.task.type === 'macro') {
+  if (props.task.type === TaskType.MACRO) {
     return props.task.executionMode === 'parallel' 
       ? svgIcons.grid  // use grid for parallel
       : svgIcons.task; // use task icon for serial
   }
   
   // Show AI icon for ai-collab tasks
-  if (props.task.type === 'ai-collab') {
+  if (props.task.type === TaskType.AI_COLLAB) {
     return svgIcons.robot || svgIcons.ai || svgIcons.task;
   }
   
@@ -425,28 +426,23 @@ const canEdit = computed(() => {
 }
 
 /* Light theme */
-:global(.n-config-provider--light) .tree-node:hover,
-:global(.sidebar-layout.light-theme) .tree-node:hover {
+:global(.n-config-provider--light) .tree-node:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-:global(.n-config-provider--light) .folder-hint,
-:global(.sidebar-layout.light-theme) .folder-hint {
+:global(.n-config-provider--light) .folder-hint {
   color: rgba(0, 0, 0, 0.4);
 }
 
-:global(.n-config-provider--light) .task-actions-float,
-:global(.sidebar-layout.light-theme) .task-actions-float {
+:global(.n-config-provider--light) .task-actions-float {
   --action-bg: rgba(255, 255, 255, 0.95);
 }
 
-:global(.n-config-provider--light) .action-btn:hover,
-:global(.sidebar-layout.light-theme) .action-btn:hover {
+:global(.n-config-provider--light) .action-btn:hover {
   background: rgba(0, 0, 0, 0.08);
 }
 
-:global(.n-config-provider--light) .tooltip-cwd,
-:global(.sidebar-layout.light-theme) .tooltip-cwd {
+:global(.n-config-provider--light) .tooltip-cwd {
   color: rgba(0, 0, 0, 0.5);
 }
 </style>

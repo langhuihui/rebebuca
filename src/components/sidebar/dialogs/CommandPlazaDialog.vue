@@ -149,6 +149,7 @@ const commands = computed<CommandItem[]>(() => {
     'droid': 'droidLaunch',
     'cursor-cli': 'cursorCliLaunch',
     'crush': 'crushLaunch',
+    'ampcode': 'ampcodeLaunch',
   };
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {
@@ -380,10 +381,12 @@ const columns = computed<DataTableColumns<CommandItem>>(() => [
       const logoUrl = toolType ? aiToolsStore.getToolLogoUrl(toolType) : undefined;
       
       if (logoUrl) {
+        const needsInvert = toolType && ['opencode', 'augment-cli', 'ampcode'].includes(toolType);
         return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
           h('img', {
             src: logoUrl,
             alt: row.name,
+            class: needsInvert ? 'tool-logo-invert-dark' : '',
             style: 'width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;',
             onError: (e: Event) => {
               const img = e.target as HTMLImageElement;

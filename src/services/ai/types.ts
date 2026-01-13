@@ -21,6 +21,7 @@ export type ProviderType =
   | 'deepseek'    // DeepSeek
   | 'glm'         // 智谱 GLM
   | 'kimi'        // Moonshot Kimi
+  | 'opencode'    // OpenCode Zen (免费网关)
   | 'custom';     // 自定义 OpenAI 兼容
 
 export interface ProviderConfig {

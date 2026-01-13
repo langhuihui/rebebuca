@@ -29,6 +29,7 @@ import {
   Task, 
   ScanResult, 
   TaskGroup,
+  TaskType,
   VSCodeTasksJson,
   VSCodeTask,
 } from './types';
@@ -222,15 +223,15 @@ export class VSCodeTasksProvider implements TaskProvider {
     let isMacroTask = false;
     
     // Check if this is a compound/macro task (has dependsOn but no command)
-    if (task.dependsOn && !task.command && task.type !== 'npm') {
+    if (task.dependsOn && !task.command && task.type !== TaskType.NPM) {
       // This is a macro task that orchestrates other tasks
       isMacroTask = true;
       command = ''; // Macro tasks don't have a command
-    } else if (task.type === 'npm' && task.script) {
+    } else if (task.type === TaskType.NPM && task.script) {
       // npm type task
       command = 'npm';
       args = ['run', task.script];
-    } else if (task.type === 'shell' || task.type === 'process' || task.command) {
+    } else if (task.type === TaskType.SHELL || task.type === TaskType.PROCESS || task.command) {
       const rawCommand = task.command || '';
       const rawArgs = task.args || [];
       
@@ -324,7 +325,7 @@ export class VSCodeTasksProvider implements TaskProvider {
       args,
       cwd,
       env: task.options?.env,
-      type: isMacroTask ? 'macro' : (task.type || 'shell'),
+      type: isMacroTask ? TaskType.MACRO : (task.type ? (task.type as TaskType) : TaskType.SHELL),
       dependsOn,
       executionMode,
       subTasks,

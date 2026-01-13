@@ -9,14 +9,14 @@
  -->
 
 <template>
-  <div class="website-desktop">
+  <div class="website-desktop" :class="isDarkTheme ? 'theme-dark' : 'theme-light'">
     <n-config-provider
-      :theme="darkTheme"
+      :theme="currentTheme"
       :locale="locale"
       :date-locale="dateLocale"
     >
       <n-message-provider>
-        <div class="website-app">
+        <div class="website-app" :class="isDarkTheme ? 'theme-dark' : 'theme-light'">
           <!-- Titlebar (macOS style) -->
           <header class="website-titlebar">
             <!-- Traffic light buttons (macOS) -->
@@ -99,6 +99,22 @@
               <div class="version-group">
                 <span class="version-text">{{ currentVersion }}</span>
               </div>
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <n-button
+                    text
+                    size="small"
+                    class="titlebar-btn"
+                    @click="toggleTheme"
+                  >
+                    <n-icon :size="16">
+                      <sunny-outline v-if="isDarkTheme" />
+                      <moon-outline v-else />
+                    </n-icon>
+                  </n-button>
+                </template>
+                {{ isDarkTheme ? "浅色主题" : "深色主题" }}
+              </n-tooltip>
               <n-tooltip trigger="hover">
                 <template #trigger>
                   <n-button
@@ -618,9 +634,11 @@ import {
   NTooltip,
   NDivider,
   darkTheme,
+  lightTheme,
   zhCN,
   dateZhCN,
   createDiscreteApi,
+  type GlobalTheme,
 } from "naive-ui";
 import {
   LogoApple,
@@ -641,6 +659,8 @@ import {
   ServerOutline,
   TerminalOutline,
   GlobeOutline,
+  SunnyOutline,
+  MoonOutline,
 } from "@vicons/ionicons5";
 import { useI18n } from "vue-i18n";
 import { Terminal } from "@xterm/xterm";
@@ -657,6 +677,7 @@ import {
 // Import actual dialog components for UI consistency
 import { AddFolderDialog, TaskEditDialog } from "../components/sidebar/dialogs";
 import type { AddFolderFormData } from "../components/sidebar/dialogs/AddFolderDialog.vue";
+import { TaskType } from "../providers/types";
 
 // Import styles
 import "../assets/styles/website.scss";
@@ -669,6 +690,12 @@ const { message } = createDiscreteApi(["message"], {
 });
 
 // Theme & Language
+const isDarkTheme = ref(true);
+const currentTheme = computed<GlobalTheme>(() => isDarkTheme.value ? darkTheme : lightTheme);
+const toggleTheme = () => {
+  isDarkTheme.value = !isDarkTheme.value;
+  console.log('[WebsitePage] Theme toggled to:', isDarkTheme.value ? 'dark' : 'light');
+};
 const currentLang = ref(localStorage.getItem("rebebuca-locale") || "zh-CN");
 const locale = computed(() => (currentLang.value === "zh-CN" ? zhCN : null));
 const dateLocale = computed(() =>
@@ -825,7 +852,7 @@ const editingTask = reactive({
   command: '',
   cwd: '',
   group: 'none' as 'build' | 'test' | 'clean' | 'none',
-  type: 'shell' as 'shell' | 'process' | 'macro',
+  type: TaskType.SHELL,
   sourceFile: '',
   useSystemTerminal: false,
   systemTerminalId: null as string | null,
@@ -1084,7 +1111,7 @@ const handleTaskSave = (
     name: '',
     command: '',
     cwd: '',
-    type: 'shell',
+    type: TaskType.SHELL,
     envStr: '',
     pythonEnv: '',
     runAsAdmin: false,
@@ -1136,6 +1163,15 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 40px;
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.3s ease;
+}
+
+/* Dark theme background */
+.website-desktop.theme-dark {
   background: linear-gradient(
     135deg,
     #0f0c29 0%,
@@ -1143,13 +1179,20 @@ onMounted(() => {
     #24243e 70%,
     #0f0c29 100%
   );
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
-  position: relative;
-  overflow: hidden;
 }
 
-.website-desktop::before {
+/* Light theme background */
+.website-desktop.theme-light {
+  background: linear-gradient(
+    135deg,
+    #f5f7fa 0%,
+    #e4e8ec 40%,
+    #dfe3e8 70%,
+    #f5f7fa 100%
+  );
+}
+
+.website-desktop.theme-dark::before {
   content: "";
   position: absolute;
   top: 0;
@@ -1170,6 +1213,26 @@ onMounted(() => {
       ellipse at 50% 50%,
       rgba(189, 52, 254, 0.08) 0%,
       transparent 60%
+    );
+  pointer-events: none;
+}
+
+.website-desktop.theme-light::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+      ellipse at 20% 20%,
+      rgba(100, 149, 237, 0.1) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 80%,
+      rgba(64, 224, 208, 0.08) 0%,
+      transparent 50%
     );
   pointer-events: none;
 }

@@ -61,7 +61,7 @@ export interface FeatureFlags {
  * Default feature flags for production (features are hidden)
  */
 const defaultProductionFlags: FeatureFlags = {
-  aiCollab: false,
+  aiCollab: true,
   ssh: true,
 };
 

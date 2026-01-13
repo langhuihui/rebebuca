@@ -16,8 +16,36 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { darkTheme, lightTheme, type GlobalTheme } from 'naive-ui';
+
+// Custom light theme with proper white background
+const customLightTheme: GlobalTheme = {
+  ...lightTheme,
+  common: {
+    ...lightTheme.common,
+    bodyColor: '#ffffff',
+    cardColor: '#ffffff',
+    modalColor: '#ffffff',
+    popoverColor: '#ffffff',
+    tableColor: '#ffffff',
+    baseColor: '#ffffff',
+  }
+};
+
+// Custom dark theme with proper black background
+const customDarkTheme: GlobalTheme = {
+  ...darkTheme,
+  common: {
+    ...darkTheme.common,
+    bodyColor: '#000000',
+    cardColor: '#1a1a1a',
+    modalColor: '#1a1a1a',
+    popoverColor: '#1a1a1a',
+    tableColor: '#1a1a1a',
+    baseColor: '#000000',
+  }
+};
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -52,10 +80,13 @@ const applyThemeClass = (theme?: 'light' | 'dark') => {
       }
 
       // Add the correct theme class
+      // Note: n-config-provider--light means light theme, n-config-provider--dark means dark theme
       if (effectiveThemeValue === 'light') {
         configProvider.classList.add('n-config-provider--light');
+        configProvider.classList.remove('n-config-provider--dark');
       } else {
         configProvider.classList.add('n-config-provider--dark');
+        configProvider.classList.remove('n-config-provider--light');
       }
     }
   }
@@ -90,10 +121,18 @@ detectSystemTheme();
 mediaQuery.addEventListener('change', handleSystemThemeChange);
 
 // Computed theme
+// Use Naive UI's built-in themes directly
 const currentTheme = computed<GlobalTheme>(() => {
   const effectiveTheme = themeMode.value === 'system' ? systemTheme.value : themeMode.value;
-  return effectiveTheme === 'light' ? lightTheme : darkTheme;
+  const theme = effectiveTheme === 'dark' ? darkTheme : lightTheme;
+  console.log('[Theme] currentTheme computed:', effectiveTheme, 'theme.name:', theme.name);
+  return theme;
 });
+
+// Debug: watch theme changes
+watch(currentTheme, (newTheme) => {
+  console.log('[Theme] currentTheme changed to:', newTheme?.name);
+}, { immediate: true });
 
 // Computed theme name for display
 const themeName = computed(() => {

@@ -27,6 +27,7 @@ import {
   Task, 
   ScanResult, 
   TaskGroup,
+  TaskType,
 } from './types';
 
 /**
@@ -288,7 +289,7 @@ export class ScriptsProvider implements TaskProvider {
         command,
         args,
         cwd: folderPath,
-        type: 'shell',
+        type: TaskType.SHELL,
         definition: {
           scriptPath,
           extension,

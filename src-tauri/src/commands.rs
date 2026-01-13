@@ -406,6 +406,27 @@ pub async fn read_app_log_file(app_handle: tauri::AppHandle, filename: String) -
     Ok(content)
 }
 
+/// Clear (truncate) an application log file
+#[tauri::command]
+pub async fn clear_app_log_file(app_handle: tauri::AppHandle, filename: String) -> Result<(), String> {
+    let app_log_dir = app_handle
+        .path()
+        .app_log_dir()
+        .map_err(|e| format!("Failed to get app log directory: {}", e))?;
+    
+    let log_path = app_log_dir.join(&filename);
+    
+    if !log_path.exists() {
+        return Err("Log file does not exist".to_string());
+    }
+    
+    // Truncate the file by opening it with truncate option
+    fs::write(&log_path, "")
+        .map_err(|e| format!("Failed to clear log file: {}", e))?;
+    
+    Ok(())
+}
+
 /// Terminal information
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct TerminalInfo {

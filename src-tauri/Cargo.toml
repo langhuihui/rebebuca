@@ -34,6 +34,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-log = { version = "2", features = ["colored"] }
 tauri-plugin-process = "2"
 tauri-plugin-os = "2"
+tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -48,3 +49,10 @@ lazy_static = "1.4"
 
 # Explicitly add openssl-sys with vendored feature for universal builds
 openssl-sys = { version = "0.9", features = ["vendored"] }
+
+# MCP HTTP Server
+axum = "0.7"
+tokio-stream = "0.1"
+futures = "0.3"
+tower-http = { version = "0.5", features = ["cors"] }
+async-stream = "0.3"

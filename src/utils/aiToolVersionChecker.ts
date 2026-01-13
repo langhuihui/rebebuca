@@ -57,6 +57,7 @@ const NPM_PACKAGE_MAP: Record<AIToolType, NpmPackageInfo | null> = {
   'crush': {
     packageName: '@charmland/crush',
   },
+  'ampcode': null, // Installed via script, not npm
 };
 
 /**
@@ -172,6 +173,9 @@ export function getUpdateCommand(toolType: AIToolType): string | null {
         return null;
       case 'droid':
         // Droid doesn't have a direct update command
+        return null;
+      case 'ampcode':
+        // AmpCode doesn't have a direct update command
         return null;
       default:
         return null;

@@ -22,7 +22,6 @@
     :is="props.embedded ? 'div' : NConfigProvider"
     :theme="currentTheme"
     :hljs="hljs"
-    :key="themeMode"
   >
     <n-message-provider>
       <n-dialog-provider>
@@ -108,6 +107,8 @@ import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
+import { useNotificationStore } from "./stores/notification";
+import { setErrorCallback } from "./utils/devLogger";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -126,7 +127,7 @@ const hljs = inject<any>("hljs");
 const { t } = useI18n();
 
 // Theme
-const { currentTheme, effectiveTheme, themeMode } = useTheme();
+const { currentTheme, effectiveTheme } = useTheme();
 
 // Store management
 const runConfigStore = useRunConfigStore();
@@ -134,6 +135,7 @@ const uiStore = useUIStore();
 const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
 const featureFlagsStore = useFeatureFlagsStore();
+const notificationStore = useNotificationStore();
 
 // About dialog state
 const showAboutDialog = ref(false);
@@ -510,6 +512,20 @@ onMounted(async () => {
 
   // Initialize feature flags
   await featureFlagsStore.initialize();
+
+  // Set up error callback for DevLogger to route errors to notification store
+  setErrorCallback((level, message, source) => {
+    // Filter out known benign errors
+    if (message.includes('ResizeObserver loop')) {
+      return; // This is a known browser issue, not a real error
+    }
+    
+    if (level === 'error') {
+      notificationStore.addError('Frontend Error', message, source);
+    } else if (level === 'warn') {
+      notificationStore.addWarning('Frontend Warning', message, source);
+    }
+  });
 
   // Listen for show-about-dialog event from Rust menu
   await appStore.safeListen("show-about-dialog", () => {

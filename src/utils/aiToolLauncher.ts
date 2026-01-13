@@ -117,6 +117,11 @@ export function getAIToolLaunchConfig(
       args: [],
       useSystemTerminal: true,
     },
+    'ampcode': {
+      command: AI_TOOL_METADATA['ampcode'].launchCommand,
+      args: [],
+      useSystemTerminal: true,
+    },
   };
   
   const launchConfig = { ...baseConfigs[toolType] };
@@ -158,6 +163,7 @@ export function getAIToolLaunchConfig(
       case 'droid':
       case 'augment-cli':
       case 'crush':
+      case 'ampcode':
         launchConfig.env['API_KEY'] = apiKey;
         break;
     }
@@ -240,6 +246,7 @@ export function createAIToolQuickLaunchTask(
     'augment-cli': 'Auggie (Augment CLI)',
     'cursor-cli': 'Cursor CLI',
     'crush': 'Crush',
+    'ampcode': 'AmpCode',
   };
   
   return {
