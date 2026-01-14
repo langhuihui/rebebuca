@@ -439,6 +439,7 @@ export default {
     updateAvailable: 'Update Available',
     noUpdate: 'You are on the latest version',
     downloadAndInstall: 'Download & Install',
+    viewRelease: 'View Release',
     downloading: 'Downloading',
     // Dev log settings
     devLog: 'Dev Logs',
@@ -502,6 +503,7 @@ export default {
     deny: 'Deny',
     previous: 'Previous',
     next: 'Next',
+    back: 'Back',
     saveSuccess: 'Saved successfully',
     saveFailed: 'Save failed: {error}',
   },
@@ -645,6 +647,13 @@ export default {
       securityWarning: 'Security Note',
       windowsWarning: 'Your browser may warn about the downloaded .exe file. You can choose "Keep" to proceed.',
       macosWarning: 'After downloading, macOS may block opening the app. Go to System Settings > Privacy & Security to unblock it.',
+    },
+    remoteServer: {
+      title: 'Remote Server (Linux)',
+      desc: 'Deploy Remote Server on a Linux server to remotely connect and manage server terminals via web.',
+      hint: 'Supports custom version and installation directory. See script help for details.',
+      copied: 'Install command copied to clipboard',
+      copyFailed: 'Copy failed, please copy manually',
     },
     status: {
       tryDemo: '← Click tasks on the left to try the demo',

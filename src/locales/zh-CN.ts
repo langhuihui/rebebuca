@@ -460,6 +460,7 @@ export default {
     updateAvailable: '发现新版本',
     noUpdate: '已是最新版本',
     downloadAndInstall: '下载并安装',
+    viewRelease: '查看更新',
     downloading: '下载中',
     // Dev log settings
     devLog: '开发日志',
@@ -524,6 +525,7 @@ export default {
     deny: '拒绝',
     previous: '上一步',
     next: '下一步',
+    back: '返回',
     saveSuccess: '保存成功',
     saveFailed: '保存失败: {error}',
   },
@@ -667,6 +669,13 @@ export default {
       securityWarning: '安全提示',
       windowsWarning: '浏览器可能会警告下载的 .exe 文件，您可以选择"保留"继续下载',
       macosWarning: '下载后系统可能会阻止打开应用，请前往系统设置 > 隐私与安全性放行',
+    },
+    remoteServer: {
+      title: 'Remote Server (Linux)',
+      desc: '在 Linux 服务器上部署 Remote Server，通过 Web 端远程连接和管理服务器终端。',
+      hint: '支持自定义版本和安装目录，详见脚本帮助信息。',
+      copied: '安装命令已复制到剪贴板',
+      copyFailed: '复制失败，请手动复制',
     },
     status: {
       tryDemo: '← 点击左侧任务体验演示',

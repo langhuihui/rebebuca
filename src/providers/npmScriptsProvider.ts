@@ -16,12 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { 
-  readTextFile, 
-  exists as fsExists,
-  readDir,
-} from '@tauri-apps/plugin-fs';
 import { join, basename } from '@tauri-apps/api/path';
+import { getAdapter, type FileSystemAdapter } from '../adapters';
 import { 
   TaskProvider, 
   Task, 
@@ -41,6 +37,19 @@ export class NpmScriptsProvider implements TaskProvider {
   readonly name = 'npm Scripts';
   readonly source = 'npm' as const;
   readonly icon = 'npm';
+  
+  private fsAdapter: FileSystemAdapter | null = null;
+  
+  /**
+   * Get file system adapter
+   */
+  private async getFs(): Promise<FileSystemAdapter> {
+    if (!this.fsAdapter) {
+      const adapter = await getAdapter();
+      this.fsAdapter = adapter.fs;
+    }
+    return this.fsAdapter;
+  }
   
   /**
    * Scan a folder for package.json files
@@ -67,14 +76,15 @@ export class NpmScriptsProvider implements TaskProvider {
    */
   private async scanFolder(folderPath: string): Promise<ScanResult | null> {
     try {
+      const fs = await this.getFs();
       const packageJsonPath = await join(folderPath, 'package.json');
       console.log(`[NpmScriptsProvider] Checking: ${packageJsonPath}`);
       
-      const exists = await fsExists(packageJsonPath);
+      const exists = await fs.exists(packageJsonPath);
       console.log(`[NpmScriptsProvider] Exists: ${exists}`);
       
       if (exists) {
-        const content = await readTextFile(packageJsonPath);
+        const content = await fs.readTextFile(packageJsonPath);
         console.log(`[NpmScriptsProvider] Read content, length: ${content.length}`);
         const tasks = await this.parsePackageJson(content, folderPath, packageJsonPath);
         console.log(`[NpmScriptsProvider] Parsed ${tasks.length} tasks`);
@@ -132,7 +142,8 @@ export class NpmScriptsProvider implements TaskProvider {
     ]);
     
     try {
-      const entries = await readDir(folderPath);
+      const fs = await this.getFs();
+      const entries = await fs.readDir(folderPath);
       
       for (const entry of entries) {
         if (entry.isDirectory && entry.name && !skipDirs.has(entry.name) && !entry.name.startsWith('.')) {

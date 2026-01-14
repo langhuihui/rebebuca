@@ -48,22 +48,26 @@ if git rev-parse "v$VERSION" >/dev/null 2>&1; then
     exit 1
 fi
 
-echo -e "${GREEN}[1/5]${NC} Updating version in package.json..."
+echo -e "${GREEN}[1/6]${NC} Updating version in package.json..."
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
 
-echo -e "${GREEN}[2/5]${NC} Updating version in src-tauri/tauri.conf.json..."
+echo -e "${GREEN}[2/6]${NC} Updating version in src-tauri/tauri.conf.json..."
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
 
-echo -e "${GREEN}[3/5]${NC} Updating version in src-tauri/Cargo.toml..."
+echo -e "${GREEN}[3/6]${NC} Updating version in src-tauri/Cargo.toml..."
 sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 
-echo -e "${GREEN}[4/5]${NC} Committing changes..."
+echo -e "${GREEN}[4/6]${NC} Updating version in remote-agent-server/Cargo.toml..."
+sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" remote-agent-server/Cargo.toml
+
+echo -e "${GREEN}[5/6]${NC} Committing changes..."
 # Update Cargo.lock by running cargo check
 cd src-tauri && cargo check --quiet 2>/dev/null || true && cd ..
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+cd remote-agent-server && cargo check --quiet 2>/dev/null || true && cd ..
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock remote-agent-server/Cargo.toml remote-agent-server/Cargo.lock
 git commit -m "chore: bump version to ${VERSION}"
 
-echo -e "${GREEN}[5/5]${NC} Creating and pushing tag..."
+echo -e "${GREEN}[6/6]${NC} Creating and pushing tag..."
 git tag -a "v$VERSION" -m "Release v$VERSION"
 git push origin main
 git push origin "v$VERSION"

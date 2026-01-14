@@ -26,7 +26,7 @@ export interface DomNodeInfo {
 /**
  * Get frontend logs (since app startup)
  */
-export async function getFrontendLogs(): Promise<LogEntry[]> {
+export function getFrontendLogs(): LogEntry[] {
   return getLogEntries();
 }
 

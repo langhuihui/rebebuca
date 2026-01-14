@@ -56,6 +56,16 @@
           </div>
         </n-modal>
 
+        <!-- Server Directory Picker (for server mode) -->
+        <ServerDirectoryPicker
+          v-if="directoryPickerFsAdapter"
+          v-model:show="isDirectoryPickerVisible"
+          :title="directoryPickerOptions.title"
+          :default-path="directoryPickerOptions.defaultPath"
+          :fs-adapter="directoryPickerFsAdapter"
+          @select="onDirectoryPickerSelect"
+        />
+
         <n-layout
           class="h-screen app-window"
           :class="{ 'embedded-mode': props.embedded }"
@@ -103,12 +113,20 @@ import TitleBar from "./components/TitleBar.vue";
 import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
 import StatusBar from "./components/StatusBar.vue";
+import ServerDirectoryPicker from "./components/ServerDirectoryPicker.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
 import { useNotificationStore } from "./stores/notification";
 import { setErrorCallback } from "./utils/devLogger";
+import { 
+  registerDirectoryPicker, 
+  unregisterDirectoryPicker, 
+  onDirectorySelected,
+  getDirectoryPickerFsAdapter,
+  type DirectoryPickerOptions 
+} from "./services/directoryPickerService";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -140,6 +158,17 @@ const notificationStore = useNotificationStore();
 // About dialog state
 const showAboutDialog = ref(false);
 const currentVersion = ref("");
+
+// Directory picker state (for server mode)
+const isDirectoryPickerVisible = ref(false);
+const directoryPickerOptions = ref<DirectoryPickerOptions>({});
+const directoryPickerFsAdapter = ref<{ readDir: (path: string) => Promise<any[]> } | null>(null);
+
+// Handle directory picker selection
+const onDirectoryPickerSelect = (path: string | null) => {
+  isDirectoryPickerVisible.value = false;
+  onDirectorySelected(path);
+};
 
 // Process stats interface
 interface ProcessStats {
@@ -507,6 +536,14 @@ onMounted(async () => {
   // Add global error handler for ResizeObserver
   window.addEventListener("error", resizeObserverErrorHandler);
 
+  // Register directory picker for server mode
+  registerDirectoryPicker((options: DirectoryPickerOptions) => {
+    // Get the latest fsAdapter
+    directoryPickerFsAdapter.value = getDirectoryPickerFsAdapter();
+    directoryPickerOptions.value = options;
+    isDirectoryPickerVisible.value = true;
+  });
+
   // Get current version
   currentVersion.value = await updaterStore.getCurrentVersion();
 
@@ -860,6 +897,9 @@ onMounted(async () => {
 onUnmounted(() => {
   // Remove ResizeObserver error handler
   window.removeEventListener("error", resizeObserverErrorHandler);
+
+  // Unregister directory picker
+  unregisterDirectoryPicker();
 
   if (unlistenOutput) unlistenOutput();
   if (unlistenStarted) unlistenStarted();

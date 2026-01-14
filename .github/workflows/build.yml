@@ -11,6 +11,104 @@ permissions:
   packages: write
 
 jobs:
+  build-remote-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            remote-agent-server/target/
+          key: linux-cargo-remote-server-${{ hashFiles('remote-agent-server/Cargo.lock', 'common/Cargo.lock') }}
+          restore-keys: |
+            linux-cargo-remote-server-
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build frontend for server
+        run: pnpm build:server
+
+      - name: Build remote-agent-server for Linux
+        run: |
+          cd remote-agent-server
+          cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Package remote-agent-server with web assets
+        run: |
+          VERSION=${{ github.ref_name }}
+          mkdir -p package/rebebuca-remote-server
+          cp remote-agent-server/target/x86_64-unknown-linux-gnu/release/rebebuca-remote-server package/rebebuca-remote-server/
+          cp -r dist package/rebebuca-remote-server/
+          cd package
+          tar -czvf rebebuca-remote-server-linux-x86_64.tar.gz rebebuca-remote-server
+
+      - name: Install rclone
+        run: |
+          sudo apt-get update && sudo apt-get install -y rclone
+
+      - name: Configure rclone for R2
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          no_check_bucket = true
+          EOF
+
+      - name: Upload remote-agent-server to R2
+        run: |
+          VERSION=${{ github.ref_name }}
+          # Upload the packaged tar.gz
+          rclone copyto package/rebebuca-remote-server-linux-x86_64.tar.gz \
+            r2:monibuca/rb/${VERSION}/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz --progress
+          # Also upload to latest path for convenience
+          rclone copyto package/rebebuca-remote-server-linux-x86_64.tar.gz \
+            r2:monibuca/rb/latest/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz --progress
+          # Upload install script
+          rclone copyto scripts/install-remote-server.sh \
+            r2:monibuca/rb/install-remote-server.sh --progress
+
   build-and-release:
     strategy:
       fail-fast: false
@@ -278,7 +376,7 @@ jobs:
           rclone copyto windows-latest.json r2:monibuca/rb/windows-latest.json --progress
 
   merge-latest-json:
-    needs: build-and-release
+    needs: [build-and-release, build-remote-server]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

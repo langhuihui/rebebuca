@@ -26,13 +26,13 @@ export const debugTool = defineTool({
     maxChildren: z.number().optional().describe('Maximum children per node in DOM tree (default: 50)'),
   }),
 
-  async execute(params, ctx): Promise<ToolExecuteResult> {
+  async execute(params, _ctx): Promise<ToolExecuteResult> {
     const { type, maxDepth = 10, maxChildren = 50 } = params;
 
     try {
       switch (type) {
         case 'frontend_logs': {
-          const logs = await debugService.getFrontendLogs();
+          const logs = debugService.getFrontendLogs();
           const logsText = logs
             .map(log => {
               const time = log.timestamp.toISOString();

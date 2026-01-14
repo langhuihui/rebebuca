@@ -303,7 +303,7 @@
                     </template>
                     {{ t('task.scan') }}
                   </n-tooltip>
-                  <n-tooltip trigger="hover" :delay="500">
+                  <n-tooltip v-if="isDesktopMode" trigger="hover" :delay="500">
                     <template #trigger>
                       <n-button
                         size="tiny"
@@ -350,7 +350,7 @@
                       </n-icon>
                       <span class="tree-label">{{ child.label }}</span>
                       <span class="tree-badge">{{ getChildTaskCount(child) }}</span>
-                      <div class="subfolder-actions">
+                      <div v-if="isDesktopMode" class="subfolder-actions">
                         <n-tooltip trigger="hover" :delay="500">
                           <template #trigger>
                             <n-button
@@ -440,7 +440,7 @@
                           </template>
                           {{ t('task.scan') }}
                         </n-tooltip>
-                        <n-tooltip trigger="hover" :delay="500">
+                        <n-tooltip v-if="isDesktopMode" trigger="hover" :delay="500">
                           <template #trigger>
                             <n-button
                               size="tiny"
@@ -546,7 +546,7 @@ import {
   NInput,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
-import { getAdapter } from '../adapters';
+import { getAdapter, isTauri } from '../adapters';
 import { useUIStore } from '../stores/ui';
 import { useTaskManagerStore } from '../stores/taskManager';
 import { useSettingsStore } from '../stores/settings';
@@ -580,6 +580,9 @@ const updaterStore = useUpdaterStore();
 const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
 const { effectiveTheme } = useTheme();
+
+// Check if running in Tauri (desktop) mode
+const isDesktopMode = isTauri();
 
 // Search state
 const searchQuery = ref('');

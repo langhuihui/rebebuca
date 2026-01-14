@@ -32,3 +32,4 @@ test-scripts/
 
 # CodeBuddy (AI assistant data)
 .codebuddy/
+target

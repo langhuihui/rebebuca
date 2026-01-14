@@ -160,17 +160,17 @@ onUnmounted(() => {
 
 .notification-item {
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.1));
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .notification-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--n-color-hover, rgba(255, 255, 255, 0.05));
 }
 
 .notification-item.unread {
-  background-color: rgba(0, 208, 132, 0.1);
+  background-color: var(--n-primary-color-hover, rgba(0, 208, 132, 0.1));
 }
 
 .notification-header {
@@ -183,17 +183,17 @@ onUnmounted(() => {
 .notification-type {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--n-text-color, rgba(255, 255, 255, 0.9));
 }
 
 .notification-time {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
 }
 
 .notification-message {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--n-text-color-2, rgba(255, 255, 255, 0.7));
   line-height: 1.5;
 }
 
@@ -209,33 +209,8 @@ onUnmounted(() => {
 .empty-notifications {
   text-align: center;
   padding: 40px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
   font-size: 14px;
-}
-
-/* Light theme notifications */
-:global(.n-config-provider--light) .notification-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-:global(.n-config-provider--light) .notification-item.unread {
-  background-color: rgba(24, 160, 88, 0.1);
-}
-
-:global(.n-config-provider--light) .notification-type {
-  color: rgba(0, 0, 0, 0.85);
-}
-
-:global(.n-config-provider--light) .notification-time {
-  color: rgba(0, 0, 0, 0.5);
-}
-
-:global(.n-config-provider--light) .notification-message {
-  color: rgba(0, 0, 0, 0.7);
-}
-
-:global(.n-config-provider--light) .empty-notifications {
-  color: rgba(0, 0, 0, 0.45);
 }
 </style>
 

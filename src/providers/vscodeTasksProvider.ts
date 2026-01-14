@@ -16,14 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { 
-  readTextFile, 
-  exists as fsExists,
-  readDir,
-} from '@tauri-apps/plugin-fs';
 import { join, basename } from '@tauri-apps/api/path';
-import { platform } from '@tauri-apps/plugin-os';
 import JSON5 from 'json5';
+import { getAdapter, type FileSystemAdapter, type SystemAdapter } from '../adapters';
 import { 
   TaskProvider, 
   Task, 
@@ -46,13 +41,38 @@ export class VSCodeTasksProvider implements TaskProvider {
   readonly icon = 'vscode';
   
   private currentPlatform: string | null = null;
+  private fsAdapter: FileSystemAdapter | null = null;
+  private systemAdapter: SystemAdapter | null = null;
+  
+  /**
+   * Get file system adapter
+   */
+  private async getFs(): Promise<FileSystemAdapter> {
+    if (!this.fsAdapter) {
+      const adapter = await getAdapter();
+      this.fsAdapter = adapter.fs;
+    }
+    return this.fsAdapter;
+  }
+  
+  /**
+   * Get system adapter
+   */
+  private async getSystem(): Promise<SystemAdapter> {
+    if (!this.systemAdapter) {
+      const adapter = await getAdapter();
+      this.systemAdapter = adapter.system;
+    }
+    return this.systemAdapter;
+  }
   
   /**
    * Get current platform for platform-specific task properties
    */
   private async getPlatform(): Promise<string> {
     if (!this.currentPlatform) {
-      const os = await platform();
+      const system = await this.getSystem();
+      const os = await system.getPlatform();
       if (os === 'windows') {
         this.currentPlatform = 'windows';
       } else if (os === 'linux') {
@@ -89,14 +109,15 @@ export class VSCodeTasksProvider implements TaskProvider {
    */
   private async scanFolder(folderPath: string): Promise<ScanResult | null> {
     try {
+      const fs = await this.getFs();
       const tasksJsonPath = await join(folderPath, '.vscode', 'tasks.json');
       console.log(`[VSCodeTasksProvider] Checking: ${tasksJsonPath}`);
       
-      const exists = await fsExists(tasksJsonPath);
+      const exists = await fs.exists(tasksJsonPath);
       console.log(`[VSCodeTasksProvider] Exists: ${exists}`);
       
       if (exists) {
-        const content = await readTextFile(tasksJsonPath);
+        const content = await fs.readTextFile(tasksJsonPath);
         console.log(`[VSCodeTasksProvider] Read content, length: ${content.length}`);
         const tasks = await this.parseTasksJson(content, folderPath, tasksJsonPath);
         console.log(`[VSCodeTasksProvider] Parsed ${tasks.length} tasks`);
@@ -154,7 +175,8 @@ export class VSCodeTasksProvider implements TaskProvider {
     ]);
     
     try {
-      const entries = await readDir(folderPath);
+      const fs = await this.getFs();
+      const entries = await fs.readDir(folderPath);
       
       for (const entry of entries) {
         if (entry.isDirectory && entry.name && !skipDirs.has(entry.name) && !entry.name.startsWith('.')) {
@@ -470,12 +492,13 @@ export class VSCodeTasksProvider implements TaskProvider {
    * Create a new task in tasks.json
    */
   async createTask(folderPath: string, taskData: Partial<Task>): Promise<Task> {
+    const fs = await this.getFs();
     const tasksJsonPath = await join(folderPath, '.vscode', 'tasks.json');
     let tasksJson: VSCodeTasksJson;
     
     // Read existing or create new
-    if (await fsExists(tasksJsonPath)) {
-      const content = await readTextFile(tasksJsonPath);
+    if (await fs.exists(tasksJsonPath)) {
+      const content = await fs.readTextFile(tasksJsonPath);
       tasksJson = JSON5.parse(content);
     } else {
       tasksJson = {
@@ -501,12 +524,11 @@ export class VSCodeTasksProvider implements TaskProvider {
     tasksJson.tasks.push(vscodeTask);
     
     // Write back
-    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs');
     const vscodeDir = await join(folderPath, '.vscode');
-    if (!(await fsExists(vscodeDir))) {
-      await mkdir(vscodeDir);
+    if (!(await fs.exists(vscodeDir))) {
+      await fs.mkdir(vscodeDir);
     }
-    await writeTextFile(tasksJsonPath, JSON.stringify(tasksJson, null, 2));
+    await fs.writeTextFile(tasksJsonPath, JSON.stringify(tasksJson, null, 2));
     
     // Return the created task
     const platform = await this.getPlatform();
@@ -526,7 +548,8 @@ export class VSCodeTasksProvider implements TaskProvider {
       throw new Error('Cannot update task without source file');
     }
     
-    const content = await readTextFile(task.sourceFile);
+    const fs = await this.getFs();
+    const content = await fs.readTextFile(task.sourceFile);
     const tasksJson = JSON5.parse(content) as VSCodeTasksJson;
     
     // Find the task by label
@@ -549,8 +572,7 @@ export class VSCodeTasksProvider implements TaskProvider {
     };
     
     // Write back
-    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    await writeTextFile(task.sourceFile, JSON.stringify(tasksJson, null, 2));
+    await fs.writeTextFile(task.sourceFile, JSON.stringify(tasksJson, null, 2));
     
     return task;
   }
@@ -563,7 +585,8 @@ export class VSCodeTasksProvider implements TaskProvider {
       throw new Error('Cannot delete task without source file');
     }
     
-    const content = await readTextFile(task.sourceFile);
+    const fs = await this.getFs();
+    const content = await fs.readTextFile(task.sourceFile);
     const tasksJson = JSON5.parse(content) as VSCodeTasksJson;
     
     // Find and remove the task
@@ -572,8 +595,7 @@ export class VSCodeTasksProvider implements TaskProvider {
       tasksJson.tasks.splice(index, 1);
       
       // Write back
-      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-      await writeTextFile(task.sourceFile, JSON.stringify(tasksJson, null, 2));
+      await fs.writeTextFile(task.sourceFile, JSON.stringify(tasksJson, null, 2));
     }
   }
 }

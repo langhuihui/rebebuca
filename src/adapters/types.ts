@@ -7,12 +7,16 @@
 
 // Terminal types
 export interface CreateTerminalParams {
+  /** Optional client-specified PTY ID. If not provided, server generates one. */
+  ptyId?: string;
   command: string;
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
   logPath?: string;
   shellPath?: string | null;
+  rows?: number;
+  cols?: number;
 }
 
 export interface TerminalInfo {

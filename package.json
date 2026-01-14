@@ -1,22 +1,26 @@
 {
   "name": "rebebuca",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "license": "GPL-3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:web": "VITE_BACKEND=mock vite --port 5173",
+    "dev:server": "VITE_BACKEND=server vite --port 5173",
     "dev:website": "VITE_BACKEND=mock vite --config vite.website.config.ts",
     "build": "vue-tsc --noEmit && vite build",
     "build:web": "VITE_BUILD_TARGET=web VITE_BACKEND=mock vue-tsc --noEmit && vite build",
+    "build:server": "export VITE_BACKEND=server && vue-tsc --noEmit && vite build",
     "build:website": "VITE_BACKEND=mock vue-tsc --noEmit && vite build --config vite.website.config.ts && mv dist/website/website.html dist/website/index.html",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "release": "./scripts/release.sh",
     "republish": "./scripts/republish.sh",
-    "mcp:debug": "node scripts/mcp-debug-server-http.js"
+    "server:build": "cd remote-agent-server && cargo build --release",
+    "server:dev": "cd remote-agent-server && cargo run -- --port 8765",
+    "server:start": "cd remote-agent-server && ./target/release/rebebuca-remote-server"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.9",

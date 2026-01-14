@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// Re-export common types
+pub use rebebuca_common::{AgentMessage, OutputType};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunConfig {
     pub name: String,
@@ -62,42 +65,6 @@ pub enum SshAuthMethod {
     PrivateKey { key_path: String, passphrase: Option<String> },
 }
 
-// Remote agent communication protocol
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum AgentMessage {
-    Execute {
-        id: String,
-        command: String,
-        args: Option<Vec<String>>,
-        cwd: Option<String>,
-        env: Option<HashMap<String, String>>,
-    },
-    Output {
-        id: String,
-        output_type: OutputType,
-        content: String,
-    },
-    ProcessStarted {
-        id: String,
-        pid: u32,
-    },
-    ProcessFinished {
-        id: String,
-        exit_code: Option<i32>,
-    },
-    Error {
-        id: String,
-        message: String,
-    },
-    Ping,
-    Pong,
-    GetVersion,
-    Version {
-        version: String,
-    },
-}
-
 // Required agent version - update this when agent protocol changes
 pub const REQUIRED_AGENT_VERSION: &str = "0.1.1";
 
@@ -130,14 +97,6 @@ pub struct OutputEvent {
     pub process_id: String,
     pub output_type: OutputType,
     pub content: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum OutputType {
-    Stdout,
-    Stderr,
-    System,
 }
 
 // Tray menu data structures

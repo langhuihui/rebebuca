@@ -16,12 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { 
-  readDir,
-  exists as fsExists,
-} from '@tauri-apps/plugin-fs';
 import { join, basename } from '@tauri-apps/api/path';
-import { platform } from '@tauri-apps/plugin-os';
+import { getAdapter, type FileSystemAdapter, type SystemAdapter } from '../adapters';
 import { 
   TaskProvider, 
   Task, 
@@ -52,13 +48,38 @@ export class ScriptsProvider implements TaskProvider {
   readonly icon = 'script';
   
   private currentPlatform: string | null = null;
+  private fsAdapter: FileSystemAdapter | null = null;
+  private systemAdapter: SystemAdapter | null = null;
+  
+  /**
+   * Get file system adapter
+   */
+  private async getFs(): Promise<FileSystemAdapter> {
+    if (!this.fsAdapter) {
+      const adapter = await getAdapter();
+      this.fsAdapter = adapter.fs;
+    }
+    return this.fsAdapter;
+  }
+  
+  /**
+   * Get system adapter
+   */
+  private async getSystem(): Promise<SystemAdapter> {
+    if (!this.systemAdapter) {
+      const adapter = await getAdapter();
+      this.systemAdapter = adapter.system;
+    }
+    return this.systemAdapter;
+  }
   
   /**
    * Get current platform
    */
   private async getPlatform(): Promise<string> {
     if (!this.currentPlatform) {
-      const os = await platform();
+      const system = await this.getSystem();
+      const os = await system.getPlatform();
       if (os === 'windows') {
         this.currentPlatform = 'windows';
       } else if (os === 'linux') {
@@ -123,14 +144,15 @@ export class ScriptsProvider implements TaskProvider {
    */
   private async scanFolder(folderPath: string): Promise<ScanResult | null> {
     try {
+      const fs = await this.getFs();
       console.log(`[ScriptsProvider] Scanning: ${folderPath}`);
       
-      const exists = await fsExists(folderPath);
+      const exists = await fs.exists(folderPath);
       if (!exists) {
         return null;
       }
       
-      const entries = await readDir(folderPath);
+      const entries = await fs.readDir(folderPath);
       const tasks: Task[] = [];
       
       for (const entry of entries) {
@@ -201,7 +223,8 @@ export class ScriptsProvider implements TaskProvider {
     ]);
     
     try {
-      const entries = await readDir(folderPath);
+      const fs = await this.getFs();
+      const entries = await fs.readDir(folderPath);
       
       for (const entry of entries) {
         if (entry.isDirectory && entry.name && !skipDirs.has(entry.name) && !entry.name.startsWith('.')) {

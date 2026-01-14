@@ -298,8 +298,9 @@ const initTerminal = async () => {
   try {
     // Only create PTY if not in attach-only mode
     if (!props.attachOnly) {
-      // For shell PTY, we need to use invoke directly since adapter.terminal.create is for task execution
+      // For shell PTY, we need to create a PTY with a shell command
       if (isTauri()) {
+        // In Tauri mode, use invoke directly
         const { invoke } = await import('@tauri-apps/api/core');
         const settingsStore = useSettingsStore();
         await invoke('create_pty', {
@@ -311,6 +312,22 @@ const initTerminal = async () => {
             env: props.env,
             shell: settingsStore.settings.preferredShell || null,  // Use preferred shell if set
           },
+        });
+      } else {
+        // In Server mode, use adapter.terminal.create with a shell command
+        const settingsStore = useSettingsStore();
+        const platform = await adapterInstance.system.getPlatform();
+        const defaultShell = platform === 'windows' ? 'cmd.exe' : '/bin/bash';
+        const shell = settingsStore.settings.preferredShell || defaultShell;
+        
+        await adapterInstance.terminal.create({
+          ptyId: props.ptyId,  // Pass the client-specified ptyId
+          command: shell,
+          args: [],
+          cwd: props.cwd || undefined,
+          env: props.env || {},
+          rows,
+          cols,
         });
       }
     } else {
@@ -510,6 +527,10 @@ const dispose = async () => {
       if (isTauri()) {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('close_pty', { ptyId: props.ptyId });
+      } else {
+        // In Server mode, use adapter to kill the PTY
+        const adapterInstance = await getAdapterInstance();
+        await adapterInstance.terminal.kill(props.ptyId);
       }
     } catch (error) {
       // Ignore "PTY not found" errors - PTY was already closed
@@ -1129,22 +1150,44 @@ defineExpose({
 // Setup early listener in onBeforeMount to catch output before terminal is ready
 onBeforeMount(async () => {
   try {
-    const { listen } = await import('@tauri-apps/api/event');
-    const unlisten = await listen<{ pty_id: string; data: string }>('pty-output', (e) => {
-      if (e.payload.pty_id === props.ptyId) {
-        if (isTerminalReady && terminal) {
-          let data = e.payload.data;
-          if (shellIntegration) {
-            data = shellIntegration.processData(data);
+    // In Tauri mode, use native event listener for better performance
+    // In Server mode, use adapter's onData which is set up in initTerminal
+    if (isTauri()) {
+      const { listen } = await import('@tauri-apps/api/event');
+      const unlisten = await listen<{ pty_id: string; data: string }>('pty-output', (e) => {
+        if (e.payload.pty_id === props.ptyId) {
+          if (isTerminalReady && terminal) {
+            let data = e.payload.data;
+            if (shellIntegration) {
+              data = shellIntegration.processData(data);
+            }
+            terminal.write(data);
+          } else {
+            // Buffer output until terminal is ready
+            pendingOutputBuffer.push(e.payload.data);
           }
-          terminal.write(data);
-        } else {
-          // Buffer output until terminal is ready
-          pendingOutputBuffer.push(e.payload.data);
         }
-      }
-    });
-    unlistenOutput = unlisten;
+      });
+      unlistenOutput = unlisten;
+    } else {
+      // In Server mode, set up early listener via adapter
+      const adapterInstance = await getAdapterInstance();
+      const unlisten = adapterInstance.terminal.onData((event) => {
+        if (event.ptyId === props.ptyId) {
+          if (isTerminalReady && terminal) {
+            let data = event.data;
+            if (shellIntegration) {
+              data = shellIntegration.processData(data);
+            }
+            terminal.write(data);
+          } else {
+            // Buffer output until terminal is ready
+            pendingOutputBuffer.push(event.data);
+          }
+        }
+      });
+      unlistenOutput = unlisten;
+    }
   } catch (err) {
     console.error('[TerminalView] Failed to setup early listener:', err);
   }
@@ -1180,17 +1223,21 @@ watch(() => props.ptyId, async (newPtyId, oldPtyId) => {
     console.log('[TerminalView] Buffer length before dispose:', terminal?.buffer.active.length);
 
     // Force close old PTY (even in attach mode)
-    if (isTauri()) {
-      try {
+    try {
+      if (isTauri()) {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('close_pty', { ptyId: oldPtyId });
-        console.log('[TerminalView] Closed old PTY:', oldPtyId);
-      } catch (error) {
-        // Ignore "PTY not found" errors - PTY was already closed
-        const errorMsg = String(error);
-        if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
-          console.error('[TerminalView] Failed to close old PTY:', error);
-        }
+      } else {
+        // In Server mode, use adapter to kill the PTY
+        const adapterInstance = await getAdapterInstance();
+        await adapterInstance.terminal.kill(oldPtyId);
+      }
+      console.log('[TerminalView] Closed old PTY:', oldPtyId);
+    } catch (error) {
+      // Ignore "PTY not found" errors - PTY was already closed
+      const errorMsg = String(error);
+      if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
+        console.error('[TerminalView] Failed to close old PTY:', error);
       }
     }
 

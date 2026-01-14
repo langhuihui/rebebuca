@@ -37,6 +37,8 @@ pub struct MCPServerState {
     frontend_logs: Arc<RwLock<Vec<Value>>>,
     /// Cached DOM tree (updated by frontend)
     dom_tree: Arc<RwLock<Value>>,
+    /// Resource subscriptions: maps session_id -> set of subscribed URIs
+    resource_subscriptions: Arc<RwLock<HashMap<String, Vec<String>>>>,
 }
 
 impl MCPServerState {
@@ -46,19 +48,66 @@ impl MCPServerState {
             connections: Arc::new(RwLock::new(HashMap::new())),
             frontend_logs: Arc::new(RwLock::new(Vec::new())),
             dom_tree: Arc::new(RwLock::new(json!({}))),
+            resource_subscriptions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Update frontend logs cache
+    /// Update frontend logs cache and notify subscribers
     pub async fn update_frontend_logs(&self, logs: Vec<Value>) {
-        let mut cached = self.frontend_logs.write().await;
-        *cached = logs;
+        {
+            let mut cached = self.frontend_logs.write().await;
+            *cached = logs;
+        }
+        // Notify subscribers about the resource update
+        self.notify_resource_updated("log://rebebuca/frontend").await;
     }
 
-    /// Update DOM tree cache
+    /// Update DOM tree cache and notify subscribers
     pub async fn update_dom_tree(&self, dom: Value) {
-        let mut cached = self.dom_tree.write().await;
-        *cached = dom;
+        {
+            let mut cached = self.dom_tree.write().await;
+            *cached = dom;
+        }
+        // Notify subscribers about the resource update
+        self.notify_resource_updated("debug://rebebuca/dom").await;
+    }
+
+    /// Notify all subscribers of a resource update
+    async fn notify_resource_updated(&self, uri: &str) {
+        let subscriptions = self.resource_subscriptions.read().await;
+        let connections = self.connections.read().await;
+        
+        for (session_id, uris) in subscriptions.iter() {
+            if uris.contains(&uri.to_string()) {
+                if let Some(tx) = connections.get(session_id) {
+                    let notification = json!({
+                        "jsonrpc": "2.0",
+                        "method": "notifications/resources/updated",
+                        "params": {
+                            "uri": uri
+                        }
+                    });
+                    let _ = tx.send(notification);
+                }
+            }
+        }
+    }
+
+    /// Subscribe a session to a resource
+    async fn subscribe_resource(&self, session_id: &str, uri: &str) {
+        let mut subscriptions = self.resource_subscriptions.write().await;
+        let entry = subscriptions.entry(session_id.to_string()).or_insert_with(Vec::new);
+        if !entry.contains(&uri.to_string()) {
+            entry.push(uri.to_string());
+        }
+    }
+
+    /// Unsubscribe a session from a resource
+    async fn unsubscribe_resource(&self, session_id: &str, uri: &str) {
+        let mut subscriptions = self.resource_subscriptions.write().await;
+        if let Some(uris) = subscriptions.get_mut(session_id) {
+            uris.retain(|u| u != uri);
+        }
     }
 }
 
@@ -127,6 +176,69 @@ fn get_tools() -> Vec<Value> {
             }
         }),
     ]
+}
+
+/// Resource definitions
+fn get_resources() -> Vec<Value> {
+    vec![
+        json!({
+            "uri": "log://rebebuca/frontend",
+            "name": "Frontend Console Logs",
+            "description": "Real-time frontend console logs including info, warn, error, and debug messages since app startup",
+            "mimeType": "application/json"
+        }),
+        json!({
+            "uri": "log://rebebuca/tauri",
+            "name": "Tauri Backend Logs",
+            "description": "Tauri/Rust backend logs from the current session log file",
+            "mimeType": "application/json"
+        }),
+        json!({
+            "uri": "debug://rebebuca/dom",
+            "name": "DOM Tree",
+            "description": "Current DOM tree structure of the application UI",
+            "mimeType": "application/json"
+        }),
+    ]
+}
+
+/// Read a resource by URI
+async fn read_resource(state: &MCPServerState, uri: &str) -> Result<Value, String> {
+    match uri {
+        "log://rebebuca/frontend" => {
+            let logs = state.frontend_logs.read().await;
+            Ok(json!({
+                "contents": [{
+                    "uri": uri,
+                    "mimeType": "application/json",
+                    "text": serde_json::to_string_pretty(&*logs).unwrap_or_else(|_| "[]".to_string())
+                }]
+            }))
+        }
+        "log://rebebuca/tauri" => {
+            match debug::get_tauri_logs(state.app_handle.clone()).await {
+                Ok(response) => Ok(json!({
+                    "contents": [{
+                        "uri": uri,
+                        "mimeType": "application/json",
+                        "text": serde_json::to_string_pretty(&response.data).unwrap_or_else(|_| "{}".to_string())
+                    }]
+                })),
+                Err(e) => Err(e),
+            }
+        }
+        "debug://rebebuca/dom" => {
+            let dom = state.dom_tree.read().await;
+            Ok(json!({
+                "contents": [{
+                    "uri": uri,
+                    "mimeType": "application/json",
+                    "text": serde_json::to_string_pretty(&*dom).unwrap_or_else(|_| "{}".to_string())
+                }]
+            }))
+        }
+        _ => Err(format!("Resource not found: {}", uri)),
+    }
 }
 
 /// JSON-RPC request
@@ -235,7 +347,7 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
 }
 
 /// Handle MCP JSON-RPC message
-async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest) -> JsonRpcResponse {
+async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, session_id: Option<&str>) -> JsonRpcResponse {
     match request.method.as_str() {
         "initialize" => {
             JsonRpcResponse::success(
@@ -243,7 +355,11 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest) -> 
                 json!({
                     "protocolVersion": MCP_PROTOCOL_VERSION,
                     "capabilities": {
-                        "tools": {}
+                        "tools": {},
+                        "resources": {
+                            "subscribe": true,
+                            "listChanged": true
+                        }
                     },
                     "serverInfo": {
                         "name": MCP_SERVER_NAME,
@@ -253,9 +369,21 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest) -> 
             )
         }
 
-        "initialized" => {
-            // Notification, no response needed but we return empty result
-            JsonRpcResponse::success(request.id, json!({}))
+        "initialized" | "notifications/initialized" => {
+            // This is a notification, not a request. According to JSON-RPC 2.0 spec,
+            // notifications MUST NOT have an "id" field and servers MUST NOT reply to them.
+            // However, some clients expect a response, so we only respond if there's an id.
+            if request.id.is_some() {
+                JsonRpcResponse::success(request.id, json!({}))
+            } else {
+                // Return a minimal response that won't be sent (notification has no id)
+                JsonRpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: None,
+                    result: None,
+                    error: None,
+                }
+            }
         }
 
         "tools/list" => {
@@ -290,6 +418,92 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest) -> 
                     request.id,
                     -32602,
                     "Missing tool name".to_string(),
+                ),
+            }
+        }
+
+        // ===== Resources Methods =====
+        "resources/list" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "resources": get_resources()
+                }),
+            )
+        }
+
+        "resources/read" => {
+            let uri = request.params.get("uri").and_then(|v| v.as_str());
+            
+            match uri {
+                Some(uri) => {
+                    match read_resource(state, uri).await {
+                        Ok(result) => JsonRpcResponse::success(request.id, result),
+                        Err(e) => JsonRpcResponse::error(request.id, -32002, e),
+                    }
+                }
+                None => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing resource URI".to_string(),
+                ),
+            }
+        }
+
+        "resources/subscribe" => {
+            let uri = request.params.get("uri").and_then(|v| v.as_str());
+            
+            match (uri, session_id) {
+                (Some(uri), Some(session_id)) => {
+                    // Verify the resource exists
+                    let resources = get_resources();
+                    let exists = resources.iter().any(|r| {
+                        r.get("uri").and_then(|u| u.as_str()) == Some(uri)
+                    });
+                    
+                    if exists {
+                        state.subscribe_resource(session_id, uri).await;
+                        info!("[MCP] Session {} subscribed to resource {}", session_id, uri);
+                        JsonRpcResponse::success(request.id, json!({}))
+                    } else {
+                        JsonRpcResponse::error(
+                            request.id,
+                            -32002,
+                            format!("Resource not found: {}", uri),
+                        )
+                    }
+                }
+                (None, _) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing resource URI".to_string(),
+                ),
+                (_, None) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing session ID for subscription".to_string(),
+                ),
+            }
+        }
+
+        "resources/unsubscribe" => {
+            let uri = request.params.get("uri").and_then(|v| v.as_str());
+            
+            match (uri, session_id) {
+                (Some(uri), Some(session_id)) => {
+                    state.unsubscribe_resource(session_id, uri).await;
+                    info!("[MCP] Session {} unsubscribed from resource {}", session_id, uri);
+                    JsonRpcResponse::success(request.id, json!({}))
+                }
+                (None, _) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing resource URI".to_string(),
+                ),
+                (_, None) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing session ID for unsubscription".to_string(),
                 ),
             }
         }
@@ -373,12 +587,13 @@ async fn message_handler(
     Json(request): Json<JsonRpcRequest>,
 ) -> impl IntoResponse {
     let session_id = query.session_id.unwrap_or_else(|| "default".to_string());
+    let has_id = request.id.is_some();
     
-    // Handle the message
-    let response = handle_mcp_message(&state, request).await;
+    // Handle the message with session_id for subscription support
+    let response = handle_mcp_message(&state, request, Some(&session_id)).await;
     
-    // Send response via SSE if connection exists
-    {
+    // Only send response via SSE if this was a request (has id), not a notification
+    if has_id {
         let connections = state.connections.read().await;
         if let Some(tx) = connections.get(&session_id) {
             let _ = tx.send(serde_json::to_value(&response).unwrap_or(json!({})));
@@ -394,7 +609,8 @@ async fn streamable_http_handler(
     State(state): State<MCPServerState>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
-    let response = handle_mcp_message(&state, request).await;
+    // For streamable HTTP, we don't have a persistent session for subscriptions
+    let response = handle_mcp_message(&state, request, None).await;
     Json(response)
 }
 
@@ -404,7 +620,8 @@ async fn health_handler() -> Json<Value> {
         "status": "ok",
         "server": MCP_SERVER_NAME,
         "version": MCP_SERVER_VERSION,
-        "tools": get_tools().len()
+        "tools": get_tools().len(),
+        "resources": get_resources().len()
     }))
 }
 

@@ -11,15 +11,20 @@ export * from './types';
 
 // Singleton adapter instance
 let adapterInstance: BackendAdapter | null = null;
+// Promise for adapter creation (to prevent race conditions)
+let adapterPromise: Promise<BackendAdapter> | null = null;
+
+// Declare the global constant defined by Vite
+declare const __VITE_BACKEND__: string;
 
 /**
  * Detect the backend type from environment
  */
 export function detectBackendType(): BackendType {
-  // Check environment variable first
-  const envBackend = import.meta.env.VITE_BACKEND as BackendType | undefined;
+  // Check compile-time constant first (set via vite.config.ts define)
+  const envBackend = typeof __VITE_BACKEND__ !== 'undefined' ? __VITE_BACKEND__ : '';
   if (envBackend && ['tauri', 'server', 'mock'].includes(envBackend)) {
-    return envBackend;
+    return envBackend as BackendType;
   }
   
   // Auto-detect based on environment
@@ -27,6 +32,21 @@ export function detectBackendType(): BackendType {
     // Check if running in Tauri
     if ('__TAURI__' in window || '__TAURI_INTERNALS__' in window) {
       return 'tauri';
+    }
+    
+    // Check if served from remote-agent-server (has /ws endpoint on same origin)
+    // This is detected by checking if we're not in Tauri and not on a typical dev server port
+    // or if VITE_SERVER_URL is set
+    if (import.meta.env?.VITE_SERVER_URL) {
+      return 'server';
+    }
+    
+    // Check if the page was served with /ws path available (server mode indicator)
+    // The remote-agent-server serves static files and has /ws endpoint
+    const isServerMode = window.location.port === '8765' || 
+                         window.location.pathname.startsWith('/app');
+    if (isServerMode) {
+      return 'server';
     }
   }
   
@@ -51,11 +71,8 @@ export async function createAdapter(type?: BackendType): Promise<BackendAdapter>
       break;
     }
     case 'server': {
-      // Server adapter will be implemented later
-      // For now, fall back to mock
-      console.warn('[Adapter] Server adapter not yet implemented, using mock');
-      const { createMockAdapter } = await import('./mock');
-      adapter = createMockAdapter();
+      const { createServerAdapter } = await import('./server');
+      adapter = createServerAdapter();
       break;
     }
     case 'mock':
@@ -73,22 +90,31 @@ export async function createAdapter(type?: BackendType): Promise<BackendAdapter>
 /**
  * Get the singleton adapter instance
  * Creates one if it doesn't exist
+ * Uses a promise to prevent race conditions during initialization
  */
 export async function getAdapter(): Promise<BackendAdapter> {
-  if (!adapterInstance) {
-    try {
-      adapterInstance = await createAdapter();
-    } catch (error) {
-      console.error('[Adapter] Failed to create adapter:', error);
-      // Reset instance to null so we can retry
-      adapterInstance = null;
-      throw error;
-    }
+  // If we already have an instance, return it
+  if (adapterInstance) {
+    return adapterInstance;
   }
-  if (!adapterInstance) {
-    throw new Error('Adapter instance is null after creation');
+  
+  // If we're already creating an instance, wait for it
+  if (adapterPromise) {
+    return adapterPromise;
   }
-  return adapterInstance;
+  
+  // Create a new instance
+  adapterPromise = createAdapter().then(adapter => {
+    adapterInstance = adapter;
+    return adapter;
+  }).catch(error => {
+    console.error('[Adapter] Failed to create adapter:', error);
+    // Reset promise so we can retry
+    adapterPromise = null;
+    throw error;
+  });
+  
+  return adapterPromise;
 }
 
 /**

@@ -19,34 +19,6 @@
 import { ref, computed, watch } from 'vue';
 import { darkTheme, lightTheme, type GlobalTheme } from 'naive-ui';
 
-// Custom light theme with proper white background
-const customLightTheme: GlobalTheme = {
-  ...lightTheme,
-  common: {
-    ...lightTheme.common,
-    bodyColor: '#ffffff',
-    cardColor: '#ffffff',
-    modalColor: '#ffffff',
-    popoverColor: '#ffffff',
-    tableColor: '#ffffff',
-    baseColor: '#ffffff',
-  }
-};
-
-// Custom dark theme with proper black background
-const customDarkTheme: GlobalTheme = {
-  ...darkTheme,
-  common: {
-    ...darkTheme.common,
-    bodyColor: '#000000',
-    cardColor: '#1a1a1a',
-    modalColor: '#1a1a1a',
-    popoverColor: '#1a1a1a',
-    tableColor: '#1a1a1a',
-    baseColor: '#000000',
-  }
-};
-
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'rebebuca-theme';

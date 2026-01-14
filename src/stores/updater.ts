@@ -76,12 +76,21 @@ export const useUpdaterStore = defineStore('updater', () => {
    */
   async function getCurrentVersion(): Promise<string> {
     try {
-      if (!isTauri()) {
-        currentVersion.value = '0.0.0-web';
-        return currentVersion.value;
+      if (isTauri()) {
+        const { getVersion } = await import('@tauri-apps/api/app');
+        currentVersion.value = await getVersion();
+      } else {
+        // In server mode, get version from remote server
+        const adapterInstance = await getAdapterInstance();
+        const result = await adapterInstance.updater.checkForUpdates();
+        if (result && 'version' in result) {
+          // The server returns currentVersion in the check result
+          // We need to get it from a separate call or parse from result
+          currentVersion.value = (result as { currentVersion?: string }).currentVersion || '0.0.0-server';
+        } else {
+          currentVersion.value = '0.0.0-server';
+        }
       }
-      const { getVersion } = await import('@tauri-apps/api/app');
-      currentVersion.value = await getVersion();
       return currentVersion.value;
     } catch (e) {
       console.error('[Updater] Failed to get version:', e);
@@ -175,27 +184,42 @@ export const useUpdaterStore = defineStore('updater', () => {
     if (hasCheckedOnStartup.value) return;
     hasCheckedOnStartup.value = true;
     
-    if (!isTauri()) {
-      console.log('[Updater] Auto-check skipped in non-Tauri environment');
-      return;
-    }
-    
     try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const update = await check();
-      
-      if (update) {
-        updateAvailable.value = true;
-        updateInfo.value = {
-          version: update.version,
-          date: update.date || '',
-          body: update.body || '',
-        };
-        console.log('[Updater] Auto-check: Update available:', update.version);
+      if (isTauri()) {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const update = await check();
+        
+        if (update) {
+          updateAvailable.value = true;
+          updateInfo.value = {
+            version: update.version,
+            date: update.date || '',
+            body: update.body || '',
+          };
+          console.log('[Updater] Auto-check: Update available:', update.version);
+        } else {
+          updateAvailable.value = false;
+          updateInfo.value = null;
+          console.log('[Updater] Auto-check: No updates available');
+        }
       } else {
-        updateAvailable.value = false;
-        updateInfo.value = null;
-        console.log('[Updater] Auto-check: No updates available');
+        // In server mode, check via adapter
+        const adapterInstance = await getAdapterInstance();
+        const result = await adapterInstance.updater.checkForUpdates();
+        
+        if (result && result.available) {
+          updateAvailable.value = true;
+          updateInfo.value = {
+            version: result.version || '',
+            date: '',
+            body: result.notes || '',
+          };
+          console.log('[Updater] Auto-check: Server update available:', result.version);
+        } else {
+          updateAvailable.value = false;
+          updateInfo.value = null;
+          console.log('[Updater] Auto-check: No server updates available');
+        }
       }
     } catch (e) {
       console.log('[Updater] Auto-check failed (silent):', e);
@@ -231,13 +255,7 @@ export const useUpdaterStore = defineStore('updater', () => {
       releasesCacheTime = Date.now();
       return releasesCache;
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          console.log('[Updater] Request timeout fetching releases');
-        } else {
-          console.log('[Updater] Network error fetching releases:', error.message);
-        }
-      }
+      // Silent fail for network errors (expected in some environments)
       return null;
     }
   }
@@ -368,32 +386,49 @@ export const useUpdaterStore = defineStore('updater', () => {
    * Check for updates
    */
   async function checkForUpdates(): Promise<boolean> {
-    if (!isTauri()) {
-      console.log('[Updater] Check skipped in non-Tauri environment');
-      return false;
-    }
-    
     checking.value = true;
     error.value = null;
     
     try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const update = await check();
-      
-      if (update) {
-        updateAvailable.value = true;
-        updateInfo.value = {
-          version: update.version,
-          date: update.date || '',
-          body: update.body || '',
-        };
-        console.log('[Updater] Update available:', update.version);
-        return true;
+      if (isTauri()) {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const update = await check();
+        
+        if (update) {
+          updateAvailable.value = true;
+          updateInfo.value = {
+            version: update.version,
+            date: update.date || '',
+            body: update.body || '',
+          };
+          console.log('[Updater] Update available:', update.version);
+          return true;
+        } else {
+          updateAvailable.value = false;
+          updateInfo.value = null;
+          console.log('[Updater] No updates available');
+          return false;
+        }
       } else {
-        updateAvailable.value = false;
-        updateInfo.value = null;
-        console.log('[Updater] No updates available');
-        return false;
+        // In server mode, check via adapter
+        const adapterInstance = await getAdapterInstance();
+        const result = await adapterInstance.updater.checkForUpdates();
+        
+        if (result && result.available) {
+          updateAvailable.value = true;
+          updateInfo.value = {
+            version: result.version || '',
+            date: '',
+            body: result.notes || '',
+          };
+          console.log('[Updater] Server update available:', result.version);
+          return true;
+        } else {
+          updateAvailable.value = false;
+          updateInfo.value = null;
+          console.log('[Updater] No server updates available');
+          return false;
+        }
       }
     } catch (e) {
       error.value = String(e);
@@ -406,6 +441,7 @@ export const useUpdaterStore = defineStore('updater', () => {
   
   /**
    * Download and install update
+   * In server mode, this opens the download page since auto-update is not supported
    */
   async function downloadAndInstall(): Promise<void> {
     if (!updateAvailable.value) {
@@ -417,38 +453,55 @@ export const useUpdaterStore = defineStore('updater', () => {
     error.value = null;
     
     try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const { relaunch } = await import('@tauri-apps/plugin-process');
-      
-      const update = await check();
-      if (!update) {
-        throw new Error('Update not found');
-      }
-      
-      let downloaded = 0;
-      let contentLength = 0;
-      
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            contentLength = event.data.contentLength || 0;
-            console.log(`[Updater] Download started, size: ${contentLength}`);
-            break;
-          case 'Progress':
-            downloaded += event.data.chunkLength;
-            if (contentLength > 0) {
-              downloadProgress.value = Math.round((downloaded / contentLength) * 100);
-            }
-            break;
-          case 'Finished':
-            downloadProgress.value = 100;
-            console.log('[Updater] Download finished');
-            break;
+      if (isTauri()) {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const { relaunch } = await import('@tauri-apps/plugin-process');
+        
+        const update = await check();
+        if (!update) {
+          throw new Error('Update not found');
         }
-      });
-      
-      console.log('[Updater] Update installed, relaunching...');
-      await relaunch();
+        
+        let downloaded = 0;
+        let contentLength = 0;
+        
+        await update.downloadAndInstall((event) => {
+          switch (event.event) {
+            case 'Started':
+              contentLength = event.data.contentLength || 0;
+              console.log(`[Updater] Download started, size: ${contentLength}`);
+              break;
+            case 'Progress':
+              downloaded += event.data.chunkLength;
+              if (contentLength > 0) {
+                downloadProgress.value = Math.round((downloaded / contentLength) * 100);
+              }
+              break;
+            case 'Finished':
+              downloadProgress.value = 100;
+              console.log('[Updater] Download finished');
+              break;
+          }
+        });
+        
+        console.log('[Updater] Update installed, relaunching...');
+        await relaunch();
+      } else {
+        // In server mode, use adapter to download and install
+        const adapterInstance = await getAdapterInstance();
+        
+        // Register progress callback
+        const cleanup = adapterInstance.updater.onProgress((progress) => {
+          downloadProgress.value = progress;
+        });
+        
+        try {
+          await adapterInstance.updater.downloadAndInstall();
+          console.log('[Updater] Server update initiated, waiting for restart...');
+        } finally {
+          cleanup();
+        }
+      }
     } catch (e) {
       error.value = String(e);
       console.error('[Updater] Download/install failed:', e);

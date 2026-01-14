@@ -86,7 +86,7 @@
                 :class="{ completed: isCriterionMet(index) }"
               >
                 <n-icon v-if="isCriterionMet(index)" color="#52c41a" size="14">
-                  <component :is="iconComponents.check" />
+                  <component :is="svgIcons.check" />
                 </n-icon>
                 {{ criterion }}
               </li>

@@ -403,130 +403,171 @@
               <!-- Welcome screen -->
               <div v-else class="welcome-container">
                 <div class="welcome-content">
-                  <img
-                    src="/logo-dark.svg"
-                    alt="Rebebuca"
-                    class="welcome-logo"
-                  />
-                  <h1 class="welcome-title">{{ t("website.hero.title") }}</h1>
-                  <p class="welcome-subtitle">
-                    {{ t("website.hero.subtitle") }}
-                  </p>
-
-                  <!-- Feature cards -->
-                  <div class="welcome-features">
-                    <div class="feature-card">
-                      <h3 class="feature-title">
-                        {{ t("welcome.quickStart.title") }}
-                      </h3>
-                      <p class="feature-description">
-                        {{ t("welcome.quickStart.description") }}
-                      </p>
-                    </div>
-                    <div class="feature-card">
-                      <h3 class="feature-title">
-                        {{ t("welcome.efficientExecution.title") }}
-                      </h3>
-                      <p class="feature-description">
-                        {{ t("welcome.efficientExecution.description") }}
-                      </p>
-                    </div>
-                    <div class="feature-card">
-                      <h3 class="feature-title">
-                        {{ t("welcome.configManagement.title") }}
-                      </h3>
-                      <p class="feature-description">
-                        {{ t("welcome.configManagement.description") }}
-                      </p>
-                    </div>
-                    <div class="feature-card">
-                      <h3 class="feature-title">
-                        {{ t("welcome.history.title") }}
-                      </h3>
-                      <p class="feature-description">
-                        {{ t("welcome.history.description") }}
-                      </p>
-                    </div>
-                  </div>
-
-                  <!-- Quick actions -->
-                  <div class="welcome-actions">
-                    <n-button
-                      type="primary"
-                      @click="
-                        openTab(
-                          'features',
-                          t('website.tasks.viewFeatures'),
-                          'features'
-                        )
-                      "
-                    >
-                      <template #icon
-                        ><n-icon><terminal-outline /></n-icon
-                      ></template>
-                      {{ t("terminal.open") }}
-                    </n-button>
-                  </div>
-
-                  <!-- Download Section -->
-                  <div class="download-section">
-                    <h2 class="download-title">
-                      {{ t("website.download.title") }}
-                    </h2>
-                    <div class="download-buttons">
-                      <a
-                        :href="macosUrl || '#'"
-                        target="_blank"
-                        class="download-btn macos"
-                      >
-                        <n-icon :size="32"><logo-apple /></n-icon>
-                        <div class="download-info">
-                          <span class="download-platform">macOS</span>
-                          <span class="download-arch"
-                            >Apple Silicon / Intel</span
-                          >
-                        </div>
-                      </a>
-                      <a
-                        :href="windowsUrl || '#'"
-                        target="_blank"
-                        class="download-btn windows"
-                      >
-                        <n-icon :size="32"><logo-windows /></n-icon>
-                        <div class="download-info">
-                          <span class="download-platform">Windows</span>
-                          <span class="download-arch">x64</span>
-                        </div>
-                      </a>
-                      <a href="#" target="_blank" class="download-btn linux">
-                        <svg
-                          class="linux-icon"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                        >
-                          <path
-                            d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139z"
-                          />
-                        </svg>
-                        <div class="download-info">
-                          <span class="download-platform">Linux</span>
-                          <span class="download-arch">AppImage / deb</span>
-                        </div>
-                      </a>
-                    </div>
-                    <p class="download-hint">
-                      {{ t("website.download.note") }}
+                  <!-- Features View -->
+                  <template v-if="!showDownloadView">
+                    <img
+                      src="/logo-dark.svg"
+                      alt="Rebebuca"
+                      class="welcome-logo"
+                    />
+                    <h1 class="welcome-title">{{ t("website.hero.title") }}</h1>
+                    <p class="welcome-subtitle">
+                      {{ t("website.hero.subtitle") }}
                     </p>
-                    <div class="security-warning">
-                      <p>⚠️ {{ t("website.download.securityWarning") }}</p>
-                      <ul>
-                        <li>
-                          Windows: {{ t("website.download.windowsWarning") }}
-                        </li>
-                        <li>macOS: {{ t("website.download.macosWarning") }}</li>
-                      </ul>
+
+                    <!-- Feature cards -->
+                    <div class="welcome-features">
+                      <div class="feature-card">
+                        <h3 class="feature-title">
+                          {{ t("welcome.quickStart.title") }}
+                        </h3>
+                        <p class="feature-description">
+                          {{ t("welcome.quickStart.description") }}
+                        </p>
+                      </div>
+                      <div class="feature-card">
+                        <h3 class="feature-title">
+                          {{ t("welcome.efficientExecution.title") }}
+                        </h3>
+                        <p class="feature-description">
+                          {{ t("welcome.efficientExecution.description") }}
+                        </p>
+                      </div>
+                      <div class="feature-card">
+                        <h3 class="feature-title">
+                          {{ t("welcome.configManagement.title") }}
+                        </h3>
+                        <p class="feature-description">
+                          {{ t("welcome.configManagement.description") }}
+                        </p>
+                      </div>
+                      <div class="feature-card">
+                        <h3 class="feature-title">
+                          {{ t("welcome.history.title") }}
+                        </h3>
+                        <p class="feature-description">
+                          {{ t("welcome.history.description") }}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+
+                    <!-- Quick actions -->
+                    <div class="welcome-actions">
+                      <n-button
+                        type="primary"
+                        @click="
+                          openTab(
+                            'features',
+                            t('website.tasks.viewFeatures'),
+                            'features'
+                          )
+                        "
+                      >
+                        <template #icon
+                          ><n-icon><terminal-outline /></n-icon
+                        ></template>
+                        {{ t("terminal.open") }}
+                      </n-button>
+                      <n-button
+                        @click="showDownloadView = true"
+                      >
+                        <template #icon
+                          ><n-icon><download-outline /></n-icon
+                        ></template>
+                        {{ t("website.download.title") }}
+                      </n-button>
+                    </div>
+                  </template>
+
+                  <!-- Download View -->
+                  <template v-else>
+                    <div class="download-view-header">
+                      <n-button
+                        text
+                        @click="showDownloadView = false"
+                      >
+                        <template #icon
+                          ><n-icon><arrow-back-outline /></n-icon
+                        ></template>
+                        {{ t("common.back") }}
+                      </n-button>
+                    </div>
+
+                    <!-- Download Section -->
+                    <div class="download-section">
+                      <h2 class="download-title">
+                        {{ t("website.download.title") }}
+                      </h2>
+                      <div class="download-buttons">
+                        <a
+                          :href="macosUrl || '#'"
+                          target="_blank"
+                          class="download-btn macos"
+                          @mouseenter="hoverPlatform = 'macos'"
+                          @mouseleave="hoverPlatform = null"
+                        >
+                          <n-icon :size="32"><logo-apple /></n-icon>
+                          <div class="download-info">
+                            <span class="download-platform">macOS</span>
+                            <span class="download-arch"
+                              >Apple Silicon / Intel</span
+                            >
+                          </div>
+                        </a>
+                        <a
+                          :href="windowsUrl || '#'"
+                          target="_blank"
+                          class="download-btn windows"
+                          @mouseenter="hoverPlatform = 'windows'"
+                          @mouseleave="hoverPlatform = null"
+                        >
+                          <n-icon :size="32"><logo-windows /></n-icon>
+                          <div class="download-info">
+                            <span class="download-platform">Windows</span>
+                            <span class="download-arch">x64</span>
+                          </div>
+                        </a>
+                      </div>
+                      <p class="download-hint">
+                        {{ t("website.download.note") }}
+                      </p>
+                      <div v-if="hoverPlatform" class="security-warning">
+                        <p>⚠️ {{ t("website.download.securityWarning") }}</p>
+                        <p v-if="hoverPlatform === 'windows'">
+                          {{ t("website.download.windowsWarning") }}
+                        </p>
+                        <p v-if="hoverPlatform === 'macos'">
+                          {{ t("website.download.macosWarning") }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- Remote Server Section -->
+                    <div class="remote-server-section">
+                      <h2 class="download-title">
+                        {{ t("website.remoteServer.title") }}
+                      </h2>
+                      <p class="remote-server-desc">
+                        {{ t("website.remoteServer.desc") }}
+                      </p>
+                      <div class="install-command-box">
+                        <code class="install-command">curl -fsSL https://download.m7s.live/rb/install-remote-server.sh | bash</code>
+                        <n-button
+                          size="small"
+                          quaternary
+                          class="copy-btn"
+                          @click="copyInstallCommand"
+                        >
+                          <template #icon>
+                            <n-icon><copy-outline /></n-icon>
+                          </template>
+                        </n-button>
+                      </div>
+                      <p class="remote-server-hint">
+                        {{ t("website.remoteServer.hint") }}
+                      </p>
+                    </div>
+                  </template>
                 </div>
               </div>
             </main>
@@ -661,6 +702,9 @@ import {
   GlobeOutline,
   SunnyOutline,
   MoonOutline,
+  CopyOutline,
+  DownloadOutline,
+  ArrowBackOutline,
 } from "@vicons/ionicons5";
 import { useI18n } from "vue-i18n";
 import { Terminal } from "@xterm/xterm";
@@ -706,6 +750,8 @@ const dateLocale = computed(() =>
 const currentVersion = ref("v0.4.6");
 const macosUrl = ref("");
 const windowsUrl = ref("");
+const hoverPlatform = ref<'macos' | 'windows' | null>(null);
+const showDownloadView = ref(false);
 
 const toggleLang = () => {
   const newLang = currentLang.value === "zh-CN" ? "en" : "zh-CN";
@@ -1148,6 +1194,16 @@ const handleAddGeneratedTask = () => {
 
 const handleClear = () => {
   message.info(t("console.clear"));
+};
+
+const copyInstallCommand = async () => {
+  const command = "curl -fsSL https://download.m7s.live/rb/install-remote-server.sh | bash";
+  try {
+    await navigator.clipboard.writeText(command);
+    message.success(t("website.remoteServer.copied"));
+  } catch {
+    message.error(t("website.remoteServer.copyFailed"));
+  }
 };
 
 onMounted(() => {

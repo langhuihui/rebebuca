@@ -128,7 +128,7 @@
             <div v-for="call in currentToolCalls" :key="call.id" class="tool-call-item">
               <n-spin v-if="call.status === 'running'" size="small" />
               <n-icon v-else-if="call.status === 'completed'" color="#52c41a">
-                <component :is="iconComponents.check" />
+                <component :is="svgIcons.check" />
               </n-icon>
               <n-icon v-else-if="call.status === 'error'" color="#ff4d4f">
                 <component :is="svgIcons.close" />

@@ -242,7 +242,7 @@ export async function streamResponse(input: StreamInput): Promise<StreamResult> 
       }
       
       enhancedError = new Error(detailedMessage);
-      enhancedError.cause = error;
+      (enhancedError as any).cause = error;
       enhancedError.name = 'NetworkError';
     } else {
       enhancedError = error instanceof Error ? error : new Error(String(error));

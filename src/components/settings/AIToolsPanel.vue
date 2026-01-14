@@ -574,6 +574,7 @@ const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
   "augment-cli": { provider: "original", apiKey: "", customEndpoint: "" },
   "cursor-cli": { provider: "original", apiKey: "", customEndpoint: "" },
   crush: { provider: "original", apiKey: "", customEndpoint: "" },
+  ampcode: { provider: "original", apiKey: "", customEndpoint: "" },
 });
 
 // Current platform

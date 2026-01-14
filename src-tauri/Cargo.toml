@@ -1,10 +1,10 @@
 [package]
-name = "tauri-app"
-version = "0.5.1"
-description = "A Tauri App"
-authors = ["you"]
+name = "rebebuca"
+version = "0.5.2"
+description = "A modern desktop application that helps developers quickly manage and execute various commands and scripts. Supports working directory, environment variables, and real-time output."
+authors = ["dexter"]
 edition = "2021"
-default-run = "tauri-app"
+default-run = "rebebuca"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -23,6 +23,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# Common library
+rebebuca-common = { path = "../common" }
+
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "devtools"] }
 tauri-plugin-shell = "2"
 tauri-plugin-opener = "2"

@@ -449,6 +449,10 @@ export const iconComponents = {
 
 // 纯 SVG 图标（用于在 n-icon 内部使用，避免双重嵌套）
 export const svgIcons = {
+  check: createSvgIcon([
+    h('polyline', { points: '20 6 9 17 4 12' })
+  ]),
+
   refresh: createSvgIcon([
     h('path', { d: 'M21.5 2v6h-6' }),
     h('path', { d: 'M2.5 22v-6h6' }),

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use rebebuca_common::{AgentMessage, OutputType};
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
@@ -7,49 +7,6 @@ use std::thread::JoinHandle;
 
 // Agent version - update this when making changes
 const AGENT_VERSION: &str = "0.1.1";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum OutputType {
-    Stdout,
-    Stderr,
-    System,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum AgentMessage {
-    Execute {
-        id: String,
-        command: String,
-        args: Option<Vec<String>>,
-        cwd: Option<String>,
-        env: Option<HashMap<String, String>>,
-    },
-    Output {
-        id: String,
-        output_type: OutputType,
-        content: String,
-    },
-    ProcessStarted {
-        id: String,
-        pid: u32,
-    },
-    ProcessFinished {
-        id: String,
-        exit_code: Option<i32>,
-    },
-    Error {
-        id: String,
-        message: String,
-    },
-    Ping,
-    Pong,
-    GetVersion,
-    Version {
-        version: String,
-    },
-}
 
 fn send_message(msg: &AgentMessage) -> io::Result<()> {
     let json = serde_json::to_string(msg)?;

@@ -133,8 +133,8 @@
         </span>
       </div>
 
-      <!-- Window controls - macOS style on the left -->
-      <div v-if="!uiStore.isWindowsPlatform" class="window-controls">
+      <!-- Window controls - macOS style on the left (only in desktop mode) -->
+      <div v-if="!uiStore.isWindowsPlatform && isDesktopMode" class="window-controls">
         <button
           class="window-control-button close-btn"
           @click="handleCloseWindow"
@@ -408,9 +408,9 @@
         </n-button>
       </div>
 
-      <!-- Window controls - Windows style on the right -->
+      <!-- Window controls - Windows style on the right (only in desktop mode) -->
       <div
-        v-if="uiStore.isWindowsPlatform"
+        v-if="uiStore.isWindowsPlatform && isDesktopMode"
         class="window-controls windows-style"
       >
         <button
@@ -505,7 +505,7 @@ import {
   closeWindow,
   startDrag,
 } from "../utils/windowControls";
-import "../adapters";
+import { isTauri } from "../adapters";
 
 // Handle titlebar mousedown for window dragging
 const handleTitlebarMousedown = (event: MouseEvent) => {
@@ -574,6 +574,9 @@ const notificationStore = useNotificationStore();
 const featureFlagsStore = useFeatureFlagsStore();
 const dialog = useDialog();
 const { setThemeMode } = useTheme();
+
+// Check if running in Tauri (desktop) mode
+const isDesktopMode = isTauri();
 
 // Notification dialog state
 const showNotifications = ref(false);

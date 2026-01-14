@@ -17,6 +17,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { isTauri } from '../adapters';
 
 /**
  * Result from admin command execution
@@ -33,6 +34,10 @@ export interface AdminExecResult {
  * Calls the Rust backend to perform the check
  */
 export async function checkNeedsAdmin(command: string): Promise<boolean> {
+  // Skip in non-Tauri environment (server mode)
+  if (!isTauri()) {
+    return false;
+  }
   try {
     return await invoke<boolean>('check_needs_admin', { command });
   } catch (error) {

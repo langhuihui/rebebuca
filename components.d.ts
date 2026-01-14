@@ -12,10 +12,8 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AddFolderDialog: typeof import('./src/components/sidebar/dialogs/AddFolderDialog.vue')['default']
-    AICollabCreateDialog: typeof import('./src/components/sidebar/dialogs/AICollabCreateDialog.vue')['default']
     AICollabEditDialog: typeof import('./src/components/sidebar/dialogs/AICollabEditDialog.vue')['default']
     AICollabNativeCreateDialog: typeof import('./src/components/sidebar/dialogs/AICollabNativeCreateDialog.vue')['default']
-    AICollabPanel: typeof import('./src/components/AICollabPanel.vue')['default']
     AICollabPanelNative: typeof import('./src/components/AICollabPanelNative.vue')['default']
     AICollabTaskEditDialog: typeof import('./src/components/sidebar/dialogs/AICollabTaskEditDialog.vue')['default']
     AIToolsPanel: typeof import('./src/components/settings/AIToolsPanel.vue')['default']
@@ -31,9 +29,7 @@ declare module 'vue' {
     NList: typeof import('naive-ui')['NList']
     NListItem: typeof import('naive-ui')['NListItem']
     NotificationsPanel: typeof import('./src/components/NotificationsPanel.vue')['default']
-    NRadioButton: typeof import('naive-ui')['NRadioButton']
     NSpace: typeof import('naive-ui')['NSpace']
-    NSpin: typeof import('naive-ui')['NSpin']
     NTag: typeof import('naive-ui')['NTag']
     NThing: typeof import('naive-ui')['NThing']
     PortManagementPanel: typeof import('./src/components/PortManagementPanel.vue')['default']
@@ -41,6 +37,7 @@ declare module 'vue' {
     RenameGroupDialog: typeof import('./src/components/sidebar/dialogs/RenameGroupDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ServerDirectoryPicker: typeof import('./src/components/ServerDirectoryPicker.vue')['default']
     SettingsPanel: typeof import('./src/components/settings/SettingsPanel.vue')['default']
     SidebarHeader: typeof import('./src/components/sidebar/SidebarHeader.vue')['default']
     SshPanel: typeof import('./src/components/settings/SshPanel.vue')['default']
