@@ -855,6 +855,8 @@ export default {
     upgradeWithSudo: 'sudo 升级',
     upgradeOptions: '升级选项',
     upgradeCommand: '升级命令',
+    reinstallToUpgrade: '此工具不支持直接升级，请重新运行安装命令以升级到最新版本。',
+    reinstall: '重新安装',
     otherMethods: '其他安装方式',
     uninstall: '卸载',
     uninstallNormal: '普通卸载',

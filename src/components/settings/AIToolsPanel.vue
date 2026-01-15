@@ -233,43 +233,93 @@
                 </n-tab-pane>
               </n-tabs>
 
-              <!-- Non-npm tools: show update command directly -->
-              <div v-else class="install-command">
-                <div class="method-label">{{ t("aiTools.upgradeCommand") }}</div>
-                <n-input-group>
-                  <n-input
-                    :value="getToolUpdateCommand(toolType)"
-                    readonly
-                    size="small"
-                    style="font-family: monospace; font-size: 12px"
-                  />
-                  <n-button size="small" @click="copyCommand(getToolUpdateCommand(toolType) || '')">
-                    <template #icon>
-                      <n-icon size="14">
-                        <component :is="svgIcons.copy" />
-                      </n-icon>
+              <!-- Non-npm tools: show update command or install methods for upgrade -->
+              <template v-else>
+                <!-- Tools with dedicated update command (e.g., copilot-cli, codebuddy) -->
+                <div v-if="getToolUpdateCommand(toolType)" class="install-command">
+                  <div class="method-label">{{ t("aiTools.upgradeCommand") }}</div>
+                  <n-input-group>
+                    <n-input
+                      :value="getToolUpdateCommand(toolType)"
+                      readonly
+                      size="small"
+                      style="font-family: monospace; font-size: 12px"
+                    />
+                    <n-button size="small" @click="copyCommand(getToolUpdateCommand(toolType) || '')">
+                      <template #icon>
+                        <n-icon size="14">
+                          <component :is="svgIcons.copy" />
+                        </n-icon>
+                      </template>
+                    </n-button>
+                    <n-button
+                      size="small"
+                      type="primary"
+                      @click="updateTool(toolType, useSudoForUpgrade[toolType] || false, useWslForUpgrade[toolType] || false)"
+                    >
+                      {{ t("aiTools.upgrade") }}
+                    </n-button>
+                  </n-input-group>
+                  <!-- Sudo/WSL options -->
+                  <div class="command-options">
+                    <template v-if="currentPlatform !== 'windows'">
+                      <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useSudo") }}</span>
                     </template>
-                  </n-button>
-                  <n-button
-                    size="small"
-                    type="primary"
-                    @click="updateTool(toolType, useSudoForUpgrade[toolType] || false, useWslForUpgrade[toolType] || false)"
-                  >
-                    {{ t("aiTools.upgrade") }}
-                  </n-button>
-                </n-input-group>
-                <!-- Sudo/WSL options -->
-                <div class="command-options">
-                  <template v-if="currentPlatform !== 'windows'">
-                    <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
-                    <span class="option-label">{{ t("aiTools.useSudo") }}</span>
-                  </template>
-                  <template v-else>
-                    <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
-                    <span class="option-label">{{ t("aiTools.useWsl") }}</span>
-                  </template>
+                    <template v-else>
+                      <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                    </template>
+                  </div>
                 </div>
-              </div>
+                <!-- Tools without update command: show install methods for reinstall/upgrade -->
+                <div v-else>
+                  <n-text depth="3" style="font-size: 12px; display: block; margin-bottom: 12px;">
+                    {{ t("aiTools.reinstallToUpgrade") }}
+                  </n-text>
+                  <div
+                    v-for="method in getAvailableInstallMethods(toolType)"
+                    :key="method.id"
+                    class="install-command"
+                  >
+                    <div class="method-label">{{ method.name }}</div>
+                    <n-input-group>
+                      <n-input
+                        :value="method.command"
+                        readonly
+                        size="small"
+                        style="font-family: monospace; font-size: 12px"
+                      />
+                      <n-button size="small" @click="copyCommand(method.command)">
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.copy" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                      <n-button
+                        size="small"
+                        type="primary"
+                        :loading="upgradingTerminal === toolType"
+                        @click="runInstallCommand(toolType, method, useSudoForUpgrade[toolType] || false, useWslForUpgrade[toolType] || false)"
+                      >
+                        {{ t("aiTools.reinstall") }}
+                      </n-button>
+                    </n-input-group>
+                  </div>
+                  <!-- Sudo/WSL options -->
+                  <div class="command-options" style="margin-top: 8px;">
+                    <template v-if="currentPlatform !== 'windows'">
+                      <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                    </template>
+                    <template v-else>
+                      <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                    </template>
+                  </div>
+                </div>
+              </template>
             </div>
 
             <!-- Installation Section (when not installed) -->

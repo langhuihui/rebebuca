@@ -324,8 +324,8 @@ export interface ProviderKeys {
 }
 
 export const useAIToolsStore = defineStore('aiTools', () => {
-  // AI tool configurations
-  const toolConfigs = ref<Record<AIToolType, AIToolConfig>>({
+  // Default tool configurations - used as baseline for merging
+  const getDefaultToolConfigs = (): Record<AIToolType, AIToolConfig> => ({
     'claude-code': {
       toolType: 'claude-code',
       provider: 'original',
@@ -388,6 +388,9 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     },
   });
 
+  // AI tool configurations
+  const toolConfigs = ref<Record<AIToolType, AIToolConfig>>(getDefaultToolConfigs());
+
   // Provider API keys (shared across tools)
   const providerKeys = ref<ProviderKeys>({});
 
@@ -410,7 +413,18 @@ export const useAIToolsStore = defineStore('aiTools', () => {
 
       const savedConfigs = await storage.get<Record<AIToolType, AIToolConfig>>('ai_tool_configs');
       if (savedConfigs) {
-        toolConfigs.value = savedConfigs;
+        // Merge saved configs with default configs to ensure new tools are included
+        const defaultConfigs = getDefaultToolConfigs();
+        const mergedConfigs = { ...defaultConfigs };
+        
+        // Override defaults with saved configurations
+        for (const [toolType, config] of Object.entries(savedConfigs)) {
+          if (toolType in mergedConfigs) {
+            mergedConfigs[toolType as AIToolType] = config;
+          }
+        }
+        
+        toolConfigs.value = mergedConfigs;
       }
 
       const savedKeys = await storage.get<ProviderKeys>('provider_keys');

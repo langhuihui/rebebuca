@@ -12,10 +12,11 @@
     }
   ],
   "vars": {
-    "NEXT_PUBLIC_APP_URL": "https://dashboard.rebebuca.com",
-    "GITHUB_CLIENT_ID": "Ov23lic5LMk9sDjV9Mfc",
-    "GITHUB_CLIENT_SECRET": "e8321394e9a8b9d4a8f0c175ef19201bd272526d",
-    "GOOGLE_CLIENT_ID": "813984974140-kab5vovm4angq2aeukj32l7r7f5kukb4.apps.googleusercontent.com",
-    "GOOGLE_CLIENT_SECRET": "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"
+    "NEXT_PUBLIC_APP_URL": "https://dashboard.rebebuca.com"
   }
+  // OAuth secrets should be set via Cloudflare Secrets:
+  // wrangler secret put GITHUB_CLIENT_ID
+  // wrangler secret put GITHUB_CLIENT_SECRET
+  // wrangler secret put GOOGLE_CLIENT_ID
+  // wrangler secret put GOOGLE_CLIENT_SECRET
 }

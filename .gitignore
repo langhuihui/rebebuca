@@ -33,3 +33,7 @@ test-scripts/
 # CodeBuddy (AI assistant data)
 .codebuddy/
 target
+
+# Wrangler local secrets
+.dev.vars
+.dev.vars.*

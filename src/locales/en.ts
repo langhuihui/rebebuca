@@ -833,6 +833,8 @@ export default {
     upgradeWithSudo: 'Upgrade with sudo',
     upgradeOptions: 'Upgrade Options',
     upgradeCommand: 'Upgrade Command',
+    reinstallToUpgrade: 'This tool does not support direct upgrade. Re-run the install command to upgrade to the latest version.',
+    reinstall: 'Reinstall',
     otherMethods: 'Other Methods',
     uninstall: 'Uninstall',
     uninstallNormal: 'Normal Uninstall',
