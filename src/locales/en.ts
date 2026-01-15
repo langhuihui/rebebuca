@@ -447,6 +447,8 @@ export default {
     updateAvailable: 'Update Available',
     noUpdate: 'You are on the latest version',
     downloadAndInstall: 'Download & Install',
+    manualDownload: 'Manual Download',
+    manualDownloadHint: 'If auto-update fails, you can download manually:',
     viewRelease: 'View Release',
     downloading: 'Downloading',
     // Dev log settings
@@ -1081,5 +1083,14 @@ export default {
       timeout: 'Authentication timed out',
       loginSuccess: 'You have successfully logged in!',
     },
+  },
+  remoteNotifications: {
+    title: 'Notification',
+    gotIt: 'Got it',
+    next: 'Next',
+    typeInfo: 'Info',
+    typeWarning: 'Warning',
+    typeUpdate: 'Update',
+    typeAnnouncement: 'Announcement',
   },
 };

@@ -244,7 +244,23 @@
             
             <n-alert v-if="updaterStore.error" type="error">
               {{ updaterStore.error }}
+              <div class="manual-download-section">
+                <span class="manual-download-hint">{{ t('settings.manualDownloadHint') }}</span>
+                <a v-if="manualDownloadUrl" :href="manualDownloadUrl" target="_blank" class="manual-download-link">
+                  {{ t('settings.manualDownload') }}
+                </a>
+              </div>
             </n-alert>
+            
+            <!-- Manual Download Section -->
+            <n-divider title-placement="left">{{ t('settings.manualDownload') }}</n-divider>
+            <div class="manual-download-info">
+              <span class="manual-download-hint">{{ t('settings.manualDownloadHint') }}</span>
+              <a v-if="manualDownloadUrl" :href="manualDownloadUrl" target="_blank" class="manual-download-link">
+                {{ manualDownloadUrl }}
+              </a>
+              <span v-else class="manual-download-hint">{{ downloadPlatform === 'linux' ? 'Linux desktop not supported' : 'Loading...' }}</span>
+            </div>
             
             <!-- Release Notes -->
             <n-divider title-placement="left">{{ t('settings.releaseNotes') }}</n-divider>
@@ -356,7 +372,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { saveAs } from 'file-saver';
 import { useSettingsStore } from '../../stores/settings';
-import { useUpdaterStore } from '../../stores/updater';
+import { useUpdaterStore, getDownloadUrl, getCurrentPlatform } from '../../stores/updater';
 import { useRunConfigStore } from '../../stores/runConfig';
 import { useTaskManagerStore } from '../../stores/taskManager';
 import { useLocale } from '../../composables/useLocale';
@@ -394,6 +410,16 @@ const currentVersion = ref('');
 const updateChecked = ref(false);
 const releaseNotes = ref<ReleaseNote[] | null>(null);
 const loadingReleaseNotes = ref(false);
+
+// Current platform for download URL
+const downloadPlatform = computed(() => getCurrentPlatform());
+
+// Manual download URL based on current version and platform
+const manualDownloadUrl = computed(() => {
+  const version = currentVersion.value || updaterStore.currentVersion;
+  if (!version) return '';
+  return getDownloadUrl(version, downloadPlatform.value);
+});
 
 const currentLanguage = ref(localeMode.value);
 const languageOptions = computed(() => getLocalizedOptions());
@@ -833,6 +859,55 @@ onUnmounted(() => {
     white-space: pre-wrap;
     font-size: 13px;
     color: var(--n-text-color-2);
+  }
+  
+  .manual-download-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--n-border-color);
+  }
+  
+  .manual-download-hint {
+    font-size: 13px;
+    color: var(--n-text-color-2);
+    display: block;
+    margin-bottom: 4px;
+  }
+  
+  .manual-download-link {
+    font-size: 13px;
+    color: var(--n-color-primary);
+    text-decoration: none;
+    word-break: break-all;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.manual-download-info {
+  padding: 12px;
+  background: var(--n-color-embedded);
+  border-radius: 6px;
+  border: 1px solid var(--n-border-color);
+  
+  .manual-download-hint {
+    font-size: 13px;
+    color: var(--n-text-color-2);
+    display: block;
+    margin-bottom: 8px;
+  }
+  
+  .manual-download-link {
+    font-size: 13px;
+    color: var(--n-color-primary);
+    text-decoration: none;
+    word-break: break-all;
+    
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
 

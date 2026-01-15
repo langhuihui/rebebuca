@@ -1,0 +1,23 @@
+{
+  "notifications": [
+    {
+      "id": "welcome-2025-01",
+      "type": "announcement",
+      "title": "Welcome to Rebebuca!",
+      "message": "Thank you for using Rebebuca. We hope you enjoy managing your run configurations with ease.",
+      "priority": 10
+    },
+    {
+      "id": "update-v0.6.0",
+      "type": "update",
+      "title": "New Version Available",
+      "message": "Rebebuca v0.6.0 is now available with exciting new features including remote notifications support!",
+      "priority": 5,
+      "action": {
+        "label": "Learn More",
+        "url": "https://github.com/nicepkg/rebebuca/releases"
+      }
+    }
+  ],
+  "lastUpdated": "2025-01-15T00:00:00Z"
+}

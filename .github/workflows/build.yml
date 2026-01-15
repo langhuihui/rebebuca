@@ -247,7 +247,20 @@ jobs:
       - name: Upload artifacts to R2
         run: |
           VERSION=${{ github.ref_name }}
-          rclone copy src-tauri/target/universal-apple-darwin/release/bundle r2:monibuca/rb/${VERSION} --progress
+          VERSION_NUM=${VERSION#v}
+          
+          # Upload DMG to version root
+          rclone copyto "src-tauri/target/universal-apple-darwin/release/bundle/dmg/Rebebuca_${VERSION_NUM}_universal.dmg" \
+            "r2:monibuca/rb/${VERSION}/Rebebuca_${VERSION_NUM}_universal.dmg" --progress
+          
+          # Upload macos auto-update bundle
+          rclone copy src-tauri/target/universal-apple-darwin/release/bundle/macos r2:monibuca/rb/${VERSION}/macos --progress
+          
+          # Upload remote-agent binaries to version root
+          rclone copyto remote-agent/target/x86_64-apple-darwin/release/rebebuca-remote-agent \
+            "r2:monibuca/rb/${VERSION}/rebebuca-remote-agent-x86_64-apple-darwin" --progress || true
+          rclone copyto remote-agent/target/aarch64-apple-darwin/release/rebebuca-remote-agent \
+            "r2:monibuca/rb/${VERSION}/rebebuca-remote-agent-aarch64-apple-darwin" --progress || true
 
       - name: Update latest.json (add macOS signature)
         run: |
@@ -347,7 +360,17 @@ jobs:
         shell: bash
         run: |
           VERSION=${{ github.ref_name }}
-          rclone copy src-tauri/target/release/bundle r2:monibuca/rb/${VERSION} --progress
+          VERSION_NUM=${VERSION#v}
+          
+          # Upload MSI to version root (renamed to rebebuca.msi)
+          rclone copyto "src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi" \
+            "r2:monibuca/rb/${VERSION}/rebebuca.msi" --progress
+          
+          # Upload signature if exists
+          if [ -f "src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi.sig" ]; then
+            rclone copyto "src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi.sig" \
+              "r2:monibuca/rb/${VERSION}/rebebuca.msi.sig" --progress
+          fi
 
       - name: Update latest.json (add Windows signature)
         shell: bash
@@ -355,7 +378,7 @@ jobs:
           VERSION=${{ github.ref_name }}
           VERSION_NUM=${VERSION#v}
           
-          WIN_SIG=$(cat src-tauri/target/release/bundle/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe.sig 2>/dev/null || echo "")
+          WIN_SIG=$(cat src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi.sig 2>/dev/null || echo "")
           
           # Download existing latest.json
           rclone copyto r2:monibuca/rb/latest.json latest.json 2>/dev/null || echo '{"version":"","platforms":{}}' > latest.json
@@ -364,7 +387,7 @@ jobs:
           if [ "$WIN_SIG" != "" ]; then
             jq --arg version "$VERSION_NUM" \
                --arg sig "$WIN_SIG" \
-               --arg url "https://download.m7s.live/rb/${VERSION}/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe" \
+               --arg url "https://download.m7s.live/rb/${VERSION}/rebebuca.msi" \
                '.platforms["windows-x86_64"] = {signature: $sig, url: $url} | .version = $version' \
                latest.json > latest-new.json
             mv latest-new.json latest.json

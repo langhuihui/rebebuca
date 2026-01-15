@@ -86,6 +86,9 @@
 
           <!-- Status Bar (hidden in embedded mode or mini mode) -->
           <StatusBar v-if="!props.embedded && !uiStore.miniMode" />
+
+          <!-- Remote Notification Modal (hidden in embedded mode) -->
+          <RemoteNotificationModal v-if="!props.embedded" />
         </n-layout>
       </n-dialog-provider>
     </n-message-provider>
@@ -114,6 +117,7 @@ import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
 import StatusBar from "./components/StatusBar.vue";
 import ServerDirectoryPicker from "./components/ServerDirectoryPicker.vue";
+import RemoteNotificationModal from "./components/RemoteNotificationModal.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { isWindows } from "./utils/platform";

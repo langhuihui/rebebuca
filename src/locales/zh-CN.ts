@@ -468,6 +468,8 @@ export default {
     updateAvailable: '发现新版本',
     noUpdate: '已是最新版本',
     downloadAndInstall: '下载并安装',
+    manualDownload: '手动下载',
+    manualDownloadHint: '如果自动更新失败，可以手动下载：',
     viewRelease: '查看更新',
     downloading: '下载中',
     // Dev log settings
@@ -1098,5 +1100,14 @@ export default {
       timeout: '认证超时',
       loginSuccess: '您已成功登录！',
     },
+  },
+  remoteNotifications: {
+    title: '通知',
+    gotIt: '知道了',
+    next: '下一条',
+    typeInfo: '消息',
+    typeWarning: '警告',
+    typeUpdate: '更新',
+    typeAnnouncement: '公告',
   },
 };
