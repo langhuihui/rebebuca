@@ -52,6 +52,7 @@ export interface AppSettings {
   // Terminal settings
   preferredTerminal: string | null;  // Terminal ID to use when opening in system terminal
   preferredShell: string | null;  // Shell path to use for internal PTY terminal (e.g., /bin/zsh, /bin/bash)
+  terminalRenderer: 'webgl' | 'canvas' | 'dom';  // Terminal renderer type (webgl = best performance, canvas = good compatibility, dom = best text selection)
   
   // Security settings
   sudoPassword: string | null;  // Stored sudo password (base64 encoded for basic obfuscation)
@@ -73,6 +74,7 @@ const defaultSettings: AppSettings = {
   recentTasksCount: 5,
   preferredTerminal: null,
   preferredShell: null,
+  terminalRenderer: 'webgl',
   sudoPassword: null,
   commandIcons: {},
   mcpPort: 3001,

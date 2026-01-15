@@ -32,6 +32,7 @@ declare module 'vue' {
     NotificationsPanel: typeof import('./src/components/NotificationsPanel.vue')['default']
     NSpace: typeof import('naive-ui')['NSpace']
     NTag: typeof import('naive-ui')['NTag']
+    NText: typeof import('naive-ui')['NText']
     NThing: typeof import('naive-ui')['NThing']
     OAuthLoginDialog: typeof import('./src/components/OAuthLoginDialog.vue')['default']
     PortManagementPanel: typeof import('./src/components/PortManagementPanel.vue')['default']

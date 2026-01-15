@@ -428,6 +428,11 @@ export default {
     preferredShellHint: '选择内置终端使用的 Shell 程序 (如 bash、zsh、fish)',
     noShellsFound: '未找到 Shell 程序',
     failedToLoadShells: '加载可用 Shell 失败',
+    terminalRenderer: '终端渲染器',
+    terminalRendererHint: '选择终端渲染方式（WebGL 性能最佳，Canvas 兼容性好，DOM 文本选择最佳）',
+    rendererWebgl: 'WebGL（高性能）',
+    rendererCanvas: 'Canvas（兼容性好）',
+    rendererDom: 'DOM（文本选择佳）',
     ssh: 'SSH',
     default: '默认',
     // Security settings

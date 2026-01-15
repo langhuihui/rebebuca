@@ -78,6 +78,14 @@
             />
             <span class="setting-hint">{{ t('settings.preferredShellHint') }}</span>
           </n-form-item>
+          <n-form-item :label="t('settings.terminalRenderer')">
+            <n-radio-group v-model:value="settingsStore.settings.terminalRenderer">
+              <n-radio value="webgl">{{ t('settings.rendererWebgl') }}</n-radio>
+              <n-radio value="canvas">{{ t('settings.rendererCanvas') }}</n-radio>
+              <n-radio value="dom">{{ t('settings.rendererDom') }}</n-radio>
+            </n-radio-group>
+            <span class="setting-hint">{{ t('settings.terminalRendererHint') }}</span>
+          </n-form-item>
 
           <n-divider />
 

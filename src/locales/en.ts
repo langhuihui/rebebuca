@@ -407,6 +407,11 @@ export default {
     preferredShellHint: 'Select which shell to use for built-in terminal (e.g., bash, zsh, fish)',
     noShellsFound: 'No shell programs found',
     failedToLoadShells: 'Failed to load available shells',
+    terminalRenderer: 'Terminal Renderer',
+    terminalRendererHint: 'Select terminal rendering method (WebGL for best performance, Canvas for good compatibility, DOM for best text selection)',
+    rendererWebgl: 'WebGL (High Performance)',
+    rendererCanvas: 'Canvas (Good Compatibility)',
+    rendererDom: 'DOM (Best Text Selection)',
     ssh: 'SSH',
     default: 'Default',
     // Security settings

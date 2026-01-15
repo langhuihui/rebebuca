@@ -40,7 +40,7 @@
       "all": true
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwRDU1MEU5NUJCRkI0REUKUldUZXRMOWI2VkRWY094dUVLRnRBdU1kTmxBdGd1Z0FOc1hKVXUrcys5TmpYSjBVYXBESEZxMVMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEMTI3NTkxRERBODJEOTYKUldTV0xhamRrWFVTN1M5RGJlNzJ4SHFKR3VXb2R3T2hkWEtqVUZzQ2tsQmg5a2dkaFBQU1YrelUK",
       "endpoints": [
         "https://download.m7s.live/rb/latest.json"
       ]

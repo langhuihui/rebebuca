@@ -67,6 +67,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { SearchAddon } from '@xterm/addon-search';
 import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
 import { ShellIntegration, type CommandInfo } from '../utils/shellIntegration';
@@ -117,6 +118,7 @@ const searchResultIndex = ref<number | null>(null);
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
 let webglAddon: WebglAddon | null = null;
+let canvasAddon: CanvasAddon | null = null;
 let searchAddon: SearchAddon | null = null;
 let shellIntegration: ShellIntegration | null = null;
 let unlistenOutput: (() => void) | null = null;
@@ -131,9 +133,6 @@ let wasHidden = false;
 // Buffer for output received before terminal is ready
 let pendingOutputBuffer: string[] = [];
 let isTerminalReady = false;
-
-// WebGL setting - enabled for better performance
-const USE_WEBGL = true;
 
 // Terminal theme configurations
 const darkTheme = {
@@ -249,11 +248,11 @@ const initTerminal = async () => {
   
   terminal.open(terminalContainer.value);
   
-  // Try to enable WebGL renderer for better performance
-  // However, WebGL can lose context when element is hidden (v-show)
-  // Disabling WebGL by default to avoid rendering issues when switching tabs
-  // Canvas renderer is more stable and doesn't have context loss issues
-  if (USE_WEBGL) {
+  // Load renderer based on settings
+  const settingsStore = useSettingsStore();
+  const rendererType = settingsStore.settings.terminalRenderer || 'webgl';
+  
+  if (rendererType === 'webgl') {
     try {
       webglAddon = new WebglAddon();
       webglAddon.onContextLoss(() => {
@@ -261,6 +260,14 @@ const initTerminal = async () => {
         console.warn('[Terminal] WebGL context lost, falling back to canvas renderer');
         webglAddon?.dispose();
         webglAddon = null;
+        // Try to load canvas addon as fallback
+        try {
+          canvasAddon = new CanvasAddon();
+          terminal?.loadAddon(canvasAddon);
+          console.log('[Terminal] Fell back to Canvas renderer');
+        } catch (canvasError) {
+          console.warn('[Terminal] Canvas fallback failed, using DOM renderer:', canvasError);
+        }
         // Force refresh terminal after context loss
         if (terminal && fitAddon) {
           const term = terminal;
@@ -278,10 +285,27 @@ const initTerminal = async () => {
       terminal.loadAddon(webglAddon);
       console.log('[Terminal] WebGL renderer enabled');
     } catch (e) {
-      console.warn('[Terminal] WebGL not available, using canvas renderer:', e);
+      console.warn('[Terminal] WebGL not available, trying canvas renderer:', e);
+      // Fallback to canvas
+      try {
+        canvasAddon = new CanvasAddon();
+        terminal.loadAddon(canvasAddon);
+        console.log('[Terminal] Fell back to Canvas renderer');
+      } catch (canvasError) {
+        console.warn('[Terminal] Canvas renderer not available, using DOM renderer:', canvasError);
+      }
+    }
+  } else if (rendererType === 'canvas') {
+    try {
+      canvasAddon = new CanvasAddon();
+      terminal.loadAddon(canvasAddon);
+      console.log('[Terminal] Canvas renderer enabled');
+    } catch (e) {
+      console.warn('[Terminal] Canvas renderer not available, using DOM renderer:', e);
     }
   } else {
-    console.log('[Terminal] Using canvas renderer (WebGL disabled to avoid rendering issues with tab switching)');
+    // DOM renderer (default xterm.js renderer, no addon needed)
+    console.log('[Terminal] Using DOM renderer');
   }
   
   // Fit terminal to container
@@ -507,6 +531,11 @@ const dispose = async () => {
     webglAddon = null;
   }
 
+  if (canvasAddon) {
+    canvasAddon.dispose();
+    canvasAddon = null;
+  }
+
   if (searchAddon) {
     searchAddon = null;
   }
@@ -630,12 +659,16 @@ const restoreRenderer = () => {
       return;
     }
     
-    // Wait for DOM to settle, then restore WebGL and refresh
+    // Wait for DOM to settle, then restore renderer and refresh
     setTimeout(() => {
       if (!terminal) return;
       
+      // Get renderer type from settings
+      const settingsStore = useSettingsStore();
+      const rendererType = settingsStore.settings.terminalRenderer || 'webgl';
+      
       // If WebGL was enabled but lost, try to restore it
-      if (USE_WEBGL && !webglAddon) {
+      if (rendererType === 'webgl' && !webglAddon) {
         try {
           console.log('[TerminalView] Recreating WebGL addon');
           webglAddon = new WebglAddon();
@@ -653,6 +686,20 @@ const restoreRenderer = () => {
           }
         } catch (e) {
           console.warn('[TerminalView] Failed to recreate WebGL:', e);
+        }
+      } else if (rendererType === 'canvas' && !canvasAddon) {
+        try {
+          console.log('[TerminalView] Recreating Canvas addon');
+          canvasAddon = new CanvasAddon();
+          terminal.loadAddon(canvasAddon);
+          console.log('[TerminalView] Canvas addon recreated');
+          
+          // Fit again after Canvas is loaded
+          if (fitAddon && terminal) {
+            fitAddon.fit();
+          }
+        } catch (e) {
+          console.warn('[TerminalView] Failed to recreate Canvas:', e);
         }
       }
       
