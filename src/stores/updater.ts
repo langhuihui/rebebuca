@@ -69,7 +69,7 @@ function getDownloadUrl(version: string, platform: 'mac' | 'windows' | 'linux'):
     case 'mac':
       return `${baseUrl}/v${version}/Rebebuca_${version}_universal.dmg`;
     case 'windows':
-      return `${baseUrl}/v${version}/rebebuca.exe`;
+      return `${baseUrl}/v${version}/rebebuca.msi`;
     case 'linux':
       // No Linux desktop build
       return '';

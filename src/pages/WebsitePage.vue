@@ -772,7 +772,7 @@ const fetchVersion = async () => {
     currentVersion.value = `v${data.version}`;
     const version = data.version;
     macosUrl.value = `https://download.m7s.live/rb/v${version}/Rebebuca_${version}_universal.dmg`;
-    windowsUrl.value = `https://download.m7s.live/rb/v${version}/rebebuca.exe`;
+    windowsUrl.value = `https://download.m7s.live/rb/v${version}/rebebuca.msi`;
   } catch (e) {
     console.error("Failed to fetch version:", e);
   }

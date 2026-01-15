@@ -70,7 +70,11 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "wix": {
+        "language": ["en-US", "zh-CN"]
+      },
+      "nsis": null
     },
     "linux": {
       "deb": {
