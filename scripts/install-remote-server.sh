@@ -189,10 +189,12 @@ install() {
     # Make binary executable
     $use_sudo chmod +x "$INSTALL_DIR/rebebuca-remote-server"
     
-    # Create symlink in /usr/local/bin for easy access
+    # Create symlinks in /usr/local/bin for easy access
     if [ -d "/usr/local/bin" ]; then
-        info "Creating symlink in /usr/local/bin..."
+        info "Creating symlinks in /usr/local/bin..."
         $use_sudo ln -sf "$INSTALL_DIR/rebebuca-remote-server" /usr/local/bin/rebebuca-remote-server
+        # Create short alias 'rb' for convenience
+        $use_sudo ln -sf "$INSTALL_DIR/rebebuca-remote-server" /usr/local/bin/rb
     fi
     
     # Cleanup
@@ -204,14 +206,14 @@ install() {
     echo "  Binary: $INSTALL_DIR/rebebuca-remote-server"
     echo "  Web assets: $INSTALL_DIR/dist/"
     echo ""
-    echo "  Quick start:"
-    echo "    rebebuca-remote-server --help"
+    echo "  Quick start (use 'rb' or 'rebebuca-remote-server'):"
+    echo "    rb --help"
     echo ""
     echo "  To generate a config file:"
-    echo "    rebebuca-remote-server --generate-config > config.toml"
+    echo "    rb --generate-config > config.toml"
     echo ""
     echo "  To start the server:"
-    echo "    cd $INSTALL_DIR && ./rebebuca-remote-server -c config.toml"
+    echo "    cd $INSTALL_DIR && rb -c config.toml"
     echo ""
 }
 

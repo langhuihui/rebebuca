@@ -57,6 +57,13 @@ jobs:
   build-remote-server:
     needs: cleanup-caches
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            arch: x86_64
+          - target: aarch64-unknown-linux-musl
+            arch: aarch64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -87,7 +94,20 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-gnu
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          # For cross-compiling to aarch64
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu musl-dev
+            # Install aarch64 musl cross compiler
+            wget -q https://musl.cc/aarch64-linux-musl-cross.tgz
+            tar -xzf aarch64-linux-musl-cross.tgz
+            echo "$PWD/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+          fi
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -96,6 +116,7 @@ jobs:
             remote-agent-server -> target
             common -> target
           cache-on-failure: true
+          key: ${{ matrix.target }}
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -103,23 +124,28 @@ jobs:
       - name: Build frontend for server
         run: pnpm build:server
 
-      - name: Build remote-agent-server for Linux
+      - name: Build remote-agent-server for Linux (${{ matrix.arch }})
         run: |
           cd remote-agent-server
-          cargo build --release --target x86_64-unknown-linux-gnu
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            export CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc
+            export AR_aarch64_unknown_linux_musl=aarch64-linux-musl-ar
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc
+          fi
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Package remote-agent-server with web assets
         run: |
           VERSION=${{ github.ref_name }}
           mkdir -p package/rebebuca-remote-server
-          cp remote-agent-server/target/x86_64-unknown-linux-gnu/release/rebebuca-remote-server package/rebebuca-remote-server/
+          cp remote-agent-server/target/${{ matrix.target }}/release/rebebuca-remote-server package/rebebuca-remote-server/
           cp -r dist package/rebebuca-remote-server/
           cd package
-          tar -czvf rebebuca-remote-server-linux-x86_64.tar.gz rebebuca-remote-server
+          tar -czvf rebebuca-remote-server-linux-${{ matrix.arch }}.tar.gz rebebuca-remote-server
 
       - name: Install rclone
         run: |
-          sudo apt-get update && sudo apt-get install -y rclone jq
+          sudo apt-get install -y rclone jq
 
       - name: Configure rclone for R2
         run: |
@@ -138,9 +164,12 @@ jobs:
       - name: Upload remote-agent-server to R2
         run: |
           VERSION=${{ github.ref_name }}
-          rclone copyto package/rebebuca-remote-server-linux-x86_64.tar.gz \
-            r2:monibuca/rb/${VERSION}/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz --progress
-          # Installer script resolves latest via releases.json (no rb/latest required)
+          rclone copyto package/rebebuca-remote-server-linux-${{ matrix.arch }}.tar.gz \
+            r2:monibuca/rb/${VERSION}/remote-agent-server/rebebuca-remote-server-linux-${{ matrix.arch }}.tar.gz --progress
+
+      - name: Upload installer script (only once from x86_64 job)
+        if: matrix.arch == 'x86_64'
+        run: |
           rclone copyto scripts/install-remote-server.sh \
             r2:monibuca/rb/install-remote-server.sh --progress
 
