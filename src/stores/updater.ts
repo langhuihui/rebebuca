@@ -19,6 +19,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
+import { tauriFetch } from '../utils/tauriFetch';
 
 export interface UpdateInfo {
   version: string;
@@ -44,7 +45,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 let adapter: BackendAdapter | null = null;
 
 // Detect current platform
-function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
+export function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
   if (isTauri()) {
     // @ts-ignore
     const { platform } = process.env;
@@ -62,7 +63,7 @@ function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
 /**
  * Get download URL for a version and platform
  */
-function getDownloadUrl(version: string, platform: 'mac' | 'windows' | 'linux'): string {
+export function getDownloadUrl(version: string, platform: 'mac' | 'windows' | 'linux'): string {
   const baseUrl = 'https://download.m7s.live/rb';
   
   switch (platform) {
@@ -90,10 +91,9 @@ async function checkDownloadExists(version: string, platform: 'mac' | 'windows' 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(url, {
+    const response = await tauriFetch(url, {
       method: 'HEAD',
       signal: controller.signal,
-      cache: 'no-cache'
     });
     
     clearTimeout(timeoutId);
@@ -298,9 +298,8 @@ export const useUpdaterStore = defineStore('updater', () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      const response = await fetch(RELEASES_URL, {
+      const response = await tauriFetch(RELEASES_URL, {
         signal: controller.signal,
-        cache: 'no-cache'
       });
       
       clearTimeout(timeoutId);

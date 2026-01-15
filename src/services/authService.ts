@@ -285,9 +285,21 @@ class AuthService {
   /**
    * Open the auth portal in browser
    */
-  openAuthPortal(path: string = '/login') {
+  async openAuthPortal(path: string = '/login') {
     const url = `${AUTH_SERVER_URL}${path}`;
-    window.open(url, '_blank');
+    try {
+      // Check if running in Tauri
+      if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      console.error('Failed to open URL:', error);
+      // Fallback to window.open
+      window.open(url, '_blank');
+    }
   }
 
   /**
