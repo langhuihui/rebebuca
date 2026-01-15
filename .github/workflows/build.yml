@@ -1,9 +1,9 @@
-name: Build Tauri App (Windows)
+name: Build Tauri App
 
 on:
   push:
     tags:
-      - 'win-v*'
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -111,7 +111,6 @@ jobs:
       - name: Package remote-agent-server with web assets
         run: |
           VERSION=${{ github.ref_name }}
-          VERSION=${VERSION#win-}
           mkdir -p package/rebebuca-remote-server
           cp remote-agent-server/target/x86_64-unknown-linux-gnu/release/rebebuca-remote-server package/rebebuca-remote-server/
           cp -r dist package/rebebuca-remote-server/
@@ -139,12 +138,110 @@ jobs:
       - name: Upload remote-agent-server to R2
         run: |
           VERSION=${{ github.ref_name }}
-          VERSION=${VERSION#win-}
           rclone copyto package/rebebuca-remote-server-linux-x86_64.tar.gz \
             r2:monibuca/rb/${VERSION}/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz --progress
           # Installer script resolves latest via releases.json (no rb/latest required)
           rclone copyto scripts/install-remote-server.sh \
             r2:monibuca/rb/install-remote-server.sh --progress
+
+  build-macos:
+    needs: cleanup-caches
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            remote-agent -> target
+          cache-on-failure: true
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build Tauri app (Universal)
+        run: pnpm tauri build --target universal-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Install rclone
+        run: brew install rclone jq
+
+      - name: Configure rclone for R2
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          no_check_bucket = true
+          EOF
+
+      - name: Upload artifacts to R2
+        run: |
+          VERSION=${{ github.ref_name }}
+          rclone copy src-tauri/target/universal-apple-darwin/release/bundle r2:monibuca/rb/${VERSION} --progress
+
+      - name: Update latest.json (add macOS signature)
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION_NUM=${VERSION#v}
+          
+          MAC_SIG=$(cat src-tauri/target/universal-apple-darwin/release/bundle/macos/Rebebuca.app.tar.gz.sig 2>/dev/null || echo "")
+          
+          # Download existing latest.json or create new one
+          rclone copyto r2:monibuca/rb/latest.json latest.json 2>/dev/null || echo '{"version":"","platforms":{}}' > latest.json
+          
+          # Add or update macOS platform in latest.json
+          if [ "$MAC_SIG" != "" ]; then
+            jq --arg version "$VERSION_NUM" \
+               --arg sig "$MAC_SIG" \
+               --arg url "https://download.m7s.live/rb/${VERSION}/macos/Rebebuca.app.tar.gz" \
+               '.platforms["darwin-universal"] = {signature: $sig, url: $url} | .version = $version' \
+               latest.json > latest-new.json
+            mv latest-new.json latest.json
+          fi
+          
+          # Upload updated latest.json
+          rclone copyto latest.json r2:monibuca/rb/latest.json --progress
 
   build-windows:
     needs: cleanup-caches
@@ -221,20 +318,18 @@ jobs:
         shell: bash
         run: |
           VERSION=${{ github.ref_name }}
-          VERSION=${VERSION#win-}
           rclone copy src-tauri/target/release/bundle r2:monibuca/rb/${VERSION} --progress
 
       - name: Update latest.json (add Windows signature)
         shell: bash
         run: |
           VERSION=${{ github.ref_name }}
-          VERSION=${VERSION#win-}
           VERSION_NUM=${VERSION#v}
           
           WIN_SIG=$(cat src-tauri/target/release/bundle/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe.sig 2>/dev/null || echo "")
           
           # Download existing latest.json
-          rclone copyto r2:monibuca/rb/latest.json latest.json 2>/dev/null || echo '{}' > latest.json
+          rclone copyto r2:monibuca/rb/latest.json latest.json 2>/dev/null || echo '{"version":"","platforms":{}}' > latest.json
           
           # Add or update Windows platform in latest.json
           if [ "$WIN_SIG" != "" ]; then
@@ -250,9 +345,9 @@ jobs:
           rclone copyto latest.json r2:monibuca/rb/latest.json --progress
 
       - name: Generate and upload releases.json
+        shell: bash
         run: |
           VERSION=${{ github.ref_name }}
-          VERSION=${VERSION#win-}
           VERSION_NUM=${VERSION#v}
           DATE=$(date +%Y-%m-%d)
           
