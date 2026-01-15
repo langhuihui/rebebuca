@@ -18,7 +18,7 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { getAdapter, type BackendAdapter } from '../adapters';
+import { getAdapter, type BackendAdapter, isTauri } from '../adapters';
 import { safeInvoke } from '../utils/programUtils';
 
 // Adapter instance for persistence
@@ -148,39 +148,55 @@ export const useSshStore = defineStore('ssh', () => {
       }
     }
     
-    // Sync saved configs to backend
-    for (const config of configs.value) {
-      try {
-        await safeInvoke('save_ssh_config', {
-          config: {
-            id: config.id,
-            name: config.name,
-            host: config.host,
-            port: config.port,
-            username: config.username,
-            auth: config.auth,
-            keep_alive_interval: config.keepAliveInterval || 60,
-            keep_connection: config.keepConnection || false,
-          },
-        });
-      } catch (error) {
-        console.error(`[SSH] Failed to sync config ${config.id} to backend:`, error);
+    if (isTauri()) {
+      // Sync saved configs to backend (desktop only)
+      for (const config of configs.value) {
+        try {
+          await safeInvoke('save_ssh_config', {
+            config: {
+              id: config.id,
+              name: config.name,
+              host: config.host,
+              port: config.port,
+              username: config.username,
+              auth: config.auth,
+              keep_alive_interval: config.keepAliveInterval || 60,
+              keep_connection: config.keepConnection || false,
+            },
+          });
+        } catch (error) {
+          console.error(`[SSH] Failed to sync config ${config.id} to backend:`, error);
+        }
       }
+
+      // Refresh connection statuses
+      await refreshConnectionStatuses();
+
+      // Start periodic status refresh
+      setInterval(() => {
+        refreshConnectionStatuses();
+      }, 5000);
+    } else {
+      // Server/mock mode: backend SSH management is not available.
+      // Still initialize statuses so UI can render.
+      const newStatuses: Record<string, SshConnectionInfo> = {};
+      for (const config of configs.value) {
+        newStatuses[config.id] = {
+          id: config.id,
+          status: 'disconnected',
+          task_count: 0,
+        };
+      }
+      connectionStatuses.value = newStatuses;
     }
-    
-    // Refresh connection statuses
-    await refreshConnectionStatuses();
-    
-    // Start periodic status refresh
-    setInterval(() => {
-      refreshConnectionStatuses();
-    }, 5000);
   }
   
   /**
    * Refresh connection status for all configs
    */
   async function refreshConnectionStatuses(): Promise<void> {
+    if (!isTauri()) return;
+
     const newStatuses: Record<string, SshConnectionInfo> = { ...connectionStatuses.value };
     for (const config of configs.value) {
       try {
@@ -200,6 +216,8 @@ export const useSshStore = defineStore('ssh', () => {
    * Refresh connection status for a specific config
    */
   async function refreshConnectionStatus(configId: string): Promise<void> {
+    if (!isTauri()) return;
+
     try {
       console.log(`[SSH] Refreshing status for ${configId}...`);
       const status = await safeInvoke<SshConnectionInfo>('get_ssh_connection_status', { id: configId });
@@ -232,22 +250,24 @@ export const useSshStore = defineStore('ssh', () => {
     configs.value.push(newConfig);
     await saveConfigs();
     
-    // Save to backend
-    try {
-      await safeInvoke('save_ssh_config', {
-        config: {
-          id: newConfig.id,
-          name: newConfig.name,
-          host: newConfig.host,
-          port: newConfig.port,
-          username: newConfig.username,
-          auth: newConfig.auth,
-          keep_alive_interval: newConfig.keepAliveInterval || 60,
-          keep_connection: newConfig.keepConnection || false,
-        },
-      });
-    } catch (error) {
-      console.error('[SSH] Failed to save to backend:', error);
+    // Save to backend (desktop only)
+    if (isTauri()) {
+      try {
+        await safeInvoke('save_ssh_config', {
+          config: {
+            id: newConfig.id,
+            name: newConfig.name,
+            host: newConfig.host,
+            port: newConfig.port,
+            username: newConfig.username,
+            auth: newConfig.auth,
+            keep_alive_interval: newConfig.keepAliveInterval || 60,
+            keep_connection: newConfig.keepConnection || false,
+          },
+        });
+      } catch (error) {
+        console.error('[SSH] Failed to save to backend:', error);
+      }
     }
     
     return newConfig;
@@ -269,25 +289,27 @@ export const useSshStore = defineStore('ssh', () => {
     
     await saveConfigs();
     
-    // Update in backend
-    try {
-      await safeInvoke('save_ssh_config', {
-        config: {
-          id: configs.value[index].id,
-          name: configs.value[index].name,
-          host: configs.value[index].host,
-          port: configs.value[index].port,
-          username: configs.value[index].username,
-          auth: configs.value[index].auth,
-          keep_alive_interval: configs.value[index].keepAliveInterval || 60,
-          keep_connection: configs.value[index].keepConnection || false,
-        },
-      });
-    } catch (error) {
-      console.error('[SSH] Failed to update in backend:', error);
+    // Update in backend (desktop only)
+    if (isTauri()) {
+      try {
+        await safeInvoke('save_ssh_config', {
+          config: {
+            id: configs.value[index].id,
+            name: configs.value[index].name,
+            host: configs.value[index].host,
+            port: configs.value[index].port,
+            username: configs.value[index].username,
+            auth: configs.value[index].auth,
+            keep_alive_interval: configs.value[index].keepAliveInterval || 60,
+            keep_connection: configs.value[index].keepConnection || false,
+          },
+        });
+      } catch (error) {
+        console.error('[SSH] Failed to update in backend:', error);
+      }
+
+      await refreshConnectionStatus(id);
     }
-    
-    await refreshConnectionStatus(id);
   }
   
   /**
@@ -305,11 +327,13 @@ export const useSshStore = defineStore('ssh', () => {
     connectionStatuses.value = rest;
     await saveConfigs();
     
-    // Delete from backend
-    try {
-      await safeInvoke('delete_ssh_config', { id });
-    } catch (error) {
-      console.error('[SSH] Failed to delete from backend:', error);
+    // Delete from backend (desktop only)
+    if (isTauri()) {
+      try {
+        await safeInvoke('delete_ssh_config', { id });
+      } catch (error) {
+        console.error('[SSH] Failed to delete from backend:', error);
+      }
     }
   }
   
@@ -324,6 +348,10 @@ export const useSshStore = defineStore('ssh', () => {
    * Connect to SSH server
    */
   async function connect(id: string): Promise<void> {
+    if (!isTauri()) {
+      throw new Error('SSH connect is only available in desktop mode');
+    }
+
     console.log(`[SSH] connect() called with id: ${id}`);
     loading.value = true;
     try {
@@ -344,6 +372,10 @@ export const useSshStore = defineStore('ssh', () => {
    * Disconnect from SSH server
    */
   async function disconnect(id: string): Promise<void> {
+    if (!isTauri()) {
+      throw new Error('SSH disconnect is only available in desktop mode');
+    }
+
     loading.value = true;
     try {
       await safeInvoke('disconnect_ssh', { id });
@@ -360,6 +392,10 @@ export const useSshStore = defineStore('ssh', () => {
    * Test SSH connection
    */
   async function testConnection(config: SshConfig): Promise<string> {
+    if (!isTauri()) {
+      throw new Error('SSH connection test is only available in desktop mode');
+    }
+
     try {
       const result = await safeInvoke<string>('test_ssh_connection', {
         config: {
@@ -384,6 +420,10 @@ export const useSshStore = defineStore('ssh', () => {
    * Test SSH agent (ping/pong)
    */
   async function testAgent(id: string): Promise<boolean> {
+    if (!isTauri()) {
+      return false;
+    }
+
     try {
       const result = await safeInvoke<boolean>('test_ssh_agent', { id });
       await refreshConnectionStatus(id);
@@ -591,6 +631,10 @@ export const useSshStore = defineStore('ssh', () => {
    * List remote directory contents via SSH
    */
   async function listDirectory(configId: string, path: string): Promise<RemoteDirectoryEntry[]> {
+    if (!isTauri()) {
+      throw new Error('Remote directory listing is only available in desktop mode');
+    }
+
     try {
       const result = await safeInvoke<RemoteDirectoryEntry[]>('list_ssh_directory', {
         configId,
@@ -607,6 +651,10 @@ export const useSshStore = defineStore('ssh', () => {
    * Get user's home directory on remote server
    */
   async function getHomeDirectory(configId: string): Promise<string> {
+    if (!isTauri()) {
+      throw new Error('Remote home directory is only available in desktop mode');
+    }
+
     try {
       const result = await safeInvoke<string>('get_ssh_home_directory', {
         configId,
@@ -622,6 +670,10 @@ export const useSshStore = defineStore('ssh', () => {
    * Get available shells on remote server
    */
   async function getRemoteShells(configId: string): Promise<RemoteShellInfo[]> {
+    if (!isTauri()) {
+      throw new Error('Remote shells are only available in desktop mode');
+    }
+
     try {
       const result = await safeInvoke<RemoteShellInfo[]>('get_ssh_shells', {
         configId,

@@ -59,6 +59,9 @@ export interface AppSettings {
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
   commandIcons: Record<string, string>;
+  
+  // MCP settings
+  mcpPort: number;  // MCP server port (default: 3001)
 }
 
 const defaultSettings: AppSettings = {
@@ -72,6 +75,7 @@ const defaultSettings: AppSettings = {
   preferredShell: null,
   sudoPassword: null,
   commandIcons: {},
+  mcpPort: 3001,
 };
 
 export const useSettingsStore = defineStore('settings', () => {

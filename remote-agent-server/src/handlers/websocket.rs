@@ -414,8 +414,12 @@ async fn handle_request(client_id: &str, request: Request, state: &AppState) -> 
 }
 
 /// Check for updates from the releases server
+///
+/// Uses a unified version number across platforms, but will only report an update
+/// as available when the corresponding remote-agent-server artifact exists.
 async fn check_for_updates() -> Result<serde_json::Value, String> {
     const RELEASES_URL: &str = "https://download.m7s.live/rb/releases.json";
+    const BASE_URL: &str = "https://download.m7s.live/rb";
     const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
     // Fetch releases data
@@ -439,14 +443,46 @@ async fn check_for_updates() -> Result<serde_json::Value, String> {
         .await
         .map_err(|e| format!("Failed to parse releases: {}", e))?;
 
-    // Get the latest version from releases
+    // Simple releases.json format: { latest, releases }
     let latest_version = data
         .get("latest")
         .and_then(|v| v.as_str())
         .unwrap_or(CURRENT_VERSION);
 
-    // Compare versions
-    let available = compare_versions(latest_version, CURRENT_VERSION) > 0;
+    let version_newer = compare_versions(latest_version, CURRENT_VERSION) > 0;
+
+    // Default: no update
+    let mut available = false;
+
+    // Only claim update is available if the remote-agent-server artifact exists
+    if version_newer {
+        let os = std::env::consts::OS;
+        let arch = std::env::consts::ARCH;
+
+        // We publish remote-agent-server for Linux only
+        if os == "linux" {
+            let arch_name = match arch {
+                "x86_64" => "x86_64",
+                "aarch64" => "aarch64",
+                _ => "",
+            };
+
+            if !arch_name.is_empty() {
+                let version_tag = format!("v{}", latest_version);
+                let artifact_url = format!(
+                    "{}/{}/remote-agent-server/rebebuca-remote-server-linux-{}.tar.gz",
+                    BASE_URL,
+                    version_tag,
+                    arch_name
+                );
+
+                // HEAD check
+                if let Ok(resp) = client.head(&artifact_url).send().await {
+                    available = resp.status().is_success();
+                }
+            }
+        }
+    }
 
     // Get release notes for the latest version
     let notes = if available {
@@ -497,137 +533,199 @@ fn compare_versions(v1: &str, v2: &str) -> i32 {
 }
 
 /// Download and install update, then restart the server
+///
+/// This downloads the versioned remote-agent-server tarball (no `latest/` directory),
+/// extracts it, replaces the current binary and `dist/`, then restarts.
 async fn download_and_install_update() -> Result<serde_json::Value, String> {
     const BASE_URL: &str = "https://download.m7s.live/rb";
-    
-    // Get current executable path
-    let current_exe = std::env::current_exe()
-        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
-    
-    // Detect architecture
-    let arch = std::env::consts::ARCH;
+    const RELEASES_URL: &str = "https://download.m7s.live/rb/releases.json";
+
+    // Only supported on Linux for now
     let os = std::env::consts::OS;
-    
-    // Map architecture names
+    if os != "linux" {
+        return Err(format!("Unsupported OS for remote-agent-server update: {}", os));
+    }
+
+    let arch = std::env::consts::ARCH;
     let arch_name = match arch {
         "x86_64" => "x86_64",
         "aarch64" => "aarch64",
         _ => return Err(format!("Unsupported architecture: {}", arch)),
     };
-    
-    // Map OS names
-    let os_name = match os {
-        "linux" => "linux",
-        "macos" => "darwin",
-        _ => return Err(format!("Unsupported OS: {}", os)),
-    };
-    
-    // Build download URL
-    let download_url = format!(
-        "{}/latest/remote-agent-server/rebebuca-remote-server-{}-{}",
-        BASE_URL, os_name, arch_name
-    );
-    
-    tracing::info!("Downloading update from: {}", download_url);
-    
-    // Create HTTP client
+
+    // Resolve target version from releases.json
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(300)) // 5 minutes timeout for download
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-    
-    // Download the new binary
-    let response = client
+
+    let resp = client
+        .get(RELEASES_URL)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch releases: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Failed to fetch releases: HTTP {}", resp.status()));
+    }
+
+    let data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse releases: {}", e))?;
+
+    let latest_version = data
+        .get("latest")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing latest version in releases.json".to_string())?;
+
+    let version_tag = format!("v{}", latest_version);
+
+    // Build tarball URL in version directory
+    let download_url = format!(
+        "{}/{}/remote-agent-server/rebebuca-remote-server-linux-{}.tar.gz",
+        BASE_URL, version_tag, arch_name
+    );
+
+    tracing::info!("Downloading update from: {}", download_url);
+
+    // Download tarball
+    let dl_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("Failed to create download client: {}", e))?;
+
+    let response = dl_client
         .get(&download_url)
         .send()
         .await
         .map_err(|e| format!("Failed to download update: {}", e))?;
-    
+
     if !response.status().is_success() {
         return Err(format!("Failed to download update: HTTP {}", response.status()));
     }
-    
+
     let bytes = response
         .bytes()
         .await
         .map_err(|e| format!("Failed to read update data: {}", e))?;
-    
-    tracing::info!("Downloaded {} bytes", bytes.len());
-    
-    // Create temp file for new binary
-    let temp_path = current_exe.with_extension("new");
-    
-    // Write new binary to temp file
-    tokio::fs::write(&temp_path, &bytes)
+
+    // Prepare temp dir
+    let tmp_dir = std::env::temp_dir().join(format!("rebebuca-remote-server-update-{}", Uuid::new_v4()));
+    tokio::fs::create_dir_all(&tmp_dir)
         .await
-        .map_err(|e| format!("Failed to write new binary: {}", e))?;
-    
-    // Make it executable (Unix only)
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = tokio::fs::metadata(&temp_path)
-            .await
-            .map_err(|e| format!("Failed to get file metadata: {}", e))?
-            .permissions();
-        perms.set_mode(0o755);
-        tokio::fs::set_permissions(&temp_path, perms)
-            .await
-            .map_err(|e| format!("Failed to set executable permission: {}", e))?;
+        .map_err(|e| format!("Failed to create temp dir: {}", e))?;
+
+    let archive_path = tmp_dir.join("rebebuca-remote-server.tar.gz");
+    tokio::fs::write(&archive_path, &bytes)
+        .await
+        .map_err(|e| format!("Failed to write archive: {}", e))?;
+
+    // Extract archive using system tar
+    let status = tokio::process::Command::new("tar")
+        .arg("-xzf")
+        .arg(&archive_path)
+        .arg("-C")
+        .arg(&tmp_dir)
+        .status()
+        .await
+        .map_err(|e| format!("Failed to run tar: {}", e))?;
+
+    if !status.success() {
+        return Err("Failed to extract archive (tar exited with non-zero status)".to_string());
     }
-    
+
+    let extracted_dir = tmp_dir.join("rebebuca-remote-server");
+    let new_bin = extracted_dir.join("rebebuca-remote-server");
+    let new_dist = extracted_dir.join("dist");
+
+    if !new_bin.exists() {
+        return Err("Extracted archive missing rebebuca-remote-server binary".to_string());
+    }
+
+    // Resolve current executable and install dir
+    let current_exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+    let current_exe = std::fs::canonicalize(&current_exe).unwrap_or(current_exe);
+
+    let install_dir = current_exe
+        .parent()
+        .ok_or_else(|| "Failed to determine install dir".to_string())?
+        .to_path_buf();
+
     // Backup current binary
     let backup_path = current_exe.with_extension("backup");
     if backup_path.exists() {
-        tokio::fs::remove_file(&backup_path)
-            .await
-            .map_err(|e| format!("Failed to remove old backup: {}", e))?;
+        let _ = tokio::fs::remove_file(&backup_path).await;
     }
-    
+
     tokio::fs::rename(&current_exe, &backup_path)
         .await
         .map_err(|e| format!("Failed to backup current binary: {}", e))?;
-    
-    // Move new binary to current location
-    tokio::fs::rename(&temp_path, &current_exe)
+
+    // Install new binary
+    tokio::fs::copy(&new_bin, &current_exe)
         .await
-        .map_err(|e| {
-            // Try to restore backup on failure
-            let _ = std::fs::rename(&backup_path, &current_exe);
-            format!("Failed to install new binary: {}", e)
-        })?;
-    
+        .map_err(|e| format!("Failed to copy new binary: {}", e))?;
+
+    // Ensure executable bit
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = tokio::fs::metadata(&current_exe)
+            .await
+            .map_err(|e| format!("Failed to get new binary metadata: {}", e))?
+            .permissions();
+        perms.set_mode(0o755);
+        tokio::fs::set_permissions(&current_exe, perms)
+            .await
+            .map_err(|e| format!("Failed to set executable permission: {}", e))?;
+    }
+
+    // Replace dist/
+    if new_dist.exists() {
+        let current_dist = install_dir.join("dist");
+        if current_dist.exists() {
+            let _ = tokio::fs::remove_dir_all(&current_dist).await;
+        }
+
+        // Try rename first; fall back to cp -r if needed
+        match tokio::fs::rename(&new_dist, &current_dist).await {
+            Ok(_) => {}
+            Err(_) => {
+                let status = tokio::process::Command::new("cp")
+                    .arg("-r")
+                    .arg(&new_dist)
+                    .arg(&current_dist)
+                    .status()
+                    .await
+                    .map_err(|e| format!("Failed to copy dist via cp: {}", e))?;
+                if !status.success() {
+                    return Err("Failed to install dist assets".to_string());
+                }
+            }
+        }
+    }
+
     tracing::info!("Update installed successfully, scheduling restart...");
-    
-    // Schedule restart in a separate task
+
+    // Schedule restart
     tokio::spawn(async move {
-        // Wait a moment for the response to be sent
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        
-        tracing::info!("Restarting server...");
-        
-        // Get command line arguments
+
         let args: Vec<String> = std::env::args().collect();
-        
-        // Spawn the new process
-        match std::process::Command::new(&current_exe)
-            .args(&args[1..])
-            .spawn()
-        {
+        match std::process::Command::new(&current_exe).args(&args[1..]).spawn() {
             Ok(_) => {
                 tracing::info!("New process started, exiting current process...");
                 std::process::exit(0);
             }
             Err(e) => {
                 tracing::error!("Failed to start new process: {}", e);
-                // Try to restore from backup
-                if let Err(restore_err) = std::fs::rename(&backup_path, &current_exe) {
-                    tracing::error!("Failed to restore backup: {}", restore_err);
-                }
+                let _ = std::fs::rename(&backup_path, &current_exe);
             }
         }
     });
-    
+
     Ok(serde_json::json!({
         "success": true,
         "message": "Update installed, server will restart shortly"

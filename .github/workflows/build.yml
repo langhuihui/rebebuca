@@ -1,17 +1,61 @@
-name: Build Tauri App
+name: Build Tauri App (Windows)
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'win-v*'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   packages: write
+  actions: write
 
 jobs:
+  cleanup-caches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Calculate current cache hashes
+        id: hashes
+        run: |
+          PNPM_HASH=$(sha256sum pnpm-lock.yaml | cut -d' ' -f1 | head -c 16)
+          echo "pnpm_hash=$PNPM_HASH" >> $GITHUB_OUTPUT
+          echo "Current pnpm hash: $PNPM_HASH"
+
+      - name: Cleanup outdated caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cleaning up outdated caches..."
+          
+          PNPM_HASH="${{ steps.hashes.outputs.pnpm_hash }}"
+          
+          gh cache list --limit 100 --json id,key | jq -r '.[] | "\(.id) \(.key)"' | while read -r id key; do
+            DELETE=false
+            
+            if echo "$key" | grep -q "pnpm-store"; then
+              if ! echo "$key" | grep -q "$PNPM_HASH"; then
+                DELETE=true
+              fi
+            fi
+            
+            if echo "$key" | grep -qE "^(Linux|macOS|Windows|linux)-cargo"; then
+              DELETE=true
+            fi
+            
+            if [ "$DELETE" = true ]; then
+              echo "Deleting outdated cache: $key (id: $id)"
+              gh cache delete "$id" || true
+            fi
+          done
+          
+          echo "Cache cleanup completed"
+
   build-remote-server:
+    needs: cleanup-caches
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -46,17 +90,12 @@ jobs:
           targets: x86_64-unknown-linux-gnu
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            remote-agent-server/target/
-          key: linux-cargo-remote-server-${{ hashFiles('remote-agent-server/Cargo.lock', 'common/Cargo.lock') }}
-          restore-keys: |
-            linux-cargo-remote-server-
+          workspaces: |
+            remote-agent-server -> target
+            common -> target
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -72,6 +111,7 @@ jobs:
       - name: Package remote-agent-server with web assets
         run: |
           VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#win-}
           mkdir -p package/rebebuca-remote-server
           cp remote-agent-server/target/x86_64-unknown-linux-gnu/release/rebebuca-remote-server package/rebebuca-remote-server/
           cp -r dist package/rebebuca-remote-server/
@@ -80,7 +120,7 @@ jobs:
 
       - name: Install rclone
         run: |
-          sudo apt-get update && sudo apt-get install -y rclone
+          sudo apt-get update && sudo apt-get install -y rclone jq
 
       - name: Configure rclone for R2
         run: |
@@ -99,29 +139,16 @@ jobs:
       - name: Upload remote-agent-server to R2
         run: |
           VERSION=${{ github.ref_name }}
-          # Upload the packaged tar.gz
+          VERSION=${VERSION#win-}
           rclone copyto package/rebebuca-remote-server-linux-x86_64.tar.gz \
             r2:monibuca/rb/${VERSION}/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz --progress
-          # Also upload to latest path for convenience
-          rclone copyto package/rebebuca-remote-server-linux-x86_64.tar.gz \
-            r2:monibuca/rb/latest/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz --progress
-          # Upload install script
+          # Installer script resolves latest via releases.json (no rb/latest required)
           rclone copyto scripts/install-remote-server.sh \
             r2:monibuca/rb/install-remote-server.sh --progress
 
-  build-and-release:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-            name: 'macOS'
-          - platform: 'windows-latest'
-            args: ''
-            name: 'Windows'
-    runs-on: ${{ matrix.platform }}
-
+  build-windows:
+    needs: cleanup-caches
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -153,134 +180,27 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          # For universal macOS build
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Install OpenSSL (macOS)
-        if: matrix.platform == 'macos-latest'
-        run: |
-          # Install OpenSSL via Homebrew
-          brew install openssl@3
-          
-          # For universal builds, we need to handle cross-compilation properly
-          # Method 1: Use vendored OpenSSL (recommended for universal builds)
-          echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
-          
-          # Method 2: Fallback to system paths if vendored fails
-          OPENSSL_PREFIX=$(brew --prefix openssl@3)
-          echo "OPENSSL_DIR=${OPENSSL_PREFIX}" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=${OPENSSL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
-          
-          echo "OpenSSL configuration:"
-          echo "- Using vendored OpenSSL (OPENSSL_STATIC=1)"
-          echo "- Fallback OpenSSL path: ${OPENSSL_PREFIX}"
-          
-          # Verify installation
-          echo "OpenSSL libraries:"
-          ls -la "${OPENSSL_PREFIX}/lib" | grep -E "(libssl|libcrypto)" || true
+          workspaces: |
+            src-tauri -> target
+            remote-agent -> target
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Generate Release Notes
-        id: release_notes
-        shell: bash
-        run: |
-          # Get previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
-          # Generate release notes from git log
-          if [ -n "$PREV_TAG" ]; then
-            NOTES="## Changes since ${PREV_TAG}
-          
-          $(git log ${PREV_TAG}..HEAD --pretty=format:'- %s' | head -20)"
-          else
-            NOTES="## Initial Release
-          
-          $(git log --pretty=format:'- %s' --reverse | head -20)"
-          fi
-          
-          # Use random delimiter to avoid conflicts
-          DELIM="RELEASE_NOTES_$(date +%s)"
-          echo "RELEASE_NOTES<<${DELIM}" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "${DELIM}" >> $GITHUB_OUTPUT
-          
-          # Debug output
-          echo "Generated release notes:"
-          echo "$NOTES"
-
-      - name: Build rebebuca-remote-agent for x86_64
-        if: matrix.platform == 'macos-latest'
-        run: |
-          cd remote-agent
-          cargo build --release --target x86_64-apple-darwin --bin rebebuca-remote-agent
-
-      - name: Build rebebuca-remote-agent for aarch64
-        if: matrix.platform == 'macos-latest'
-        run: |
-          cd remote-agent
-          cargo build --release --target aarch64-apple-darwin --bin rebebuca-remote-agent
-
-      - name: Create universal rebebuca-remote-agent binary
-        if: matrix.platform == 'macos-latest'
-        run: |
-          mkdir -p remote-agent/target/universal-apple-darwin/release
-          lipo -create \
-            remote-agent/target/x86_64-apple-darwin/release/rebebuca-remote-agent \
-            remote-agent/target/aarch64-apple-darwin/release/rebebuca-remote-agent \
-            -output remote-agent/target/universal-apple-darwin/release/rebebuca-remote-agent
-          # Also copy to build directory for resources
-          mkdir -p src-tauri/build
-          cp remote-agent/target/x86_64-apple-darwin/release/rebebuca-remote-agent src-tauri/build/rebebuca-remote-agent-x86_64-apple-darwin
-          cp remote-agent/target/aarch64-apple-darwin/release/rebebuca-remote-agent src-tauri/build/rebebuca-remote-agent-aarch64-apple-darwin
-
-      - name: Build Tauri app and create release
-        uses: tauri-apps/tauri-action@v0
-        id: tauri
+      - name: Build Tauri app
+        run: pnpm tauri build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          OPENSSL_STATIC: ${{ env.OPENSSL_STATIC }}
-          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
-          PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Rebebuca ${{ github.ref_name }}'
-          releaseBody: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}
 
       - name: Install rclone
         shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            choco install rclone -y
-          else
-            brew install rclone
-          fi
+        run: choco install rclone -y
 
       - name: Configure rclone for R2
         shell: bash
@@ -297,146 +217,45 @@ jobs:
           no_check_bucket = true
           EOF
 
-      - name: Upload artifacts to R2 (macOS)
-        if: matrix.platform == 'macos-latest'
-        shell: bash
-        run: |
-          rclone copy src-tauri/target/universal-apple-darwin/release/bundle r2:monibuca/rb/${{ github.ref_name }} --progress
-
-      - name: Upload artifacts to R2 (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: bash
-        run: |
-          rclone copy src-tauri/target/release/bundle r2:monibuca/rb/${{ github.ref_name }} --progress
-
-      - name: Generate and upload latest.json to R2 (macOS)
-        if: matrix.platform == 'macos-latest'
+      - name: Upload artifacts to R2
         shell: bash
         run: |
           VERSION=${{ github.ref_name }}
-          VERSION_NUM=${VERSION#v}
-          
-          # Find signature files
-          MAC_SIG=$(cat src-tauri/target/universal-apple-darwin/release/bundle/macos/Rebebuca.app.tar.gz.sig 2>/dev/null || echo "")
-          
-          # Create latest.json for updater
-          cat > latest.json << EOF
-          {
-            "version": "${VERSION_NUM}",
-            "notes": "See release notes on GitHub",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "${MAC_SIG}",
-                "url": "https://download.m7s.live/rb/${VERSION}/macos/Rebebuca.app.tar.gz"
-              },
-              "darwin-x86_64": {
-                "signature": "${MAC_SIG}",
-                "url": "https://download.m7s.live/rb/${VERSION}/macos/Rebebuca.app.tar.gz"
-              }
-            }
-          }
-          EOF
-          
-          echo "Generated latest.json:"
-          cat latest.json
-          
-          # Upload to R2
-          rclone copyto latest.json r2:monibuca/rb/latest.json --progress
+          VERSION=${VERSION#win-}
+          rclone copy src-tauri/target/release/bundle r2:monibuca/rb/${VERSION} --progress
 
-      - name: Generate and upload windows-latest.json to R2 (Windows)
-        if: matrix.platform == 'windows-latest'
+      - name: Update latest.json (add Windows signature)
         shell: bash
         run: |
           VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#win-}
           VERSION_NUM=${VERSION#v}
           
-          # Find signature files (Tauri v2 uses .exe directly, not .nsis.zip)
           WIN_SIG=$(cat src-tauri/target/release/bundle/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe.sig 2>/dev/null || echo "")
           
-          # Create windows-latest.json
-          cat > windows-latest.json << EOF
-          {
-            "version": "${VERSION_NUM}",
-            "notes": "See release notes on GitHub",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": "${WIN_SIG}",
-                "url": "https://download.m7s.live/rb/${VERSION}/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe"
-              }
-            }
-          }
-          EOF
+          # Download existing latest.json
+          rclone copyto r2:monibuca/rb/latest.json latest.json 2>/dev/null || echo '{}' > latest.json
           
-          echo "Generated windows-latest.json:"
-          cat windows-latest.json
+          # Add or update Windows platform in latest.json
+          if [ "$WIN_SIG" != "" ]; then
+            jq --arg version "$VERSION_NUM" \
+               --arg sig "$WIN_SIG" \
+               --arg url "https://download.m7s.live/rb/${VERSION}/nsis/Rebebuca_${VERSION_NUM}_x64-setup.exe" \
+               '.platforms["windows-x86_64"] = {signature: $sig, url: $url} | .version = $version' \
+               latest.json > latest-new.json
+            mv latest-new.json latest.json
+          fi
           
-          # Upload to R2
-          rclone copyto windows-latest.json r2:monibuca/rb/windows-latest.json --progress
-
-  merge-latest-json:
-    needs: [build-and-release, build-remote-server]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install rclone
-        run: |
-          sudo apt-get update && sudo apt-get install -y rclone jq
-
-      - name: Configure rclone for R2
-        run: |
-          mkdir -p ~/.config/rclone
-          cat > ~/.config/rclone/rclone.conf << EOF
-          [r2]
-          type = s3
-          provider = Cloudflare
-          access_key_id = ${{ secrets.R2_ID }}
-          secret_access_key = ${{ secrets.R2_SECRET }}
-          endpoint = ${{ secrets.R2_ENDPOINT }}
-          acl = private
-          no_check_bucket = true
-          EOF
-
-      - name: Download and merge latest.json files
-        run: |
-          # Download from R2
-          rclone copyto r2:monibuca/rb/latest.json mac-latest.json || echo '{}' > mac-latest.json
-          rclone copyto r2:monibuca/rb/windows-latest.json win-latest.json || echo '{}' > win-latest.json
-          
-          echo "Mac latest.json:"
-          cat mac-latest.json
-          echo ""
-          echo "Windows latest.json:"
-          cat win-latest.json
-          
-          # Merge the two JSON files
-          jq -s '{
-            version: .[0].version,
-            notes: .[0].notes,
-            pub_date: .[0].pub_date,
-            platforms: (.[0].platforms + .[1].platforms)
-          }' mac-latest.json win-latest.json > latest.json
-          
-          echo ""
-          echo "Merged latest.json:"
-          cat latest.json
-
-      - name: Upload merged latest.json to R2
-        run: |
+          # Upload updated latest.json
           rclone copyto latest.json r2:monibuca/rb/latest.json --progress
 
       - name: Generate and upload releases.json
         run: |
           VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#win-}
           VERSION_NUM=${VERSION#v}
           DATE=$(date +%Y-%m-%d)
           
-          # Generate release notes from git log
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:'- %s' | head -20)
@@ -444,20 +263,13 @@ jobs:
             NOTES=$(git log --pretty=format:'- %s' --reverse | head -20)
           fi
           
-          # Escape for JSON
-          NOTES_ESCAPED=$(echo "$NOTES" | jq -Rs .)
-          
           # Download existing releases.json or create empty one
           rclone copyto r2:monibuca/rb/releases.json releases.json 2>/dev/null || true
           
           # Check if file exists and is valid JSON, otherwise create empty one
           if [ ! -f releases.json ] || ! jq empty releases.json 2>/dev/null; then
-            echo "No valid releases.json found, creating new one"
             echo '{"latest":"","releases":[]}' > releases.json
           fi
-          
-          echo "Existing releases.json:"
-          cat releases.json
           
           # Update releases.json with new release
           jq --arg version "$VERSION_NUM" \
@@ -469,10 +281,6 @@ jobs:
              }' releases.json > releases-new.json
           
           mv releases-new.json releases.json
-          
-          echo ""
-          echo "Updated releases.json:"
-          cat releases.json
           
           # Upload to R2
           rclone copyto releases.json r2:monibuca/rb/releases.json --progress

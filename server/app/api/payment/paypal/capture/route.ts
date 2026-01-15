@@ -1,21 +1,23 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { captureOrder } from '@/lib/paypal';
+export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
+import { getDB, generateId, Payment, Product } from '@/lib/db';
+import { captureOrder } from '@/lib/paypal';
+
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const user = await getCurrentUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    const { orderId } = await request.json();
+    const body = await request.json() as { orderId?: string };
+    const { orderId } = body;
 
     if (!orderId) {
       return NextResponse.json(
@@ -34,81 +36,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use admin client to update records
-    const adminSupabase = createAdminClient();
+    const db = getDB();
+    const now = new Date().toISOString();
 
-    // Update payment record
-    const { data: payment, error: paymentUpdateError } = await adminSupabase
-      .from('payments')
-      .update({
-        status: 'completed',
-        metadata: {
-          capture_id: captureResult.purchase_units[0]?.payments?.captures[0]?.id,
-          capture_status: captureResult.status,
-        },
-      })
-      .eq('payment_id', orderId)
-      .eq('user_id', user.id)
-      .select('*, metadata')
-      .single();
+    // Get payment record
+    const payment = await db.prepare(`
+      SELECT * FROM payments WHERE payment_id = ? AND user_id = ?
+    `).bind(orderId, user.id).first<Payment>();
 
-    if (paymentUpdateError) {
-      console.error('Failed to update payment:', paymentUpdateError);
+    if (!payment) {
+      return NextResponse.json(
+        { error: 'Payment not found' },
+        { status: 404 }
+      );
     }
 
-    // Get product ID from payment metadata
-    const productId = (payment?.metadata as Record<string, unknown>)?.product_id as string;
+    // Parse metadata to get product ID
+    const metadata = payment.metadata ? JSON.parse(payment.metadata) : {};
+    const productId = metadata.product_id;
+
+    // Update payment status
+    const captureId = captureResult.purchase_units[0]?.payments?.captures[0]?.id;
+    await db.prepare(`
+      UPDATE payments SET status = ?, metadata = ?, updated_at = ? WHERE id = ?
+    `).bind(
+      'completed',
+      JSON.stringify({ ...metadata, capture_id: captureId, capture_status: captureResult.status }),
+      now,
+      payment.id
+    ).run();
 
     if (productId) {
       // Get product details
-      const { data: product } = await adminSupabase
-        .from('products')
-        .select('*')
-        .eq('id', productId)
-        .single();
+      const product = await db.prepare('SELECT * FROM products WHERE id = ?').bind(productId).first<Product>();
 
       if (product) {
         // Determine plan type based on product name
         const planType = product.name.toLowerCase() as 'free' | 'pro' | 'enterprise';
 
         // Cancel existing active subscriptions
-        await adminSupabase
-          .from('subscriptions')
-          .update({
-            status: 'cancelled',
-            cancelled_at: new Date().toISOString(),
-          })
-          .eq('user_id', user.id)
-          .eq('status', 'active');
+        await db.prepare(`
+          UPDATE subscriptions SET status = 'cancelled', cancelled_at = ?, updated_at = ?
+          WHERE user_id = ? AND status = 'active'
+        `).bind(now, now, user.id).run();
 
         // Create new subscription
         const expiresAt = new Date();
         expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 year subscription
 
-        const { data: subscription, error: subscriptionError } = await adminSupabase
-          .from('subscriptions')
-          .insert({
-            user_id: user.id,
-            product_id: productId,
-            plan_type: planType,
-            status: 'active',
-            started_at: new Date().toISOString(),
-            expires_at: expiresAt.toISOString(),
-          })
-          .select()
-          .single();
-
-        if (subscriptionError) {
-          console.error('Failed to create subscription:', subscriptionError);
-        }
+        const subscriptionId = generateId();
+        await db.prepare(`
+          INSERT INTO subscriptions (id, user_id, product_id, plan_type, status, started_at, expires_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          subscriptionId,
+          user.id,
+          productId,
+          planType,
+          'active',
+          now,
+          expiresAt.toISOString(),
+          now,
+          now
+        ).run();
 
         // Update payment with subscription ID
-        if (subscription && payment) {
-          await adminSupabase
-            .from('payments')
-            .update({ subscription_id: subscription.id })
-            .eq('id', payment.id);
-        }
+        await db.prepare(`
+          UPDATE payments SET subscription_id = ?, updated_at = ? WHERE id = ?
+        `).bind(subscriptionId, now, payment.id).run();
       }
     }
 

@@ -9,19 +9,32 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Rebebuca brand colors
+        // Rebebuca brand colors - based on logo
         primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-          950: '#172554',
+          50: '#f5f0ff',
+          100: '#ede5ff',
+          200: '#dccfff',
+          300: '#c4a8ff',
+          400: '#a875ff',
+          500: '#8b3dff',
+          600: '#5A00FF', // Main brand color from logo
+          700: '#4d00d9',
+          800: '#4000b3',
+          900: '#350095',
+          950: '#1f0066',
+        },
+        accent: {
+          50: '#edfff8',
+          100: '#d5ffef',
+          200: '#aeffe0',
+          300: '#70ffc9',
+          400: '#04FFAA', // Secondary brand color from logo
+          500: '#00e699',
+          600: '#00bf80',
+          700: '#009966',
+          800: '#007752',
+          900: '#006144',
+          950: '#003726',
         },
         dark: {
           50: '#f8fafc',

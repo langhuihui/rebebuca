@@ -94,21 +94,45 @@ download_file() {
     fi
 }
 
+resolve_latest_version() {
+    # Resolve latest version from releases.json so we don't need a /latest/ directory
+    local tmp_file=$(mktemp)
+    if ! download_file "${BASE_URL}/releases.json" "$tmp_file"; then
+        rm -f "$tmp_file"
+        error "Failed to download releases.json"
+    fi
+
+    local latest=$(sed -n 's/.*"latest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$tmp_file" | head -n 1)
+    rm -f "$tmp_file"
+
+    if [ -z "$latest" ]; then
+        error "Failed to parse latest version from releases.json"
+    fi
+
+    echo "v${latest}"
+}
+
 get_download_url() {
     local os="$1"
     local arch="$2"
     local version="$3"
-    
-    # Currently only Linux x86_64 is supported
+
+    # Remote server is Linux-only
     if [ "$os" != "linux" ]; then
         error "Remote server is currently only available for Linux. Your OS: $os"
     fi
-    
-    if [ "$arch" != "x86_64" ]; then
-        error "Remote server is currently only available for x86_64 architecture. Your arch: $arch"
+
+    # Resolve latest version via releases.json
+    if [ "$version" = "latest" ]; then
+        version=$(resolve_latest_version)
     fi
-    
-    echo "${BASE_URL}/${version}/remote-agent-server/rebebuca-remote-server-linux-x86_64.tar.gz"
+
+    # Support x86_64 and aarch64
+    if [ "$arch" != "x86_64" ] && [ "$arch" != "aarch64" ]; then
+        error "Unsupported architecture: $arch"
+    fi
+
+    echo "${BASE_URL}/${version}/remote-agent-server/rebebuca-remote-server-linux-${arch}.tar.gz"
 }
 
 install() {

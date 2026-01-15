@@ -1178,3 +1178,34 @@ pub fn open_full_disk_access_settings() -> Result<(), String> {
     }
 }
 
+
+/// Open a URL in the default system browser
+#[tauri::command]
+pub fn open_url_in_browser(url: String) -> Result<(), String> {
+    // Open URL in default browser
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/c", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
+    }
+
+    Ok(())
+}

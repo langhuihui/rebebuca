@@ -1,28 +1,55 @@
-import { createClient } from '@/lib/supabase/server';
+export const runtime = 'edge';
+
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui';
 import PricingCard from '@/components/dashboard/PricingCard';
+import { verifyToken } from '@/lib/auth/jwt';
+import { getDB, User, Product, Subscription } from '@/lib/db';
+
 
 export default async function SubscriptionsPage() {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
+
+  if (!accessToken) {
+    redirect('/login');
+  }
+
+  const payload = await verifyToken(accessToken);
+  if (!payload || payload.type !== 'access') {
+    redirect('/login');
+  }
+
+  const db = getDB();
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(payload.sub).first<User>();
+
+  if (!user) {
+    redirect('/login');
+  }
+
   // Get all products
-  const { data: products } = await supabase
-    .from('products')
-    .select('*')
-    .eq('is_active', true)
-    .order('price_usd', { ascending: true });
+  const { results: products } = await db.prepare(`
+    SELECT * FROM products WHERE is_active = 1 ORDER BY price_usd ASC
+  `).all<Product>();
 
   // Get user's active subscription
-  const { data: subscriptions } = await supabase
-    .from('subscriptions')
-    .select('*, product:products(*)')
-    .eq('user_id', user?.id)
-    .eq('status', 'active')
-    .limit(1);
+  const activeSubscription = await db.prepare(`
+    SELECT s.*, p.name as product_name
+    FROM subscriptions s
+    LEFT JOIN products p ON s.product_id = p.id
+    WHERE s.user_id = ? AND s.status = 'active'
+    ORDER BY s.created_at DESC
+    LIMIT 1
+  `).bind(user.id).first<Subscription & { product_name: string }>();
 
-  const activeSubscription = subscriptions?.[0];
+  type FormattedProduct = Product & { features: string[] };
+
+  // Parse features for products
+  const formattedProducts: FormattedProduct[] = products.map((p: Product) => ({
+    ...p,
+    features: p.features ? JSON.parse(p.features) : [],
+  }));
 
   return (
     <div className="space-y-6">
@@ -75,12 +102,12 @@ export default async function SubscriptionsPage() {
           Available Plans
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {products?.map((product) => (
+          {formattedProducts.map((product) => (
             <PricingCard
               key={product.id}
               product={product}
               isCurrentPlan={activeSubscription?.product_id === product.id}
-              userId={user?.id}
+              userId={user.id}
             />
           ))}
         </div>
@@ -104,7 +131,7 @@ export default async function SubscriptionsPage() {
             <tbody className="divide-y divide-gray-200 dark:divide-dark-600">
               <tr>
                 <td className="py-3 px-4 text-gray-900 dark:text-white">Terminal Sessions</td>
-                <td className="py-3 px-4 text-center text-gray-600 dark:text-gray-300">5</td>
+                <td className="py-3 px-4 text-center text-gray-600 dark:text-gray-300">10</td>
                 <td className="py-3 px-4 text-center text-gray-600 dark:text-gray-300">Unlimited</td>
                 <td className="py-3 px-4 text-center text-gray-600 dark:text-gray-300">Unlimited</td>
               </tr>

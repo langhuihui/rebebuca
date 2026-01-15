@@ -1,25 +1,24 @@
-import { createClient } from '@/lib/supabase/server';
+export const runtime = 'edge';
 import { NextResponse } from 'next/server';
+import { getDB, Product } from '@/lib/db';
+
 
 // GET /api/products - Get all active products
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const db = getDB();
 
-    const { data: products, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('price_usd', { ascending: true });
+    const { results: products } = await db.prepare(`
+      SELECT * FROM products WHERE is_active = 1 ORDER BY price_usd ASC
+    `).all<Product>();
 
-    if (error) {
-      return NextResponse.json(
-        { error: 'Failed to fetch products' },
-        { status: 400 }
-      );
-    }
+    // Parse features JSON
+    const formattedProducts = products.map((p: Product) => ({
+      ...p,
+      features: p.features ? JSON.parse(p.features) : [],
+    }));
 
-    return NextResponse.json({ products });
+    return NextResponse.json({ products: formattedProducts });
   } catch (error) {
     console.error('Get products error:', error);
     return NextResponse.json(

@@ -99,6 +99,8 @@
               <div class="version-group">
                 <span class="version-text">{{ currentVersion }}</span>
               </div>
+              <!-- User Menu -->
+              <UserMenu />
               <n-tooltip trigger="hover">
                 <template #trigger>
                   <n-button
@@ -722,6 +724,7 @@ import {
 import { AddFolderDialog, TaskEditDialog } from "../components/sidebar/dialogs";
 import type { AddFolderFormData } from "../components/sidebar/dialogs/AddFolderDialog.vue";
 import { TaskType } from "../providers/types";
+import UserMenu from "../../shared/components/UserMenu.vue";
 
 // Import styles
 import "../assets/styles/website.scss";

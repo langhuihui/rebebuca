@@ -1,39 +1,54 @@
-import { createClient } from '@/lib/supabase/server';
+export const runtime = 'edge';
+
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui';
 import Link from 'next/link';
+import { verifyToken } from '@/lib/auth/jwt';
+import { getDB, User, Subscription, Payment } from '@/lib/db';
+
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  // Get active subscription
-  const { data: subscriptions } = await supabase
-    .from('subscriptions')
-    .select(`
-      *,
-      product:products(*)
-    `)
-    .eq('user_id', user?.id)
-    .eq('status', 'active')
-    .limit(1);
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
 
-  const activeSubscription = subscriptions?.[0];
+  if (!accessToken) {
+    redirect('/login');
+  }
+
+  const payload = await verifyToken(accessToken);
+  if (!payload || payload.type !== 'access') {
+    redirect('/login');
+  }
+
+  const db = getDB();
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(payload.sub).first<User>();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  // Get active subscription
+  const activeSubscription = await db.prepare(`
+    SELECT s.*, p.name as product_name, p.features as product_features
+    FROM subscriptions s
+    LEFT JOIN products p ON s.product_id = p.id
+    WHERE s.user_id = ? AND s.status = 'active'
+    ORDER BY s.created_at DESC
+    LIMIT 1
+  `).bind(user.id).first<Subscription & { product_name: string; product_features: string }>();
 
   // Get recent payments
-  const { data: recentPayments } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('user_id', user?.id)
-    .order('created_at', { ascending: false })
-    .limit(3);
+  const { results: recentPayments } = await db.prepare(`
+    SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 3
+  `).bind(user.id).all<Payment>();
 
   return (
     <div className="space-y-6">
       {/* Welcome header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Welcome back, {user?.user_metadata?.display_name || user?.email?.split('@')[0]}!
+          Welcome back, {user.display_name || user.email.split('@')[0]}!
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
           Here&apos;s an overview of your account.
@@ -80,7 +95,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Member since {new Date(user?.created_at || '').toLocaleDateString()}
+            Member since {new Date(user.created_at).toLocaleDateString()}
           </p>
         </Card>
 
@@ -94,7 +109,7 @@ export default async function DashboardPage() {
               href="/dashboard/subscriptions"
               className="block w-full text-center py-2 px-4 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              {activeSubscription?.plan_type === 'free' ? 'Upgrade Plan' : 'Manage Plan'}
+              {activeSubscription?.plan_type === 'free' || !activeSubscription ? 'Upgrade Plan' : 'Manage Plan'}
             </Link>
             <Link
               href="/dashboard/settings"
@@ -122,7 +137,7 @@ export default async function DashboardPage() {
 
         {recentPayments && recentPayments.length > 0 ? (
           <div className="space-y-3">
-            {recentPayments.map((payment) => (
+            {recentPayments.map((payment: Payment) => (
               <div
                 key={payment.id}
                 className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-700 rounded-lg"

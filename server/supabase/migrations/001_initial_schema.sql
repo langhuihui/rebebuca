@@ -137,7 +137,7 @@ INSERT INTO products (name, description, price_usd, price_cny, features, is_acti
     'Basic features for personal use',
     0,
     0,
-    '["5 terminal sessions", "Basic task management", "Community support"]'::jsonb,
+    '["10 terminal sessions", "Basic task management", "Community support"]'::jsonb,
     true
 ),
 (

@@ -43,6 +43,67 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // Adapter instance
 let adapter: BackendAdapter | null = null;
 
+// Detect current platform
+function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
+  if (isTauri()) {
+    // @ts-ignore
+    const { platform } = process.env;
+    if (platform === 'darwin') return 'mac';
+    if (platform === 'win32') return 'windows';
+    return 'linux';
+  }
+  // Fallback for web mode
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('mac')) return 'mac';
+  if (ua.includes('win')) return 'windows';
+  return 'linux';
+}
+
+/**
+ * Get download URL for a version and platform
+ */
+function getDownloadUrl(version: string, platform: 'mac' | 'windows' | 'linux'): string {
+  const baseUrl = 'https://download.m7s.live/rb';
+  
+  switch (platform) {
+    case 'mac':
+      return `${baseUrl}/v${version}/macos/Rebebuca.app.tar.gz`;
+    case 'windows':
+      return `${baseUrl}/v${version}/nsis/Rebebuca_${version}_x64-setup.exe`;
+    case 'linux':
+      // No Linux desktop build
+      return '';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Check if download exists for a version and platform
+ * This ensures the build artifact is actually available
+ */
+async function checkDownloadExists(version: string, platform: 'mac' | 'windows' | 'linux'): Promise<boolean> {
+  const url = getDownloadUrl(version, platform);
+  if (!url) return false;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      cache: 'no-cache'
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    console.log(`[Updater] Download check failed for ${version}:`, error);
+    return false;
+  }
+}
+
 const getAdapterInstance = async (): Promise<BackendAdapter> => {
   if (!adapter) {
     adapter = await getAdapter();
@@ -84,8 +145,6 @@ export const useUpdaterStore = defineStore('updater', () => {
         const adapterInstance = await getAdapterInstance();
         const result = await adapterInstance.updater.checkForUpdates();
         if (result && 'version' in result) {
-          // The server returns currentVersion in the check result
-          // We need to get it from a separate call or parse from result
           currentVersion.value = (result as { currentVersion?: string }).currentVersion || '0.0.0-server';
         } else {
           currentVersion.value = '0.0.0-server';
@@ -255,7 +314,7 @@ export const useUpdaterStore = defineStore('updater', () => {
       releasesCacheTime = Date.now();
       return releasesCache;
     } catch (error) {
-      // Silent fail for network errors (expected in some environments)
+      console.log('[Updater] Fetch releases failed:', error);
       return null;
     }
   }
@@ -334,24 +393,43 @@ export const useUpdaterStore = defineStore('updater', () => {
   
   /**
    * Check if there's a newer version available and fetch its release note
+   * This checks both version number AND if download exists for current platform
    */
   async function checkNewVersionAvailable(): Promise<boolean> {
     try {
       const version = currentVersion.value || await getCurrentVersion();
       if (!version) return false;
       
-      const latestNote = await fetchLatestVersionNote();
-      if (!latestNote) return false;
+      const data = await fetchReleasesData();
+      if (!data || data.releases.length === 0) {
+        return false;
+      }
       
+      const platform = getCurrentPlatform();
+      const latestRelease = data.releases[0];
+      const latestVersion = latestRelease.version;
+      
+      // Compare versions - if latest is newer, check if download exists
       const currentTag = `v${version}`;
+      const latestTag = `v${latestVersion}`;
       
-      // Compare versions - if latest tag is different from current, there's an update
-      if (latestNote.tag !== currentTag) {
-        // Simple version comparison: check if latest is newer
-        const latestVersion = latestNote.tag.replace(/^v/, '');
-        if (compareVersions(latestVersion, version) > 0) {
-          newVersionNote.value = latestNote;
-          return true;
+      if (latestTag !== currentTag) {
+        const latestVersionNum = latestTag.replace(/^v/, '');
+        if (compareVersions(latestVersionNum, version) > 0) {
+          // Version is newer, now check if download exists for current platform
+          const downloadExists = await checkDownloadExists(latestVersionNum, platform);
+          console.log(`[Updater] Version ${latestVersionNum} is newer, download exists: ${downloadExists}`);
+          
+          if (downloadExists) {
+            newVersionNote.value = {
+              tag: `v${latestVersionNum}`,
+              date: latestRelease.date,
+              body: latestRelease.body || ''
+            };
+            return true;
+          } else {
+            console.log(`[Updater] Download not available for ${platform} platform`);
+          }
         }
       }
       

@@ -1,9 +1,14 @@
-import { createClient } from '@/lib/supabase/server';
+export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
+import { getDB, generateId, User } from '@/lib/db';
+import { verifyPassword, createAccessToken, createRefreshToken, getRefreshTokenExpiry } from '@/lib/auth';
+import { cookies } from 'next/headers';
+
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const body = await request.json() as { email?: string; password?: string };
+    const { email, password } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -12,44 +17,79 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const db = getDB();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      // Handle specific error cases
-      if (error.message.includes('Invalid login credentials')) {
-        return NextResponse.json(
-          { error: 'Invalid email or password' },
-          { status: 401 }
-        );
-      }
-      if (error.message.includes('Email not confirmed')) {
-        return NextResponse.json(
-          { error: 'Please confirm your email address before signing in' },
-          { status: 401 }
-        );
-      }
+    // Find user
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<User>();
+    if (!user) {
       return NextResponse.json(
-        { error: error.message },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
+    // Check if user has password (OAuth users don't)
+    if (!user.password_hash) {
+      return NextResponse.json(
+        { error: 'Please use your OAuth provider to login' },
+        { status: 401 }
+      );
+    }
+
+    // Verify password
+    const isValid = await verifyPassword(password, user.password_hash);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: 'Invalid email or password' },
+        { status: 401 }
+      );
+    }
+
+    // Create tokens
+    const accessToken = await createAccessToken(user.id, user.email);
+    const refreshToken = await createRefreshToken(user.id, user.email);
+    const refreshExpiry = getRefreshTokenExpiry();
+    const now = new Date().toISOString();
+
+    // Store refresh token
+    await db.prepare(`
+      INSERT INTO sessions (id, user_id, refresh_token, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(generateId(), user.id, refreshToken, refreshExpiry.toISOString(), now).run();
+
+    // Set cookies
+    const cookieStore = await cookies();
+    cookieStore.set('access_token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 15 * 60, // 15 minutes
+      path: '/',
+    });
+    cookieStore.set('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/',
+    });
+
     return NextResponse.json({
       message: 'Login successful',
       user: {
-        id: data.user.id,
-        email: data.user.email,
-        displayName: data.user.user_metadata?.display_name,
+        id: user.id,
+        email: user.email,
+        displayName: user.display_name,
+        avatarUrl: user.avatar_url,
+        locale: user.locale,
+        emailConfirmed: user.email_verified === 1,
+        createdAt: user.created_at,
       },
       session: {
-        accessToken: data.session.access_token,
-        refreshToken: data.session.refresh_token,
-        expiresAt: data.session.expires_at,
+        accessToken,
+        refreshToken,
+        // Access tokens are 15 minutes by default
+        expiresAt: Date.now() + 15 * 60 * 1000,
       },
     });
   } catch (error) {

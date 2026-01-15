@@ -1,34 +1,33 @@
-import { createClient } from '@/lib/supabase/server';
+export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
+import { getDB } from '@/lib/db';
+
 
 // GET /api/user/profile - Get user profile
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const user = await getCurrentUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) {
-      return NextResponse.json(
-        { error: 'Profile not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ profile });
+    return NextResponse.json({
+      profile: {
+        id: user.id,
+        email: user.email,
+        displayName: user.display_name,
+        avatarUrl: user.avatar_url,
+        locale: user.locale,
+        timezone: user.timezone,
+        emailVerified: user.email_verified === 1,
+        createdAt: user.created_at,
+      },
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     return NextResponse.json(
@@ -41,42 +40,54 @@ export async function GET() {
 // PUT /api/user/profile - Update user profile
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const user = await getCurrentUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    const { displayName, avatarUrl, locale, timezone } = await request.json();
+    const body = await request.json() as { displayName?: string; avatarUrl?: string; locale?: string; timezone?: string };
+    const { displayName, avatarUrl, locale, timezone } = body;
 
-    const updateData: Record<string, string | undefined> = {};
-    if (displayName !== undefined) updateData.display_name = displayName;
-    if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
-    if (locale !== undefined) updateData.locale = locale;
-    if (timezone !== undefined) updateData.timezone = timezone;
+    const db = getDB();
+    const now = new Date().toISOString();
 
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .update(updateData)
-      .eq('user_id', user.id)
-      .select()
-      .single();
+    // Build update query dynamically
+    const updates: string[] = ['updated_at = ?'];
+    const values: (string | null)[] = [now];
 
-    if (error) {
-      return NextResponse.json(
-        { error: 'Failed to update profile' },
-        { status: 400 }
-      );
+    if (displayName !== undefined) {
+      updates.push('display_name = ?');
+      values.push(displayName);
     }
+    if (avatarUrl !== undefined) {
+      updates.push('avatar_url = ?');
+      values.push(avatarUrl);
+    }
+    if (locale !== undefined) {
+      updates.push('locale = ?');
+      values.push(locale);
+    }
+    if (timezone !== undefined) {
+      updates.push('timezone = ?');
+      values.push(timezone);
+    }
+
+    values.push(user.id);
+
+    await db.prepare(`
+      UPDATE users SET ${updates.join(', ')} WHERE id = ?
+    `).bind(...values).run();
+
+    // Fetch updated user
+    const updatedUser = await db.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first();
 
     return NextResponse.json({
       message: 'Profile updated successfully',
-      profile,
+      profile: updatedUser,
     });
   } catch (error) {
     console.error('Update profile error:', error);

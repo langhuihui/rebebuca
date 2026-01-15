@@ -40,6 +40,7 @@ import { useSshStore } from './ssh';
 import { safeInvoke } from '../utils/programUtils';
 import { startMonitoring as startSupervisorMonitoring } from '../services/supervisorAIService';
 import { useSupervisorAIStore } from './supervisorAI';
+import { syncTasksToMCP, initMCPTaskListener } from '../services/mcp/taskSync';
 import type { AIToolType } from './aiTools';
 
 /**
@@ -862,6 +863,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         await adapterInstance.storage.set('userGroups', userGroups.value);
         await adapterInstance.storage.save();
         console.log('[TaskManager] Saved user groups:', userGroups.value.length);
+        
+        // Sync tasks to MCP server when user groups change
+        await syncTasksToMCP(combinedTasks.value);
       }
     } catch (error) {
       console.error('[TaskManager] Failed to save user groups:', error);
@@ -1177,6 +1181,19 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       console.log('[TaskManager] Restoring folders:', paths);
       await scanFolders(paths);
     }
+    
+    // Initialize MCP task listener
+    await initMCPTaskListener(async (taskId: string, cwd?: string) => {
+      const task = findTask(taskId);
+      if (task) {
+        await executeTask(task, cwd ? { cwd } : undefined);
+      } else {
+        console.error('[TaskManager] Task not found for MCP execution:', taskId);
+      }
+    });
+    
+    // Initial sync of tasks to MCP
+    await syncTasksToMCP(combinedTasks.value);
   }
   
   /**
@@ -1206,6 +1223,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       
       // Save folder paths
       await saveFolderPaths();
+      
+      // Sync tasks to MCP server
+      await syncTasksToMCP(combinedTasks.value);
       
       console.log(`[TaskManager] Scan complete: ${scannedTasks.length} tasks found in ${scannedFolders.length} folders`);
     } finally {
@@ -1242,6 +1262,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       // Save folder paths
       await saveFolderPaths();
       
+      // Sync tasks to MCP server
+      await syncTasksToMCP(combinedTasks.value);
+      
       console.log(`[TaskManager] Added folder: ${folderPath} with ${newTasks.length} tasks`);
     } finally {
       isScanning.value = false;
@@ -1267,6 +1290,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     
     // Save folder paths
     await saveFolderPaths();
+    
+    // Sync tasks to MCP server
+    await syncTasksToMCP(combinedTasks.value);
     
     console.log(`[TaskManager] Removed folder: ${folderPath}`);
   }

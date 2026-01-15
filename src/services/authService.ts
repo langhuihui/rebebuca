@@ -3,6 +3,8 @@
  * Handles communication with the auth server
  */
 
+import { tauriFetch } from '@/utils/tauriFetch';
+
 export interface User {
   id: string;
   email: string;
@@ -109,7 +111,7 @@ class AuthService {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
-    const response = await fetch(url, {
+    const response = await tauriFetch(url, {
       ...options,
       headers,
     });
@@ -166,7 +168,11 @@ class AuthService {
    */
   async logout(): Promise<void> {
     try {
-      await this.request('/auth/logout', { method: 'POST' });
+      // For API/desktop clients, send refreshToken in body so server can revoke session.
+      await this.request('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: this.refreshToken }),
+      });
     } catch {
       // Ignore errors during logout
     }
@@ -213,7 +219,7 @@ class AuthService {
     }
 
     try {
-      const response = await this.request<{ user: User }>('/auth/me');
+      const response = await this.request<{ user: User; subscription?: Subscription | null }>('/auth/me');
       this.user = response.user;
       this.saveToStorage();
       return this.user;
@@ -236,10 +242,8 @@ class AuthService {
     }
 
     try {
-      const response = await this.request<{ activeSubscription: Subscription | null }>(
-        '/user/subscriptions'
-      );
-      return response.activeSubscription;
+      const response = await this.request<{ user: User; subscription?: Subscription | null }>('/auth/me');
+      return response.subscription || null;
     } catch {
       return null;
     }
@@ -264,6 +268,18 @@ class AuthService {
    */
   getAccessToken(): string | null {
     return this.accessToken;
+  }
+
+  /**
+   * Set session tokens (used by OAuth loopback flow)
+   */
+  setSession(session: { accessToken: string; refreshToken: string }, user?: User): void {
+    this.accessToken = session.accessToken;
+    this.refreshToken = session.refreshToken;
+    if (user) {
+      this.user = user;
+    }
+    this.saveToStorage();
   }
 
   /**

@@ -193,6 +193,6 @@ export async function verifyWebhookSignature(params: {
     return false;
   }
 
-  const result = await response.json();
+  const result = await response.json() as { verification_status?: string };
   return result.verification_status === 'SUCCESS';
 }

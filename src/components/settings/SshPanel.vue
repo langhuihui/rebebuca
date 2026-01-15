@@ -292,6 +292,7 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { useSshStore, type SshConfig, type SshAuthMethod } from '../../stores/ssh';
+import { useTerminalStore } from '../../stores/terminal';
 import { svgIcons } from '../../utils/icons';
 import { getAdapter } from '../../adapters';
 import { homeDir as getHomeDir } from '@tauri-apps/api/path';
@@ -299,6 +300,7 @@ import { homeDir as getHomeDir } from '@tauri-apps/api/path';
 const { t } = useI18n();
 const message = useMessage();
 const sshStore = useSshStore();
+const terminalStore = useTerminalStore();
 
 const showAddDialog = ref(false);
 const showEditDialog = ref(false);
@@ -405,7 +407,7 @@ const tableColumns = computed(() => [
   {
     title: t('ssh.actions'),
     key: 'actions',
-    width: 180,
+    width: 220,
     render: (row: SshConfig) => {
       const isConnected = connectionStatusMap.value[row.id];
       const isTesting = testingConnection.value[row.id] || testingAgent.value[row.id];
@@ -451,6 +453,18 @@ const tableColumns = computed(() => [
               }),
               default: () => t('ssh.connect')
             }),
+        // Open terminal button
+        h(NTooltip, { trigger: 'hover' }, {
+          trigger: () => h(NButton, {
+            size: 'small',
+            quaternary: true,
+            circle: true,
+            onClick: () => openSshTerminal(row)
+          }, {
+            icon: () => h(NIcon, { size: 16 }, { default: () => h(svgIcons.terminal) })
+          }),
+          default: () => t('ssh.openTerminal')
+        }),
         // Edit button
         h(NTooltip, { trigger: 'hover' }, {
           trigger: () => h(NButton, {
@@ -620,6 +634,56 @@ const disconnect = async (id: string) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     message.error(t('ssh.disconnectFailed') + ': ' + errorMessage);
+  }
+};
+
+const openSshTerminal = async (config: SshConfig) => {
+  try {
+    const args: string[] = ['-p', String(config.port)];
+
+    // Avoid host key interactive prompt on first connect
+    // Use 'accept-new' for OpenSSH >= 7.6, fallback to 'no' for older versions
+    // When using password auth with auto-input, we need to skip prompts entirely
+    if (config.auth.type === 'password') {
+      // For password auth, skip host key check to avoid "yes/no" prompt interfering with password input
+      args.push('-o', 'StrictHostKeyChecking=no');
+      args.push('-o', 'UserKnownHostsFile=/dev/null');
+    } else {
+      // For key auth, use accept-new (safer, but may prompt on old SSH)
+      args.push('-o', 'StrictHostKeyChecking=accept-new');
+    }
+
+    if (config.auth.type === 'privateKey' && config.auth.key_path) {
+      args.push('-i', config.auth.key_path);
+    }
+
+    if (config.keepAliveInterval && config.keepAliveInterval > 0) {
+      args.push('-o', `ServerAliveInterval=${config.keepAliveInterval}`);
+    }
+
+    args.push(`${config.username}@${config.host}`);
+
+    await terminalStore.executeTask({
+      label: `[SSH] ${config.name}`,
+      command: 'ssh',
+      args,
+      // Auto-enter password when SSH prompts for it
+      autoInput: config.auth.type === 'password' && config.auth.password
+        ? {
+            // Match common SSH password prompts (case-insensitive)
+            pattern: 'password:',
+            input: `${config.auth.password}\n`,
+            timeout: 30000,
+          }
+        : undefined,
+    });
+
+    if (config.auth.type === 'password') {
+      message.info(t('ssh.passwordAutoInputInTerminal'));
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    message.error(t('ssh.openTerminalFailed') + ': ' + errorMessage);
   }
 };
 

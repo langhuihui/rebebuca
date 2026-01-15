@@ -93,6 +93,7 @@ export const startDrag = async (event: MouseEvent) => {
     target.closest(".update-button") ||
     target.closest(".update-indicator") ||
     target.closest(".notification-button") ||
+    target.closest(".user-menu-button") ||
     target.closest(".version-update-group")
   ) {
     return;

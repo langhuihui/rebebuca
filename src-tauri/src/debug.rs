@@ -264,3 +264,31 @@ pub async fn mcp_update_dom_tree(
         Err("MCP server not running".to_string())
     }
 }
+
+/// Update task list in MCP server cache
+#[tauri::command]
+pub async fn mcp_update_task_list(
+    app_handle: tauri::AppHandle,
+    tasks: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(state) = app_handle.try_state::<crate::mcp_http_server::MCPServerState>() {
+        state.update_task_list(tasks).await;
+        Ok(())
+    } else {
+        Err("MCP server not running".to_string())
+    }
+}
+
+/// Get MCP server port
+#[tauri::command]
+pub fn mcp_get_server_port(
+    app_handle: tauri::AppHandle,
+) -> Result<u16, String> {
+    use tauri::Manager;
+    if let Some(state) = app_handle.try_state::<crate::mcp_http_server::MCPServerState>() {
+        Ok(state.get_port())
+    } else {
+        Err("MCP server not running".to_string())
+    }
+}

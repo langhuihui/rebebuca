@@ -1,8 +1,31 @@
-import { type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
+import { type NextRequest, NextResponse } from 'next/server';
+
+// Protected routes that require authentication
+const protectedRoutes = ['/dashboard'];
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  const { pathname } = request.nextUrl;
+
+  // Check if the route is protected
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+
+  if (isProtectedRoute) {
+    // Check for authentication - support both Cloudflare Access and our own JWT
+    const cfAuthorization = request.cookies.get('CF_Authorization')?.value;
+    const accessToken = request.cookies.get('access_token')?.value;
+
+    // Allow if either Cloudflare Access or our own access_token is present
+    if (!cfAuthorization && !accessToken) {
+      // No authentication token found, redirect to login
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // User is authenticated via either method
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
@@ -13,7 +36,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - api (API routes - handled separately)
-     * Feel free to modify this pattern to include more paths.
      */
     '/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],

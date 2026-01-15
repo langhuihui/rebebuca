@@ -1,9 +1,10 @@
 'use client';
 
+export const runtime = 'edge';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, Button, Input } from '@/components/ui';
-import { createClient } from '@/lib/supabase/client';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -18,23 +19,16 @@ export default function SettingsPage() {
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (user) {
-        setEmail(user.email || '');
-        setDisplayName(user.user_metadata?.display_name || '');
-
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (profile) {
-          setDisplayName(profile.display_name || '');
-          setLocale(profile.locale || 'en');
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json() as { user: { email?: string; displayName?: string; locale?: string } };
+          setEmail(data.user.email || '');
+          setDisplayName(data.user.displayName || '');
+          setLocale(data.user.locale || 'en');
         }
+      } catch (error) {
+        console.error('Failed to load profile:', error);
       }
       setLoading(false);
     };
@@ -58,7 +52,7 @@ export default function SettingsPage() {
         setMessage({ type: 'success', text: 'Profile updated successfully' });
         router.refresh();
       } else {
-        const data = await response.json();
+        const data = await response.json() as { error?: string };
         setMessage({ type: 'error', text: data.error || 'Failed to update profile' });
       }
     } catch {

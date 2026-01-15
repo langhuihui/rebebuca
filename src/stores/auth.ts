@@ -19,9 +19,9 @@ export const useAuthStore = defineStore('auth', () => {
   const planType = computed(() => subscription.value?.planType || 'free');
 
   // Actions
-  async function initialize() {
-    if (initialized.value) return;
-    
+  async function initialize(force: boolean = false) {
+    if (initialized.value && !force) return;
+
     loading.value = true;
     try {
       if (authService.isAuthenticated()) {
@@ -29,6 +29,9 @@ export const useAuthStore = defineStore('auth', () => {
         if (user.value) {
           subscription.value = await authService.getSubscription();
         }
+      } else {
+        user.value = null;
+        subscription.value = null;
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);

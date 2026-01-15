@@ -2,12 +2,21 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { User } from '@supabase/supabase-js';
+
+interface UserData {
+  id: string;
+  email: string;
+  user_metadata?: {
+    display_name?: string;
+    avatar_url?: string;
+  };
+  created_at?: string;
+}
 
 interface DashboardNavProps {
-  user: User;
+  user: UserData;
 }
 
 export default function DashboardNav({ user }: DashboardNavProps) {
@@ -23,8 +32,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   ];
 
   const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/');
     router.refresh();
   };
@@ -37,9 +45,17 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           <div className="flex">
             <Link
               href="/"
-              className="flex items-center text-xl font-bold text-gray-900 dark:text-white"
+              className="flex items-center gap-2 text-xl font-bold"
             >
-              Rebebuca
+              <Image
+                src="/logo.svg"
+                alt="Rebebuca"
+                width={32}
+                height={32}
+              />
+              <span className="bg-gradient-to-r from-primary-600 to-accent-400 bg-clip-text text-transparent">
+                Rebebuca
+              </span>
             </Link>
             <div className="hidden sm:ml-10 sm:flex sm:space-x-4">
               {navItems.map((item) => (

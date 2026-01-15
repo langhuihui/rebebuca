@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, Button } from '@/components/ui';
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
@@ -21,7 +21,7 @@ export default function PaymentSuccessPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId: token }),
       })
-        .then((response) => response.json())
+        .then((response) => response.json() as Promise<{ error?: string }>)
         .then((data) => {
           if (data.error) {
             setStatus('error');
@@ -132,5 +132,26 @@ export default function PaymentSuccessPage() {
         </div>
       </Card>
     </main>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <main className="min-h-screen flex items-center justify-center p-4">
+      <Card className="max-w-md w-full text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto mb-4"></div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          Loading...
+        </h1>
+      </Card>
+    </main>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }

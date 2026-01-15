@@ -19,4 +19,9 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(i18n);
 
+// Initialize auth store
+import { useAuthStore } from './stores/auth';
+const authStore = useAuthStore(pinia);
+authStore.initialize();
+
 app.mount('#app');

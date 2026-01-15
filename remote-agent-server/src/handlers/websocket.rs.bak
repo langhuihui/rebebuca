@@ -1,0 +1,658 @@
+//! WebSocket handler for real-time communication
+
+use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Query, State,
+    },
+    response::IntoResponse,
+};
+use futures::{SinkExt, StreamExt};
+use serde::Deserialize;
+use tokio::sync::mpsc;
+use uuid::Uuid;
+
+use super::http::AppState;
+use crate::protocol::{
+    CreateTerminalParams, ExistsParams, MkdirParams, OutgoingMessage, ReadDirParams,
+    ReadFileParams, RemoveParams, Request, Response, StatParams, StorageDeleteParams,
+    StorageGetParams, StorageSetParams, TerminalKillParams,
+    TerminalResizeParams, TerminalWriteParams, WriteFileParams,
+};
+
+/// Query parameters for WebSocket connection
+#[derive(Debug, Deserialize)]
+pub struct WsParams {
+    /// Client ID (optional, will be generated if not provided)
+    pub client_id: Option<String>,
+}
+
+/// WebSocket handler
+pub async fn ws_handler(
+    ws: WebSocketUpgrade,
+    Query(params): Query<WsParams>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let client_id = params
+        .client_id
+        .unwrap_or_else(|| format!("client-{}", Uuid::new_v4()));
+
+    ws.on_upgrade(move |socket| handle_websocket(socket, client_id, state))
+}
+
+/// Handle a WebSocket connection
+async fn handle_websocket(socket: WebSocket, client_id: String, state: AppState) {
+    tracing::info!("WebSocket connected: {}", client_id);
+
+    // Create session
+    {
+        let mut table = state.connection_table.write().await;
+        table.create_session(client_id.clone());
+    }
+
+    // Split the socket
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Create channel for outgoing messages
+    let (tx, mut rx) = mpsc::unbounded_channel::<OutgoingMessage>();
+
+    // Store sender in connection table
+    {
+        let mut table = state.connection_table.write().await;
+        table.set_ws_sender(&client_id, tx.clone());
+    }
+
+    // Spawn task to forward terminal events to this client
+    let _client_id_clone = client_id.clone();
+    let _connection_table = state.connection_table.clone();
+    let _terminal_data_tx = state.terminal_data_tx.clone();
+    let _terminal_exit_tx = state.terminal_exit_tx.clone();
+
+    // Spawn task to send outgoing messages
+    let send_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            let json = serde_json::to_string(&msg).unwrap_or_default();
+            if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Handle incoming messages
+    let client_id_for_recv = client_id.clone();
+    let state_for_recv = state.clone();
+    let tx_for_recv = tx.clone();
+
+    while let Some(result) = ws_receiver.next().await {
+        match result {
+            Ok(Message::Text(text)) => {
+                // Parse request
+                match serde_json::from_str::<Request>(&text) {
+                    Ok(request) => {
+                        let response =
+                            handle_request(&client_id_for_recv, request, &state_for_recv).await;
+                        let _ = tx_for_recv.send(OutgoingMessage::Response(response));
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to parse request: {}", e);
+                    }
+                }
+            }
+            Ok(Message::Binary(data)) => {
+                // Binary messages might be terminal input
+                tracing::debug!("Received binary message: {} bytes", data.len());
+            }
+            Ok(Message::Close(_)) => {
+                tracing::info!("WebSocket closed: {}", client_id_for_recv);
+                break;
+            }
+            Err(e) => {
+                tracing::error!("WebSocket error: {}", e);
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    // Cleanup
+    {
+        let mut table = state.connection_table.write().await;
+
+        // Get all PTYs owned by this client and kill them
+        let pty_ids: Vec<String> = table.get_client_ptys(&client_id);
+        for pty_id in pty_ids.iter() {
+            let _ = state.terminal_adapter.kill(pty_id).await;
+        }
+
+        table.remove_session(&client_id);
+    }
+
+    // Abort send task
+    send_task.abort();
+
+    tracing::info!("WebSocket cleanup complete: {}", client_id);
+}
+
+/// Handle a single request
+async fn handle_request(client_id: &str, request: Request, state: &AppState) -> Response {
+    let method = request.method.as_str();
+    let id = request.id.clone();
+
+    match method {
+        // Terminal methods
+        "terminal.create" => {
+            match serde_json::from_value::<CreateTerminalParams>(request.params) {
+                Ok(params) => match state.terminal_adapter.create(params).await {
+                    Ok((pty_id, pid)) => {
+                        // Register PTY with client
+                        {
+                            let mut table = state.connection_table.write().await;
+                            table.register_pty(client_id, pty_id.clone());
+                        }
+
+                        Response::success(
+                            id,
+                            serde_json::json!({
+                                "ptyId": pty_id,
+                                "pid": pid
+                            }),
+                        )
+                    }
+                    Err(e) => Response::error(id, e),
+                },
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        "terminal.write" => match serde_json::from_value::<TerminalWriteParams>(request.params) {
+            Ok(params) => match state.terminal_adapter.write(&params.pty_id, &params.data).await {
+                Ok(_) => Response::success(id, serde_json::Value::Null),
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "terminal.resize" => {
+            match serde_json::from_value::<TerminalResizeParams>(request.params) {
+                Ok(params) => {
+                    match state
+                        .terminal_adapter
+                        .resize(&params.pty_id, params.cols, params.rows)
+                        .await
+                    {
+                        Ok(_) => Response::success(id, serde_json::Value::Null),
+                        Err(e) => Response::error(id, e),
+                    }
+                }
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        "terminal.kill" => match serde_json::from_value::<TerminalKillParams>(request.params) {
+            Ok(params) => match state.terminal_adapter.kill(&params.pty_id).await {
+                Ok(_) => {
+                    // Unregister PTY
+                    {
+                        let mut table = state.connection_table.write().await;
+                        table.unregister_pty(&params.pty_id);
+                    }
+                    Response::success(id, serde_json::Value::Null)
+                }
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "terminal.forceKill" => {
+            match serde_json::from_value::<TerminalKillParams>(request.params) {
+                Ok(params) => match state.terminal_adapter.force_kill(&params.pty_id).await {
+                    Ok(_) => {
+                        // Unregister PTY
+                        {
+                            let mut table = state.connection_table.write().await;
+                            table.unregister_pty(&params.pty_id);
+                        }
+                        Response::success(id, serde_json::Value::Null)
+                    }
+                    Err(e) => Response::error(id, e),
+                },
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        "terminal.isRunning" => {
+            match serde_json::from_value::<TerminalKillParams>(request.params) {
+                Ok(params) => {
+                    let is_running = state.terminal_adapter.is_running(&params.pty_id).await;
+                    Response::success(id, is_running)
+                }
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        "terminal.getProcessStats" => {
+            match serde_json::from_value::<TerminalKillParams>(request.params) {
+                Ok(params) => {
+                    let stats = state.terminal_adapter.get_process_stats(&params.pty_id).await;
+                    Response::success(id, stats)
+                }
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        // File system methods
+        "fs.readTextFile" => match serde_json::from_value::<ReadFileParams>(request.params) {
+            Ok(params) => match state.filesystem_adapter.read_text_file(&params.path).await {
+                Ok(content) => Response::success(id, content),
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "fs.writeTextFile" => match serde_json::from_value::<WriteFileParams>(request.params) {
+            Ok(params) => {
+                match state
+                    .filesystem_adapter
+                    .write_text_file(&params.path, &params.content)
+                    .await
+                {
+                    Ok(_) => Response::success(id, serde_json::Value::Null),
+                    Err(e) => Response::error(id, e),
+                }
+            }
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "fs.readDir" => match serde_json::from_value::<ReadDirParams>(request.params) {
+            Ok(params) => match state.filesystem_adapter.read_dir(&params.path).await {
+                Ok(entries) => Response::success(id, entries),
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "fs.exists" => match serde_json::from_value::<ExistsParams>(request.params) {
+            Ok(params) => match state.filesystem_adapter.exists(&params.path).await {
+                Ok(exists) => Response::success(id, exists),
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "fs.stat" => match serde_json::from_value::<StatParams>(request.params) {
+            Ok(params) => match state.filesystem_adapter.stat(&params.path).await {
+                Ok(info) => Response::success(id, info),
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "fs.mkdir" => match serde_json::from_value::<MkdirParams>(request.params) {
+            Ok(params) => {
+                match state
+                    .filesystem_adapter
+                    .mkdir(&params.path, params.recursive)
+                    .await
+                {
+                    Ok(_) => Response::success(id, serde_json::Value::Null),
+                    Err(e) => Response::error(id, e),
+                }
+            }
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "fs.remove" => match serde_json::from_value::<RemoveParams>(request.params) {
+            Ok(params) => {
+                match state
+                    .filesystem_adapter
+                    .remove(&params.path, params.recursive)
+                    .await
+                {
+                    Ok(_) => Response::success(id, serde_json::Value::Null),
+                    Err(e) => Response::error(id, e),
+                }
+            }
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        // System methods
+        "system.getPlatform" => {
+            Response::success(id, state.system_adapter.get_platform())
+        }
+
+        "system.getArch" => {
+            Response::success(id, state.system_adapter.get_arch())
+        }
+
+        "system.getAvailableShells" => {
+            Response::success(id, state.system_adapter.get_available_shells())
+        }
+
+        "system.listPorts" => {
+            Response::success(id, state.system_adapter.list_ports())
+        }
+
+        "system.getHomeDirectory" => {
+            Response::success(id, state.system_adapter.get_home_directory())
+        }
+
+        "system.generateLogPath" => {
+            #[derive(Deserialize)]
+            struct Params {
+                #[serde(rename = "taskId")]
+                task_id: String,
+                pid: Option<u32>,
+            }
+            match serde_json::from_value::<Params>(request.params) {
+                Ok(params) => {
+                    let info = state.system_adapter.generate_log_path(&params.task_id, params.pid);
+                    Response::success(id, info)
+                }
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        // Storage methods
+        // Note: Use fixed user ID "default" for all clients to share storage
+        // This ensures tasks and settings persist across browser sessions
+        "storage.get" => match serde_json::from_value::<StorageGetParams>(request.params) {
+            Ok(params) => {
+                let value = state.storage_adapter.get("default", &params.key).await;
+                Response::success(id, value)
+            }
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "storage.set" => match serde_json::from_value::<StorageSetParams>(request.params) {
+            Ok(params) => {
+                match state
+                    .storage_adapter
+                    .set("default", &params.key, params.value)
+                    .await
+                {
+                    Ok(_) => Response::success(id, serde_json::Value::Null),
+                    Err(e) => Response::error(id, e),
+                }
+            }
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "storage.delete" => match serde_json::from_value::<StorageDeleteParams>(request.params) {
+            Ok(params) => match state.storage_adapter.delete("default", &params.key).await {
+                Ok(_) => Response::success(id, serde_json::Value::Null),
+                Err(e) => Response::error(id, e),
+            },
+            Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+        },
+
+        "storage.save" => match state.storage_adapter.save("default").await {
+            Ok(_) => Response::success(id, serde_json::Value::Null),
+            Err(e) => Response::error(id, e),
+        },
+
+        // Updater methods
+        "updater.getVersion" => {
+            Response::success(id, env!("CARGO_PKG_VERSION"))
+        }
+
+        "updater.checkForUpdates" => {
+            match check_for_updates().await {
+                Ok(result) => Response::success(id, result),
+                Err(e) => Response::error(id, e),
+            }
+        }
+
+        "updater.downloadAndInstall" => {
+            match download_and_install_update().await {
+                Ok(result) => Response::success(id, result),
+                Err(e) => Response::error(id, e),
+            }
+        }
+
+        _ => Response::error(id, format!("Unknown method: {}", method)),
+    }
+}
+
+/// Check for updates from the releases server
+async fn check_for_updates() -> Result<serde_json::Value, String> {
+    const RELEASES_URL: &str = "https://download.m7s.live/rb/releases.json";
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Fetch releases data
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client
+        .get(RELEASES_URL)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch releases: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to fetch releases: HTTP {}", response.status()));
+    }
+
+    let data: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse releases: {}", e))?;
+
+    // Normalize releases data: support both old { latest, releases } and new { mac: {...}, windows: {...}, linux: {...} } formats
+    let (latest_version, releases) = if data.get("mac").is_some() || data.get("windows").is_some() || data.get("linux").is_some() {
+        // New format: prefer mac platform (remote-agent-server usually runs on Unix-like systems), fallback to windows/linux
+        let platform_data = data.get("mac")
+            .or_else(|| data.get("linux"))
+            .or_else(|| data.get("windows"))
+            .ok_or_else(|| "No platform data found".to_string())?;
+
+        let latest = platform_data.get("latest")
+            .and_then(|v| v.as_str())
+            .unwrap_or(CURRENT_VERSION);
+
+        let releases_arr = platform_data.get("releases")
+            .and_then(|r| r.as_array())
+            .unwrap_or(&vec![]);
+
+        (latest, releases_arr.clone())
+    } else {
+        // Old format
+        let latest = data.get("latest")
+            .and_then(|v| v.as_str())
+            .unwrap_or(CURRENT_VERSION);
+
+        let releases_arr = data.get("releases")
+            .and_then(|r| r.as_array())
+            .unwrap_or(&vec![]);
+
+        (latest, releases_arr.clone())
+    };
+
+    // Compare versions
+    let available = compare_versions(latest_version, CURRENT_VERSION) > 0;
+
+    // Get release notes for the latest version
+    let notes = if available {
+        releases
+            .first()
+            .and_then(|r| r.get("body"))
+            .and_then(|b| b.as_str())
+            .unwrap_or("")
+            .to_string()
+    } else {
+        String::new()
+    };
+
+    Ok(serde_json::json!({
+        "available": available,
+        "currentVersion": CURRENT_VERSION,
+        "latestVersion": latest_version,
+        "notes": notes
+    }))
+}
+
+/// Compare two version strings (semver)
+/// Returns: 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+fn compare_versions(v1: &str, v2: &str) -> i32 {
+    let parse = |v: &str| -> Vec<u32> {
+        v.split('.')
+            .filter_map(|s| s.parse().ok())
+            .collect()
+    };
+
+    let parts1 = parse(v1);
+    let parts2 = parse(v2);
+
+    for i in 0..parts1.len().max(parts2.len()) {
+        let p1 = parts1.get(i).copied().unwrap_or(0);
+        let p2 = parts2.get(i).copied().unwrap_or(0);
+
+        if p1 > p2 {
+            return 1;
+        }
+        if p1 < p2 {
+            return -1;
+        }
+    }
+
+    0
+}
+
+/// Download and install update, then restart the server
+async fn download_and_install_update() -> Result<serde_json::Value, String> {
+    const BASE_URL: &str = "https://download.m7s.live/rb";
+    
+    // Get current executable path
+    let current_exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+    
+    // Detect architecture
+    let arch = std::env::consts::ARCH;
+    let os = std::env::consts::OS;
+    
+    // Map architecture names
+    let arch_name = match arch {
+        "x86_64" => "x86_64",
+        "aarch64" => "aarch64",
+        _ => return Err(format!("Unsupported architecture: {}", arch)),
+    };
+    
+    // Map OS names
+    let os_name = match os {
+        "linux" => "linux",
+        "macos" => "darwin",
+        _ => return Err(format!("Unsupported OS: {}", os)),
+    };
+    
+    // Build download URL
+    let download_url = format!(
+        "{}/latest/remote-agent-server/rebebuca-remote-server-{}-{}",
+        BASE_URL, os_name, arch_name
+    );
+    
+    tracing::info!("Downloading update from: {}", download_url);
+    
+    // Create HTTP client
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300)) // 5 minutes timeout for download
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    // Download the new binary
+    let response = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download update: {}", e))?;
+    
+    if !response.status().is_success() {
+        return Err(format!("Failed to download update: HTTP {}", response.status()));
+    }
+    
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read update data: {}", e))?;
+    
+    tracing::info!("Downloaded {} bytes", bytes.len());
+    
+    // Create temp file for new binary
+    let temp_path = current_exe.with_extension("new");
+    
+    // Write new binary to temp file
+    tokio::fs::write(&temp_path, &bytes)
+        .await
+        .map_err(|e| format!("Failed to write new binary: {}", e))?;
+    
+    // Make it executable (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = tokio::fs::metadata(&temp_path)
+            .await
+            .map_err(|e| format!("Failed to get file metadata: {}", e))?
+            .permissions();
+        perms.set_mode(0o755);
+        tokio::fs::set_permissions(&temp_path, perms)
+            .await
+            .map_err(|e| format!("Failed to set executable permission: {}", e))?;
+    }
+    
+    // Backup current binary
+    let backup_path = current_exe.with_extension("backup");
+    if backup_path.exists() {
+        tokio::fs::remove_file(&backup_path)
+            .await
+            .map_err(|e| format!("Failed to remove old backup: {}", e))?;
+    }
+    
+    tokio::fs::rename(&current_exe, &backup_path)
+        .await
+        .map_err(|e| format!("Failed to backup current binary: {}", e))?;
+    
+    // Move new binary to current location
+    tokio::fs::rename(&temp_path, &current_exe)
+        .await
+        .map_err(|e| {
+            // Try to restore backup on failure
+            let _ = std::fs::rename(&backup_path, &current_exe);
+            format!("Failed to install new binary: {}", e)
+        })?;
+    
+    tracing::info!("Update installed successfully, scheduling restart...");
+    
+    // Schedule restart in a separate task
+    tokio::spawn(async move {
+        // Wait a moment for the response to be sent
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        
+        tracing::info!("Restarting server...");
+        
+        // Get command line arguments
+        let args: Vec<String> = std::env::args().collect();
+        
+        // Spawn the new process
+        match std::process::Command::new(&current_exe)
+            .args(&args[1..])
+            .spawn()
+        {
+            Ok(_) => {
+                tracing::info!("New process started, exiting current process...");
+                std::process::exit(0);
+            }
+            Err(e) => {
+                tracing::error!("Failed to start new process: {}", e);
+                // Try to restore from backup
+                if let Err(restore_err) = std::fs::rename(&backup_path, &current_exe) {
+                    tracing::error!("Failed to restore backup: {}", restore_err);
+                }
+            }
+        }
+    });
+    
+    Ok(serde_json::json!({
+        "success": true,
+        "message": "Update installed, server will restart shortly"
+    }))
+}

@@ -5,3 +5,4 @@
  */
 
 export * from './debugServer';
+export * from './taskSync';

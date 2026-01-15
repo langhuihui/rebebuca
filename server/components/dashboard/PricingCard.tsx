@@ -3,10 +3,21 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, Button } from '@/components/ui';
-import type { Product } from '@/lib/types/database';
+
+interface ProductWithFeatures {
+  id: string;
+  name: string;
+  description: string | null;
+  price_usd: number;
+  price_cny?: number | null;
+  features: string[];
+  is_active?: number | boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 interface PricingCardProps {
-  product: Product;
+  product: ProductWithFeatures;
   isCurrentPlan: boolean;
   userId?: string;
 }
@@ -15,11 +26,15 @@ export default function PricingCard({ product, isCurrentPlan, userId }: PricingC
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const features = Array.isArray(product.features) ? product.features : [];
+  const features = product.features;
   const isPopular = product.name === 'Pro';
   const isFree = product.price_usd === 0;
+  const isPaidPlan = !isFree;
 
   const handleSubscribe = async () => {
+    // Paid plans are coming soon - disabled
+    if (isPaidPlan) return;
+    
     if (!userId) {
       router.push('/login?redirect=/dashboard/subscriptions');
       return;
@@ -35,7 +50,7 @@ export default function PricingCard({ product, isCurrentPlan, userId }: PricingC
         body: JSON.stringify({ productId: product.id }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as { approvalUrl?: string; error?: string };
 
       if (data.approvalUrl) {
         window.location.href = data.approvalUrl;
@@ -116,14 +131,14 @@ export default function PricingCard({ product, isCurrentPlan, userId }: PricingC
         onClick={handleSubscribe}
         variant={isCurrentPlan ? 'secondary' : isPopular ? 'primary' : 'outline'}
         className="w-full"
-        disabled={isCurrentPlan || isFree}
+        disabled={isCurrentPlan || isPaidPlan}
         loading={loading}
       >
         {isCurrentPlan
           ? 'Current Plan'
           : isFree
           ? 'Free'
-          : `Subscribe to ${product.name}`}
+          : 'Coming Soon'}
       </Button>
     </Card>
   );

@@ -3,6 +3,7 @@ mod commands;
 mod debug;
 mod mcp_http_server;
 mod mcp_server;
+mod oauth_callback_server;
 mod port;
 mod process;
 mod pty;
@@ -274,6 +275,8 @@ pub fn run() {
             commands::execute_powershell_command,
             commands::check_full_disk_access,
             commands::open_full_disk_access_settings,
+            commands::open_url_in_browser,
+            oauth_callback_server::start_oauth_callback_server,
             // process module
             process::execute_command,
             process::kill_process_cmd,
@@ -325,6 +328,8 @@ pub fn run() {
             debug::get_all_debug_info,
             debug::mcp_update_frontend_logs,
             debug::mcp_update_dom_tree,
+            debug::mcp_update_task_list,
+            debug::mcp_get_server_port,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

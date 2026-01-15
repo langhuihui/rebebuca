@@ -1,21 +1,23 @@
-import { createClient } from '@/lib/supabase/server';
-import { createOrder } from '@/lib/paypal';
+export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
+import { getDB, generateId, Product } from '@/lib/db';
+import { createOrder } from '@/lib/paypal';
+
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const user = await getCurrentUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    const { productId } = await request.json();
+    const body = await request.json() as { productId?: string };
+    const { productId } = body;
 
     if (!productId) {
       return NextResponse.json(
@@ -24,15 +26,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get product details
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .eq('is_active', true)
-      .single();
+    const db = getDB();
 
-    if (productError || !product) {
+    // Get product details
+    const product = await db.prepare(`
+      SELECT * FROM products WHERE id = ? AND is_active = 1
+    `).bind(productId).first<Product>();
+
+    if (!product) {
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
@@ -62,27 +63,25 @@ export async function POST(request: NextRequest) {
     });
 
     // Create pending payment record
-    const { error: paymentError } = await supabase
-      .from('payments')
-      .insert({
-        user_id: user.id,
-        amount: product.price_usd,
-        currency: 'USD',
-        payment_method: 'paypal',
-        payment_id: order.id,
-        status: 'pending',
-        metadata: {
-          product_id: product.id,
-          product_name: product.name,
-        },
-      });
-
-    if (paymentError) {
-      console.error('Failed to create payment record:', paymentError);
-    }
+    const now = new Date().toISOString();
+    await db.prepare(`
+      INSERT INTO payments (id, user_id, payment_id, amount, currency, status, payment_method, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      generateId(),
+      user.id,
+      order.id,
+      product.price_usd,
+      'USD',
+      'pending',
+      'paypal',
+      JSON.stringify({ product_id: product.id, product_name: product.name }),
+      now,
+      now
+    ).run();
 
     // Find the approval URL
-    const approvalUrl = order.links.find((link) => link.rel === 'approve')?.href;
+    const approvalUrl = order.links.find((link: { rel: string; href: string }) => link.rel === 'approve')?.href;
 
     return NextResponse.json({
       orderId: order.id,

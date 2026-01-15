@@ -1,6 +1,8 @@
-import { createAdminClient } from '@/lib/supabase/server';
-import { verifyWebhookSignature } from '@/lib/paypal';
+export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
+import { getDB, Payment } from '@/lib/db';
+import { verifyWebhookSignature } from '@/lib/paypal';
+
 
 // PayPal webhook handler
 export async function POST(request: NextRequest) {
@@ -34,23 +36,26 @@ export async function POST(request: NextRequest) {
 
     console.log('PayPal webhook event:', eventType);
 
-    const supabase = createAdminClient();
+    const db = getDB();
+    const now = new Date().toISOString();
 
     switch (eventType) {
       case 'PAYMENT.CAPTURE.COMPLETED': {
         // Payment was successfully captured
         const orderId = resource.supplementary_data?.related_ids?.order_id;
         if (orderId) {
-          await supabase
-            .from('payments')
-            .update({
-              status: 'completed',
-              metadata: {
-                capture_id: resource.id,
-                webhook_event: eventType,
-              },
-            })
-            .eq('payment_id', orderId);
+          const payment = await db.prepare('SELECT * FROM payments WHERE payment_id = ?').bind(orderId).first<Payment>();
+          if (payment) {
+            const metadata = payment.metadata ? JSON.parse(payment.metadata) : {};
+            await db.prepare(`
+              UPDATE payments SET status = ?, metadata = ?, updated_at = ? WHERE payment_id = ?
+            `).bind(
+              'completed',
+              JSON.stringify({ ...metadata, capture_id: resource.id, webhook_event: eventType }),
+              now,
+              orderId
+            ).run();
+          }
         }
         break;
       }
@@ -60,16 +65,18 @@ export async function POST(request: NextRequest) {
         // Payment was denied
         const orderId = resource.supplementary_data?.related_ids?.order_id;
         if (orderId) {
-          await supabase
-            .from('payments')
-            .update({
-              status: 'failed',
-              metadata: {
-                webhook_event: eventType,
-                reason: resource.status_details?.reason,
-              },
-            })
-            .eq('payment_id', orderId);
+          const payment = await db.prepare('SELECT * FROM payments WHERE payment_id = ?').bind(orderId).first<Payment>();
+          if (payment) {
+            const metadata = payment.metadata ? JSON.parse(payment.metadata) : {};
+            await db.prepare(`
+              UPDATE payments SET status = ?, metadata = ?, updated_at = ? WHERE payment_id = ?
+            `).bind(
+              'failed',
+              JSON.stringify({ ...metadata, webhook_event: eventType, reason: resource.status_details?.reason }),
+              now,
+              orderId
+            ).run();
+          }
         }
         break;
       }
@@ -77,36 +84,29 @@ export async function POST(request: NextRequest) {
       case 'PAYMENT.CAPTURE.REFUNDED': {
         // Payment was refunded
         const captureId = resource.id;
-        // Find payment by capture ID in metadata
-        const { data: payments } = await supabase
-          .from('payments')
-          .select('*')
-          .filter('metadata->capture_id', 'eq', captureId);
+        // Find payment by capture ID in metadata (using LIKE since D1 doesn't support JSON queries)
+        const { results: payments } = await db.prepare(`
+          SELECT * FROM payments WHERE metadata LIKE ?
+        `).bind(`%"capture_id":"${captureId}"%`).all<Payment>();
 
         if (payments && payments.length > 0) {
           const payment = payments[0];
+          const metadata = payment.metadata ? JSON.parse(payment.metadata) : {};
           
-          await supabase
-            .from('payments')
-            .update({
-              status: 'refunded',
-              metadata: {
-                ...payment.metadata as object,
-                webhook_event: eventType,
-                refund_id: resource.refund_id,
-              },
-            })
-            .eq('id', payment.id);
+          await db.prepare(`
+            UPDATE payments SET status = ?, metadata = ?, updated_at = ? WHERE id = ?
+          `).bind(
+            'refunded',
+            JSON.stringify({ ...metadata, webhook_event: eventType, refund_id: resource.refund_id }),
+            now,
+            payment.id
+          ).run();
 
           // Cancel the associated subscription
           if (payment.subscription_id) {
-            await supabase
-              .from('subscriptions')
-              .update({
-                status: 'cancelled',
-                cancelled_at: new Date().toISOString(),
-              })
-              .eq('id', payment.subscription_id);
+            await db.prepare(`
+              UPDATE subscriptions SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ?
+            `).bind(now, now, payment.subscription_id).run();
           }
         }
         break;

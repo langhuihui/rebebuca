@@ -20,7 +20,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -39,17 +39,28 @@ pub struct MCPServerState {
     dom_tree: Arc<RwLock<Value>>,
     /// Resource subscriptions: maps session_id -> set of subscribed URIs
     resource_subscriptions: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    /// Cached task list (updated by frontend)
+    task_list: Arc<RwLock<Vec<Value>>>,
+    /// Server port
+    port: u16,
 }
 
 impl MCPServerState {
-    pub fn new(app_handle: tauri::AppHandle) -> Self {
+    pub fn new(app_handle: tauri::AppHandle, port: u16) -> Self {
         Self {
             app_handle,
             connections: Arc::new(RwLock::new(HashMap::new())),
             frontend_logs: Arc::new(RwLock::new(Vec::new())),
             dom_tree: Arc::new(RwLock::new(json!({}))),
             resource_subscriptions: Arc::new(RwLock::new(HashMap::new())),
+            task_list: Arc::new(RwLock::new(Vec::new())),
+            port,
         }
+    }
+
+    /// Get the server port
+    pub fn get_port(&self) -> u16 {
+        self.port
     }
 
     /// Update frontend logs cache and notify subscribers
@@ -108,6 +119,12 @@ impl MCPServerState {
         if let Some(uris) = subscriptions.get_mut(session_id) {
             uris.retain(|u| u != uri);
         }
+    }
+
+    /// Update task list cache
+    pub async fn update_task_list(&self, tasks: Vec<Value>) {
+        let mut cached = self.task_list.write().await;
+        *cached = tasks;
     }
 }
 
@@ -173,6 +190,38 @@ fn get_tools() -> Vec<Value> {
                     }
                 },
                 "required": []
+            }
+        }),
+        json!({
+            "name": "list_tasks",
+            "description": "Get the list of all available tasks in the application. Returns task information including id, name, command, cwd, and source.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "Filter tasks by source (e.g., 'vscode', 'npm', 'user', 'script'). If not provided, returns all tasks."
+                    }
+                },
+                "required": []
+            }
+        }),
+        json!({
+            "name": "execute_task",
+            "description": "Execute a task by its ID. The task will be started in a new terminal tab.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "description": "The unique identifier of the task to execute"
+                    },
+                    "cwd": {
+                        "type": "string",
+                        "description": "Override working directory for the task execution"
+                    }
+                },
+                "required": ["taskId"]
             }
         }),
     ]
@@ -340,6 +389,52 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
                 "dom_tree": dom_tree,
                 "timestamp": chrono::Local::now().to_rfc3339()
             }))
+        }
+
+        "list_tasks" => {
+            let tasks = state.task_list.read().await.clone();
+            let source_filter = args.get("source").and_then(|v| v.as_str());
+            
+            let filtered_tasks: Vec<Value> = if let Some(source) = source_filter {
+                tasks.into_iter()
+                    .filter(|t| t.get("source").and_then(|s| s.as_str()) == Some(source))
+                    .collect()
+            } else {
+                tasks
+            };
+            
+            Ok(json!({
+                "tasks": filtered_tasks,
+                "count": filtered_tasks.len()
+            }))
+        }
+
+        "execute_task" => {
+            let task_id = args.get("taskId").and_then(|v| v.as_str());
+            let cwd_override = args.get("cwd").and_then(|v| v.as_str()).map(|s| s.to_string());
+            
+            match task_id {
+                Some(id) => {
+                    // Emit an event to the frontend to execute the task
+                    let payload = json!({
+                        "taskId": id,
+                        "cwd": cwd_override
+                    });
+                    
+                    if let Err(e) = state.app_handle.emit("mcp-execute-task", payload.clone()) {
+                        error!("[MCP] Failed to emit execute-task event: {}", e);
+                        Err(format!("Failed to trigger task execution: {}", e))
+                    } else {
+                        info!("[MCP] Task execution triggered: {}", id);
+                        Ok(json!({
+                            "success": true,
+                            "message": format!("Task execution triggered: {}", id),
+                            "taskId": id
+                        }))
+                    }
+                }
+                None => Err("Missing taskId parameter".to_string()),
+            }
         }
 
         _ => Err(format!("Unknown tool: {}", name)),
@@ -637,7 +732,7 @@ pub async fn update_dom_tree(state: &MCPServerState, dom: Value) {
 
 /// Start the MCP HTTP server
 pub async fn start_server(app_handle: tauri::AppHandle, port: u16) -> Result<(), String> {
-    let state = MCPServerState::new(app_handle.clone());
+    let state = MCPServerState::new(app_handle.clone(), port);
     
     // Store state in app for later access
     app_handle.manage(state.clone());

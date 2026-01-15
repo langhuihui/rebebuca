@@ -48,6 +48,19 @@ export interface TaskExecutionParams {
   env?: Record<string, string>;
   logPath?: string;
   shellPath?: string | null;
+  /**
+   * Optional input to write after detecting a specific pattern in PTY output.
+   * Used for auto-entering SSH passwords after the password prompt appears.
+   * NOTE: should be cleared after use (may contain sensitive data).
+   */
+  autoInput?: {
+    /** Pattern to match in PTY output (case-insensitive) */
+    pattern: string;
+    /** Input to write when pattern is detected */
+    input: string;
+    /** Timeout in ms (default: 30000) */
+    timeout?: number;
+  };
 }
 
 export interface TerminalTab {
@@ -85,9 +98,18 @@ export const useTerminalStore = defineStore('terminal', () => {
 
   // Event listeners cleanup function
   let unlistenExit: (() => void) | null = null;
+  let unlistenData: (() => void) | null = null;
   
   // Adapter instance (cached)
   let adapter: BackendAdapter | null = null;
+  
+  // Pending auto-input handlers (ptyId -> config)
+  // Used to auto-enter passwords after detecting prompts in PTY output
+  const pendingAutoInputs = new Map<string, {
+    pattern: RegExp;
+    input: string;
+    timeoutId: ReturnType<typeof setTimeout>;
+  }>();
   
   // Terminal screenshot handler (will be set by ConsoleArea)
   // 使用 shallowRef 来存储函数引用，避免深度响应式
@@ -165,6 +187,28 @@ export const useTerminalStore = defineStore('terminal', () => {
     try {
       const adapterInstance = await getAdapterInstance();
       
+      // Listen for PTY data events to handle auto-input (e.g., SSH password prompts)
+      unlistenData = adapterInstance.terminal.onData(async (event) => {
+        const { ptyId, data } = event;
+        
+        // Check if there's a pending auto-input for this PTY
+        const pending = pendingAutoInputs.get(ptyId);
+        if (pending && pending.pattern.test(data)) {
+          console.log('[Terminal Store] Auto-input pattern matched for:', ptyId);
+          
+          // Clear the pending entry
+          clearTimeout(pending.timeoutId);
+          pendingAutoInputs.delete(ptyId);
+          
+          // Write the input
+          try {
+            await adapterInstance.terminal.write(ptyId, pending.input);
+          } catch (error) {
+            console.error('[Terminal Store] Failed to write auto-input:', error);
+          }
+        }
+      });
+      
       // Listen for PTY exit events via adapter
       unlistenExit = adapterInstance.terminal.onExit(async (event: TerminalExitEvent) => {
         const { ptyId, exitCode } = event;
@@ -213,6 +257,10 @@ export const useTerminalStore = defineStore('terminal', () => {
   
   // Cleanup listeners
   const cleanupListeners = () => {
+    if (unlistenData) {
+      unlistenData();
+      unlistenData = null;
+    }
     if (unlistenExit) {
       unlistenExit();
       unlistenExit = null;
@@ -292,6 +340,12 @@ export const useTerminalStore = defineStore('terminal', () => {
     label: string;
     logPath?: string;
     shellPath?: string | null;
+    /** Auto-input config: write input after detecting pattern in PTY output */
+    autoInput?: {
+      pattern: string;
+      input: string;
+      timeout?: number;
+    };
   }): Promise<TerminalTab> => {
     const id = generateId();
     const ptyId = `task-${id}`;
@@ -315,6 +369,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         env: options.env,
         logPath: options.logPath,
         shellPath: options.shellPath,
+        autoInput: options.autoInput,
       },
       shellName: getShellName(options.shellPath),
     };
@@ -389,6 +444,31 @@ export const useTerminalStore = defineStore('terminal', () => {
       tab.ptyId = result.ptyId;
       if (result.pid) {
         tab.pid = result.pid;
+      }
+
+      // Register auto-input handler if configured (e.g., for SSH password)
+      if (tab.execParams?.autoInput) {
+        const { pattern, input, timeout = 30000 } = tab.execParams.autoInput;
+        
+        // Create case-insensitive regex
+        const regex = new RegExp(pattern, 'i');
+        
+        // Set up timeout to clean up if pattern is never matched
+        const timeoutId = setTimeout(() => {
+          console.log('[Terminal Store] Auto-input timeout for:', tab.ptyId);
+          pendingAutoInputs.delete(tab.ptyId);
+        }, timeout);
+        
+        pendingAutoInputs.set(tab.ptyId, {
+          pattern: regex,
+          input,
+          timeoutId,
+        });
+        
+        console.log('[Terminal Store] Registered auto-input for:', tab.ptyId, 'pattern:', pattern);
+        
+        // Clear sensitive data from execParams
+        tab.execParams.autoInput = undefined;
       }
       
       // Notify taskManager to update running status (important for restart scenario)
@@ -539,6 +619,17 @@ export const useTerminalStore = defineStore('terminal', () => {
       } catch (error) {
         console.warn('[Terminal Store] Failed to stop task before restart:', error);
         // Continue anyway, as we want to restart regardless
+      }
+    }
+    
+    // Notify taskManager that the old task has exited (will be re-registered in startTask)
+    if (tab.taskId) {
+      try {
+        const { useTaskManagerStore } = await import('./taskManager');
+        const taskManager = useTaskManagerStore();
+        taskManager.onTaskExit(tab.id);
+      } catch (error) {
+        console.warn('[Terminal Store] Failed to notify taskManager of task exit:', error);
       }
     }
 

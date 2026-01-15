@@ -274,6 +274,10 @@
         <SshPanel />
       </n-tab-pane>
       
+      <n-tab-pane name="mcp" tab="MCP">
+        <MCPPanel />
+      </n-tab-pane>
+      
       <!-- Developer options (only visible in development mode) -->
       <n-tab-pane v-if="isDevelopmentMode()" name="developer" :tab="t('settings.developer')">
         <n-form label-placement="left" label-width="auto" class="compact-settings-form">
@@ -356,6 +360,7 @@ import CommandIconSettings from '../CommandIconSettings.vue';
 import DevLogViewer from '../DevLogViewer.vue';
 import AIToolsPanel from './AIToolsPanel.vue';
 import SshPanel from './SshPanel.vue';
+import MCPPanel from './MCPPanel.vue';
 
 interface ReleaseNote {
   tag: string;

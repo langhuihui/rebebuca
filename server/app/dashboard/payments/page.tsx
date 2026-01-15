@@ -1,23 +1,46 @@
-import { createClient } from '@/lib/supabase/server';
+export const runtime = 'edge';
+
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui';
+import { verifyToken } from '@/lib/auth/jwt';
+import { getDB, User, Payment } from '@/lib/db';
+
 
 export default async function PaymentsPage() {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
+
+  if (!accessToken) {
+    redirect('/login');
+  }
+
+  const payload = await verifyToken(accessToken);
+  if (!payload || payload.type !== 'access') {
+    redirect('/login');
+  }
+
+  const db = getDB();
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(payload.sub).first<User>();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  type PaymentWithDetails = Payment & { subscription_plan_type: string; product_name: string };
+
   // Get all payments
-  const { data: payments } = await supabase
-    .from('payments')
-    .select(`
-      *,
-      subscription:subscriptions(
-        *,
-        product:products(name)
-      )
-    `)
-    .eq('user_id', user?.id)
-    .order('created_at', { ascending: false });
+  const { results: payments } = await db.prepare(`
+    SELECT 
+      pay.*,
+      s.plan_type as subscription_plan_type,
+      p.name as product_name
+    FROM payments pay
+    LEFT JOIN subscriptions s ON pay.subscription_id = s.id
+    LEFT JOIN products p ON s.product_id = p.id
+    WHERE pay.user_id = ?
+    ORDER BY pay.created_at DESC
+  `).bind(user.id).all<PaymentWithDetails>();
 
   return (
     <div className="space-y-6">
@@ -55,10 +78,8 @@ export default async function PaymentsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-dark-600">
                 {payments.map((payment) => {
-                  const productName = 
-                    (payment.subscription as { product?: { name?: string } })?.product?.name ||
-                    (payment.metadata as { product_name?: string })?.product_name ||
-                    'Subscription';
+                  const metadata = payment.metadata ? JSON.parse(payment.metadata) : {};
+                  const productName = payment.product_name || metadata.product_name || 'Subscription';
 
                   return (
                     <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-dark-700">

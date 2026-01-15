@@ -1,10 +1,15 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable React Strict Mode for better development experience
   reactStrictMode: true,
   
-  // Optimize for Vercel deployment
+  // Optimize for standalone deployment (CloudStudio/Docker/Vercel)
   output: 'standalone',
+  
+  // Set the output file tracing root to the server directory
+  outputFileTracingRoot: path.join(__dirname),
   
   // Allow images from external domains (if needed)
   images: {

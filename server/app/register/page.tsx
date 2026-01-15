@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button, Input, Card } from '@/components/ui';
-import { createClient } from '@/lib/supabase/client';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -15,7 +15,6 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,30 +35,25 @@ export default function RegisterPage() {
     }
 
     try {
-      const supabase = createClient();
-      const { error, data } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            display_name: displayName || email.split('@')[0],
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          displayName: displayName || email.split('@')[0],
+        }),
       });
 
-      if (error) {
-        setErrorMessage(error.message);
+      const data = await response.json() as { error?: string };
+
+      if (!response.ok) {
+        setErrorMessage(data.error || 'Registration failed');
         return;
       }
 
-      // Check if email confirmation is required
-      if (data.user && !data.session) {
-        setSuccess(true);
-      } else {
-        router.push('/dashboard');
-        router.refresh();
-      }
+      router.push('/dashboard');
+      router.refresh();
     } catch {
       setErrorMessage('An unexpected error occurred');
     } finally {
@@ -67,51 +61,21 @@ export default function RegisterPage() {
     }
   };
 
-  if (success) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <Card className="text-center">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Check your email
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              We&apos;ve sent a confirmation link to <strong>{email}</strong>. 
-              Please check your inbox and click the link to verify your account.
-            </p>
-            <Link href="/login">
-              <Button variant="outline" className="w-full">
-                Back to Sign In
-              </Button>
-            </Link>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary-50 to-white dark:from-dark-950 dark:to-dark-900">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <Link href="/" className="inline-flex flex-col items-center">
+            <Image
+              src="/logo.svg"
+              alt="Rebebuca Logo"
+              width={64}
+              height={64}
+              className="mb-3"
+              priority
+            />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-accent-400 bg-clip-text text-transparent">
               Rebebuca
             </h1>
           </Link>

@@ -90,26 +90,6 @@
                     </template>
                   </n-button>
                 </n-dropdown>
-                <n-dropdown
-                  v-if="toolVersions[toolType] && isUpdateAvailable(toolType)"
-                  trigger="click"
-                  :options="getUpgradeOptions()"
-                  @select="(key: string) => handleUpgradeSelect(key, toolType)"
-                >
-                  <n-button
-                    type="primary"
-                    size="small"
-                    :loading="updating[toolType]"
-                    style="margin-left: 8px"
-                  >
-                    {{ t("aiTools.upgrade") }}
-                    <template #icon>
-                      <n-icon size="14">
-                        <component :is="svgIcons.chevronDown" />
-                      </n-icon>
-                    </template>
-                  </n-button>
-                </n-dropdown>
               </div>
             </div>
 
@@ -126,27 +106,366 @@
               </span>
             </div>
 
+            <!-- Upgrade Section (when tool is installed, show regardless of update availability) -->
+            <div v-if="toolVersions[toolType]" class="upgrade-section">
+              <n-divider style="margin: 16px 0 12px 0">
+                {{ t("aiTools.upgradeOptions") }}
+              </n-divider>
+
+              <!-- Package Manager Tabs for npm-based tools -->
+              <n-tabs
+                v-if="hasNpmPackage(toolType)"
+                v-model:value="selectedUpgradePackageManager[toolType]"
+                type="line"
+                size="small"
+                style="margin-bottom: 12px"
+              >
+                <n-tab-pane name="npm" tab="npm">
+                  <div class="install-command">
+                    <n-input-group>
+                      <n-input
+                        :value="getUpgradeCommand(toolType, 'npm')"
+                        readonly
+                        size="small"
+                        style="font-family: monospace; font-size: 12px"
+                      />
+                      <n-button size="small" @click="copyCommand(getUpgradeCommand(toolType, 'npm'))">
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.copy" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                      <n-button
+                        size="small"
+                        type="primary"
+                        @click="runUpgradeCommand(toolType, 'npm')"
+                      >
+                        {{ t("aiTools.upgrade") }}
+                      </n-button>
+                    </n-input-group>
+                    <!-- Sudo/WSL options -->
+                    <div class="command-options">
+                      <template v-if="currentPlatform !== 'windows'">
+                        <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                      </template>
+                      <template v-else>
+                        <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                      </template>
+                    </div>
+                  </div>
+                </n-tab-pane>
+                <n-tab-pane name="pnpm" tab="pnpm">
+                  <div class="install-command">
+                    <n-input-group>
+                      <n-input
+                        :value="getUpgradeCommand(toolType, 'pnpm')"
+                        readonly
+                        size="small"
+                        style="font-family: monospace; font-size: 12px"
+                      />
+                      <n-button size="small" @click="copyCommand(getUpgradeCommand(toolType, 'pnpm'))">
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.copy" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                      <n-button
+                        size="small"
+                        type="primary"
+                        @click="runUpgradeCommand(toolType, 'pnpm')"
+                      >
+                        {{ t("aiTools.upgrade") }}
+                      </n-button>
+                    </n-input-group>
+                    <!-- Sudo/WSL options -->
+                    <div class="command-options">
+                      <template v-if="currentPlatform !== 'windows'">
+                        <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                      </template>
+                      <template v-else>
+                        <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                      </template>
+                    </div>
+                  </div>
+                </n-tab-pane>
+                <n-tab-pane name="yarn" tab="yarn">
+                  <div class="install-command">
+                    <n-input-group>
+                      <n-input
+                        :value="getUpgradeCommand(toolType, 'yarn')"
+                        readonly
+                        size="small"
+                        style="font-family: monospace; font-size: 12px"
+                      />
+                      <n-button size="small" @click="copyCommand(getUpgradeCommand(toolType, 'yarn'))">
+                        <template #icon>
+                          <n-icon size="14">
+                            <component :is="svgIcons.copy" />
+                          </n-icon>
+                        </template>
+                      </n-button>
+                      <n-button
+                        size="small"
+                        type="primary"
+                        @click="runUpgradeCommand(toolType, 'yarn')"
+                      >
+                        {{ t("aiTools.upgrade") }}
+                      </n-button>
+                    </n-input-group>
+                    <!-- Sudo/WSL options -->
+                    <div class="command-options">
+                      <template v-if="currentPlatform !== 'windows'">
+                        <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                      </template>
+                      <template v-else>
+                        <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                      </template>
+                    </div>
+                  </div>
+                </n-tab-pane>
+              </n-tabs>
+
+              <!-- Non-npm tools: show update command directly -->
+              <div v-else class="install-command">
+                <div class="method-label">{{ t("aiTools.upgradeCommand") }}</div>
+                <n-input-group>
+                  <n-input
+                    :value="getToolUpdateCommand(toolType)"
+                    readonly
+                    size="small"
+                    style="font-family: monospace; font-size: 12px"
+                  />
+                  <n-button size="small" @click="copyCommand(getToolUpdateCommand(toolType) || '')">
+                    <template #icon>
+                      <n-icon size="14">
+                        <component :is="svgIcons.copy" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                  <n-button
+                    size="small"
+                    type="primary"
+                    @click="updateTool(toolType, useSudoForUpgrade[toolType] || false, useWslForUpgrade[toolType] || false)"
+                  >
+                    {{ t("aiTools.upgrade") }}
+                  </n-button>
+                </n-input-group>
+                <!-- Sudo/WSL options -->
+                <div class="command-options">
+                  <template v-if="currentPlatform !== 'windows'">
+                    <n-switch v-model:value="useSudoForUpgrade[toolType]" size="small" />
+                    <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                  </template>
+                  <template v-else>
+                    <n-switch v-model:value="useWslForUpgrade[toolType]" size="small" />
+                    <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                  </template>
+                </div>
+              </div>
+            </div>
+
             <!-- Installation Section (when not installed) -->
             <div v-if="!toolVersions[toolType]" class="install-section">
               <n-divider style="margin: 16px 0 12px 0">
                 {{ t("aiTools.installOptions") }}
               </n-divider>
 
-              <!-- Install Methods Tabs -->
-              <n-tabs
-                v-if="getAvailableInstallMethods(toolType).length > 1"
-                v-model:value="selectedInstallMethod[toolType]"
-                type="line"
-                size="small"
-                style="margin-bottom: 12px"
-              >
-                <n-tab-pane
-                  v-for="method in getAvailableInstallMethods(toolType)"
-                  :key="method.id"
-                  :name="method.id"
-                  :tab="method.name"
+              <!-- Package Manager Tabs for npm-based methods -->
+              <template v-if="hasNpmInstallMethod(toolType)">
+                <n-tabs
+                  v-model:value="selectedPackageManager[toolType]"
+                  type="line"
+                  size="small"
+                  style="margin-bottom: 12px"
                 >
-                  <div class="install-command">
+                  <n-tab-pane name="npm" tab="npm">
+                    <div class="install-command">
+                      <n-input-group>
+                        <n-input
+                          :value="getNpmInstallCommand(toolType, 'npm')"
+                          readonly
+                          size="small"
+                          style="font-family: monospace; font-size: 12px"
+                        />
+                        <n-button size="small" @click="copyCommand(getNpmInstallCommand(toolType, 'npm'))">
+                          <template #icon>
+                            <n-icon size="14">
+                              <component :is="svgIcons.copy" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="small"
+                          type="primary"
+                          @click="runNpmInstallCommand(toolType, 'npm')"
+                        >
+                          {{ t("aiTools.install") }}
+                        </n-button>
+                      </n-input-group>
+                      <!-- Sudo/WSL options -->
+                      <div class="command-options">
+                        <template v-if="currentPlatform !== 'windows'">
+                          <n-switch v-model:value="useSudoForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                        </template>
+                        <template v-else>
+                          <n-switch v-model:value="useWslForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                        </template>
+                      </div>
+                    </div>
+                  </n-tab-pane>
+                  <n-tab-pane name="pnpm" tab="pnpm">
+                    <div class="install-command">
+                      <n-input-group>
+                        <n-input
+                          :value="getNpmInstallCommand(toolType, 'pnpm')"
+                          readonly
+                          size="small"
+                          style="font-family: monospace; font-size: 12px"
+                        />
+                        <n-button size="small" @click="copyCommand(getNpmInstallCommand(toolType, 'pnpm'))">
+                          <template #icon>
+                            <n-icon size="14">
+                              <component :is="svgIcons.copy" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="small"
+                          type="primary"
+                          @click="runNpmInstallCommand(toolType, 'pnpm')"
+                        >
+                          {{ t("aiTools.install") }}
+                        </n-button>
+                      </n-input-group>
+                      <!-- Sudo/WSL options -->
+                      <div class="command-options">
+                        <template v-if="currentPlatform !== 'windows'">
+                          <n-switch v-model:value="useSudoForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                        </template>
+                        <template v-else>
+                          <n-switch v-model:value="useWslForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                        </template>
+                      </div>
+                    </div>
+                  </n-tab-pane>
+                  <n-tab-pane name="yarn" tab="yarn">
+                    <div class="install-command">
+                      <n-input-group>
+                        <n-input
+                          :value="getNpmInstallCommand(toolType, 'yarn')"
+                          readonly
+                          size="small"
+                          style="font-family: monospace; font-size: 12px"
+                        />
+                        <n-button size="small" @click="copyCommand(getNpmInstallCommand(toolType, 'yarn'))">
+                          <template #icon>
+                            <n-icon size="14">
+                              <component :is="svgIcons.copy" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="small"
+                          type="primary"
+                          @click="runNpmInstallCommand(toolType, 'yarn')"
+                        >
+                          {{ t("aiTools.install") }}
+                        </n-button>
+                      </n-input-group>
+                      <!-- Sudo/WSL options -->
+                      <div class="command-options">
+                        <template v-if="currentPlatform !== 'windows'">
+                          <n-switch v-model:value="useSudoForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                        </template>
+                        <template v-else>
+                          <n-switch v-model:value="useWslForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                        </template>
+                      </div>
+                    </div>
+                  </n-tab-pane>
+                </n-tabs>
+              </template>
+
+              <!-- Other Install Methods (non-npm) -->
+              <template v-if="getNonNpmInstallMethods(toolType).length > 0">
+                <n-divider v-if="hasNpmInstallMethod(toolType)" style="margin: 12px 0 8px 0" title-placement="left">
+                  <span style="font-size: 12px; color: var(--n-text-color-3)">{{ t("aiTools.otherMethods") }}</span>
+                </n-divider>
+                <n-tabs
+                  v-if="getNonNpmInstallMethods(toolType).length > 1"
+                  v-model:value="selectedInstallMethod[toolType]"
+                  type="line"
+                  size="small"
+                  style="margin-bottom: 12px"
+                >
+                  <n-tab-pane
+                    v-for="method in getNonNpmInstallMethods(toolType)"
+                    :key="method.id"
+                    :name="method.id"
+                    :tab="method.name"
+                  >
+                    <div class="install-command">
+                      <n-input-group>
+                        <n-input
+                          :value="method.command"
+                          readonly
+                          size="small"
+                          style="font-family: monospace; font-size: 12px"
+                        />
+                        <n-button
+                          size="small"
+                          @click="copyCommand(method.command)"
+                        >
+                          <template #icon>
+                            <n-icon size="14">
+                              <component :is="svgIcons.copy" />
+                            </n-icon>
+                          </template>
+                        </n-button>
+                        <n-button
+                          size="small"
+                          type="primary"
+                          @click="runInstallCommandWithOptions(toolType, method)"
+                        >
+                          {{ t("aiTools.install") }}
+                        </n-button>
+                      </n-input-group>
+                      <!-- Sudo/WSL options -->
+                      <div class="command-options">
+                        <template v-if="currentPlatform !== 'windows'">
+                          <n-switch v-model:value="useSudoForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                        </template>
+                        <template v-else>
+                          <n-switch v-model:value="useWslForInstall[toolType]" size="small" />
+                          <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                        </template>
+                      </div>
+                    </div>
+                  </n-tab-pane>
+                </n-tabs>
+
+                <!-- Single Non-npm Install Method -->
+                <div v-else class="install-command">
+                  <div
+                    v-for="method in getNonNpmInstallMethods(toolType)"
+                    :key="method.id"
+                  >
+                    <div class="method-label">{{ method.name }}</div>
                     <n-input-group>
                       <n-input
                         :value="method.command"
@@ -154,48 +473,38 @@
                         size="small"
                         style="font-family: monospace; font-size: 12px"
                       />
-                      <n-button
-                        size="small"
-                        @click="copyCommand(method.command)"
-                      >
+                      <n-button size="small" @click="copyCommand(method.command)">
                         <template #icon>
                           <n-icon size="14">
                             <component :is="svgIcons.copy" />
                           </n-icon>
                         </template>
                       </n-button>
-                      <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
-                      <n-dropdown
-                        v-if="currentPlatform !== 'windows'"
-                        trigger="click"
-                        :options="getInstallOptions()"
-                        @select="(key: string) => handleInstallSelect(key, toolType, method)"
-                      >
-                        <n-button size="small" type="primary">
-                          {{ t("aiTools.install") }}
-                          <template #icon>
-                            <n-icon size="14">
-                              <component :is="svgIcons.chevronDown" />
-                            </n-icon>
-                          </template>
-                        </n-button>
-                      </n-dropdown>
-                      <!-- Windows: normal button -->
                       <n-button
-                        v-else
                         size="small"
                         type="primary"
-                        @click="runInstallCommand(toolType, method, false)"
+                        @click="runInstallCommandWithOptions(toolType, method)"
                       >
                         {{ t("aiTools.install") }}
                       </n-button>
                     </n-input-group>
+                    <!-- Sudo/WSL options -->
+                    <div class="command-options">
+                      <template v-if="currentPlatform !== 'windows'">
+                        <n-switch v-model:value="useSudoForInstall[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                      </template>
+                      <template v-else>
+                        <n-switch v-model:value="useWslForInstall[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                      </template>
+                    </div>
                   </div>
-                </n-tab-pane>
-              </n-tabs>
+                </div>
+              </template>
 
-              <!-- Single Install Method (no tabs needed) -->
-              <div v-else class="install-command">
+              <!-- No install methods available for tools without npm -->
+              <div v-if="!hasNpmInstallMethod(toolType) && getNonNpmInstallMethods(toolType).length === 0" class="install-command">
                 <div
                   v-for="method in getAvailableInstallMethods(toolType)"
                   :key="method.id"
@@ -215,32 +524,25 @@
                         </n-icon>
                       </template>
                     </n-button>
-                    <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
-                    <n-dropdown
-                      v-if="currentPlatform !== 'windows'"
-                      trigger="click"
-                      :options="getInstallOptions()"
-                      @select="(key: string) => handleInstallSelect(key, toolType, method)"
-                    >
-                      <n-button size="small" type="primary">
-                        {{ t("aiTools.install") }}
-                        <template #icon>
-                          <n-icon size="14">
-                            <component :is="svgIcons.chevronDown" />
-                          </n-icon>
-                        </template>
-                      </n-button>
-                    </n-dropdown>
-                    <!-- Windows: normal button -->
                     <n-button
-                      v-else
                       size="small"
                       type="primary"
-                      @click="runInstallCommand(toolType, method, false)"
+                      @click="runInstallCommandWithOptions(toolType, method)"
                     >
                       {{ t("aiTools.install") }}
                     </n-button>
                   </n-input-group>
+                  <!-- Sudo/WSL options -->
+                  <div class="command-options">
+                    <template v-if="currentPlatform !== 'windows'">
+                      <n-switch v-model:value="useSudoForInstall[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                    </template>
+                    <template v-else>
+                      <n-switch v-model:value="useWslForInstall[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
@@ -283,32 +585,25 @@
                           </n-icon>
                         </template>
                       </n-button>
-                      <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
-                      <n-dropdown
-                        v-if="currentPlatform !== 'windows'"
-                        trigger="click"
-                        :options="getUninstallOptions()"
-                        @select="(key: string) => handleUninstallSelect(key, toolType, method)"
-                      >
-                        <n-button size="small" type="error">
-                          {{ t("aiTools.uninstall") }}
-                          <template #icon>
-                            <n-icon size="14">
-                              <component :is="svgIcons.chevronDown" />
-                            </n-icon>
-                          </template>
-                        </n-button>
-                      </n-dropdown>
-                      <!-- Windows: normal button -->
                       <n-button
-                        v-else
                         size="small"
                         type="error"
-                        @click="runUninstallCommand(toolType, method, false)"
+                        @click="runUninstallCommandWithOptions(toolType, method)"
                       >
                         {{ t("aiTools.uninstall") }}
                       </n-button>
                     </n-input-group>
+                    <!-- Sudo/WSL options -->
+                    <div class="command-options">
+                      <template v-if="currentPlatform !== 'windows'">
+                        <n-switch v-model:value="useSudoForUninstall[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                      </template>
+                      <template v-else>
+                        <n-switch v-model:value="useWslForUninstall[toolType]" size="small" />
+                        <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                      </template>
+                    </div>
                   </div>
                 </n-tab-pane>
               </n-tabs>
@@ -334,32 +629,25 @@
                         </n-icon>
                       </template>
                     </n-button>
-                    <!-- All platforms: dropdown with sudo option (macOS/Linux) or normal button (Windows) -->
-                    <n-dropdown
-                      v-if="currentPlatform !== 'windows'"
-                      trigger="click"
-                      :options="getUninstallOptions()"
-                      @select="(key: string) => handleUninstallSelect(key, toolType, method)"
-                    >
-                      <n-button size="small" type="error">
-                        {{ t("aiTools.uninstall") }}
-                        <template #icon>
-                          <n-icon size="14">
-                            <component :is="svgIcons.chevronDown" />
-                          </n-icon>
-                        </template>
-                      </n-button>
-                    </n-dropdown>
-                    <!-- Windows: normal button -->
                     <n-button
-                      v-else
                       size="small"
                       type="error"
-                      @click="runUninstallCommand(toolType, method, false)"
+                      @click="runUninstallCommandWithOptions(toolType, method)"
                     >
                       {{ t("aiTools.uninstall") }}
                     </n-button>
                   </n-input-group>
+                  <!-- Sudo/WSL options -->
+                  <div class="command-options">
+                    <template v-if="currentPlatform !== 'windows'">
+                      <n-switch v-model:value="useSudoForUninstall[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useSudo") }}</span>
+                    </template>
+                    <template v-else>
+                      <n-switch v-model:value="useWslForUninstall[toolType]" size="small" />
+                      <span class="option-label">{{ t("aiTools.useWsl") }}</span>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
@@ -488,6 +776,8 @@ import {
   NSelect,
   NDivider,
   NSpin,
+  NSwitch,
+  NDropdown,
   useMessage,
 } from "naive-ui";
 import {
@@ -537,6 +827,22 @@ const selectedInstallMethod = ref<Record<string, string>>({});
 // Selected uninstall method for each tool
 const selectedUninstallMethod = ref<Record<string, string>>({});
 
+// Selected package manager for npm-based tools (npm, pnpm, yarn)
+const selectedPackageManager = ref<Record<string, 'npm' | 'pnpm' | 'yarn'>>({});
+
+// Selected package manager for upgrade
+const selectedUpgradePackageManager = ref<Record<string, 'npm' | 'pnpm' | 'yarn'>>({});
+
+// Use sudo switch state for each tool
+const useSudoForInstall = ref<Record<string, boolean>>({});
+const useSudoForUninstall = ref<Record<string, boolean>>({});
+const useSudoForUpgrade = ref<Record<string, boolean>>({});
+
+// Use WSL switch state for Windows
+const useWslForInstall = ref<Record<string, boolean>>({});
+const useWslForUninstall = ref<Record<string, boolean>>({});
+const useWslForUpgrade = ref<Record<string, boolean>>({});
+
 // Tool versions (empty string means not installed)
 const toolVersions = ref<Record<string, string>>({});
 
@@ -560,6 +866,9 @@ const installingTerminal = ref<AIToolType | null>(null);
 const upgradingTerminal = ref<AIToolType | null>(null);
 const installPtyId = ref<string | null>(null);
 const upgradePtyId = ref<string | null>(null);
+
+// Show upgrade panel state
+const showingUpgradePanel = ref<Record<string, boolean>>({});
 
 // Local tool configs for inline editing - initialize with defaults
 const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
@@ -666,6 +975,18 @@ const initSelectedInstallMethods = () => {
     if (uninstallMethods.length > 0) {
       selectedUninstallMethod.value[toolType] = uninstallMethods[0].id;
     }
+    // Initialize package manager selection (default to npm)
+    selectedPackageManager.value[toolType] = 'npm';
+    selectedUpgradePackageManager.value[toolType] = 'npm';
+    // Initialize sudo/WSL switches (default to false)
+    useSudoForInstall.value[toolType] = false;
+    useSudoForUninstall.value[toolType] = false;
+    useSudoForUpgrade.value[toolType] = false;
+    useWslForInstall.value[toolType] = false;
+    useWslForUninstall.value[toolType] = false;
+    useWslForUpgrade.value[toolType] = false;
+    // Initialize upgrade panel visibility
+    showingUpgradePanel.value[toolType] = false;
   }
 };
 
@@ -712,6 +1033,116 @@ const getAvailableUninstallMethods = (toolType: AIToolType) => {
   return methods.filter(
     (m) => m.platform === "all" || m.platform === currentPlatform.value
   );
+};
+
+// NPM package name mapping for AI tools
+const NPM_PACKAGE_MAP: Record<AIToolType, string | null> = {
+  'claude-code': '@anthropic-ai/claude-code',
+  'codex': '@openai/codex',
+  'gemini-cli': '@google/gemini-cli',
+  'opencode': 'opencode-ai',
+  'codebuddy': '@tencent-ai/codebuddy-code',
+  'qoder-cli': '@qoder-ai/qodercli',
+  'copilot-cli': '@github/copilot',
+  'droid': null,
+  'augment-cli': '@augmentcode/auggie',
+  'cursor-cli': null,
+  'crush': '@charmland/crush',
+  'ampcode': null,
+};
+
+// Check if tool has npm package
+const hasNpmPackage = (toolType: AIToolType): boolean => {
+  return NPM_PACKAGE_MAP[toolType] !== null;
+};
+
+// Check if tool has npm install method
+const hasNpmInstallMethod = (toolType: AIToolType): boolean => {
+  const methods = getAvailableInstallMethods(toolType);
+  return methods.some(m => m.id === 'npm' || m.command.includes('npm install'));
+};
+
+// Get non-npm install methods
+const getNonNpmInstallMethods = (toolType: AIToolType) => {
+  const methods = getAvailableInstallMethods(toolType);
+  return methods.filter(m => m.id !== 'npm' && !m.command.includes('npm install') && !m.command.includes('pnpm install') && !m.command.includes('yarn global add'));
+};
+
+// Get npm install command with specified package manager
+const getNpmInstallCommand = (toolType: AIToolType, pm: 'npm' | 'pnpm' | 'yarn'): string => {
+  const packageName = NPM_PACKAGE_MAP[toolType];
+  if (!packageName) return '';
+  
+  switch (pm) {
+    case 'npm':
+      return `npm install -g ${packageName}`;
+    case 'pnpm':
+      return `pnpm install -g ${packageName}`;
+    case 'yarn':
+      return `yarn global add ${packageName}`;
+    default:
+      return `npm install -g ${packageName}`;
+  }
+};
+
+// Get upgrade command with specified package manager
+const getUpgradeCommand = (toolType: AIToolType, pm: 'npm' | 'pnpm' | 'yarn'): string => {
+  const packageName = NPM_PACKAGE_MAP[toolType];
+  if (!packageName) return '';
+  
+  switch (pm) {
+    case 'npm':
+      return `npm install -g ${packageName}@latest`;
+    case 'pnpm':
+      return `pnpm install -g ${packageName}@latest`;
+    case 'yarn':
+      return `yarn global add ${packageName}@latest`;
+    default:
+      return `npm install -g ${packageName}@latest`;
+  }
+};
+
+// Get tool update command (for non-npm tools)
+const getToolUpdateCommand = (toolType: AIToolType): string | null => {
+  return getUpdateCommand(toolType);
+};
+
+// Run npm install command with selected package manager
+const runNpmInstallCommand = async (toolType: AIToolType, pm: 'npm' | 'pnpm' | 'yarn') => {
+  const command = getNpmInstallCommand(toolType, pm);
+  const useSudo = useSudoForInstall.value[toolType] || false;
+  const useWsl = useWslForInstall.value[toolType] || false;
+  
+  await runInstallCommand(toolType, { id: pm, command }, useSudo, useWsl);
+};
+
+// Run upgrade command with selected package manager
+const runUpgradeCommand = async (toolType: AIToolType, pm: 'npm' | 'pnpm' | 'yarn') => {
+  const command = getUpgradeCommand(toolType, pm);
+  const useSudo = useSudoForUpgrade.value[toolType] || false;
+  const useWsl = useWslForUpgrade.value[toolType] || false;
+  
+  await updateToolWithCommand(toolType, command, useSudo, useWsl);
+};
+
+// Run install command with options from switches
+const runInstallCommandWithOptions = async (
+  toolType: AIToolType,
+  method: { command: string; id: string }
+) => {
+  const useSudo = useSudoForInstall.value[toolType] || false;
+  const useWsl = useWslForInstall.value[toolType] || false;
+  await runInstallCommand(toolType, method, useSudo, useWsl);
+};
+
+// Run uninstall command with options from switches
+const runUninstallCommandWithOptions = async (
+  toolType: AIToolType,
+  method: { command: string; id: string }
+) => {
+  const useSudo = useSudoForUninstall.value[toolType] || false;
+  const useWsl = useWslForUninstall.value[toolType] || false;
+  await runUninstallCommand(toolType, method, useSudo, useWsl);
 };
 
 // Check if a single tool is installed
@@ -958,34 +1389,6 @@ const copyCommand = async (command: string) => {
   }
 };
 
-// Get install dropdown options for macOS/Linux
-const getInstallOptions = () => {
-  return [
-    {
-      label: t("aiTools.installNormal"),
-      key: "normal",
-    },
-    {
-      label: t("aiTools.installWithSudo"),
-      key: "sudo",
-    },
-  ];
-};
-
-// Get uninstall dropdown options for macOS/Linux
-const getUninstallOptions = () => {
-  return [
-    {
-      label: t("aiTools.uninstallNormal"),
-      key: "normal",
-    },
-    {
-      label: t("aiTools.uninstallWithSudo"),
-      key: "sudo",
-    },
-  ];
-};
-
 // Get refresh dropdown options
 const getRefreshOptions = (toolType: AIToolType) => {
   const options = [
@@ -1014,32 +1417,6 @@ const handleRefreshSelect = (key: string, toolType: AIToolType) => {
   }
 };
 
-// Get upgrade dropdown options
-const getUpgradeOptions = () => {
-  const options = [
-    {
-      label: t("aiTools.upgradeNormal"),
-      key: "normal",
-    },
-  ];
-  
-  // Only show sudo option on macOS/Linux
-  if (currentPlatform.value !== 'windows') {
-    options.push({
-      label: t("aiTools.upgradeWithSudo"),
-      key: "sudo",
-    });
-  }
-  
-  return options;
-};
-
-// Handle upgrade option selection
-const handleUpgradeSelect = (key: string, toolType: AIToolType) => {
-  const useSudo = key === "sudo";
-  updateTool(toolType, useSudo);
-};
-
 /**
  * Inject sudo password into command if stored
  */
@@ -1059,26 +1436,6 @@ const injectSudoPasswordIntoCommand = (command: string, useSudo: boolean): strin
   
   // Build: echo 'password' | sudo -S <command>
   return `echo '${escapedPassword}' | sudo -S ${command}`;
-};
-
-// Handle install option selection
-const handleInstallSelect = (
-  key: string,
-  toolType: AIToolType,
-  method: { command: string; id: string }
-) => {
-  const useSudo = key === "sudo";
-  runInstallCommand(toolType, method, useSudo);
-};
-
-// Handle uninstall option selection
-const handleUninstallSelect = (
-  key: string,
-  toolType: AIToolType,
-  method: { command: string; id: string }
-) => {
-  const useSudo = key === "sudo";
-  runUninstallCommand(toolType, method, useSudo);
 };
 
 // Run command in PTY (used for both install and uninstall on all platforms)
@@ -1166,7 +1523,8 @@ const runCommandInPty = async (
 const runInstallCommand = async (
   toolType: AIToolType,
   method: { command: string; id: string },
-  useSudo: boolean = false
+  useSudo: boolean = false,
+  useWsl: boolean = false
 ) => {
   if (!isTauri()) {
     const command = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
@@ -1177,6 +1535,11 @@ const runInstallCommand = async (
 
   // Inject sudo password if useSudo is true and password is stored
   let installCommand = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
+  
+  // Wrap in WSL if useWsl is true (Windows only)
+  if (useWsl && currentPlatform.value === 'windows') {
+    installCommand = `wsl ${installCommand}`;
+  }
 
   // Use PTY for all platforms to show output in the UI
   const success = await runCommandInPty(toolType, installCommand, () => {
@@ -1195,7 +1558,8 @@ const runInstallCommand = async (
 const runUninstallCommand = async (
   toolType: AIToolType,
   method: { command: string; id: string },
-  useSudo: boolean = false
+  useSudo: boolean = false,
+  useWsl: boolean = false
 ) => {
   if (!isTauri()) {
     const command = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
@@ -1206,6 +1570,11 @@ const runUninstallCommand = async (
 
   // Inject sudo password if useSudo is true and password is stored
   let uninstallCommand = useSudo ? injectSudoPasswordIntoCommand(method.command, useSudo) : method.command;
+  
+  // Wrap in WSL if useWsl is true (Windows only)
+  if (useWsl && currentPlatform.value === 'windows') {
+    uninstallCommand = `wsl ${uninstallCommand}`;
+  }
 
   // Use PTY for all platforms to show output in the UI
   const success = await runCommandInPty(toolType, uninstallCommand, () => {
@@ -1323,7 +1692,7 @@ const handleLogoError = (event: Event) => {
 };
 
 // Update tool
-const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
+const updateTool = async (toolType: AIToolType, useSudo: boolean = false, useWsl: boolean = false) => {
   if (!isTauri()) {
     const updateCmd = getUpdateCommand(toolType);
     if (updateCmd) {
@@ -1342,6 +1711,54 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
   
   // Inject sudo password if useSudo is true and password is stored
   let finalUpdateCmd = useSudo ? injectSudoPasswordIntoCommand(updateCmd, useSudo) : updateCmd;
+  
+  // Wrap in WSL if useWsl is true (Windows only)
+  if (useWsl && currentPlatform.value === 'windows') {
+    finalUpdateCmd = `wsl ${finalUpdateCmd}`;
+  }
+  
+  updating.value[toolType] = true;
+  
+  try {
+    // Use PTY for all platforms to show output in the UI
+    const success = await runCommandInPty(toolType, finalUpdateCmd, () => {
+      // Check installation status after completion
+      checkSingleTool(toolType, true);
+      // Also check latest version again after update
+      setTimeout(() => {
+        checkLatestVersion(toolType);
+      }, 2000);
+    }, true);
+    
+    if (success) {
+      message.info(t("aiTools.updatingInTerminal"));
+    } else {
+      message.error(t("aiTools.updateFailed"));
+    }
+  } catch (error) {
+    message.error(t("aiTools.updateFailed"));
+    console.error("Update failed:", error);
+  } finally {
+    updating.value[toolType] = false;
+  }
+};
+
+// Update tool with specific command (for package manager selection)
+const updateToolWithCommand = async (toolType: AIToolType, command: string, useSudo: boolean = false, useWsl: boolean = false) => {
+  if (!isTauri()) {
+    const finalCmd = useSudo ? injectSudoPasswordIntoCommand(command, useSudo) : command;
+    message.info(t("aiTools.copyAndRunManually"));
+    await copyCommand(finalCmd);
+    return;
+  }
+  
+  // Inject sudo password if useSudo is true and password is stored
+  let finalUpdateCmd = useSudo ? injectSudoPasswordIntoCommand(command, useSudo) : command;
+  
+  // Wrap in WSL if useWsl is true (Windows only)
+  if (useWsl && currentPlatform.value === 'windows') {
+    finalUpdateCmd = `wsl ${finalUpdateCmd}`;
+  }
   
   updating.value[toolType] = true;
   
@@ -1481,12 +1898,29 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false) => {
   margin-top: 8px;
 }
 
+.upgrade-section {
+  margin-top: 8px;
+}
+
 .uninstall-section {
   margin-top: 8px;
 }
 
 .install-command {
   margin-top: 8px;
+}
+
+.command-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 4px 0;
+}
+
+.option-label {
+  font-size: 12px;
+  color: var(--n-text-color-2);
 }
 
 .method-label {

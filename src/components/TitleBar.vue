@@ -320,6 +320,9 @@
           </template>
         </div>
 
+        <!-- User Menu -->
+        <UserMenu v-if="!uiStore.miniMode" />
+
         <!-- Notification bell button -->
         <n-button
           v-if="!uiStore.miniMode"
@@ -499,6 +502,7 @@ import { useUpdaterStore } from "../stores/updater";
 import { useNotificationStore } from "../stores/notification";
 import { useFeatureFlagsStore } from "../stores/featureFlags";
 import { svgIcons } from "../utils/icons";
+import UserMenu from "../../shared/components/UserMenu.vue";
 import {
   minimizeWindow,
   toggleMaximize,
@@ -530,6 +534,7 @@ const handleTitlebarDoubleClick = (event: MouseEvent) => {
     target.closest(".update-button") ||
     target.closest(".update-indicator") ||
     target.closest(".notification-button") ||
+    target.closest(".user-menu-button") ||
     target.closest(".version-update-group")
   ) {
     return;

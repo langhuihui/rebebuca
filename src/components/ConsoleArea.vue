@@ -758,33 +758,24 @@ const handleRestartTask = async () => {
   }
 
   try {
-    // Find the task
-    const task = taskManager.findTask(tab.taskId);
-    if (!task) {
-      message.error(t('console.restartFailed'));
-      console.warn('[ConsoleArea] Task not found:', tab.taskId);
-      return;
-    }
-
-    // If task is running, stop it first and close the old tab
-    if (tab.status === 'running') {
-      try {
-        await terminalStore.stopTask(tab.id);
-        // Notify taskManager to update running status
-        if (tab.taskId) {
-          taskManager.onTaskExit(tab.id);
-        }
-        await terminalStore.closeTab(tab.id);
-        console.log('[ConsoleArea] Stopped and closed old task tab:', tab.id);
-      } catch (error) {
-        console.warn('[ConsoleArea] Failed to stop/close task:', error);
+    // Use restartTask to reuse the existing tab
+    const restartedTab = await terminalStore.restartTask(tab.id);
+    if (restartedTab) {
+      console.log('[ConsoleArea] Task restarted (reused tab):', tab.id);
+    } else {
+      // Fallback: if restartTask fails (e.g., no execParams), try executeTask
+      const task = taskManager.findTask(tab.taskId);
+      if (!task) {
+        message.error(t('console.restartFailed'));
+        console.warn('[ConsoleArea] Task not found:', tab.taskId);
+        return;
       }
+      
+      // Close the old tab and create a new one
+      await terminalStore.closeTab(tab.id);
+      await taskManager.executeTask(task);
+      console.log('[ConsoleArea] Task restarted (new tab):', task.name);
     }
-
-    // Execute the task (this will create a new tab)
-    await taskManager.executeTask(task);
-    console.log('[ConsoleArea] Task restarted:', task.name);
-
   } catch (error) {
     console.error('[ConsoleArea] Failed to restart task:', error);
     message.error(t('console.restartFailed'));

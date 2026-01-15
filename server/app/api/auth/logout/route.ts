@@ -1,22 +1,37 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+export const runtime = 'edge';
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { getDB } from '@/lib/db';
 
-export async function POST() {
+
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const cookieStore = await cookies();
+    let refreshToken = cookieStore.get('refresh_token')?.value;
 
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+    // Support desktop/API clients that send refreshToken in JSON body
+    if (!refreshToken) {
+      try {
+        const body = await request.json() as { refreshToken?: string };
+        if (body?.refreshToken) {
+          refreshToken = body.refreshToken;
+        }
+      } catch {
+        // ignore invalid json
+      }
     }
 
-    return NextResponse.json({
-      message: 'Logged out successfully',
-    });
+    // Delete session from database
+    if (refreshToken) {
+      const db = getDB();
+      await db.prepare('DELETE FROM sessions WHERE refresh_token = ?').bind(refreshToken).run();
+    }
+
+    // Clear cookies
+    cookieStore.delete('access_token');
+    cookieStore.delete('refresh_token');
+
+    return NextResponse.json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
     return NextResponse.json(
