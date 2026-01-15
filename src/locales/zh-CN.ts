@@ -651,7 +651,6 @@ export default {
     title: '强大的运行配置管理工具',
     subtitle: '一个现代化的桌面应用，帮助开发者快速管理和执行各种命令与脚本。',
     download: '立即下载',
-    viewGithub: '查看 GitHub'
   },
   features: {
     title: '功能特点',
@@ -724,7 +723,6 @@ export default {
     download: {
       title: '下载',
       desc: '选择适合您操作系统的版本',
-      note: '所有版本都可以在 GitHub Releases 页面下载',
       securityWarning: '安全提示',
       windowsWarning: '浏览器可能会警告下载的 .exe 文件，您可以选择"保留"继续下载',
       macosWarning: '下载后系统可能会阻止打开应用，请前往系统设置 > 隐私与安全性放行',

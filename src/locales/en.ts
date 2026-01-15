@@ -629,7 +629,6 @@ export default {
     title: 'Powerful Run Configuration Management Tool',
     subtitle: 'A modern desktop application that helps developers quickly manage and execute various commands and scripts.',
     download: 'Download Now',
-    viewGithub: 'View on GitHub'
   },
   features: {
     title: 'Features',
@@ -702,7 +701,6 @@ export default {
     download: {
       title: 'Download',
       desc: 'Choose the version for your operating system',
-      note: 'All releases are available on GitHub Releases',
       securityWarning: 'Security Note',
       windowsWarning: 'Your browser may warn about the downloaded .exe file. You can choose "Keep" to proceed.',
       macosWarning: 'After downloading, macOS may block opening the app. Go to System Settings > Privacy & Security to unblock it.',

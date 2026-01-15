@@ -530,9 +530,6 @@
                           </div>
                         </a>
                       </div>
-                      <p class="download-hint">
-                        {{ t("website.download.note") }}
-                      </p>
                       <div v-if="hoverPlatform" class="security-warning">
                         <p>⚠️ {{ t("website.download.securityWarning") }}</p>
                         <p v-if="hoverPlatform === 'windows'">
@@ -774,8 +771,8 @@ const fetchVersion = async () => {
     const data = await res.json();
     currentVersion.value = `v${data.version}`;
     const version = data.version;
-    macosUrl.value = `https://download.m7s.live/rb/v${version}/macos/Rebebuca.app.tar.gz`;
-    windowsUrl.value = `https://download.m7s.live/rb/v${version}/nsis/Rebebuca_${version}_x64-setup.exe`;
+    macosUrl.value = `https://download.m7s.live/rb/v${version}/Rebebuca_${version}_universal.dmg`;
+    windowsUrl.value = `https://download.m7s.live/rb/v${version}/rebebuca.exe`;
   } catch (e) {
     console.error("Failed to fetch version:", e);
   }
