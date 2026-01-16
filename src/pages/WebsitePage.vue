@@ -495,12 +495,6 @@
                         {{ t("website.download.title") }}
                       </n-button>
                     </div>
-
-                    <!-- Community QR Code (Chinese only) -->
-                    <div v-if="currentLang === 'zh-CN'" class="community-qrcode">
-                      <p class="qrcode-title">{{ t('website.community.qqGroup') }}</p>
-                      <img src="/qrcode_qq.jpg" alt="QQ Group" class="qrcode-image" />
-                    </div>
                   </template>
 
                   <!-- Download View -->
@@ -611,6 +605,12 @@
               <span class="status-item">GPL-3.0</span>
             </div>
           </footer>
+
+          <!-- Fixed QR Code (Chinese only) -->
+          <div v-if="currentLang === 'zh-CN'" class="fixed-qrcode">
+            <p class="qrcode-title">{{ t('website.community.qqGroup') }}</p>
+            <img src="/qrcode_qq.jpg" alt="QQ Group" class="qrcode-image" />
+          </div>
         </div>
 
         <!-- Dialogs - Using actual components for UI consistency -->
@@ -1346,25 +1346,31 @@ onMounted(() => {
   height: 16px;
 }
 
-/* Community QR Code */
-.community-qrcode {
-  margin-top: 2rem;
+/* Fixed QR Code - bottom right */
+.fixed-qrcode {
+  position: fixed;
+  bottom: 40px;
+  right: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  padding: 12px;
+  background: var(--bg-color, #fff);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 100;
 }
 
-.qrcode-title {
-  font-size: 0.875rem;
+.fixed-qrcode .qrcode-title {
+  font-size: 0.75rem;
   color: var(--text-color-secondary, #666);
   margin: 0;
 }
 
-.qrcode-image {
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.fixed-qrcode .qrcode-image {
+  width: 100px;
+  height: auto;
+  border-radius: 6px;
 }
 </style>

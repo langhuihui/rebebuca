@@ -6,17 +6,34 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 // Website-specific Vite config
 export default defineConfig({
   plugins: [
-    vue(),
-    // Copy website-only assets to output
+    vue({
+      template: {
+        transformAssetUrls: {
+          // Don't transform absolute URLs starting with /
+          // This prevents Vite from treating /logo.svg as a module import
+          base: null,
+          includeAbsolute: false,
+        }
+      }
+    }),
+    // Copy both public directories' assets to output during build
     viteStaticCopy({
       targets: [
         {
           src: 'public-website/*',
           dest: '.'
+        },
+        {
+          src: 'public/*',
+          dest: '.'
         }
       ]
     })
   ],
+  
+  // Use public-website as the primary public directory
+  // Shared assets from public/ are symlinked to public-website/
+  publicDir: 'public-website',
   
   resolve: {
     alias: {
