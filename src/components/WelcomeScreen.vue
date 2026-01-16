@@ -66,6 +66,20 @@
           </p>
         </div>
       </div>
+
+      <!-- Community Links -->
+      <div class="community-links">
+        <template v-if="currentLocale === 'zh-CN'">
+          <a href="https://qm.qq.com/q/sSa1VAMzqa" target="_blank" class="community-link qq-link">
+            {{ t('welcome.community.qqGroup') }}
+          </a>
+        </template>
+        <template v-else>
+          <a href="https://discord.gg/wnEwmNBD" target="_blank" class="community-link discord-link">
+            {{ t('welcome.community.discord') }}
+          </a>
+        </template>
+      </div>
       
       <!-- Actions slot for additional buttons -->
       <div v-if="$slots.actions" class="welcome-actions">
@@ -142,6 +156,7 @@ import { useI18n } from "vue-i18n";
 import { NScrollbar, NButton, NProgress, NCollapse, NCollapseItem } from "naive-ui";
 import { useUpdaterStore } from "../stores/updater";
 import { iconComponents } from "../utils/icons";
+import { useLocale } from "../composables/useLocale";
 
 interface Props {
   effectiveTheme: string;
@@ -151,6 +166,7 @@ defineProps<Props>();
 
 const { t } = useI18n();
 const updaterStore = useUpdaterStore();
+const { currentLocale } = useLocale();
 
 // Handle upgrade button click
 const handleUpgrade = async () => {
@@ -261,6 +277,46 @@ const formatReleaseBody = (body: string): string => {
   justify-content: center;
   gap: 16px;
   margin-bottom: 30px;
+}
+
+/* Community Links */
+.community-links {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.community-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.qq-link {
+  background: linear-gradient(135deg, #12b7f5 0%, #0099ff 100%);
+  color: white;
+}
+
+.qq-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(18, 183, 245, 0.4);
+}
+
+.discord-link {
+  background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
+  color: white;
+}
+
+.discord-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
 }
 
 /* What's New Section */

@@ -29,7 +29,7 @@
     <div v-else class="login-form">
       <p class="description">{{ t('auth.emailLoginDescription') }}</p>
 
-      <n-form ref="formRef" :model="formData">
+      <n-form ref="formRef" :model="formData" size="small">
         <n-form-item label="Email" path="email">
           <n-input
             v-model:value="formData.email"

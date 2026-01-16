@@ -28,7 +28,7 @@
     to="body"
     @positive-click="handleConfirm"
   >
-    <n-form label-placement="top">
+    <n-form label-placement="top" size="small">
       <!-- Folder selection -->
       <n-form-item :label="t('task.selectFolder')">
         <n-input-group>

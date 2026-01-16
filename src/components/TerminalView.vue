@@ -551,23 +551,28 @@ const dispose = async () => {
   }
 
   // Only close PTY if we created it (not in attach mode)
+  // Use fire-and-forget pattern to avoid callback issues when component is unmounted
   if (isInitialized && !props.attachOnly) {
-    try {
-      if (isTauri()) {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('close_pty', { ptyId: props.ptyId });
-      } else {
-        // In Server mode, use adapter to kill the PTY
-        const adapterInstance = await getAdapterInstance();
-        await adapterInstance.terminal.kill(props.ptyId);
+    const ptyIdToClose = props.ptyId;
+    // Fire and forget - don't await to avoid callback id errors when component is already unmounted
+    (async () => {
+      try {
+        if (isTauri()) {
+          const { invoke } = await import('@tauri-apps/api/core');
+          await invoke('close_pty', { ptyId: ptyIdToClose });
+        } else {
+          // In Server mode, use adapter to kill the PTY
+          const adapterInstance = await getAdapterInstance();
+          await adapterInstance.terminal.kill(ptyIdToClose);
+        }
+      } catch (error) {
+        // Ignore "PTY not found" errors - PTY was already closed
+        const errorMsg = String(error);
+        if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
+          console.error('Failed to close PTY:', error);
+        }
       }
-    } catch (error) {
-      // Ignore "PTY not found" errors - PTY was already closed
-      const errorMsg = String(error);
-      if (!errorMsg.includes('PTY not found') && !errorMsg.includes('not found')) {
-        console.error('Failed to close PTY:', error);
-      }
-    }
+    })();
   }
   isInitialized = false;
 };

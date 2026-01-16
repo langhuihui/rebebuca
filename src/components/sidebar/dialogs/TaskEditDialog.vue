@@ -27,7 +27,7 @@
     to="body"
     @positive-click="handleSave"
   >
-    <n-form ref="taskFormRef" :model="editingTask" :rules="taskRules" label-placement="left" label-width="auto">
+    <n-form ref="taskFormRef" :model="editingTask" :rules="taskRules" label-placement="left" label-width="auto" size="small">
       <n-form-item :label="t('task.name')" path="name">
         <n-input v-model:value="editingTask.name" :placeholder="t('task.namePlaceholder')" />
       </n-form-item>

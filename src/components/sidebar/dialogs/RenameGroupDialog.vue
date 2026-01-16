@@ -27,7 +27,7 @@
     to="body"
     @positive-click="handleConfirm"
   >
-    <n-form label-placement="left" label-width="auto">
+    <n-form label-placement="left" label-width="auto" size="small">
       <n-form-item :label="t('task.groupName')">
         <n-input v-model:value="newName" :placeholder="t('task.groupNamePlaceholder')" />
       </n-form-item>

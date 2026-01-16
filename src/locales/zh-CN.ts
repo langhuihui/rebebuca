@@ -52,6 +52,10 @@ export default {
       title: '🕒 历史记录',
       description: '自动保存运行历史，方便重复执行',
     },
+    community: {
+      qqGroup: '点击链接加入群聊【Rebebuca】',
+      discord: 'Join Discord',
+    },
   },
   tab: {
     restart: '重新运行',
@@ -735,6 +739,9 @@ export default {
       hint: '支持自定义版本和安装目录，详见脚本帮助信息。',
       copied: '安装命令已复制到剪贴板',
       copyFailed: '复制失败，请手动复制',
+    },
+    community: {
+      qqGroup: '加入 QQ 群',
     },
     status: {
       tryDemo: '← 点击左侧任务体验演示',

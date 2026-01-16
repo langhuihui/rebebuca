@@ -52,6 +52,10 @@ export default {
       title: '🕒 History',
       description: 'Automatically save run history for repeated execution',
     },
+    community: {
+      qqGroup: 'Join QQ Group',
+      discord: 'Join Discord',
+    },
   },
   tab: {
     restart: 'Restart',
@@ -713,6 +717,9 @@ export default {
       hint: 'Supports custom version and installation directory. See script help for details.',
       copied: 'Install command copied to clipboard',
       copyFailed: 'Copy failed, please copy manually',
+    },
+    community: {
+      qqGroup: 'Join QQ Group',
     },
     status: {
       tryDemo: '← Click tasks on the left to try the demo',

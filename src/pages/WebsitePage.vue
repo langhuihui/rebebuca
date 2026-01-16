@@ -479,6 +479,12 @@
                         {{ t("website.download.title") }}
                       </n-button>
                     </div>
+
+                    <!-- Community QR Code (Chinese only) -->
+                    <div v-if="currentLang === 'zh-CN'" class="community-qrcode">
+                      <p class="qrcode-title">{{ t('website.community.qqGroup') }}</p>
+                      <img src="/qrcode_qq.jpg" alt="QQ Group" class="qrcode-image" />
+                    </div>
                   </template>
 
                   <!-- Download View -->
@@ -1303,5 +1309,27 @@ onMounted(() => {
   100% {
     background-position: 0% 50%;
   }
+}
+
+/* Community QR Code */
+.community-qrcode {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.qrcode-title {
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #666);
+  margin: 0;
+}
+
+.qrcode-image {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 </style>
