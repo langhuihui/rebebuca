@@ -37,3 +37,6 @@ target
 # Wrangler local secrets
 .dev.vars
 .dev.vars.*
+public-website/logo-dark.svg
+public-website/logo.svg
+public-website/text.svg

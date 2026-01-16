@@ -91,7 +91,7 @@
                 </template>
                 {{ t('task.portManagement') }}
               </n-tooltip>
-              <n-tooltip v-if="featureFlagsStore.flags.aiCollab">
+              <n-tooltip v-if="featureFlagsStore.flags.aiCollab && (isDevelopmentMode() || authStore.isAuthenticated)">
                 <template #trigger>
                   <n-button
                     size="small"
@@ -243,7 +243,7 @@
               </template>
               {{ t('task.portManagement') }}
             </n-tooltip>
-            <n-tooltip v-if="featureFlagsStore.flags.aiCollab">
+            <n-tooltip v-if="featureFlagsStore.flags.aiCollab && (isDevelopmentMode() || authStore.isAuthenticated)">
               <template #trigger>
                 <n-button
                   size="small"
@@ -500,7 +500,8 @@ import { useTheme } from "../composables/useTheme";
 import { useSettingsStore } from "../stores/settings";
 import { useUpdaterStore } from "../stores/updater";
 import { useNotificationStore } from "../stores/notification";
-import { useFeatureFlagsStore } from "../stores/featureFlags";
+import { useFeatureFlagsStore, isDevelopmentMode } from "../stores/featureFlags";
+import { useAuthStore } from "../stores/auth";
 import { svgIcons } from "../utils/icons";
 import UserMenu from "../../shared/components/UserMenu.vue";
 import {
@@ -577,6 +578,7 @@ const terminalStore = useTerminalStore();
 const updaterStore = useUpdaterStore();
 const notificationStore = useNotificationStore();
 const featureFlagsStore = useFeatureFlagsStore();
+const authStore = useAuthStore();
 const dialog = useDialog();
 const { setThemeMode } = useTheme();
 
