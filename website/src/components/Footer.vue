@@ -16,6 +16,15 @@
           <router-link to="/about" class="footer-link">About</router-link>
         </div>
         <div class="footer-section">
+          <h3>Community</h3>
+          <!-- QQ Group QR Code (Chinese only) -->
+          <div v-if="isChinese" class="qrcode-container">
+            <span class="qrcode-label">QQ 群</span>
+            <img src="/qrcode_qq.jpg" alt="QQ Group QR Code" class="qrcode-image" />
+          </div>
+          <p v-else class="community-hint">Join us on Discord</p>
+        </div>
+        <div class="footer-section">
           <h3>Legal</h3>
           <a href="#" class="footer-link">Privacy Policy</a>
           <a href="#" class="footer-link">Terms of Service</a>
@@ -29,6 +38,15 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
+
+// Detect if browser language is Chinese
+const isChinese = ref(false);
+
+onMounted(() => {
+  const lang = navigator.language || (navigator as any).userLanguage || '';
+  isChinese.value = lang.toLowerCase().startsWith('zh');
+});
 </script>
 
 <style scoped>
@@ -74,6 +92,30 @@
 
 .footer-link:hover {
   color: #667eea;
+}
+
+.community-hint {
+  color: #a0a0a0;
+  font-size: 0.875rem;
+}
+
+.qrcode-container {
+  margin-top: 0.75rem;
+}
+
+.qrcode-label {
+  display: block;
+  color: #a0a0a0;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.qrcode-image {
+  width: 100px;
+  height: 100px;
+  border-radius: 0.5rem;
+  background: white;
+  padding: 4px;
 }
 
 .footer-bottom {

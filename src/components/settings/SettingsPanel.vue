@@ -372,7 +372,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { saveAs } from 'file-saver';
 import { useSettingsStore } from '../../stores/settings';
-import { useUpdaterStore, getDownloadUrl, getCurrentPlatform } from '../../stores/updater';
+import { useUpdaterStore, getDownloadUrl, getCurrentPlatform, getCurrentPlatformAsync } from '../../stores/updater';
 import { useRunConfigStore } from '../../stores/runConfig';
 import { useTaskManagerStore } from '../../stores/taskManager';
 import { useLocale } from '../../composables/useLocale';
@@ -411,8 +411,13 @@ const updateChecked = ref(false);
 const releaseNotes = ref<ReleaseNote[] | null>(null);
 const loadingReleaseNotes = ref(false);
 
-// Current platform for download URL
-const downloadPlatform = computed(() => getCurrentPlatform());
+// Current platform for download URL (async loaded, sync fallback)
+const downloadPlatform = ref<'mac' | 'windows' | 'linux'>(getCurrentPlatform());
+
+// Initialize platform asynchronously
+const initPlatform = async () => {
+  downloadPlatform.value = await getCurrentPlatformAsync();
+};
 
 // Manual download URL based on current version and platform
 const manualDownloadUrl = computed(() => {
@@ -772,6 +777,7 @@ watch(() => props.initialTab, (newTab) => {
 
 onMounted(async () => {
   await detectPlatform();
+  await initPlatform(); // Initialize download platform for manual download URL
   currentVersion.value = await updaterStore.getCurrentVersion();
   await Promise.all([
     loadAvailableTerminals(),

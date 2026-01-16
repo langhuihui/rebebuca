@@ -44,16 +44,47 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // Adapter instance
 let adapter: BackendAdapter | null = null;
 
-// Detect current platform
-export function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
+// Cached platform value
+let cachedPlatform: 'mac' | 'windows' | 'linux' | null = null;
+
+// Detect current platform (async, returns cached value after first call)
+export async function getCurrentPlatformAsync(): Promise<'mac' | 'windows' | 'linux'> {
+  if (cachedPlatform) return cachedPlatform;
+  
   if (isTauri()) {
-    // @ts-ignore
-    const { platform } = process.env;
-    if (platform === 'darwin') return 'mac';
-    if (platform === 'win32') return 'windows';
-    return 'linux';
+    try {
+      const { platform } = await import('@tauri-apps/plugin-os');
+      const p = platform();
+      if (p === 'macos') {
+        cachedPlatform = 'mac';
+      } else if (p === 'windows') {
+        cachedPlatform = 'windows';
+      } else {
+        cachedPlatform = 'linux';
+      }
+      return cachedPlatform;
+    } catch (error) {
+      console.error('Failed to detect platform from Tauri:', error);
+    }
   }
-  // Fallback for web mode
+  
+  // Fallback for web mode or if Tauri detection fails
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('mac')) {
+    cachedPlatform = 'mac';
+  } else if (ua.includes('win')) {
+    cachedPlatform = 'windows';
+  } else {
+    cachedPlatform = 'linux';
+  }
+  return cachedPlatform;
+}
+
+// Synchronous version using cached value or fallback detection
+export function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
+  if (cachedPlatform) return cachedPlatform;
+  
+  // Fallback for web mode - sync detection via user agent
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes('mac')) return 'mac';
   if (ua.includes('win')) return 'windows';
@@ -404,7 +435,7 @@ export const useUpdaterStore = defineStore('updater', () => {
         return false;
       }
       
-      const platform = getCurrentPlatform();
+      const platform = await getCurrentPlatformAsync();
       const latestRelease = data.releases[0];
       const latestVersion = latestRelease.version;
       
