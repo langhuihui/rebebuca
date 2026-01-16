@@ -1455,6 +1455,95 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     if (task.type === TaskType.AI_COLLAB) {
       const terminalStore = useTerminalStore();
       
+      // Check if dual-agent mode is enabled (default to true for autonomous operation)
+      const isDualAgentMode = task.definition?.agentMode === 'dual' || task.definition?.agentMode !== 'single';
+      
+      if (isDualAgentMode) {
+        // Dual Agent Mode - Supervisor + Worker
+        console.log('[TaskManager] Starting Dual Agent mode for task:', task.name);
+        
+        const { useDualAgentStore } = await import('./dualAgent');
+        const dualAgentStore = useDualAgentStore();
+        
+        // Get provider config
+        const taskProvider = task.definition?.provider;
+        const providerType = (taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider)
+          ? taskProvider.type
+          : 'opencode';
+        
+        const { PROVIDER_CONFIG } = await import('../services/ai/provider/models');
+        const defaultProviderConfig = PROVIDER_CONFIG[providerType as keyof typeof PROVIDER_CONFIG];
+        
+        const providerConfig = taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider
+          ? {
+              type: taskProvider.type || 'opencode',
+              model: taskProvider.model || 'minimax-m2.1-free',
+              apiKey: taskProvider.apiKey || '',
+              baseUrl: taskProvider.baseUrl || defaultProviderConfig?.baseUrl,
+            }
+          : {
+              type: 'opencode' as const,
+              model: 'minimax-m2.1-free',
+              apiKey: '',
+              baseUrl: defaultProviderConfig?.baseUrl,
+            };
+        
+        // Check for existing session
+        if (task.definition?.sessionId) {
+          const sessionId = task.definition.sessionId as string;
+          const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
+          if (existingTab) {
+            terminalStore.setActiveTab(existingTab.id);
+            // Try to resume the session
+            try {
+              await dualAgentStore.resumeSession(sessionId);
+            } catch (error) {
+              console.warn('[TaskManager] Failed to resume dual agent session:', error);
+            }
+            await updateTaskRunStats(task.id);
+            return;
+          }
+        }
+        
+        // Create new dual agent session
+        try {
+          const goal = task.definition?.goal || {
+            objective: task.name || '执行 AI 协作任务',
+            acceptanceCriteria: ['任务成功完成'],
+            context: task.definition?.context || '',
+          };
+          
+          const session = await dualAgentStore.createSession({
+            projectPath: task.cwd || options?.cwd || '',
+            goal,
+            supervisorProvider: providerConfig,
+            workerProvider: providerConfig,
+            workerTools: task.definition?.tools || ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
+            maxRounds: task.definition?.maxRounds || 20,
+            maxStepsPerRound: task.definition?.maxStepsPerRound || 30,
+            autoApprovePermissions: true, // Always auto-approve for autonomous operation
+          });
+          
+          // Update task with session ID
+          task.definition = task.definition || {};
+          task.definition.sessionId = session.id;
+          
+          // Create dual agent tab
+          terminalStore.createDualAgentTab(session.id, task.name || 'AI 协作', task.cwd);
+          
+          // Start the session automatically
+          console.log('[TaskManager] Starting dual agent session:', session.id);
+          await dualAgentStore.startSession(session.id);
+          
+          await updateTaskRunStats(task.id);
+        } catch (error) {
+          console.error('[TaskManager] Failed to create dual agent session:', error);
+          throw error;
+        }
+        return;
+      }
+      
+      // Single Agent Mode (Native) - Original logic
       if (task.definition?.sessionId) {
         const sessionId = task.definition.sessionId as string;
         // Check if a tab exists for this session

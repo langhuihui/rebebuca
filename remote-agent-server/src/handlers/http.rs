@@ -1,8 +1,9 @@
 //! HTTP handlers for static files and authentication
 
 use axum::{
-    extract::State,
-    http::{header, StatusCode},
+    body::Body,
+    extract::{Query, State},
+    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -46,6 +47,12 @@ pub struct LoginResponse {
     pub message: String,
 }
 
+/// Proxy query parameters
+#[derive(Debug, Deserialize)]
+pub struct ProxyQuery {
+    pub url: String,
+}
+
 /// Create the router
 pub fn create_router(state: AppState) -> Router {
     let static_dir = state.config.server.static_dir.clone();
@@ -58,6 +65,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/login", post(login_handler))
         .route("/api/auth/logout", post(logout_handler))
         .route("/api/health", get(health_handler))
+        .route("/api/proxy", axum::routing::any(proxy_handler))
         // WebSocket route
         .route("/ws", get(super::websocket::ws_handler))
         // Static files (SPA fallback to index.html)
@@ -143,6 +151,183 @@ pub async fn health_handler() -> Json<serde_json::Value> {
         "status": "ok",
         "version": env!("CARGO_PKG_VERSION"),
     }))
+}
+
+/// Proxy handler - forwards requests to external URLs to avoid CORS issues
+pub async fn proxy_handler(
+    method: Method,
+    headers: HeaderMap,
+    Query(query): Query<ProxyQuery>,
+    body: Body,
+) -> Response {
+    let client = match reqwest::Client::builder()
+        .danger_accept_invalid_certs(false)
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Failed to create HTTP client: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "Failed to create HTTP client" })),
+            )
+                .into_response();
+        }
+    };
+
+    tracing::info!("Proxying {} request to: {}", method, query.url);
+    
+    // Log incoming headers for debugging
+    for (key, value) in headers.iter() {
+        if let Ok(v) = value.to_str() {
+            // Don't log authorization header value for security
+            if key.as_str().to_lowercase() == "authorization" {
+                tracing::debug!("Header: {} = [REDACTED]", key);
+            } else if key.as_str().to_lowercase() == "x-proxy-headers" {
+                tracing::debug!("Header: {} = {}", key, &v[..v.len().min(200)]);
+            } else {
+                tracing::debug!("Header: {} = {}", key, v);
+            }
+        }
+    }
+
+    // Build the request
+    let mut request_builder = match method {
+        Method::GET => client.get(&query.url),
+        Method::POST => client.post(&query.url),
+        Method::PUT => client.put(&query.url),
+        Method::DELETE => client.delete(&query.url),
+        Method::PATCH => client.patch(&query.url),
+        Method::HEAD => client.head(&query.url),
+        Method::OPTIONS => client.request(reqwest::Method::OPTIONS, &query.url),
+        _ => {
+            return (
+                StatusCode::METHOD_NOT_ALLOWED,
+                Json(serde_json::json!({ "error": "Method not allowed" })),
+            )
+                .into_response();
+        }
+    };
+
+    // Try to parse original headers from X-Proxy-Headers
+    if let Some(proxy_headers) = headers.get("x-proxy-headers") {
+        if let Ok(headers_str) = proxy_headers.to_str() {
+            if let Ok(parsed_headers) = serde_json::from_str::<serde_json::Value>(headers_str) {
+                if let Some(obj) = parsed_headers.as_object() {
+                    for (key, value) in obj {
+                        if let Some(v) = value.as_str() {
+                            // Skip some headers that shouldn't be forwarded
+                            let key_lower = key.to_lowercase();
+                            if key_lower != "host" && key_lower != "x-proxy-headers" {
+                                if let Ok(header_name) = reqwest::header::HeaderName::from_bytes(key.as_bytes()) {
+                                    request_builder = request_builder.header(header_name, v);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Forward content-type header if present
+    if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
+        if let Ok(ct) = content_type.to_str() {
+            request_builder = request_builder.header(reqwest::header::CONTENT_TYPE, ct);
+        }
+    }
+
+    // Convert body to bytes
+    let body_bytes = match axum::body::to_bytes(body, usize::MAX).await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!("Failed to read request body: {}", e);
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "Failed to read request body" })),
+            )
+                .into_response();
+        }
+    };
+    
+    tracing::info!("Request body size: {} bytes", body_bytes.len());
+    // Log first 500 chars of body for debugging (avoid logging sensitive data)
+    if !body_bytes.is_empty() {
+        if let Ok(body_str) = std::str::from_utf8(&body_bytes) {
+            let preview = &body_str[..body_str.len().min(500)];
+            tracing::debug!("Request body preview: {}", preview);
+        }
+    }
+
+    // Set body if not empty
+    if !body_bytes.is_empty() {
+        request_builder = request_builder.body(body_bytes.to_vec());
+    }
+
+    // Execute request
+    let response = match request_builder.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Proxy request failed: {}", e);
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "error": format!("Proxy request failed: {}", e) })),
+            )
+                .into_response();
+        }
+    };
+
+    // Build response
+    let status = StatusCode::from_u16(response.status().as_u16())
+        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    
+    tracing::info!("Proxy response status: {}", status);
+
+    let mut response_headers = HeaderMap::new();
+    
+    // Forward relevant headers from upstream
+    for (key, value) in response.headers() {
+        let key_str = key.as_str().to_lowercase();
+        // Skip hop-by-hop headers
+        if key_str != "transfer-encoding" 
+            && key_str != "connection"
+            && key_str != "keep-alive"
+            && key_str != "proxy-authenticate"
+            && key_str != "proxy-authorization"
+            && key_str != "te"
+            && key_str != "trailer"
+            && key_str != "upgrade"
+        {
+            if let Ok(header_name) = axum::http::header::HeaderName::from_bytes(key.as_str().as_bytes()) {
+                if let Ok(header_value) = HeaderValue::from_bytes(value.as_bytes()) {
+                    response_headers.insert(header_name, header_value);
+                }
+            }
+        }
+    }
+
+    // Get response body
+    let body_bytes = match response.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!("Failed to read response body: {}", e);
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "error": "Failed to read response body" })),
+            )
+                .into_response();
+        }
+    };
+    
+    // Log error responses for debugging
+    if !status.is_success() {
+        if let Ok(body_str) = std::str::from_utf8(&body_bytes) {
+            let preview = &body_str[..body_str.len().min(1000)];
+            tracing::warn!("Proxy error response body: {}", preview);
+        }
+    }
+
+    (status, response_headers, body_bytes.to_vec()).into_response()
 }
 
 /// Serve static files

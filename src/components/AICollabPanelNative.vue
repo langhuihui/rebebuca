@@ -242,8 +242,9 @@
     </div>
     
     <!-- Provider 设置对话框 -->
-    <n-modal v-model:show="showSettingsModal" preset="card" :title="t('aiCollab.providerSettings')" style="width: 600px">
+    <n-modal v-model:show="showSettingsModal" preset="card" :title="t('settings.title')" style="width: 600px">
       <n-form label-placement="left" label-width="120">
+        <!-- AI 提供商配置部分 -->
         <n-form-item :label="t('aiCollab.providerType')">
           <n-select
             v-model:value="providerForm.type"
@@ -362,6 +363,7 @@ const providerTypeOptions = computed(() => [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'GLM (智谱)', value: 'glm' },
   { label: 'Kimi (Moonshot)', value: 'kimi' },
+  { label: t('settings.custom') + ' (OpenAI 兼容)', value: 'custom' },
 ]);
 
 // 模型选项
@@ -589,6 +591,7 @@ const handleSettings = () => {
 const handleSaveSettings = async () => {
   if (session.value?.id) {
     try {
+      // 更新 AI 提供商配置
       await collabStore.updateProvider(session.value.id, {
         type: providerForm.value.type,
         model: providerForm.value.model,
@@ -596,6 +599,7 @@ const handleSaveSettings = async () => {
         baseUrl: providerForm.value.baseUrl || undefined,
       });
       await collabStore.updateTools(session.value.id, providerForm.value.tools);
+      
       message.success(t('aiCollab.settingsSaved'));
     } catch (error) {
       message.error(String(error));
@@ -861,6 +865,8 @@ const autoStartSession = async (sessionId: string) => {
   flex-direction: column;
   height: 100%;
   background: var(--n-color);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .panel-header {

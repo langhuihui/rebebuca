@@ -449,6 +449,8 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
   background: var(--n-color);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .panel-header {
@@ -595,6 +597,9 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.6;
   color: var(--n-text-color);
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .message-text :deep(h1),

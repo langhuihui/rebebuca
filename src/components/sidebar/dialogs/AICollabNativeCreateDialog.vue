@@ -21,7 +21,7 @@
     :show="show"
     preset="card"
     :title="t('aiCollab.createNativeSession')"
-    style="width: 560px; max-width: 90vw;"
+    style="width: 640px; max-width: 90vw;"
     :mask-closable="false"
     @update:show="$emit('update:show', $event)"
   >
@@ -56,104 +56,257 @@
       {{ t('aiCollab.taskSlotsRemaining', { remaining: limitInfo.remainingSlots, max: limitInfo.maxLimit }) }}
     </n-alert>
 
-    <n-form
-      ref="formRef"
-      :model="formData"
-      :rules="formRules"
-      label-placement="left"
-      label-width="100"
-      size="small"
-    >
-      <!-- 项目路径 -->
-      <n-form-item :label="t('aiCollab.projectPath')" path="projectPath">
-        <n-input-group>
-          <n-input
-            v-model:value="formData.projectPath"
-            :placeholder="t('task.cwdPlaceholder')"
-            readonly
-          />
-          <n-button @click="handleSelectProjectPath">
-            {{ t('task.browse') }}
-          </n-button>
-        </n-input-group>
-      </n-form-item>
+    <!-- Steps -->
+    <n-steps :current="currentStep" size="small" class="steps-container">
+      <n-step :title="t('aiCollab.stepBasic')" />
+      <n-step :title="t('aiCollab.stepGoal')">
+        <template #icon>
+          <n-icon v-if="goalSkipped" color="#999">
+            <component :is="svgIcons.chevronRight" />
+          </n-icon>
+        </template>
+      </n-step>
+      <n-step :title="t('aiCollab.stepProvider')" />
+    </n-steps>
+    
+    <div class="step-content">
+      <!-- Step 1: Basic Info -->
+      <div v-show="currentStep === 1" class="basic-step">
+        <n-form
+          ref="basicFormRef"
+          :model="basicForm"
+          :rules="basicRules"
+          label-placement="top"
+          size="small"
+        >
+          <!-- Task Name -->
+          <n-form-item :label="t('task.name')" path="taskName">
+            <n-input
+              v-model:value="basicForm.taskName"
+              :placeholder="t('task.namePlaceholder')"
+            />
+          </n-form-item>
 
-      <!-- Provider 选择 -->
-      <n-form-item :label="t('aiCollab.providerType')" path="providerType">
-        <n-select
-          v-model:value="formData.providerType"
-          :options="providerTypeOptions"
-        />
-      </n-form-item>
+          <!-- Group Selection -->
+          <n-form-item :label="t('task.group')" path="groupId">
+            <n-select
+              v-model:value="basicForm.groupId"
+              :options="groupOptionsWithNew"
+              :placeholder="t('task.selectGroup')"
+            />
+          </n-form-item>
 
-      <!-- 模型选择 -->
-      <n-form-item :label="t('aiCollab.model')" path="model">
-        <n-select
-          v-model:value="formData.model"
-          :options="modelOptions"
-          filterable
-          tag
-        />
-      </n-form-item>
+          <!-- New Group Name -->
+          <n-form-item v-if="basicForm.groupId === '__new__'" :label="t('task.newGroupName')" path="newGroupName">
+            <n-input
+              v-model:value="basicForm.newGroupName"
+              :placeholder="t('task.newGroupNamePlaceholder')"
+            />
+          </n-form-item>
 
-      <!-- API Key (OpenCode 免费模式可选) -->
-      <n-form-item 
-        :label="t('aiCollab.apiKey')" 
-        path="apiKey"
-        v-if="formData.providerType !== 'opencode'"
-      >
-        <n-input
-          v-model:value="formData.apiKey"
-          type="password"
-          show-password-on="click"
-          :placeholder="t('aiCollab.apiKeyPlaceholder')"
-        />
-      </n-form-item>
-      
-      <!-- OpenCode 免费说明 -->
-      <n-form-item v-if="formData.providerType === 'opencode'">
-        <n-alert type="success" :show-icon="true">
-          {{ t('aiCollab.opencodeHint') }}
+          <!-- Project Path -->
+          <n-form-item :label="t('aiCollab.projectPath')" path="projectPath">
+            <n-input-group>
+              <n-input
+                v-model:value="basicForm.projectPath"
+                :placeholder="t('task.cwdPlaceholder')"
+                readonly
+              />
+              <n-button @click="handleSelectProjectPath">
+                {{ t('task.browse') }}
+              </n-button>
+            </n-input-group>
+          </n-form-item>
+        </n-form>
+      </div>
+
+      <!-- Step 2: Task Goal (Optional) -->
+      <div v-show="currentStep === 2" class="goal-step">
+        <n-alert type="info" :show-icon="true" style="margin-bottom: 16px;">
+          {{ t('aiCollab.goalStepHint') }}
         </n-alert>
-      </n-form-item>
+        
+        <n-form
+          ref="goalFormRef"
+          :model="goalForm"
+          label-placement="top"
+          size="small"
+        >
+          <!-- Task Objective -->
+          <n-form-item :label="t('aiCollab.taskObjective')">
+            <n-input
+              v-model:value="goalForm.objective"
+              type="textarea"
+              :placeholder="t('aiCollab.taskObjectivePlaceholder')"
+              :autosize="{ minRows: 3, maxRows: 6 }"
+            />
+          </n-form-item>
+          
+          <!-- Acceptance Criteria -->
+          <n-form-item :label="t('aiCollab.acceptanceCriteria')">
+            <div class="criteria-list">
+              <div
+                v-for="(_criterion, index) in goalForm.criteria"
+                :key="index"
+                class="criterion-item"
+              >
+                <n-input
+                  v-model:value="goalForm.criteria[index]"
+                  :placeholder="`${t('aiCollab.criterion')} ${index + 1}`"
+                />
+                <n-button
+                  v-if="goalForm.criteria.length > 1"
+                  quaternary
+                  size="small"
+                  @click="removeCriterion(index)"
+                >
+                  <template #icon>
+                    <n-icon><component :is="svgIcons.close" /></n-icon>
+                  </template>
+                </n-button>
+              </div>
+              <n-button dashed block size="small" @click="addCriterion">
+                {{ t('aiCollab.addCriterion') }}
+              </n-button>
+            </div>
+          </n-form-item>
+          
+          <!-- Context & Constraints (Optional) -->
+          <n-collapse>
+            <n-collapse-item :title="t('aiCollab.advancedOptions')">
+              <n-form-item :label="t('aiCollab.context')">
+                <n-input
+                  v-model:value="goalForm.context"
+                  type="textarea"
+                  :placeholder="t('aiCollab.contextPlaceholder')"
+                  :autosize="{ minRows: 2, maxRows: 4 }"
+                />
+              </n-form-item>
+              
+              <n-form-item :label="t('aiCollab.constraints')">
+                <n-input
+                  v-model:value="goalForm.constraints"
+                  type="textarea"
+                  :placeholder="t('aiCollab.constraintsPlaceholder')"
+                  :autosize="{ minRows: 2, maxRows: 4 }"
+                />
+              </n-form-item>
+            </n-collapse-item>
+          </n-collapse>
+        </n-form>
+      </div>
 
-      <!-- Base URL (可选) -->
-      <n-form-item :label="t('aiCollab.baseUrl')">
-        <n-input
-          v-model:value="formData.baseUrl"
-          :placeholder="t('aiCollab.baseUrlPlaceholder')"
-        />
-      </n-form-item>
+      <!-- Step 3: Provider Configuration -->
+      <div v-show="currentStep === 3" class="provider-step">
+        <n-form label-placement="left" label-width="120" size="small">
+          <!-- Provider Type -->
+          <n-form-item :label="t('aiCollab.providerType')">
+            <n-select
+              v-model:value="providerForm.type"
+              :options="providerTypeOptions"
+            />
+          </n-form-item>
 
-      <!-- 启用的工具 -->
-      <n-form-item :label="t('aiCollab.enabledTools')">
-        <n-checkbox-group v-model:value="formData.tools">
-          <n-space>
-            <n-checkbox value="read">Read</n-checkbox>
-            <n-checkbox value="write">Write</n-checkbox>
-            <n-checkbox value="edit">Edit</n-checkbox>
-            <n-checkbox value="bash">Bash</n-checkbox>
-            <n-checkbox value="glob">Glob</n-checkbox>
-            <n-checkbox value="grep">Grep</n-checkbox>
-          </n-space>
-        </n-checkbox-group>
-      </n-form-item>
-    </n-form>
+          <!-- Model -->
+          <n-form-item :label="t('aiCollab.model')">
+            <n-select
+              v-model:value="providerForm.model"
+              :options="modelOptions"
+              filterable
+              tag
+            />
+          </n-form-item>
+
+          <!-- API Key -->
+          <n-form-item 
+            v-if="providerForm.type !== 'opencode'"
+            :label="t('aiCollab.apiKey')"
+          >
+            <n-input
+              v-model:value="providerForm.apiKey"
+              type="password"
+              show-password-on="click"
+              :placeholder="t('aiCollab.apiKeyPlaceholder')"
+            />
+          </n-form-item>
+          
+          <!-- OpenCode Hint -->
+          <n-form-item v-if="providerForm.type === 'opencode'">
+            <n-alert type="success" :show-icon="true">
+              {{ t('aiCollab.opencodeHint') }}
+            </n-alert>
+          </n-form-item>
+
+          <!-- Base URL (Optional) -->
+          <n-form-item :label="t('aiCollab.baseUrl')">
+            <n-input
+              v-model:value="providerForm.baseUrl"
+              :placeholder="t('aiCollab.baseUrlPlaceholder')"
+            />
+          </n-form-item>
+
+          <!-- Enabled Tools -->
+          <n-form-item :label="t('aiCollab.enabledTools')">
+            <n-checkbox-group v-model:value="providerForm.tools">
+              <n-space>
+                <n-checkbox value="read">Read</n-checkbox>
+                <n-checkbox value="write">Write</n-checkbox>
+                <n-checkbox value="edit">Edit</n-checkbox>
+                <n-checkbox value="bash">Bash</n-checkbox>
+                <n-checkbox value="glob">Glob</n-checkbox>
+                <n-checkbox value="grep">Grep</n-checkbox>
+              </n-space>
+            </n-checkbox-group>
+          </n-form-item>
+        </n-form>
+      </div>
+    </div>
 
     <template #footer>
-      <n-space justify="end" :size="8">
-        <n-button size="small" @click="$emit('update:show', false)">
-          {{ t('common.cancel') }}
-        </n-button>
-        <n-button 
-          type="primary" 
-          size="small" 
-          :loading="isCreating" 
-          :disabled="!limitInfo.canCreateTask"
-          @click="handleCreate"
-        >
-          {{ t('aiCollab.create') }}
-        </n-button>
+      <n-space justify="space-between">
+        <n-space :size="8">
+          <n-button
+            v-if="currentStep > 1"
+            size="small"
+            @click="handlePrevStep"
+          >
+            {{ t('common.previous') }}
+          </n-button>
+        </n-space>
+        
+        <n-space :size="8">
+          <n-button size="small" @click="$emit('update:show', false)">
+            {{ t('common.cancel') }}
+          </n-button>
+          
+          <!-- Skip button for step 2 -->
+          <n-button
+            v-if="currentStep === 2"
+            size="small"
+            @click="handleSkipGoal"
+          >
+            {{ t('aiCollab.skipStep') }}
+          </n-button>
+          
+          <n-button
+            v-if="currentStep < 3"
+            type="primary"
+            size="small"
+            @click="handleNextStep"
+          >
+            {{ t('common.next') }}
+          </n-button>
+          <n-button
+            v-else
+            type="primary"
+            size="small"
+            :loading="isCreating"
+            :disabled="!limitInfo.canCreateTask"
+            @click="handleCreate"
+          >
+            {{ t('aiCollab.create') }}
+          </n-button>
+        </n-space>
       </n-space>
     </template>
   </n-modal>
@@ -163,6 +316,8 @@
 import { ref, computed, watch } from 'vue';
 import {
   NModal,
+  NSteps,
+  NStep,
   NForm,
   NFormItem,
   NInput,
@@ -173,6 +328,9 @@ import {
   NCheckbox,
   NCheckboxGroup,
   NAlert,
+  NCollapse,
+  NCollapseItem,
+  NIcon,
   useMessage,
   type FormInst,
   type FormRules,
@@ -185,15 +343,18 @@ import { useAICollabNativeStore } from '../../../stores/aiCollabNative';
 import { useAuthStore } from '../../../stores/auth';
 import { useAITaskLimit } from '../../../services/aiTaskLimitService';
 import { getModelsForProvider } from '../../../services/ai/provider/models';
+import { TaskType } from '../../../providers/types';
 import type { ProviderType } from '../../../services/ai/types';
+import { svgIcons } from '../../../utils/icons';
 
 const props = defineProps<{
   show: boolean;
+  groupOptions: Array<{ label: string; value: string }>;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:show', value: boolean): void;
-  (e: 'created', sessionId: string): void;
+  (e: 'created', sessionId: string, taskId: string): void;
 }>();
 
 const { t } = useI18n();
@@ -204,43 +365,73 @@ const nativeStore = useAICollabNativeStore();
 const authStore = useAuthStore();
 const { limitInfo } = useAITaskLimit();
 
-const formRef = ref<FormInst | null>(null);
+const currentStep = ref(1);
+const basicFormRef = ref<FormInst | null>(null);
+const goalFormRef = ref<FormInst | null>(null);
 const isCreating = ref(false);
+const goalSkipped = ref(false);
 
 // Handle login button click
 const handleLogin = () => {
   authStore.openAuthPortal('/login');
 };
 
-const formData = ref({
+// Group options with "Create New" option
+const groupOptionsWithNew = computed(() => [
+  ...props.groupOptions,
+  { label: t('task.createNewGroup'), value: '__new__' },
+]);
+
+// Basic form (Step 1)
+const basicForm = ref({
+  taskName: '',
+  groupId: '',
+  newGroupName: '',
   projectPath: '',
-  providerType: 'opencode' as ProviderType,
+});
+
+// Goal form (Step 2 - Optional)
+const goalForm = ref({
+  objective: '',
+  criteria: [''],
+  context: '',
+  constraints: '',
+});
+
+// Provider form (Step 3)
+const providerForm = ref({
+  type: 'opencode' as ProviderType,
   model: 'gpt-5-nano',
   apiKey: '',
   baseUrl: '',
   tools: ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
 });
 
-// 表单验证规则
-const formRules = computed<FormRules>(() => ({
+// Validation rules for basic form
+const basicRules = computed<FormRules>(() => ({
+  taskName: {
+    required: true,
+    message: t('task.nameRequired'),
+    trigger: 'blur',
+  },
+  groupId: {
+    required: true,
+    message: t('task.groupRequired'),
+    trigger: 'blur',
+  },
+  newGroupName: {
+    required: basicForm.value.groupId === '__new__',
+    message: t('task.newGroupNameRequired'),
+    trigger: 'blur',
+  },
   projectPath: {
     required: true,
     message: t('aiCollab.projectPathRequired'),
     trigger: 'blur',
   },
-  apiKey: {
-    required: formData.value.providerType !== 'opencode',
-    message: t('aiCollab.apiKeyRequired'),
-    trigger: 'blur',
-  },
-  model: {
-    required: true,
-    message: t('aiCollab.modelRequired'),
-    trigger: 'blur',
-  },
 }));
 
-// Provider 类型选项
+// Provider type options
 const providerTypeOptions = computed(() => [
   { label: 'OpenCode Zen (免费)', value: 'opencode' },
   { label: 'Anthropic (Claude)', value: 'anthropic' },
@@ -249,18 +440,25 @@ const providerTypeOptions = computed(() => [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'GLM (智谱)', value: 'glm' },
   { label: 'Kimi (Moonshot)', value: 'kimi' },
+  { label: t('settings.custom') + ' (OpenAI 兼容)', value: 'custom' },
 ]);
 
-// 模型选项
+// Model options
 const modelOptions = computed(() => {
-  const models = getModelsForProvider(formData.value.providerType);
+  const models = getModelsForProvider(providerForm.value.type);
   return models.map((m: { name: string; contextWindow: number; id: string }) => ({
     label: `${m.name} (${m.contextWindow.toLocaleString()} tokens)`,
     value: m.id,
   }));
 });
 
-// 选择项目路径
+// Check if goal is configured
+const isGoalConfigured = computed(() => {
+  return goalForm.value.objective.trim() !== '' || 
+         goalForm.value.criteria.some(c => c.trim() !== '');
+});
+
+// Select project path
 const handleSelectProjectPath = async () => {
   try {
     const adapter = await getAdapter();
@@ -269,40 +467,112 @@ const handleSelectProjectPath = async () => {
     });
     
     if (result && typeof result === 'string') {
-      formData.value.projectPath = result;
+      basicForm.value.projectPath = result;
     }
   } catch (error) {
     console.error('[AICollabNativeCreateDialog] Failed to select folder:', error);
   }
 };
 
-// 创建会话
-const handleCreate = async () => {
-  try {
-    await formRef.value?.validate();
-  } catch {
-    return;
-  }
+// Criteria management
+const addCriterion = () => {
+  goalForm.value.criteria.push('');
+};
 
+const removeCriterion = (index: number) => {
+  goalForm.value.criteria.splice(index, 1);
+};
+
+// Navigation
+const handlePrevStep = () => {
+  if (currentStep.value > 1) {
+    currentStep.value--;
+    if (currentStep.value === 2) {
+      goalSkipped.value = false;
+    }
+  }
+};
+
+const handleNextStep = async () => {
+  if (currentStep.value === 1) {
+    try {
+      await basicFormRef.value?.validate();
+      currentStep.value = 2;
+      goalSkipped.value = false;
+    } catch {
+      // Validation failed
+    }
+  } else if (currentStep.value === 2) {
+    currentStep.value = 3;
+  }
+};
+
+const handleSkipGoal = () => {
+  goalSkipped.value = true;
+  currentStep.value = 3;
+};
+
+// Create task
+const handleCreate = async () => {
   isCreating.value = true;
+  
   try {
-    // 创建原生 AI 会话
+    // Create AI session
     const session = await nativeStore.createSession({
-      projectPath: formData.value.projectPath,
+      projectPath: basicForm.value.projectPath,
       provider: {
-        type: formData.value.providerType,
-        model: formData.value.model,
-        apiKey: formData.value.apiKey,
-        baseUrl: formData.value.baseUrl || undefined,
+        type: providerForm.value.type,
+        model: providerForm.value.model,
+        apiKey: providerForm.value.apiKey,
+        baseUrl: providerForm.value.baseUrl || undefined,
       },
-      tools: formData.value.tools,
+      tools: providerForm.value.tools,
     });
     
-    // 创建 Tab
-    const projectName = formData.value.projectPath.split(/[/\\]/).pop() || 'AI Native';
-    terminalStore.createAICollabNativeTab(session.id, `AI: ${projectName}`, formData.value.projectPath);
+    // Determine target group
+    let targetGroupId = basicForm.value.groupId;
+    if (basicForm.value.groupId === '__new__' && basicForm.value.newGroupName.trim()) {
+      const newGroup = await taskManager.createUserGroup(basicForm.value.newGroupName.trim());
+      targetGroupId = newGroup.id;
+    }
     
-    emit('created', session.id);
+    // Build goal data if configured
+    const goalData = isGoalConfigured.value ? {
+      objective: goalForm.value.objective,
+      acceptanceCriteria: goalForm.value.criteria.filter(c => c.trim()),
+      context: goalForm.value.context || undefined,
+      constraints: goalForm.value.constraints 
+        ? goalForm.value.constraints.split('\n').filter(c => c.trim())
+        : undefined,
+    } : undefined;
+    
+    // Create task and add to group
+    const taskId = `ai-collab-${session.id}`;
+    const taskData = {
+      id: taskId,
+      name: basicForm.value.taskName,
+      type: TaskType.AI_COLLAB,
+      cwd: basicForm.value.projectPath,
+      definition: {
+        sessionId: session.id,
+        provider: {
+          type: providerForm.value.type,
+          model: providerForm.value.model,
+          apiKey: providerForm.value.apiKey,
+          baseUrl: providerForm.value.baseUrl || undefined,
+        },
+        tools: providerForm.value.tools,
+        goal: goalData,
+        isConfigured: isGoalConfigured.value && !goalSkipped.value,
+      },
+    };
+    
+    await taskManager.addTaskToGroup(targetGroupId, taskData);
+    
+    // Create terminal tab
+    terminalStore.createAICollabNativeTab(session.id, basicForm.value.taskName, basicForm.value.projectPath);
+    
+    emit('created', session.id, taskId);
     emit('update:show', false);
     message.success(t('aiCollab.createSuccess'));
   } catch (error) {
@@ -312,29 +582,73 @@ const handleCreate = async () => {
   }
 };
 
-// 监听 Provider 变化，更新默认模型
-watch(() => formData.value.providerType, (newType) => {
+// Watch provider type changes
+watch(() => providerForm.value.type, (newType) => {
   const models = getModelsForProvider(newType);
   if (models.length > 0) {
-    formData.value.model = models[0].id;
+    providerForm.value.model = models[0].id;
   }
 });
 
-// 监听显示状态，重置表单
+// Reset form when dialog opens
 watch(() => props.show, (show) => {
   if (show) {
-    // 使用第一个文件夹作为默认项目路径
-    if (taskManager.folders.length > 0) {
-      formData.value.projectPath = taskManager.folders[0].path;
+    currentStep.value = 1;
+    goalSkipped.value = false;
+    
+    // Reset basic form
+    basicForm.value.taskName = '';
+    basicForm.value.newGroupName = '';
+    if (props.groupOptions.length > 0) {
+      basicForm.value.groupId = props.groupOptions[0].value;
     } else {
-      formData.value.projectPath = '';
+      basicForm.value.groupId = '';
     }
-    // 默认使用 OpenCode 免费模式
-    formData.value.providerType = 'opencode';
-    formData.value.model = 'gpt-5-nano';
-    formData.value.apiKey = '';
-    formData.value.baseUrl = '';
-    formData.value.tools = ['read', 'write', 'edit', 'bash', 'glob', 'grep'];
+    if (taskManager.folders.length > 0) {
+      basicForm.value.projectPath = taskManager.folders[0].path;
+    } else {
+      basicForm.value.projectPath = '';
+    }
+    
+    // Reset goal form
+    goalForm.value.objective = '';
+    goalForm.value.criteria = [''];
+    goalForm.value.context = '';
+    goalForm.value.constraints = '';
+    
+    // Reset provider form
+    providerForm.value.type = 'opencode';
+    providerForm.value.model = 'gpt-5-nano';
+    providerForm.value.apiKey = '';
+    providerForm.value.baseUrl = '';
+    providerForm.value.tools = ['read', 'write', 'edit', 'bash', 'glob', 'grep'];
   }
 });
 </script>
+
+<style scoped>
+.steps-container {
+  margin-bottom: 24px;
+}
+
+.step-content {
+  min-height: 280px;
+}
+
+.criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.criterion-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.criterion-item .n-input {
+  flex: 1;
+}
+</style>

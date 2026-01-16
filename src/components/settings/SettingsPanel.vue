@@ -828,14 +828,14 @@ onUnmounted(() => {
     
     .n-tab-pane {
       flex: 1;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
       padding: 16px;
       display: flex;
       flex-direction: column;
       min-height: 0;
       max-width: 100%;
       box-sizing: border-box;
-      overflow-x: auto;
       height: 100%;
     }
   }

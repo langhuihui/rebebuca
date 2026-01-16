@@ -52,12 +52,16 @@ export class WorkerAgent extends BaseAgent {
   private onToolError?: (toolName: string, error: Error) => void;
   private onPermissionRequest?: (request: PermissionRequest) => Promise<void>;
   
+  // Auto-approve permissions flag
+  private autoApprovePermissions: boolean = true;
+  
   constructor(config: {
     provider: AgentConfig['provider'];
     projectPath: string;
     tools?: string[];
     maxSteps?: number;
     sessionId?: string;
+    autoApprovePermissions?: boolean;
   }) {
     super({
       role: 'worker',
@@ -72,6 +76,7 @@ export class WorkerAgent extends BaseAgent {
     this.enabledTools = config.tools ?? ['read', 'write', 'edit', 'bash', 'glob', 'grep'];
     this.sessionId = config.sessionId ?? generateUUID();
     this.abortSignal = new AbortController().signal;
+    this.autoApprovePermissions = config.autoApprovePermissions ?? true;
   }
   
   // ============================================================================
@@ -117,13 +122,33 @@ export class WorkerAgent extends BaseAgent {
   
   protected async act(): Promise<string> {
     if (this.pendingToolCalls.length === 0) {
+      console.log('[Worker] No tools to execute');
       return 'No tools to execute';
     }
     
+    console.log(`[Worker] Executing ${this.pendingToolCalls.length} tool(s):`, 
+      this.pendingToolCalls.map(tc => `${tc.name}(${JSON.stringify(tc.args).slice(0, 100)})`));
+    
     const results: string[] = [];
+    let emptyArgsCount = 0;
     
     for (const toolCall of this.pendingToolCalls) {
+      // Check for empty tool arguments - indicates model doesn't properly support function calling
+      const hasEmptyArgs = !toolCall.args || Object.keys(toolCall.args).length === 0;
+      if (hasEmptyArgs) {
+        emptyArgsCount++;
+        console.warn(`[Worker] Tool ${toolCall.name} received empty arguments - model may not properly support function calling`);
+        
+        // Provide clear feedback
+        const errorMsg = `工具 ${toolCall.name} 参数为空。当前使用的模型可能不完全支持函数调用(Function Calling)。建议切换到支持函数调用的模型，如 Claude、GPT-4 或 DeepSeek。`;
+        this.issues.push(errorMsg);
+        results.push(`[${toolCall.name}] 错误: 参数为空 - 模型不支持函数调用`);
+        this.addMessage('user', `工具执行错误 (${toolCall.name}):\n${errorMsg}`);
+        continue;
+      }
+      
       toolCall.status = 'running';
+      console.log(`[Worker] Starting tool: ${toolCall.name}`, toolCall.args);
       this.onToolStart?.(toolCall.name, toolCall.args);
       
       try {
@@ -131,6 +156,7 @@ export class WorkerAgent extends BaseAgent {
         toolCall.status = 'completed';
         toolCall.result = result;
         
+        console.log(`[Worker] Tool completed: ${toolCall.name}`, result.title);
         this.completedActions.push(`${toolCall.name}: ${result.title}`);
         this.onToolComplete?.(toolCall.name, result);
         
@@ -142,6 +168,7 @@ export class WorkerAgent extends BaseAgent {
         toolCall.status = 'error';
         toolCall.error = error as Error;
         
+        console.error(`[Worker] Tool error: ${toolCall.name}`, error);
         this.issues.push(`${toolCall.name} 执行失败: ${(error as Error).message}`);
         this.onToolError?.(toolCall.name, error as Error);
         
@@ -150,6 +177,13 @@ export class WorkerAgent extends BaseAgent {
         // Add error message
         this.addMessage('user', `工具执行错误 (${toolCall.name}):\n${(error as Error).message}`);
       }
+    }
+    
+    // If all tool calls had empty args, this is a critical issue with the model
+    if (emptyArgsCount === this.pendingToolCalls.length && emptyArgsCount > 0) {
+      console.error('[Worker] CRITICAL: All tool calls have empty arguments. The model does not support function calling properly.');
+      this.issues.push('严重错误: 所有工具调用的参数都为空。当前模型不支持函数调用。请更换模型后重试。');
+      this.setState('error');
     }
     
     this.pendingToolCalls = [];
@@ -257,13 +291,26 @@ export class WorkerAgent extends BaseAgent {
       
       return {
         content: response.content || '',
-        toolCalls: response.toolCalls?.map(tc => ({
-          id: tc.id,
-          name: tc.function.name,
-          args: typeof tc.function.arguments === 'string' 
-            ? JSON.parse(tc.function.arguments) 
-            : tc.function.arguments,
-        })),
+        toolCalls: response.toolCalls?.map(tc => {
+          let args: Record<string, unknown> = {};
+          try {
+            if (typeof tc.function.arguments === 'string') {
+              args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+            } else if (tc.function.arguments && typeof tc.function.arguments === 'object') {
+              args = tc.function.arguments as Record<string, unknown>;
+            }
+          } catch (e) {
+            console.warn(`[Worker] Failed to parse tool arguments for ${tc.function.name}:`, tc.function.arguments, e);
+          }
+          
+          console.log(`[Worker] Tool call parsed: ${tc.function.name}`, args);
+          
+          return {
+            id: tc.id,
+            name: tc.function.name,
+            args,
+          };
+        }),
       };
     } catch (error) {
       console.error('[Worker] LLM call failed:', error);
@@ -285,6 +332,11 @@ export class WorkerAgent extends BaseAgent {
       projectPath: this.projectPath,
       abortSignal: this.abortSignal,
       requestPermission: async (request) => {
+        // Auto-approve if enabled, otherwise call the handler
+        if (this.autoApprovePermissions) {
+          console.log(`[Worker] Auto-approving permission: ${request.type} - ${request.path || request.command || 'unknown'}`);
+          return; // Auto-approve by returning immediately
+        }
         if (this.onPermissionRequest) {
           await this.onPermissionRequest(request);
         }

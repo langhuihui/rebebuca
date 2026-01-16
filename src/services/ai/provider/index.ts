@@ -141,15 +141,31 @@ export function createProvider(config: ProviderConfig): LLMProvider {
 export async function createLanguageModel(config: ProviderConfig): Promise<LanguageModel> {
   const { type, apiKey, baseUrl, model } = config;
 
+  // Debug log to verify config
+  console.log('[Provider] Creating language model:', {
+    type,
+    model,
+    baseUrl: baseUrl || 'default',
+    hasApiKey: !!apiKey,
+    apiKeyLength: apiKey?.length || 0,
+    apiKeyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : 'none',
+  });
+
   switch (type) {
     case 'anthropic': {
+      // Only enable beta features for official Anthropic API
+      // Third-party proxies may not support these features
+      const isOfficialApi = !baseUrl || baseUrl.includes('anthropic.com');
+      
       const anthropic = createAnthropic({
         apiKey,
         baseURL: baseUrl,
-        headers: {
-          // Enable extended features for Claude
+        headers: isOfficialApi ? {
+          // Enable extended features for Claude (official API only)
           'anthropic-beta': 'interleaved-thinking-2025-05-14,output-128k-2025-02-19',
-        },
+        } : undefined,
+        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
+        fetch: tauriFetch,
       });
       return anthropic(model);
     }
@@ -158,6 +174,8 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const openai = createOpenAI({
         apiKey,
         baseURL: baseUrl,
+        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
+        fetch: tauriFetch,
       });
       return openai(model);
     }
@@ -166,6 +184,8 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const google = createGoogleGenerativeAI({
         apiKey,
         baseURL: baseUrl,
+        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
+        fetch: tauriFetch,
       });
       return google(model);
     }
@@ -179,6 +199,8 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const openai = createOpenAI({
         apiKey,
         baseURL: baseUrl || providerConfig.baseUrl,
+        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
+        fetch: tauriFetch,
       });
       return openai(model);
     }

@@ -11,7 +11,7 @@
     "dev:website": "VITE_BACKEND=mock vite --config vite.website.config.ts",
     "build": "vue-tsc --noEmit && vite build",
     "build:web": "VITE_BUILD_TARGET=web VITE_BACKEND=mock vue-tsc --noEmit && vite build",
-    "build:server": "export VITE_BACKEND=server && vue-tsc --noEmit && vite build",
+    "build:server": "export VITE_BACKEND=server VITE_DEV_MODE=true && vue-tsc --noEmit && vite build",
     "build:website": "VITE_BACKEND=mock vue-tsc --noEmit && vite build --config vite.website.config.ts && mv dist/website/website.html dist/website/index.html",
     "preview": "vite preview",
     "tauri": "tauri",

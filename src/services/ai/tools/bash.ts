@@ -47,6 +47,15 @@ export const bashTool = defineTool({
     const adapter = await getAdapter();
     const { command, timeout = DEFAULT_TIMEOUT } = params;
 
+    // Validate command
+    if (!command || typeof command !== 'string') {
+      return {
+        title: 'bash',
+        output: 'Error: command parameter is required and must be a string',
+        metadata: { error: 'invalid_params' },
+      };
+    }
+
     // Resolve working directory
     const cwd = params.cwd
       ? path.isAbsolute(params.cwd)
@@ -196,7 +205,11 @@ export const bashTool = defineTool({
 /**
  * Extract command prefix for display (e.g., "npm install" from "npm install lodash")
  */
-function extractCommandPrefix(command: string): string {
+function extractCommandPrefix(command: string | undefined): string {
+  if (!command || typeof command !== 'string') {
+    return 'bash';
+  }
+  
   const words = command.trim().split(/\s+/);
   
   // Common commands where we want to show more context

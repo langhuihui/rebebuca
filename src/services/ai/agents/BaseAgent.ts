@@ -296,6 +296,10 @@ export abstract class BaseAgent {
     return this.currentStep;
   }
   
+  getState(): AgentState {
+    return this._state;
+  }
+  
   // ============================================================================
   // Event Handlers
   // ============================================================================

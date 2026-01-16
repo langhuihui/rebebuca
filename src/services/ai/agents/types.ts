@@ -188,6 +188,9 @@ export interface DualAgentConfig {
   /** 循环配置 */
   maxRounds?: number;         // 默认 10
   maxStepsPerRound?: number;  // 默认 20
+  
+  /** 自动批准所有权限请求（无需人工确认） */
+  autoApprovePermissions?: boolean;  // 默认 true
 }
 
 // ============================================================================

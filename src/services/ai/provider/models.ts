@@ -13,10 +13,101 @@ export type { ProviderType } from '../types';
 export const MODEL_DEFINITIONS: Record<string, ModelInfo[]> = {};
 
 export const MODELS: Record<string, ModelInfo> = {
-  // Anthropic Claude
+  // Anthropic Claude - 简短 ID (用于兼容第三方 API 端点)
+  'claude-opus-4-5': {
+    id: 'claude-opus-4-5',
+    name: 'Claude Opus 4.5',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 32000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-opus-4': {
+    id: 'claude-opus-4',
+    name: 'Claude Opus 4',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 32000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-sonnet-4-5': {
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 64000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-sonnet-4': {
+    id: 'claude-sonnet-4',
+    name: 'Claude Sonnet 4',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 64000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-haiku-4-5': {
+    id: 'claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 8192,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  // Anthropic Claude - 带日期版本的 ID (官方 API)
+  'claude-opus-4-20250514': {
+    id: 'claude-opus-4-20250514',
+    name: 'Claude Opus 4 (20250514)',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 32000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-opus-4-5-20251101': {
+    id: 'claude-opus-4-5-20251101',
+    name: 'Claude Opus 4.5 (20251101)',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 32000,
+    supportsTools: true,
+    supportsVision: true,
+  },
   'claude-sonnet-4-20250514': {
     id: 'claude-sonnet-4-20250514',
-    name: 'Claude Sonnet 4',
+    name: 'Claude Sonnet 4 (20250514)',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 64000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-sonnet-4-5-20250929': {
+    id: 'claude-sonnet-4-5-20250929',
+    name: 'Claude Sonnet 4.5 (20250929)',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 64000,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-haiku-4-5-20251001': {
+    id: 'claude-haiku-4-5-20251001',
+    name: 'Claude Haiku 4.5 (20251001)',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    maxOutput: 8192,
+    supportsTools: true,
+    supportsVision: true,
+  },
+  'claude-3-7-sonnet-20250219': {
+    id: 'claude-3-7-sonnet-20250219',
+    name: 'Claude 3.7 Sonnet',
     provider: 'anthropic',
     contextWindow: 200000,
     maxOutput: 64000,
@@ -230,7 +321,7 @@ export const MODELS: Record<string, ModelInfo> = {
     provider: 'opencode',
     contextWindow: 204800,
     maxOutput: 131072,
-    supportsTools: true,
+    supportsTools: false, // NOTE: This model returns empty tool arguments and doesn't properly support function calling
     supportsVision: false,
   },
 };
@@ -264,6 +355,89 @@ export function getModelInfo(modelId: string): ModelInfo | undefined {
 export type { ProviderType as ProviderTypeExport } from '../types';
 
 import type { ProviderType } from '../types';
+
+/**
+ * Fetch models from a remote API endpoint
+ * Supports both Anthropic and OpenAI compatible /v1/models endpoints
+ */
+export interface RemoteModelInfo {
+  id: string;
+  name: string;
+  created?: number;
+  owned_by?: string;
+}
+
+export async function fetchModelsFromEndpoint(
+  baseUrl: string,
+  apiKey?: string,
+  providerType?: ProviderType
+): Promise<RemoteModelInfo[]> {
+  // Normalize base URL - remove trailing slash
+  const normalizedUrl = baseUrl.replace(/\/$/, '');
+  
+  // Build models endpoint URL
+  // Check if baseUrl already contains /v1 to avoid /v1/v1/models
+  const hasV1 = /\/v1\/?$/.test(normalizedUrl);
+  const modelsUrl = hasV1 ? `${normalizedUrl}/models` : `${normalizedUrl}/v1/models`;
+  
+  // Build headers
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (apiKey) {
+    // Anthropic uses x-api-key, OpenAI uses Authorization Bearer
+    if (providerType === 'anthropic') {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    } else {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+  }
+  
+  try {
+    // Use tauriFetch if available (in Tauri environment), otherwise use fetch
+    let response: Response;
+    
+    // Check if we're in Tauri environment
+    if (typeof window !== 'undefined' && '__TAURI__' in window) {
+      // Dynamic import to avoid issues in non-Tauri environments
+      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+      response = await tauriFetch(modelsUrl, {
+        method: 'GET',
+        headers,
+      });
+    } else {
+      response = await fetch(modelsUrl, {
+        method: 'GET',
+        headers,
+      });
+    }
+    
+    if (!response.ok) {
+      console.warn(`[fetchModelsFromEndpoint] Failed to fetch models: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    // Handle both Anthropic and OpenAI response formats
+    // OpenAI format: { data: [{ id, created, owned_by }] }
+    // Some endpoints return: { models: [...] }
+    const modelList = data.data || data.models || [];
+    
+    return modelList.map((model: Record<string, unknown>) => ({
+      id: String(model.id || ''),
+      name: String(model.id || model.name || ''),
+      created: typeof model.created === 'number' ? model.created : undefined,
+      owned_by: typeof model.owned_by === 'string' ? model.owned_by : undefined,
+    })).filter((m: RemoteModelInfo) => m.id);
+    
+  } catch (error) {
+    console.warn('[fetchModelsFromEndpoint] Error fetching models:', error);
+    return [];
+  }
+}
 
 export const PROVIDER_CONFIG: Record<ProviderType, {
   name: string;

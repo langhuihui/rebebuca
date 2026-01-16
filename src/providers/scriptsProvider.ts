@@ -16,8 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { join, basename } from '@tauri-apps/api/path';
-import { getAdapter, type FileSystemAdapter, type SystemAdapter } from '../adapters';
+import { getAdapter, isTauri, type FileSystemAdapter, type SystemAdapter } from '../adapters';
 import { 
   TaskProvider, 
   Task, 
@@ -25,6 +24,26 @@ import {
   TaskGroup,
   TaskType,
 } from './types';
+
+// Path utilities that work in both Tauri and server modes
+async function pathJoin(...parts: string[]): Promise<string> {
+  if (isTauri()) {
+    const { join } = await import('@tauri-apps/api/path');
+    return join(...parts);
+  }
+  // Simple join for server mode
+  return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
+}
+
+async function pathBasename(path: string): Promise<string> {
+  if (isTauri()) {
+    const { basename } = await import('@tauri-apps/api/path');
+    return basename(path);
+  }
+  // Simple basename for server mode
+  const parts = path.replace(/\\/g, '/').split('/');
+  return parts[parts.length - 1] || '';
+}
 
 /**
  * Script file extensions to scan for
@@ -159,7 +178,7 @@ export class ScriptsProvider implements TaskProvider {
         if (!entry.isDirectory && entry.name) {
           const isScript = await this.isScriptFile(entry.name);
           if (isScript) {
-            const scriptPath = await join(folderPath, entry.name);
+            const scriptPath = await pathJoin(folderPath, entry.name);
             const task = await this.createTaskFromScript(entry.name, scriptPath, folderPath);
             if (task) {
               tasks.push(task);
@@ -228,7 +247,7 @@ export class ScriptsProvider implements TaskProvider {
       
       for (const entry of entries) {
         if (entry.isDirectory && entry.name && !skipDirs.has(entry.name) && !entry.name.startsWith('.')) {
-          const subPath = await join(folderPath, entry.name);
+          const subPath = await pathJoin(folderPath, entry.name);
           await this.scanRecursive(subPath, results, depth + 1, maxDepth);
         }
       }
@@ -250,7 +269,7 @@ export class ScriptsProvider implements TaskProvider {
       const platformType = await this.getPlatform();
       const extension = filename.substring(filename.lastIndexOf('.')).toLowerCase();
       const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
-      const folderName = await basename(folderPath);
+      const folderName = await pathBasename(folderPath);
       
       // Determine command based on file extension
       let command: string;

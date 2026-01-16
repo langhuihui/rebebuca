@@ -1,8 +1,11 @@
 /**
  * Tauri HTTP fetch wrapper
  * Uses Tauri's HTTP plugin for network requests in Tauri environment
+ * Uses proxy API for server mode to avoid CORS issues
  * Falls back to native fetch in browser environment
  */
+
+import { detectBackendType } from '../adapters';
 
 let tauriFetchFn: typeof fetch | null = null;
 
@@ -35,8 +38,20 @@ async function initTauriHttp() {
 }
 
 /**
+ * Build proxy URL for server mode
+ */
+function buildProxyUrl(targetUrl: string): string {
+  const protocol = window.location.protocol;
+  const host = window.location.host;
+  // Encode the target URL as a query parameter
+  return `${protocol}//${host}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+}
+
+/**
  * Tauri-aware fetch implementation
- * Uses Tauri HTTP plugin in Tauri environment, native fetch otherwise
+ * Uses Tauri HTTP plugin in Tauri environment
+ * Uses proxy API in server mode to avoid CORS
+ * Falls back to native fetch otherwise
  */
 export async function tauriFetch(
   input: RequestInfo | URL,
@@ -64,6 +79,68 @@ export async function tauriFetch(
         url,
       });
       // Don't fall back to native fetch - throw the error instead
+      throw error;
+    }
+  }
+  
+  // Check if we're in server mode - use proxy to avoid CORS
+  const backendType = detectBackendType();
+  if (backendType === 'server') {
+    console.log('[TauriFetch] Using proxy for server mode:', url);
+    const proxyUrl = buildProxyUrl(url);
+    
+    // Convert headers to plain object for proper serialization
+    const headersObj: Record<string, string> = {};
+    if (init?.headers) {
+      if (init.headers instanceof Headers) {
+        init.headers.forEach((value, key) => {
+          headersObj[key] = value;
+        });
+      } else if (Array.isArray(init.headers)) {
+        for (const [key, value] of init.headers) {
+          headersObj[key] = value;
+        }
+      } else {
+        Object.assign(headersObj, init.headers);
+      }
+    }
+    
+    // Clone init and set the original headers
+    const proxyInit: RequestInit = {
+      ...init,
+      headers: {
+        ...headersObj,
+        // Pass the original headers as JSON for the proxy to use
+        'X-Proxy-Headers': JSON.stringify(headersObj),
+      },
+    };
+    
+    console.log('[TauriFetch] Proxy request headers:', Object.keys(headersObj));
+    
+    try {
+      const response = await fetch(proxyUrl, proxyInit);
+      console.log('[TauriFetch] Proxy response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+      
+      // Log error details if not ok
+      if (!response.ok) {
+        try {
+          const errorText = await response.clone().text();
+          console.error('[TauriFetch] Proxy error response body:', errorText);
+        } catch {
+          // Ignore clone errors
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('[TauriFetch] Proxy request failed:', {
+        error: error instanceof Error ? error.message : String(error),
+        url,
+      });
       throw error;
     }
   }

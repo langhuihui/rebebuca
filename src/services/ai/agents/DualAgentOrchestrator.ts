@@ -56,6 +56,9 @@ export class DualAgentOrchestrator {
   constructor(config: DualAgentConfig) {
     const sessionId = generateUUID();
     
+    // Auto-approve permissions by default for autonomous operation
+    const autoApprove = config.autoApprovePermissions ?? true;
+    
     // Initialize session
     this.session = {
       id: sessionId,
@@ -104,7 +107,10 @@ export class DualAgentOrchestrator {
       tools: config.workerTools ?? ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
       maxSteps: config.maxStepsPerRound ?? 20,
       sessionId,
+      autoApprovePermissions: autoApprove,
     });
+    
+    console.log(`[Orchestrator] Created session ${sessionId} with autoApprovePermissions=${autoApprove}`);
     
     // Setup event handlers
     this.setupAgentEventHandlers();
@@ -284,6 +290,23 @@ export class DualAgentOrchestrator {
       let report: WorkerReport;
       try {
         report = await this.worker.executeInstruction(instruction);
+        
+        // Check if worker entered error state (e.g., model doesn't support function calling)
+        if (this.worker.getState() === 'error') {
+          console.error('[Orchestrator] Worker entered error state');
+          
+          // Check for function calling issues
+          const functionCallingError = report.issues?.some(issue => 
+            issue.includes('参数为空') || 
+            issue.includes('不支持函数调用') ||
+            issue.includes('empty arguments')
+          );
+          
+          if (functionCallingError) {
+            this.handleAbort('当前使用的 AI 模型不支持函数调用 (Function Calling)。请在任务配置中切换到支持函数调用的模型（如 Claude、GPT-4、DeepSeek）后重试。');
+            return;
+          }
+        }
       } catch (error) {
         console.error('[Orchestrator] Worker failed:', error);
         report = {
@@ -485,18 +508,26 @@ export class DualAgentOrchestrator {
   }
   
   private isStuck(): boolean {
-    // Check if last few messages are similar
-    const recentMessages = this.session.conversation.slice(-4);
+    // Check if last few messages show no progress
+    const recentMessages = this.session.conversation.slice(-6);
     if (recentMessages.length < 4) return false;
     
-    const instructionContents = recentMessages
+    const instructions = recentMessages
       .filter(m => m.type === 'instruction')
       .map(m => m.content);
     
-    if (instructionContents.length < 2) return false;
+    // Need at least 2 instructions to compare
+    if (instructions.length < 2) return false;
     
-    // Check for duplicate instructions
-    return instructionContents[0] === instructionContents[1];
+    // Check for duplicate instructions (last 2 should not be identical)
+    const lastTwo = instructions.slice(-2);
+    const isDuplicate = lastTwo.length >= 2 && lastTwo[0] === lastTwo[1];
+    
+    if (isDuplicate) {
+      console.log('[Orchestrator] Detected duplicate instructions:', lastTwo[0].slice(0, 100));
+    }
+    
+    return isDuplicate;
   }
   
   private delay(ms: number): Promise<void> {

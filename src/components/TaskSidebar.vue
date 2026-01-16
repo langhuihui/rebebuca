@@ -520,6 +520,8 @@
   
   <AICollabNativeCreateDialog
     v-model:show="showAICollabNativeDialog"
+    :group-options="userGroupOptions"
+    @created="handleAICollabCreated"
   />
 
   <AICollabTaskEditDialog
@@ -1015,9 +1017,9 @@ const handlePortManagement = () => {
   terminalStore.createPortManagementTab();
 };
 
-// Handle AI collaboration Native - show dual agent create dialog
+// Handle AI collaboration Native - show AI collab native create dialog
 const handleAICollabNative = () => {
-  showDualAgentDialog.value = true;
+  showAICollabNativeDialog.value = true;
 };
 
 // Handle task visual edit
@@ -1175,6 +1177,13 @@ const handleSaveAITask = async (taskData: any) => {
         'frontend'
       );
   }
+};
+
+// Handle AI collab task created
+const handleAICollabCreated = (sessionId: string, taskId: string) => {
+  console.log('[TaskSidebar] AI collab task created:', { sessionId, taskId });
+  // The task is already added to the group in the dialog
+  // Just need to ensure the UI updates
 };
 
 // Handle task click

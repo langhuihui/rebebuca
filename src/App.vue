@@ -66,6 +66,17 @@
           @select="onDirectoryPickerSelect"
         />
 
+        <!-- Server File Picker (for server mode) -->
+        <ServerFilePicker
+          v-if="filePickerFsAdapter"
+          v-model:show="isFilePickerVisible"
+          :title="filePickerOptions.title"
+          :default-path="filePickerOptions.defaultPath"
+          :filters="filePickerOptions.filters"
+          :fs-adapter="filePickerFsAdapter"
+          @select="onFilePickerSelect"
+        />
+
         <n-layout
           class="h-screen app-window"
           :class="{ 'embedded-mode': props.embedded }"
@@ -117,6 +128,7 @@ import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
 import StatusBar from "./components/StatusBar.vue";
 import ServerDirectoryPicker from "./components/ServerDirectoryPicker.vue";
+import ServerFilePicker from "./components/ServerFilePicker.vue";
 import RemoteNotificationModal from "./components/RemoteNotificationModal.vue";
 import { useTheme } from "./composables/useTheme";
 import { type UnlistenFn } from "@tauri-apps/api/event";
@@ -131,6 +143,13 @@ import {
   getDirectoryPickerFsAdapter,
   type DirectoryPickerOptions 
 } from "./services/directoryPickerService";
+import {
+  registerFilePicker,
+  unregisterFilePicker,
+  onFileSelected,
+  getFilePickerFsAdapter,
+  type FilePickerOptions
+} from "./services/filePickerService";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -168,10 +187,21 @@ const isDirectoryPickerVisible = ref(false);
 const directoryPickerOptions = ref<DirectoryPickerOptions>({});
 const directoryPickerFsAdapter = ref<{ readDir: (path: string) => Promise<any[]> } | null>(null);
 
+// File picker state (for server mode)
+const isFilePickerVisible = ref(false);
+const filePickerOptions = ref<FilePickerOptions>({});
+const filePickerFsAdapter = ref<{ readDir: (path: string) => Promise<any[]> } | null>(null);
+
 // Handle directory picker selection
 const onDirectoryPickerSelect = (path: string | null) => {
   isDirectoryPickerVisible.value = false;
   onDirectorySelected(path);
+};
+
+// Handle file picker selection
+const onFilePickerSelect = (path: string | null) => {
+  isFilePickerVisible.value = false;
+  onFileSelected(path);
 };
 
 // Process stats interface
@@ -548,6 +578,14 @@ onMounted(async () => {
     isDirectoryPickerVisible.value = true;
   });
 
+  // Register file picker for server mode
+  registerFilePicker((options: FilePickerOptions) => {
+    // Get the latest fsAdapter
+    filePickerFsAdapter.value = getFilePickerFsAdapter();
+    filePickerOptions.value = options;
+    isFilePickerVisible.value = true;
+  });
+
   // Get current version
   currentVersion.value = await updaterStore.getCurrentVersion();
 
@@ -904,6 +942,9 @@ onUnmounted(() => {
 
   // Unregister directory picker
   unregisterDirectoryPicker();
+  
+  // Unregister file picker
+  unregisterFilePicker();
 
   if (unlistenOutput) unlistenOutput();
   if (unlistenStarted) unlistenStarted();

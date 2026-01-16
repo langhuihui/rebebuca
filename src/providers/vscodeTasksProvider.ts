@@ -16,9 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { join, basename } from '@tauri-apps/api/path';
 import JSON5 from 'json5';
-import { getAdapter, type FileSystemAdapter, type SystemAdapter } from '../adapters';
+import { getAdapter, isTauri, type FileSystemAdapter, type SystemAdapter } from '../adapters';
 import { 
   TaskProvider, 
   Task, 
@@ -28,6 +27,26 @@ import {
   VSCodeTasksJson,
   VSCodeTask,
 } from './types';
+
+// Path utilities that work in both Tauri and server modes
+async function pathJoin(...parts: string[]): Promise<string> {
+  if (isTauri()) {
+    const { join } = await import('@tauri-apps/api/path');
+    return join(...parts);
+  }
+  // Simple join for server mode
+  return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
+}
+
+async function pathBasename(path: string): Promise<string> {
+  if (isTauri()) {
+    const { basename } = await import('@tauri-apps/api/path');
+    return basename(path);
+  }
+  // Simple basename for server mode
+  const parts = path.replace(/\\/g, '/').split('/');
+  return parts[parts.length - 1] || '';
+}
 
 /**
  * Provider for VSCode tasks.json files
@@ -110,7 +129,7 @@ export class VSCodeTasksProvider implements TaskProvider {
   private async scanFolder(folderPath: string): Promise<ScanResult | null> {
     try {
       const fs = await this.getFs();
-      const tasksJsonPath = await join(folderPath, '.vscode', 'tasks.json');
+      const tasksJsonPath = await pathJoin(folderPath, '.vscode', 'tasks.json');
       console.log(`[VSCodeTasksProvider] Checking: ${tasksJsonPath}`);
       
       const exists = await fs.exists(tasksJsonPath);
@@ -180,7 +199,7 @@ export class VSCodeTasksProvider implements TaskProvider {
       
       for (const entry of entries) {
         if (entry.isDirectory && entry.name && !skipDirs.has(entry.name) && !entry.name.startsWith('.')) {
-          const subPath = await join(folderPath, entry.name);
+          const subPath = await pathJoin(folderPath, entry.name);
           await this.scanRecursive(subPath, results, depth + 1, maxDepth);
         }
       }
@@ -333,12 +352,12 @@ export class VSCodeTasksProvider implements TaskProvider {
       if (task.options.cwd.startsWith('/') || task.options.cwd.match(/^[A-Za-z]:/)) {
         cwd = task.options.cwd;
       } else {
-        cwd = await join(folderPath, task.options.cwd);
+        cwd = await pathJoin(folderPath, task.options.cwd);
       }
     }
     
     return {
-      id: `vscode:${await basename(folderPath)}:${task.label}`,
+      id: `vscode:${await pathBasename(folderPath)}:${task.label}`,
       name: task.label,
       source: 'vscode',
       sourceFile,
@@ -493,7 +512,7 @@ export class VSCodeTasksProvider implements TaskProvider {
    */
   async createTask(folderPath: string, taskData: Partial<Task>): Promise<Task> {
     const fs = await this.getFs();
-    const tasksJsonPath = await join(folderPath, '.vscode', 'tasks.json');
+    const tasksJsonPath = await pathJoin(folderPath, '.vscode', 'tasks.json');
     let tasksJson: VSCodeTasksJson;
     
     // Read existing or create new
@@ -524,7 +543,7 @@ export class VSCodeTasksProvider implements TaskProvider {
     tasksJson.tasks.push(vscodeTask);
     
     // Write back
-    const vscodeDir = await join(folderPath, '.vscode');
+    const vscodeDir = await pathJoin(folderPath, '.vscode');
     if (!(await fs.exists(vscodeDir))) {
       await fs.mkdir(vscodeDir);
     }

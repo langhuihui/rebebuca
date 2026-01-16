@@ -4,6 +4,7 @@ export const safeGetPlatform = async () => {
   const isTauri = () => {
     try {
       if (typeof window !== "undefined") {
+        // Primary check: Tauri internals
         if (
           (window as any).__TAURI__ ||
           (window as any).__TAURI_INTERNALS__ ||
@@ -21,14 +22,8 @@ export const safeGetPlatform = async () => {
         return true;
       }
 
-      // Method 3: Check for webview environment (common in Tauri)
-      if (
-        typeof window !== "undefined" &&
-        (window as any).chrome &&
-        (window as any).chrome.runtime
-      ) {
-        return true;
-      }
+      // Note: Removed chrome.runtime check as it can be true in regular browsers
+      // and doesn't reliably indicate Tauri environment
 
       return false;
     } catch (error) {

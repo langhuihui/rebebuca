@@ -367,6 +367,7 @@ const providerTypeOptions = computed(() => [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'GLM', value: 'glm' },
   { label: 'Kimi (Moonshot)', value: 'kimi' },
+  { label: t('settings.custom') + ' (OpenAI Compatible)', value: 'custom' },
 ]);
 
 const modelOptions = computed(() => {

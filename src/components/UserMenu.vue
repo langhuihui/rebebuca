@@ -99,13 +99,23 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { NButton, NIcon, NSpin, NSpace, useMessage } from 'naive-ui';
 import { ChevronDownOutline, LogoGithub, LogoGoogle, MailOutline } from '@vicons/ionicons5';
 import authService from '@/services/authService';
 import { tauriFetch } from '@/utils/tauriFetch';
 import { useAuthStore } from '@/stores/auth';
+import { isTauri } from '@/adapters';
 import OAuthLoginDialog from './OAuthLoginDialog.vue';
+
+// Helper to open URL (works in both Tauri and browser modes)
+async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
+    await openUrl(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -175,7 +185,7 @@ async function startOAuthLogin(provider: 'github' | 'google') {
     const data = await response.json() as { url: string };
 
     // Open browser for OAuth
-    await openUrl(data.url);
+    await openExternalUrl(data.url);
 
     // Wait for loopback callback to deliver tokens
     const tokens = await tokensPromise;

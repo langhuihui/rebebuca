@@ -158,10 +158,19 @@
 
           <!-- Base URL (可选) -->
           <n-form-item :label="t('aiCollab.baseUrl')">
-            <n-input
-              v-model:value="formData.baseUrl"
-              :placeholder="t('aiCollab.baseUrlPlaceholder')"
-            />
+            <n-input-group>
+              <n-input
+                v-model:value="formData.baseUrl"
+                :placeholder="t('aiCollab.baseUrlPlaceholder')"
+              />
+              <n-button 
+                :loading="isLoadingModels" 
+                :disabled="!formData.baseUrl?.trim()"
+                @click="fetchRemoteModels"
+              >
+                {{ t('aiCollab.fetchModels') }}
+              </n-button>
+            </n-input-group>
           </n-form-item>
 
           <!-- 启用的工具 -->
@@ -220,7 +229,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
 import { useTaskManagerStore } from '../../../stores/taskManager';
-import { getModelsForProvider } from '../../../services/ai/provider/models';
+import { getModelsForProvider, fetchModelsFromEndpoint, type RemoteModelInfo } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 import type { Task } from '../../../providers/types';
 import { TaskType } from '../../../providers/types';
@@ -244,6 +253,11 @@ const goalFormRef = ref<FormInst | null>(null);
 const providerFormRef = ref<FormInst | null>(null);
 const isSaving = ref(false);
 const activeTab = ref('goal');
+
+// 远程模型相关状态
+const remoteModels = ref<RemoteModelInfo[]>([]);
+const isLoadingModels = ref(false);
+const lastFetchedUrl = ref('');
 
 const formData = ref({
   name: '',
@@ -308,16 +322,68 @@ const providerTypeOptions = computed(() => [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'GLM (智谱)', value: 'glm' },
   { label: 'Kimi (Moonshot)', value: 'kimi' },
+  { label: t('settings.custom') + ' (OpenAI 兼容)', value: 'custom' },
 ]);
 
-// 模型选项
+// 模型选项 - 合并静态模型和远程获取的模型
 const modelOptions = computed(() => {
-  const models = getModelsForProvider(formData.value.providerType);
-  return models.map((m: { name: string; contextWindow: number; id: string }) => ({
+  const staticModels = getModelsForProvider(formData.value.providerType);
+  const staticOptions = staticModels.map((m: { name: string; contextWindow: number; id: string }) => ({
     label: `${m.name} (${m.contextWindow.toLocaleString()} tokens)`,
     value: m.id,
   }));
+  
+  // 如果有远程模型，将其添加到列表开头
+  if (remoteModels.value.length > 0) {
+    const remoteOptions = remoteModels.value.map((m: RemoteModelInfo) => ({
+      label: `${m.name}${m.owned_by ? ` (${m.owned_by})` : ''} [远程]`,
+      value: m.id,
+    }));
+    
+    // 合并去重 - 远程模型优先
+    const remoteIds = new Set(remoteModels.value.map(m => m.id));
+    const filteredStatic = staticOptions.filter((opt: { value: string }) => !remoteIds.has(opt.value));
+    
+    return [...remoteOptions, ...filteredStatic];
+  }
+  
+  return staticOptions;
 });
+
+// 获取远程模型列表
+const fetchRemoteModels = async () => {
+  const baseUrl = formData.value.baseUrl?.trim();
+  if (!baseUrl) {
+    remoteModels.value = [];
+    lastFetchedUrl.value = '';
+    return;
+  }
+  
+  // 避免重复请求
+  if (baseUrl === lastFetchedUrl.value) {
+    return;
+  }
+  
+  isLoadingModels.value = true;
+  try {
+    const models = await fetchModelsFromEndpoint(
+      baseUrl,
+      formData.value.apiKey,
+      formData.value.providerType
+    );
+    remoteModels.value = models;
+    lastFetchedUrl.value = baseUrl;
+    
+    if (models.length > 0) {
+      message.success(t('aiCollab.modelsLoaded', { count: models.length }));
+    }
+  } catch (error) {
+    console.error('[AICollabTaskEditDialog] Failed to fetch remote models:', error);
+    remoteModels.value = [];
+  } finally {
+    isLoadingModels.value = false;
+  }
+};
 
 // 选择项目路径
 const handleSelectProjectPath = async () => {

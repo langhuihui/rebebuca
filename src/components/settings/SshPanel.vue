@@ -294,8 +294,17 @@ import { useI18n } from 'vue-i18n';
 import { useSshStore, type SshConfig, type SshAuthMethod } from '../../stores/ssh';
 import { useTerminalStore } from '../../stores/terminal';
 import { svgIcons } from '../../utils/icons';
-import { getAdapter } from '../../adapters';
-import { homeDir as getHomeDir } from '@tauri-apps/api/path';
+import { getAdapter, isTauri } from '../../adapters';
+
+// Helper to get home directory (works in both Tauri and server modes)
+async function getHomeDir(): Promise<string> {
+  if (isTauri()) {
+    const { homeDir } = await import('@tauri-apps/api/path');
+    return homeDir();
+  }
+  // In server mode, try to get from environment or use default
+  return process.env.HOME || '/home';
+}
 
 const { t } = useI18n();
 const message = useMessage();

@@ -6,6 +6,7 @@
  */
 
 import { showDirectoryPicker, setDirectoryPickerFsAdapter } from '../services/directoryPickerService';
+import { showFilePicker, setFilePickerFsAdapter } from '../services/filePickerService';
 import type {
   BackendAdapter,
   TerminalAdapter,
@@ -435,12 +436,13 @@ class ServerDialogAdapter implements DialogAdapter {
     return showDirectoryPicker(options);
   }
 
-  async selectFile(_options?: {
+  async selectFile(options?: {
     title?: string;
     defaultPath?: string;
     filters?: Array<{ name: string; extensions: string[] }>;
   }): Promise<string | null> {
-    return prompt('Enter file path:');
+    // Use the file picker service to show remote file browser
+    return showFilePicker(options);
   }
 
   async showMessage(options: { title: string; message: string; type?: 'info' | 'warning' | 'error' }): Promise<void> {
@@ -631,6 +633,9 @@ export class ServerAdapter implements BackendAdapter {
 
     // Set fs adapter for directory picker service
     setDirectoryPickerFsAdapter(this.fs);
+    
+    // Set fs adapter for file picker service
+    setFilePickerFsAdapter(this.fs);
 
     console.log('[Server] Server adapter initialized');
   }

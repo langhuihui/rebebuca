@@ -121,9 +121,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import authService from '@/services/authService';
 import { tauriFetch } from '@/utils/tauriFetch';
+import { isTauri } from '@/adapters';
 import {
   NModal,
   NButton,
@@ -141,6 +141,16 @@ import {
   LogoGithub,
   LogoGoogle,
 } from '@vicons/ionicons5';
+
+// Helper to open URL (works in both Tauri and browser modes)
+async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
+    await openExternalUrl(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
 
 const { t } = useI18n();
 const message = useMessage();
