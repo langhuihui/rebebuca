@@ -362,14 +362,14 @@ jobs:
           VERSION=${{ github.ref_name }}
           VERSION_NUM=${VERSION#v}
           
-          # Upload MSI to version root (renamed to rebebuca.msi)
+          # Upload MSI to version root (keep original filename)
           rclone copyto "src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi" \
-            "r2:monibuca/rb/${VERSION}/rebebuca.msi" --progress
+            "r2:monibuca/rb/${VERSION}/Rebebuca_${VERSION_NUM}_x64_en-US.msi" --progress
           
           # Upload signature if exists
           if [ -f "src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi.sig" ]; then
             rclone copyto "src-tauri/target/release/bundle/msi/Rebebuca_${VERSION_NUM}_x64_en-US.msi.sig" \
-              "r2:monibuca/rb/${VERSION}/rebebuca.msi.sig" --progress
+              "r2:monibuca/rb/${VERSION}/Rebebuca_${VERSION_NUM}_x64_en-US.msi.sig" --progress
           fi
 
       - name: Update latest.json (add Windows signature)
@@ -387,7 +387,7 @@ jobs:
           if [ "$WIN_SIG" != "" ]; then
             jq --arg version "$VERSION_NUM" \
                --arg sig "$WIN_SIG" \
-               --arg url "https://download.m7s.live/rb/${VERSION}/rebebuca.msi" \
+               --arg url "https://download.m7s.live/rb/${VERSION}/Rebebuca_${VERSION_NUM}_x64_en-US.msi" \
                '.platforms["windows-x86_64"] = {signature: $sig, url: $url} | .version = $version' \
                latest.json > latest-new.json
             mv latest-new.json latest.json

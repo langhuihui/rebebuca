@@ -25,6 +25,37 @@
     :mask-closable="false"
     @update:show="$emit('update:show', $event)"
   >
+    <!-- Task Limit Warning -->
+    <n-alert 
+      v-if="!limitInfo.canCreateTask" 
+      type="warning" 
+      :show-icon="true"
+      style="margin-bottom: 16px;"
+    >
+      <template #header>
+        {{ t('aiCollab.taskLimitReached') }}
+      </template>
+      <template v-if="!limitInfo.isLoggedIn">
+        {{ t('aiCollab.taskLimitAnonymousDesc', { current: limitInfo.currentCount, max: limitInfo.maxLimit }) }}
+        <n-button text type="primary" @click="handleLogin" style="margin-left: 8px;">
+          {{ t('user.login') }}
+        </n-button>
+      </template>
+      <template v-else>
+        {{ t('aiCollab.taskLimitDesc', { current: limitInfo.currentCount, max: limitInfo.maxLimit, plan: limitInfo.planType }) }}
+      </template>
+    </n-alert>
+
+    <!-- Task Limit Info -->
+    <n-alert 
+      v-else-if="limitInfo.remainingSlots <= 3" 
+      type="info" 
+      :show-icon="true"
+      style="margin-bottom: 16px;"
+    >
+      {{ t('aiCollab.taskSlotsRemaining', { remaining: limitInfo.remainingSlots, max: limitInfo.maxLimit }) }}
+    </n-alert>
+
     <n-form
       ref="formRef"
       :model="formData"
@@ -114,7 +145,13 @@
         <n-button size="small" @click="$emit('update:show', false)">
           {{ t('common.cancel') }}
         </n-button>
-        <n-button type="primary" size="small" :loading="isCreating" @click="handleCreate">
+        <n-button 
+          type="primary" 
+          size="small" 
+          :loading="isCreating" 
+          :disabled="!limitInfo.canCreateTask"
+          @click="handleCreate"
+        >
           {{ t('aiCollab.create') }}
         </n-button>
       </n-space>
@@ -145,6 +182,8 @@ import { getAdapter } from '../../../adapters';
 import { useTaskManagerStore } from '../../../stores/taskManager';
 import { useTerminalStore } from '../../../stores/terminal';
 import { useAICollabNativeStore } from '../../../stores/aiCollabNative';
+import { useAuthStore } from '../../../stores/auth';
+import { useAITaskLimit } from '../../../services/aiTaskLimitService';
 import { getModelsForProvider } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 
@@ -162,9 +201,16 @@ const message = useMessage();
 const taskManager = useTaskManagerStore();
 const terminalStore = useTerminalStore();
 const nativeStore = useAICollabNativeStore();
+const authStore = useAuthStore();
+const { limitInfo } = useAITaskLimit();
 
 const formRef = ref<FormInst | null>(null);
 const isCreating = ref(false);
+
+// Handle login button click
+const handleLogin = () => {
+  authStore.openAuthPortal('/login');
+};
 
 const formData = ref({
   projectPath: '',

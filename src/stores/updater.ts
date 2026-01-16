@@ -70,7 +70,7 @@ export function getDownloadUrl(version: string, platform: 'mac' | 'windows' | 'l
     case 'mac':
       return `${baseUrl}/v${version}/Rebebuca_${version}_universal.dmg`;
     case 'windows':
-      return `${baseUrl}/v${version}/rebebuca.msi`;
+      return `${baseUrl}/v${version}/Rebebuca_${version}_x64_en-US.msi`;
     case 'linux':
       // No Linux desktop build
       return '';

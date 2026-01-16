@@ -14,6 +14,37 @@
     :mask-closable="false"
     @update:show="$emit('update:show', $event)"
   >
+    <!-- Task Limit Warning -->
+    <n-alert 
+      v-if="!limitInfo.canCreateTask" 
+      type="warning" 
+      :show-icon="true"
+      style="margin-bottom: 16px;"
+    >
+      <template #header>
+        {{ t('aiCollab.taskLimitReached') }}
+      </template>
+      <template v-if="!limitInfo.isLoggedIn">
+        {{ t('aiCollab.taskLimitAnonymousDesc', { current: limitInfo.currentCount, max: limitInfo.maxLimit }) }}
+        <n-button text type="primary" @click="handleLogin" style="margin-left: 8px;">
+          {{ t('user.login') }}
+        </n-button>
+      </template>
+      <template v-else>
+        {{ t('aiCollab.taskLimitDesc', { current: limitInfo.currentCount, max: limitInfo.maxLimit, plan: limitInfo.planType }) }}
+      </template>
+    </n-alert>
+
+    <!-- Task Limit Info -->
+    <n-alert 
+      v-else-if="limitInfo.remainingSlots <= 3" 
+      type="info" 
+      :show-icon="true"
+      style="margin-bottom: 16px;"
+    >
+      {{ t('aiCollab.taskSlotsRemaining', { remaining: limitInfo.remainingSlots, max: limitInfo.maxLimit }) }}
+    </n-alert>
+
     <n-steps :current="currentStep" size="small" class="steps-container">
       <n-step :title="t('aiCollab.stepGoal')" />
       <n-step :title="t('aiCollab.stepProvider')" />
@@ -211,6 +242,7 @@
             type="primary"
             size="small"
             :loading="isCreating"
+            :disabled="!limitInfo.canCreateTask"
             @click="handleCreate"
           >
             {{ t('aiCollab.startTask') }}
@@ -250,6 +282,8 @@ import { getAdapter } from '../../../adapters';
 import { useTaskManagerStore } from '../../../stores/taskManager';
 import { useTerminalStore } from '../../../stores/terminal';
 import { useDualAgentStore } from '../../../stores/dualAgent';
+import { useAuthStore } from '../../../stores/auth';
+import { useAITaskLimit } from '../../../services/aiTaskLimitService';
 import { getModelsForProvider } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 import { svgIcons } from '../../../utils/icons';
@@ -268,10 +302,17 @@ const message = useMessage();
 const taskManager = useTaskManagerStore();
 const terminalStore = useTerminalStore();
 const dualAgentStore = useDualAgentStore();
+const authStore = useAuthStore();
+const { limitInfo } = useAITaskLimit();
 
 const currentStep = ref(1);
 const goalFormRef = ref<FormInst | null>(null);
 const isCreating = ref(false);
+
+// Handle login button click
+const handleLogin = () => {
+  authStore.openAuthPortal('/login');
+};
 
 // Goal form
 const goalForm = ref({

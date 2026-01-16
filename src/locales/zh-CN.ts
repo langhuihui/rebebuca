@@ -1075,6 +1075,11 @@ export default {
     completion: '完成',
     errorMsg: '错误',
     statusInitializing: '初始化中',
+    // Task limits
+    taskLimitReached: '任务数量已达上限',
+    taskLimitAnonymousDesc: '当前已有 {current}/{max} 个任务运行中。登录后可创建更多任务。',
+    taskLimitDesc: '当前已有 {current}/{max} 个任务运行中。当前计划：{plan}。',
+    taskSlotsRemaining: '剩余 {remaining}/{max} 个任务配额',
   },
   auth: {
     login: '登录',

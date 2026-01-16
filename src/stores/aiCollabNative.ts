@@ -18,6 +18,7 @@ import {
   type TypedStreamEvent,
   type Message,
 } from '../services/ai';
+import { aiTaskLimitService } from '../services/aiTaskLimitService';
 import type {
   CollabMessage,
   DecisionRequest,
@@ -286,6 +287,15 @@ export const useAICollabNativeStore = defineStore('aiCollabNative', () => {
   
   // 创建会话
   const createSession = async (config: NativeCollabConfig): Promise<NativeCollabSession> => {
+    // Check task limit before creating session
+    const limitCheck = aiTaskLimitService.checkCanCreateTask();
+    if (!limitCheck.allowed) {
+      const reason = limitCheck.reason === 'taskLimitAnonymous'
+        ? `AI task limit reached (${limitCheck.info.currentCount}/${limitCheck.info.maxLimit}). Please login to create more tasks.`
+        : `AI task limit reached (${limitCheck.info.currentCount}/${limitCheck.info.maxLimit}). Current plan: ${limitCheck.info.planType}`;
+      throw new Error(reason);
+    }
+
     const id = generateId();
     const now = Date.now();
     

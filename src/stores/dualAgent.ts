@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed, shallowRef } from 'vue';
 import { DualAgentOrchestrator } from '../services/ai/agents';
+import { aiTaskLimitService } from '../services/aiTaskLimitService';
 import type {
   DualAgentSession,
   DualAgentConfig,
@@ -49,6 +50,15 @@ export const useDualAgentStore = defineStore('dualAgent', () => {
    * 创建新的双 Agent 会话
    */
   async function createSession(config: DualAgentConfig): Promise<DualAgentSession> {
+    // Check task limit before creating session
+    const limitCheck = aiTaskLimitService.checkCanCreateTask();
+    if (!limitCheck.allowed) {
+      const reason = limitCheck.reason === 'taskLimitAnonymous'
+        ? `AI task limit reached (${limitCheck.info.currentCount}/${limitCheck.info.maxLimit}). Please login to create more tasks.`
+        : `AI task limit reached (${limitCheck.info.currentCount}/${limitCheck.info.maxLimit}). Current plan: ${limitCheck.info.planType}`;
+      throw new Error(reason);
+    }
+
     const orchestrator = new DualAgentOrchestrator(config);
     const sessionId = orchestrator.getSessionId();
     const session = orchestrator.getSession();

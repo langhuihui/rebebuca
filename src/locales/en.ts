@@ -1058,6 +1058,11 @@ export default {
     milestones: 'Milestones',
     tokenUsage: 'Token Usage',
     startTask: 'Start Task',
+    // Task limits
+    taskLimitReached: 'Task Limit Reached',
+    taskLimitAnonymousDesc: 'Currently {current}/{max} tasks running. Login to create more tasks.',
+    taskLimitDesc: 'Currently {current}/{max} tasks running. Current plan: {plan}.',
+    taskSlotsRemaining: '{remaining}/{max} task slots remaining',
   },
   auth: {
     login: 'Login',
