@@ -3,6 +3,10 @@
 [build]
 # For universal macOS builds, ensure proper cross-compilation
 rustflags = []
+# Enable incremental compilation for faster rebuilds
+incremental = true
+# Use more jobs for parallel compilation (adjust based on your CPU cores)
+# jobs = 4
 
 [target.x86_64-apple-darwin]
 # Configuration for Intel macOS builds
@@ -14,6 +18,6 @@ rustflags = []
 
 # Environment variables for OpenSSL
 [env]
-# Use vendored OpenSSL by default for universal builds
-# This can be overridden by setting OPENSSL_STATIC=0
-OPENSSL_STATIC = { value = "1", condition = { env_not_set = ["OPENSSL_STATIC"] } }
+# In development, use system OpenSSL (faster)
+# For release builds with vendored-openssl feature, this will be overridden
+# OPENSSL_STATIC is not needed when using system OpenSSL

@@ -33,7 +33,7 @@
             v-if="aiToolsStore.getToolLogoUrl(toolType)"
             :src="aiToolsStore.getToolLogoUrl(toolType)"
             :alt="AI_TOOL_METADATA[toolType].name"
-            :class="['tool-logo', { 'tool-logo-invert-dark': ['opencode', 'augment-cli', 'ampcode'].includes(toolType) }]"
+            :class="['tool-logo', { 'tool-logo-invert-dark': ['opencode', 'augment-cli', 'ampcode', 'kilocode'].includes(toolType) }]"
             @error="handleLogoError"
           />
           {{ AI_TOOL_METADATA[toolType].name }}
@@ -866,6 +866,7 @@ const availableTools: AIToolType[] = [
   "cursor-cli",
   "crush",
   "ampcode",
+  "kilocode",
 ];
 
 // Active tool tab
@@ -934,6 +935,7 @@ const toolConfigsLocal = reactive<Record<AIToolType, Partial<AIToolConfig>>>({
   "cursor-cli": { provider: "original", apiKey: "", customEndpoint: "" },
   crush: { provider: "original", apiKey: "", customEndpoint: "" },
   ampcode: { provider: "original", apiKey: "", customEndpoint: "" },
+  kilocode: { provider: "original", apiKey: "", customEndpoint: "" },
 });
 
 // Current platform
@@ -1099,6 +1101,7 @@ const NPM_PACKAGE_MAP: Record<AIToolType, string | null> = {
   'cursor-cli': null,
   'crush': '@charmland/crush',
   'ampcode': null,
+  'kilocode': '@kilocode/cli',
 };
 
 // Check if tool has npm package

@@ -128,7 +128,7 @@ export interface SupervisorConfig {
  */
 export const defaultSupervisorConfig: SupervisorConfig = {
   enabled: false,
-  monitoredTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'droid', 'crush'],
+  monitoredTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'droid', 'crush', 'kilocode'],
   idleTimeout: 30,
   analysisDebounce: 2,
   defaultMaxIterations: 5,

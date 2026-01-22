@@ -1,5 +1,16 @@
 const path = require('path');
 
+// Setup Cloudflare dev platform for local development
+if (process.env.NODE_ENV === 'development') {
+  try {
+    const { setupDevPlatform } = require('@cloudflare/next-on-pages/next-dev');
+    setupDevPlatform();
+  } catch (error) {
+    // Ignore if the package is not available
+    console.warn('Cloudflare dev platform setup skipped:', error.message);
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable React Strict Mode for better development experience

@@ -601,6 +601,9 @@ const notificationCount = computed(() => notificationStore.unreadCount);
 // Computed: notifications list for display - use displayNotifications from store
 const notifications = computed(() => notificationStore.displayNotifications);
 
+// Track previous notification length to avoid recursive updates
+const previousNotificationLength = ref(0);
+
 // Setup Intersection Observer for auto-marking notifications as read
 const setupNotificationObserver = () => {
   if (notificationObserver) {
@@ -645,24 +648,44 @@ const cleanupNotificationObserver = () => {
 // Watch for showNotifications changes to setup/cleanup observer
 watch(showNotifications, async (newValue) => {
   if (newValue) {
+    // Initialize length tracking
+    previousNotificationLength.value = notifications.value.length;
     // Wait for DOM to update
     await nextTick();
     setupNotificationObserver();
   } else {
     cleanupNotificationObserver();
+    // Reset length tracking when closed
+    previousNotificationLength.value = 0;
   }
 });
 
 // Watch for notifications list changes to re-observe new items
+// Use a ref to track previous length to avoid recursive updates
+let setupObserverTimeout: ReturnType<typeof setTimeout> | null = null;
 watch(
-  notifications,
-  async () => {
-    if (showNotifications.value) {
-      await nextTick();
-      setupNotificationObserver();
+  () => notifications.value.length,
+  (newLength) => {
+    // Only re-setup if notifications count increased (new items added)
+    if (newLength > previousNotificationLength.value && showNotifications.value) {
+      previousNotificationLength.value = newLength;
+      // Clear any pending timeout
+      if (setupObserverTimeout) {
+        clearTimeout(setupObserverTimeout);
+      }
+      // Debounce the observer setup to avoid recursive updates
+      setupObserverTimeout = setTimeout(() => {
+        nextTick(() => {
+          setupNotificationObserver();
+          setupObserverTimeout = null;
+        });
+      }, 50);
+    } else if (newLength !== previousNotificationLength.value) {
+      // Update tracked length even if decreased
+      previousNotificationLength.value = newLength;
     }
   },
-  { deep: true }
+  { flush: 'post' } // Use post flush to avoid recursive updates
 );
 
 // Handle notification dialog open - create tab instead

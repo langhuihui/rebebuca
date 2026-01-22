@@ -19,12 +19,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # and cross-compiled for Linux. The binary is stored in src-tauri/rebebuca-remote-agent
 # and copied to resources during build.
 
+[features]
+# Use vendored OpenSSL for static linking (useful for universal builds and distribution)
+# In development, use system OpenSSL for faster builds
+vendored-openssl = ["ssh2/vendored-openssl", "openssl-sys/vendored"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Common library
 rebebuca-common = { path = "../common" }
+# Orchestration library
+rebebuca-orchestration = { path = "../orchestration" }
 
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "devtools"] }
 tauri-plugin-shell = "2"
@@ -41,17 +48,22 @@ tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = "0.4"
 sysinfo = "0.30"
 portable-pty = "0.8"
 log = "0.4"
-ssh2 = { version = "0.9", features = ["vendored-openssl"] }
+# Use system OpenSSL by default for faster development builds
+# Enable vendored-openssl feature for static linking in release builds
+ssh2 = { version = "0.9", features = [] }
 base64 = "0.21"
 lazy_static = "1.4"
+md5 = "0.7"
 
-# Explicitly add openssl-sys with vendored feature for universal builds
-openssl-sys = { version = "0.9", features = ["vendored"] }
+# OpenSSL bindings - only vendored when feature is enabled
+# In development, use system OpenSSL (faster compilation)
+openssl-sys = { version = "0.9", features = [] }
 
 # MCP HTTP Server
 axum = "0.7"
@@ -59,3 +71,6 @@ tokio-stream = "0.1"
 futures = "0.3"
 tower-http = { version = "0.5", features = ["cors"] }
 async-stream = "0.3"
+
+# HTTP client for LLM API calls
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }

@@ -35,8 +35,9 @@ import { getAdapter, type BackendAdapter } from '../adapters';
  * - cursor-cli: Cursor CLI (cursor-agent)
  * - crush: Charmbracelet Crush AI coding agent
  * - ampcode: AmpCode AI coding assistant
+ * - kilocode: KiloCode CLI
  */
-export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli' | 'crush' | 'ampcode';
+export type AIToolType = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode' | 'codebuddy' | 'qoder-cli' | 'copilot-cli' | 'droid' | 'augment-cli' | 'cursor-cli' | 'crush' | 'ampcode' | 'kilocode';
 
 // Provider presets
 export interface ProviderPreset {
@@ -52,7 +53,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   original: {
     id: 'original',
     name: 'Original',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli', 'crush', 'ampcode'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'cursor-cli', 'crush', 'ampcode', 'kilocode'],
   },
   glm: {
     id: 'glm',
@@ -97,7 +98,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   custom: {
     id: 'custom',
     name: 'Custom',
-    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'crush', 'ampcode'],
+    supportsTools: ['claude-code', 'codex', 'gemini-cli', 'opencode', 'codebuddy', 'qoder-cli', 'copilot-cli', 'droid', 'augment-cli', 'crush', 'ampcode', 'kilocode'],
   },
 };
 
@@ -316,6 +317,18 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     versionCommand: 'ampcode --version',
     launchCommand: 'ampcode',
   },
+  'kilocode': {
+    name: 'KiloCode',
+    website: 'https://kilocode.ai',
+    installMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm install -g @kilocode/cli', platform: 'all' },
+    ],
+    uninstallMethods: [
+      { id: 'npm', name: 'NPM', command: 'npm uninstall -g @kilocode/cli', platform: 'all' },
+    ],
+    versionCommand: 'kilocode --version',
+    launchCommand: 'kilocode',
+  },
 };
 
 // Provider API Key storage (for syncing across tools)
@@ -383,6 +396,11 @@ export const useAIToolsStore = defineStore('aiTools', () => {
     },
     'ampcode': {
       toolType: 'ampcode',
+      provider: 'original',
+      enabled: false,
+    },
+    'kilocode': {
+      toolType: 'kilocode',
       provider: 'original',
       enabled: false,
     },
@@ -511,6 +529,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'cursor-cli': 'Cursor CLI',
       'crush': 'Crush',
       'ampcode': 'AmpCode',
+      'kilocode': 'KiloCode',
     };
     return names[toolType];
   };
@@ -530,6 +549,7 @@ export const useAIToolsStore = defineStore('aiTools', () => {
       'cursor-cli': '/ai-tools-logos/cursor-cli.ico',
       'crush': '/ai-tools-logos/crush.svg',
       'ampcode': '/ai-tools-logos/ampcode.svg',
+      'kilocode': '/ai-tools-logos/kilo-cli.svg',
     };
     return logos[toolType];
   };

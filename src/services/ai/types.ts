@@ -22,6 +22,8 @@ export type ProviderType =
   | 'glm'         // 智谱 GLM
   | 'kimi'        // Moonshot Kimi
   | 'opencode'    // OpenCode Zen (免费网关)
+  | 'openrouter'  // OpenRouter
+  | 'kilo'        // Kilo AI
   | 'custom';     // 自定义 OpenAI 兼容
 
 export interface ProviderConfig {
@@ -109,10 +111,10 @@ export interface ToolContext {
   sessionId: string;
   projectPath: string;
   abortSignal: AbortSignal;
-  
+
   /** 请求权限 */
   requestPermission(request: PermissionRequest): Promise<void>;
-  
+
   /** 更新工具执行状态（用于 UI 实时反馈） */
   updateMetadata(metadata: Record<string, unknown>): void;
 }
@@ -257,7 +259,7 @@ export type TypedStreamEvent =
 // Permission Types
 // ============================================================================
 
-export type PermissionType = 
+export type PermissionType =
   | 'read'              // 读取文件
   | 'write'             // 写入/创建文件
   | 'edit'              // 编辑文件
@@ -271,6 +273,8 @@ export interface PermissionRequest {
   path?: string;
   command?: string;
   patterns: string[];
+  cwd?: string;
+  description?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -288,23 +292,23 @@ export type PermissionReply = 'allow' | 'deny' | 'always';
 
 export interface AIServiceEvents {
   // Session events
-  'session:created': { session: AISession };
-  'session:updated': { session: AISession };
-  'session:message': { sessionId: string; message: Message };
-  'session:status': { sessionId: string; status: SessionStatus };
-  
+  'session:created': { session: AISession; };
+  'session:updated': { session: AISession; };
+  'session:message': { sessionId: string; message: Message; };
+  'session:status': { sessionId: string; status: SessionStatus; };
+
   // Stream events
-  'stream:event': { sessionId: string; event: TypedStreamEvent };
-  
+  'stream:event': { sessionId: string; event: TypedStreamEvent; };
+
   // Tool events
-  'tool:start': { sessionId: string; toolCallId: string; toolName: string };
-  'tool:progress': { sessionId: string; toolCallId: string; metadata: Record<string, unknown> };
-  'tool:complete': { sessionId: string; toolCallId: string; result: ToolExecuteResult };
-  'tool:error': { sessionId: string; toolCallId: string; error: Error };
-  
+  'tool:start': { sessionId: string; toolCallId: string; toolName: string; };
+  'tool:progress': { sessionId: string; toolCallId: string; metadata: Record<string, unknown>; };
+  'tool:complete': { sessionId: string; toolCallId: string; result: ToolExecuteResult; };
+  'tool:error': { sessionId: string; toolCallId: string; error: Error; };
+
   // Permission events
-  'permission:request': { request: PermissionRequest };
-  'permission:reply': { requestId: string; reply: PermissionReply };
+  'permission:request': { request: PermissionRequest; };
+  'permission:reply': { requestId: string; reply: PermissionReply; };
 }
 
 // ============================================================================

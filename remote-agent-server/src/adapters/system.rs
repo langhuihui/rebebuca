@@ -1,7 +1,12 @@
 //! System information adapter
 
 use crate::protocol::LogPathInfo;
-pub use rebebuca_common::{port::list_listening_ports, shell::get_available_shells, PortInfo, ShellInfo};
+pub use rebebuca_common::{
+    port::list_listening_ports,
+    process::{get_process_info, kill_process},
+    shell::get_available_shells,
+    PortInfo, ProcessInfo, ShellInfo,
+};
 
 /// System adapter for system information
 pub struct SystemAdapter;
@@ -68,6 +73,16 @@ impl SystemAdapter {
         std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
             .unwrap_or_else(|_| "/".to_string())
+    }
+
+    /// Get process info by PID (from common)
+    pub fn get_process_info(&self, pid: u32) -> Option<ProcessInfo> {
+        get_process_info(pid)
+    }
+
+    /// Kill a process by PID (from common)
+    pub fn kill_process(&self, pid: u32) -> Result<(), String> {
+        kill_process(pid)
     }
 }
 

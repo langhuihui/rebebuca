@@ -4,6 +4,7 @@ mod debug;
 mod mcp_http_server;
 mod mcp_server;
 mod oauth_callback_server;
+mod orchestration;
 mod port;
 mod process;
 mod pty;
@@ -121,9 +122,9 @@ pub fn run() {
             // Help menu
             let about_item = MenuItem::with_id(app, "about", "关于 Rebebuca", true, None::<&str>)?;
             let website_item = MenuItem::with_id(app, "website", "访问官网", true, None::<&str>)?;
-            let devtools_item = MenuItem::with_id(app, "devtools", "打开开发者工具", true, None::<&str>)?;
+            let help_devtools_item = MenuItem::with_id(app, "app-devtools", "打开开发者工具", true, None::<&str>)?;
             let help_submenu =
-                Submenu::with_items(app, "帮助", true, &[&about_item, &website_item, &devtools_item])?;
+                Submenu::with_items(app, "帮助", true, &[&about_item, &website_item, &help_devtools_item])?;
 
             let app_menu = Menu::with_items(app, &[&edit_submenu, &help_submenu])?;
             app.set_menu(app_menu)?;
@@ -159,7 +160,7 @@ pub fn run() {
                                 .spawn();
                         }
                     }
-                    "devtools" => {
+                    "devtools" | "app-devtools" => {
                         info!("[MENU] Developer tools menu item clicked");
                         // Open developer tools for the main window
                         if let Some(window) = app_handle.get_webview_window("main") {
@@ -259,6 +260,7 @@ pub fn run() {
         .manage(ProcessManager::new())
         .manage(PtyManager::new())
         .manage(TrayState::new())
+        .manage(orchestration::SessionManager::new())
         .invoke_handler(tauri::generate_handler![
             // commands module
             commands::greet,
@@ -281,6 +283,7 @@ pub fn run() {
             commands::check_full_disk_access,
             commands::open_full_disk_access_settings,
             commands::open_url_in_browser,
+            commands::fetch_models,
             oauth_callback_server::start_oauth_callback_server,
             // process module
             process::execute_command,
@@ -335,6 +338,13 @@ pub fn run() {
             debug::mcp_update_dom_tree,
             debug::mcp_update_task_list,
             debug::mcp_get_server_port,
+            // orchestration module
+            orchestration::create_orchestration_session,
+            orchestration::start_orchestration,
+            orchestration::stop_orchestration,
+            orchestration::get_orchestration_status,
+            orchestration::remove_orchestration_session,
+            orchestration::check_boulder_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -65,7 +65,8 @@ echo ""
 echo -e "${GREEN}[5/5] Building Tauri app (universal)...${NC}"
 cd "$PROJECT_ROOT"
 pnpm install
-pnpm tauri build --target universal-apple-darwin
+# Use vendored-openssl feature for static linking in release builds
+pnpm tauri build --target universal-apple-darwin --features vendored-openssl
 echo -e "${GREEN}✓ Tauri build complete${NC}"
 echo ""
 

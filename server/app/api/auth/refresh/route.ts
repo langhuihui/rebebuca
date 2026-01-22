@@ -81,14 +81,14 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
-      maxAge: 15 * 60,
+      maxAge: 7 * 24 * 60 * 60, // 7 days
       path: '/',
     });
     cookieStore.set('refresh_token', newRefreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: 30 * 24 * 60 * 60, // 30 days
       path: '/',
     });
 
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       session: {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
-        expiresAt: Date.now() + 15 * 60 * 1000,
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       },
     });
   } catch (error) {

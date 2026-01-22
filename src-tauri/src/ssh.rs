@@ -1,6 +1,6 @@
 use crate::types::{
     AgentMessage, OutputType, SshAuthMethod, SshConfig, SshConnectionInfo, 
-    SshConnectionStatus, SavedSshConfig, REQUIRED_AGENT_VERSION
+    SshConnectionStatus, SavedSshConfig
 };
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -269,6 +269,7 @@ impl SshConnection {
         }
     }
     
+    #[allow(dead_code)]
     async fn check_agent_version(&self, session: &Arc<Mutex<Session>>, agent_path: &str) -> Result<String, String> {
         let session_guard = session.lock().await;
         let mut channel = session_guard

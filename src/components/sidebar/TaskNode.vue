@@ -36,6 +36,7 @@
         ]"
         :draggable="draggable"
         @click="$emit('click', task)"
+        @dblclick="$emit('run', task)"
         @dragstart="$emit('dragstart', $event, task)"
         @dragend="$emit('dragend')"
         @mousedown="$emit('mousedown', $event, task)"

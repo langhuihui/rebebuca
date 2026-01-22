@@ -31,7 +31,7 @@ impl MCPServer {
         {
             // Get the project root directory
             // In dev mode, we can use the current working directory or find the script relative to the binary
-            let mut script_path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let script_path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             
             // First, try current working directory (most common in dev)
             let potential_script = script_path.join("scripts").join("mcp-debug-server-http.js");

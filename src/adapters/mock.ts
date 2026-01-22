@@ -16,6 +16,7 @@ import type {
   UpdaterAdapter,
   NotificationAdapter,
   TrayAdapter,
+  OrchestrationAdapter,
   RunningProcessInfo,
   FavoriteTaskInfo,
   RecentTaskInfo,
@@ -31,6 +32,17 @@ import type {
   LogPathInfo,
   SystemTerminalInfo,
   ShellInfo,
+  OrchestrationConfig,
+  TaskGoal,
+  OrchestrationStatus,
+  OrchestrationProgressEvent,
+  OrchestrationAgentMessageEvent,
+  OrchestrationToolUseEvent,
+  OrchestrationWorkerStreamEvent,
+  OrchestrationCompleteEvent,
+  OrchestrationErrorEvent,
+  OrchestrationUsageEvent,
+  BoulderStateInfo,
 } from './types';
 import { TaskType } from '../providers/types';
 
@@ -479,6 +491,10 @@ class MockSystemAdapter implements SystemAdapter {
     return 'x86_64';
   }
 
+  async getHomeDir(): Promise<string> {
+    return '/home/user';
+  }
+
   async openExternal(url: string): Promise<void> {
     if (typeof window !== 'undefined') {
       window.open(url, '_blank');
@@ -701,6 +717,83 @@ class MockTrayAdapter implements TrayAdapter {
 }
 
 /**
+ * Mock Orchestration Adapter
+ */
+class MockOrchestrationAdapter implements OrchestrationAdapter {
+  private sessions = new Map<string, OrchestrationStatus>();
+
+  async createSession(config: OrchestrationConfig): Promise<string> {
+    const sessionId = `mock-session-${Date.now()}`;
+    this.sessions.set(sessionId, {
+      sessionId,
+      status: 'idle',
+      currentRound: 0,
+      maxRounds: config.maxRounds || 10,
+      currentAction: 'Initialized',
+    });
+    return sessionId;
+  }
+
+  async start(_sessionId: string, _goal: TaskGoal): Promise<void> {
+    console.log('[Mock] Orchestration started (mock)');
+  }
+
+  async stop(sessionId: string): Promise<void> {
+    const status = this.sessions.get(sessionId);
+    if (status) {
+      status.status = 'idle';
+    }
+  }
+
+  async getStatus(sessionId: string): Promise<OrchestrationStatus> {
+    return this.sessions.get(sessionId) || {
+      sessionId,
+      status: 'idle',
+      currentRound: 0,
+      maxRounds: 10,
+      currentAction: 'Not found',
+    };
+  }
+
+  async removeSession(sessionId: string): Promise<void> {
+    this.sessions.delete(sessionId);
+  }
+
+  async checkBoulderState(_projectPath: string): Promise<BoulderStateInfo | null> {
+    // Mock adapter always returns no boulder state
+    return { exists: false };
+  }
+
+  onProgress(_callback: (event: OrchestrationProgressEvent) => void): () => void {
+    return () => {};
+  }
+
+  onAgentMessage(_callback: (event: OrchestrationAgentMessageEvent) => void): () => void {
+    return () => {};
+  }
+
+  onToolUse(_callback: (event: OrchestrationToolUseEvent) => void): () => void {
+    return () => {};
+  }
+
+  onComplete(_callback: (event: OrchestrationCompleteEvent) => void): () => void {
+    return () => {};
+  }
+
+  onWorkerStream(_callback: (event: OrchestrationWorkerStreamEvent) => void): () => void {
+    return () => {};
+  }
+
+  onError(_callback: (event: OrchestrationErrorEvent) => void): () => void {
+    return () => {};
+  }
+
+  onUsage(_callback: (event: OrchestrationUsageEvent) => void): () => void {
+    return () => {};
+  }
+}
+
+/**
  * Mock Backend Adapter - Main class
  */
 export class MockAdapter implements BackendAdapter {
@@ -715,6 +808,7 @@ export class MockAdapter implements BackendAdapter {
   updater: UpdaterAdapter;
   notification: NotificationAdapter;
   tray: TrayAdapter;
+  orchestration: OrchestrationAdapter;
 
   constructor() {
     this.terminal = new MockTerminalAdapter();
@@ -726,6 +820,7 @@ export class MockAdapter implements BackendAdapter {
     this.updater = new MockUpdaterAdapter();
     this.notification = new MockNotificationAdapter();
     this.tray = new MockTrayAdapter();
+    this.orchestration = new MockOrchestrationAdapter();
   }
 
   async init(): Promise<void> {

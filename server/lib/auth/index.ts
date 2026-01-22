@@ -1,6 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { verifyToken, TokenPayload } from './jwt';
-import { getDB, User } from '../db';
+import { getDB, User, createInvitationCodesForUser } from '../db';
 import { verifyCloudflareAccessJWT, getCloudflareAccessEmail } from './cloudflare-access';
 
 export async function getCurrentUser(): Promise<User | null> {
@@ -31,8 +31,8 @@ export async function getCurrentUser(): Promise<User | null> {
         const now = new Date().toISOString();
         
         await db.prepare(`
-          INSERT INTO users (id, email, password_hash, display_name, email_verified, auth_provider, created_at, updated_at)
-          VALUES (?, ?, NULL, ?, 1, ?, ?, ?)
+          INSERT INTO users (id, email, password_hash, display_name, email_verified, auth_provider, role, is_banned, created_at, updated_at)
+          VALUES (?, ?, NULL, ?, 1, ?, 'user', 0, ?, ?)
         `).bind(
           userId,
           cfPayload.email,
@@ -41,6 +41,9 @@ export async function getCurrentUser(): Promise<User | null> {
           now,
           now
         ).run();
+        
+        // Create 3 invitation codes for the new user
+        await createInvitationCodesForUser(userId, 3);
         
         user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<User>();
       }
@@ -82,6 +85,34 @@ export async function requireAuth(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error('Not authenticated');
+  }
+  return user;
+}
+
+/**
+ * Check if user is a super admin
+ */
+export async function requireSuperAdmin(): Promise<User> {
+  const user = await requireAuth();
+  if (user.role !== 'super_admin') {
+    throw new Error('Forbidden: Super admin access required');
+  }
+  if (user.is_banned) {
+    throw new Error('Forbidden: Account is banned');
+  }
+  return user;
+}
+
+/**
+ * Check if user is an admin (admin or super_admin)
+ */
+export async function requireAdmin(): Promise<User> {
+  const user = await requireAuth();
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
+    throw new Error('Forbidden: Admin access required');
+  }
+  if (user.is_banned) {
+    throw new Error('Forbidden: Account is banned');
   }
   return user;
 }

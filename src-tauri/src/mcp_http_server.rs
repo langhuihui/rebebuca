@@ -293,6 +293,7 @@ async fn read_resource(state: &MCPServerState, uri: &str) -> Result<Value, Strin
 /// JSON-RPC request
 #[derive(Debug, Deserialize)]
 struct JsonRpcRequest {
+    #[allow(dead_code)]
     jsonrpc: String,
     id: Option<Value>,
     method: String,

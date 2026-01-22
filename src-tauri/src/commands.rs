@@ -71,6 +71,36 @@ pub async fn open_file_with_default_app(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn open_url_in_browser(url: String) -> Result<(), String> {
+    // Open URL in the system default browser
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/c", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn open_in_system_terminal(command: String, cwd: Option<String>) -> Result<(), String> {
     // Open a new system terminal window and execute the command
     #[cfg(target_os = "macos")]
@@ -1178,34 +1208,33 @@ pub fn open_full_disk_access_settings() -> Result<(), String> {
     }
 }
 
-
-/// Open a URL in the default system browser
 #[tauri::command]
-pub fn open_url_in_browser(url: String) -> Result<(), String> {
-    // Open URL in default browser
-    #[cfg(target_os = "macos")]
-    {
-        Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
+pub async fn fetch_models(
+    url: String,
+    headers: Option<std::collections::HashMap<String, String>>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let mut request = client.get(&url);
+
+    if let Some(h) = headers {
+        for (key, value) in h {
+            request = request.header(key, value);
+        }
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        Command::new("cmd")
-            .args(["/c", "start", "", &url])
-            .spawn()
-            .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Request failed with status: {}", response.status()));
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
-    }
+    let json = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
-    Ok(())
+    Ok(json)
 }

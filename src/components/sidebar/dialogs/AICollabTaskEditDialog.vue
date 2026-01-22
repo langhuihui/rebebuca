@@ -45,6 +45,25 @@
             </n-input-group>
           </n-form-item>
 
+          <!-- Skills Path -->
+          <n-form-item :label="t('aiCollab.skillsPath')" path="skillsPath">
+            <n-input-group>
+              <n-input
+                v-model:value="formData.skillsPath"
+                :placeholder="t('aiCollab.skillsPathPlaceholder')"
+                readonly
+              />
+              <n-button @click="handleSelectSkillsPath">
+                {{ t('task.browse') }}
+              </n-button>
+              <n-button v-if="formData.skillsPath" quaternary @click="formData.skillsPath = ''">
+                <template #icon>
+                  <n-icon><component :is="svgIcons.close" /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
+          </n-form-item>
+
           <!-- 任务目标 -->
           <n-form-item :label="t('aiCollab.taskObjective')" path="objective">
             <n-input
@@ -127,15 +146,25 @@
 
           <!-- 模型选择 -->
           <n-form-item :label="t('aiCollab.model')" path="model">
-            <n-select
-              v-model:value="formData.model"
-              :options="modelOptions"
-              filterable
-              tag
-            />
+            <n-input-group>
+              <n-select
+                v-model:value="formData.model"
+                :options="modelOptions"
+                filterable
+                tag
+                style="flex: 1;"
+              />
+              <n-button 
+                v-if="['openrouter', 'custom'].includes(formData.providerType)"
+                :loading="isLoadingModels" 
+                @click="fetchRemoteModels"
+              >
+                {{ t('aiCollab.fetchModels') }}
+              </n-button>
+            </n-input-group>
           </n-form-item>
 
-          <!-- API Key (OpenCode 免费模式可选) -->
+          <!-- API Key (Kilo/OpenCode 免费模式可选) -->
           <n-form-item 
             :label="t('aiCollab.apiKey')" 
             path="apiKey"
@@ -149,7 +178,7 @@
             />
           </n-form-item>
           
-          <!-- OpenCode 免费说明 -->
+          <!-- 免费说明 -->
           <n-form-item v-if="formData.providerType === 'opencode'">
             <n-alert type="success" :show-icon="true">
               {{ t('aiCollab.opencodeHint') }}
@@ -157,20 +186,14 @@
           </n-form-item>
 
           <!-- Base URL (可选) -->
-          <n-form-item :label="t('aiCollab.baseUrl')">
-            <n-input-group>
-              <n-input
-                v-model:value="formData.baseUrl"
-                :placeholder="t('aiCollab.baseUrlPlaceholder')"
-              />
-              <n-button 
-                :loading="isLoadingModels" 
-                :disabled="!formData.baseUrl?.trim()"
-                @click="fetchRemoteModels"
-              >
-                {{ t('aiCollab.fetchModels') }}
-              </n-button>
-            </n-input-group>
+          <n-form-item 
+            v-if="!['opencode'].includes(formData.providerType)"
+            :label="t('aiCollab.baseUrl')"
+          >
+            <n-input
+              v-model:value="formData.baseUrl"
+              :placeholder="t('aiCollab.baseUrlPlaceholder')"
+            />
           </n-form-item>
 
           <!-- 启用的工具 -->
@@ -229,7 +252,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
 import { useTaskManagerStore } from '../../../stores/taskManager';
-import { getModelsForProvider, fetchModelsFromEndpoint, type RemoteModelInfo } from '../../../services/ai/provider/models';
+import { getModelsForProvider, fetchModelsFromEndpoint, fetchAndRegisterKiloModels, type RemoteModelInfo } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 import type { Task } from '../../../providers/types';
 import { TaskType } from '../../../providers/types';
@@ -262,6 +285,7 @@ const lastFetchedUrl = ref('');
 const formData = ref({
   name: '',
   projectPath: '',
+  skillsPath: '',
   objective: '',
   criteria: [''],
   context: '',
@@ -316,6 +340,7 @@ const removeCriterion = (index: number) => {
 // Provider 类型选项
 const providerTypeOptions = computed(() => [
   { label: 'OpenCode Zen (免费)', value: 'opencode' },
+  { label: 'OpenRouter', value: 'openrouter' },
   { label: 'Anthropic (Claude)', value: 'anthropic' },
   { label: 'OpenAI', value: 'openai' },
   { label: 'Google (Gemini)', value: 'google' },
@@ -352,27 +377,26 @@ const modelOptions = computed(() => {
 
 // 获取远程模型列表
 const fetchRemoteModels = async () => {
-  const baseUrl = formData.value.baseUrl?.trim();
-  if (!baseUrl) {
-    remoteModels.value = [];
-    lastFetchedUrl.value = '';
+  if (formData.value.providerType === 'kilo') {
+    message.warning('Kilo provider is temporarily disabled');
     return;
   }
-  
-  // 避免重复请求
-  if (baseUrl === lastFetchedUrl.value) {
+
+  const baseUrl = formData.value.baseUrl?.trim();
+  if (!baseUrl && formData.value.providerType !== 'openrouter') {
+    message.warning(t('aiCollab.baseUrlPlaceholder'));
     return;
   }
   
   isLoadingModels.value = true;
   try {
     const models = await fetchModelsFromEndpoint(
-      baseUrl,
+      baseUrl || 'https://openrouter.ai/api/v1',
       formData.value.apiKey,
       formData.value.providerType
     );
     remoteModels.value = models;
-    lastFetchedUrl.value = baseUrl;
+    lastFetchedUrl.value = baseUrl || 'openrouter';
     
     if (models.length > 0) {
       message.success(t('aiCollab.modelsLoaded', { count: models.length }));
@@ -398,6 +422,22 @@ const handleSelectProjectPath = async () => {
     }
   } catch (error) {
     console.error('[AICollabTaskEditDialog] Failed to select folder:', error);
+  }
+};
+
+// 选择 Skills 路径
+const handleSelectSkillsPath = async () => {
+  try {
+    const adapter = await getAdapter();
+    const result = await adapter.dialog.selectFolder({
+      title: t('aiCollab.selectSkillsDirectory'),
+    });
+    
+    if (result && typeof result === 'string') {
+      formData.value.skillsPath = result;
+    }
+  } catch (error) {
+    console.error('[AICollabTaskEditDialog] Failed to select skills folder:', error);
   }
 };
 
@@ -433,6 +473,7 @@ const handleSave = async () => {
           baseUrl: formData.value.baseUrl || undefined,
         },
         tools: formData.value.tools,
+        skillsPath: formData.value.skillsPath || undefined,
       }
     };
     
@@ -471,6 +512,7 @@ watch(() => props.show, (show) => {
     
     formData.value.name = props.task.name;
     formData.value.projectPath = props.task.cwd || '';
+    formData.value.skillsPath = def.skillsPath || '';
     formData.value.objective = goal.objective || '';
     formData.value.criteria = goal.acceptanceCriteria?.length ? [...goal.acceptanceCriteria] : [''];
     formData.value.context = goal.context || '';
@@ -489,6 +531,7 @@ watch(() => props.show, (show) => {
     } else {
       formData.value.projectPath = '';
     }
+    formData.value.skillsPath = '';
     formData.value.objective = '';
     formData.value.criteria = [''];
     formData.value.context = '';

@@ -198,9 +198,12 @@ export async function streamResponse(input: StreamInput): Promise<StreamResult> 
         totalTokens: typeof usageAny.totalTokens === 'number' ? usageAny.totalTokens : 0,
       };
 
+      console.log('[StreamResponse] Usage extracted:', { usage, finalUsage, sessionId });
       const event: TypedStreamEvent = { type: 'usage', usage };
       onEvent?.(event);
       aiEventBus.emit('stream:event', { sessionId, event });
+    } else {
+      console.warn('[StreamResponse] No usage data available from response');
     }
 
     return {

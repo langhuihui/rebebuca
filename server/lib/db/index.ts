@@ -10,6 +10,8 @@ export interface User {
   timezone: string;
   email_verified: number;
   auth_provider: 'email' | 'cloudflare_access' | 'github' | 'google';
+  role: 'user' | 'admin' | 'super_admin';
+  is_banned: number;
   created_at: string;
   updated_at: string;
 }
@@ -63,11 +65,82 @@ export interface Session {
   created_at: string;
 }
 
+export interface InvitationCode {
+  id: string;
+  user_id: string;
+  code: string;
+  used_by_user_id: string | null;
+  used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export function getDB(): D1Database {
-  const ctx = getRequestContext();
-  return ctx.env.DB;
+  try {
+    const ctx = getRequestContext();
+    if (!ctx?.env?.DB) {
+      console.error('DB binding not found in context. Available env keys:', ctx?.env ? Object.keys(ctx.env) : 'no env');
+      throw new Error('D1 database binding "DB" not found. Please check Pages project settings > Functions > D1 Database bindings.');
+    }
+    return ctx.env.DB;
+  } catch (error) {
+    console.error('Failed to get DB from context:', error);
+    throw new Error(`Failed to access D1 database: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 export function generateId(): string {
   return crypto.randomUUID();
+}
+
+/**
+ * Generate a random invitation code
+ */
+export function generateInvitationCode(): string {
+  // Generate a code like: ABC-DEF-GHI (9 characters, uppercase, hyphenated)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed 0, 1, I, O for clarity
+  let code = '';
+  for (let i = 0; i < 9; i++) {
+    if (i > 0 && i % 3 === 0) {
+      code += '-';
+    }
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+/**
+ * Create invitation codes for a new user
+ */
+export async function createInvitationCodesForUser(userId: string, count: number = 3): Promise<InvitationCode[]> {
+  const db = getDB();
+  const now = new Date().toISOString();
+  const codes: InvitationCode[] = [];
+
+  for (let i = 0; i < count; i++) {
+    let code: string;
+    let attempts = 0;
+    
+    // Ensure code uniqueness (retry if collision)
+    do {
+      code = generateInvitationCode();
+      attempts++;
+      if (attempts > 10) {
+        throw new Error('Failed to generate unique invitation code');
+      }
+    } while (await db.prepare('SELECT id FROM invitation_codes WHERE code = ?').bind(code).first());
+
+    const id = generateId();
+    await db.prepare(`
+      INSERT INTO invitation_codes (id, user_id, code, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, userId, code, now, now).run();
+
+    const createdCode = await db.prepare('SELECT * FROM invitation_codes WHERE id = ?').bind(id).first<InvitationCode>();
+    if (createdCode) {
+      codes.push(createdCode);
+    }
+  }
+
+  return codes;
 }

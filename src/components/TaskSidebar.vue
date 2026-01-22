@@ -25,7 +25,6 @@
     :class="{ 'light-theme': effectiveTheme === 'light' }"
   >
     <div class="sidebar-container">
-
       <div class="sidebar-search">
         <n-input
           v-model:value="searchQuery"
@@ -44,7 +43,9 @@
         <n-scrollbar>
           <div class="task-tree">
             <div v-if="filteredTasks.length === 0" class="empty-state">
-              <p class="empty-text">{{ t('task.noResults') || 'No tasks found' }}</p>
+              <p class="empty-text">
+                {{ t("task.noResults") || "No tasks found" }}
+              </p>
             </div>
             <template v-else>
               <TaskNode
@@ -65,43 +66,64 @@
           </div>
         </n-scrollbar>
       </div>
-      
+
       <!-- Task tree -->
       <div v-else class="task-tree-container">
         <n-scrollbar>
           <!-- Loading state -->
-          <div v-if="!taskManager.initialized || taskManager.isScanning" class="loading-state">
+          <div
+            v-if="!taskManager.initialized || taskManager.isScanning"
+            class="loading-state"
+          >
             <n-spin size="small" />
-            <span class="loading-text">{{ t('task.loading') }}</span>
+            <span class="loading-text">{{ t("task.loading") }}</span>
           </div>
-          
+
           <!-- Empty state -->
-          <div v-else-if="taskManager.combinedTasks.length === 0" class="empty-state">
+          <div
+            v-else-if="taskManager.combinedTasks.length === 0"
+            class="empty-state"
+          >
             <n-icon size="48" :depth="3">
               <component :is="svgIcons.task" />
             </n-icon>
-            <p class="empty-text">{{ t('task.noTasks') }}</p>
+            <p class="empty-text">{{ t("task.noTasks") }}</p>
             <n-button size="small" @click="handleAddFolder">
-              {{ t('task.addFolder') }}
+              {{ t("task.addFolder") }}
             </n-button>
           </div>
-          
+
           <!-- Task tree -->
           <div v-else class="task-tree">
             <!-- Recent tasks section -->
             <template v-if="taskManager.recentTasks.length > 0">
-              <div 
-                class="tree-node section-node"
-                @click="toggleNode('recent')"
-              >
+              <div class="tree-node section-node" @click="toggleNode('recent')">
                 <n-icon size="14" class="tree-icon expand-icon">
-                  <component :is="isExpanded('recent') ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                  <component
+                    :is="
+                      isExpanded('recent')
+                        ? svgIcons.chevronDown
+                        : svgIcons.chevronRight
+                    "
+                  />
                 </n-icon>
                 <n-icon size="16" class="tree-icon recent-icon">
-                  <component :is="taskManager.recentSortMode === 'time' ? svgIcons.clock : svgIcons.chart" />
+                  <component
+                    :is="
+                      taskManager.recentSortMode === 'time'
+                        ? svgIcons.clock
+                        : svgIcons.chart
+                    "
+                  />
                 </n-icon>
-                <span class="tree-label section-label">{{ taskManager.recentSortMode === 'time' ? t('task.recent') : t('task.frequent') }}</span>
-                <span class="tree-badge">{{ taskManager.recentTasks.length }}</span>
+                <span class="tree-label section-label">{{
+                  taskManager.recentSortMode === "time"
+                    ? t("task.recent")
+                    : t("task.frequent")
+                }}</span>
+                <span class="tree-badge">{{
+                  taskManager.recentTasks.length
+                }}</span>
                 <n-tooltip trigger="hover" placement="top">
                   <template #trigger>
                     <n-button
@@ -117,10 +139,14 @@
                       </template>
                     </n-button>
                   </template>
-                  {{ taskManager.recentSortMode === 'time' ? t('task.switchToFrequency') : t('task.switchToTime') }}
+                  {{
+                    taskManager.recentSortMode === "time"
+                      ? t("task.switchToFrequency")
+                      : t("task.switchToTime")
+                  }}
                 </n-tooltip>
               </div>
-              
+
               <template v-if="isExpanded('recent')">
                 <TaskNode
                   v-for="task in taskManager.recentTasks"
@@ -139,29 +165,39 @@
                   @toggle-favorite="handleToggleFavorite"
                 />
               </template>
-              
+
               <div class="section-divider"></div>
             </template>
-            
+
             <!-- Favorites section -->
             <template v-if="taskManager.favoriteTasks.length > 0">
-              <div 
+              <div
                 class="tree-node section-node"
                 @click="toggleNode('favorites')"
               >
                 <n-icon size="14" class="tree-icon expand-icon">
-                  <component :is="isExpanded('favorites') ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                  <component
+                    :is="
+                      isExpanded('favorites')
+                        ? svgIcons.chevronDown
+                        : svgIcons.chevronRight
+                    "
+                  />
                 </n-icon>
                 <n-icon size="16" class="tree-icon star-icon">
                   <component :is="svgIcons.star" />
                 </n-icon>
-                <span class="tree-label section-label">{{ t('task.favorites') }}</span>
-                <span class="tree-badge">{{ taskManager.favoriteTasks.length }}</span>
+                <span class="tree-label section-label">{{
+                  t("task.favorites")
+                }}</span>
+                <span class="tree-badge">{{
+                  taskManager.favoriteTasks.length
+                }}</span>
               </div>
-              
+
               <template v-if="isExpanded('favorites')">
                 <TaskNode
-                  v-for="(task, index) in taskManager.favoriteTasks" 
+                  v-for="(task, index) in taskManager.favoriteTasks"
                   :key="`fav-${task.id}`"
                   :task="task"
                   :is-running="taskManager.isTaskRunning(task.id)"
@@ -170,24 +206,33 @@
                   :show-edit="true"
                   :show-favorite="true"
                   :folder-hint="getFavoriteFolderLabel(task)"
-                  :is-dragging="isDraggingFavorite && favoriteDraggedIndex === index"
-                  :drag-position="favoriteDragOverIndex === index ? favoriteDragPosition : null"
+                  :is-dragging="
+                    isDraggingFavorite && favoriteDraggedIndex === index
+                  "
+                  :drag-position="
+                    favoriteDragOverIndex === index
+                      ? favoriteDragPosition
+                      : null
+                  "
                   node-class="favorite-task-node"
                   @click="handleTaskClick"
                   @run="handleTaskRun"
                   @stop="handleTaskStop"
                   @edit="handleTaskEditVisual"
                   @toggle-favorite="handleToggleFavorite"
-                  @mousedown="(event: MouseEvent) => handleFavoriteMouseDown(event, task, index)"
+                  @mousedown="
+                    (event: MouseEvent) =>
+                      handleFavoriteMouseDown(event, task, index)
+                  "
                 />
               </template>
-              
+
               <div class="section-divider"></div>
             </template>
-            
+
             <!-- User groups section -->
             <template v-for="group in taskManager.userGroups" :key="group.id">
-              <div 
+              <div
                 class="tree-node group-node"
                 :class="{ 'drag-over': dragOverGroupId === group.id }"
                 @click="toggleNode(`group:${group.id}`)"
@@ -196,7 +241,13 @@
                 @drop="handleDrop($event, group.id)"
               >
                 <n-icon size="14" class="tree-icon expand-icon">
-                  <component :is="isExpanded(`group:${group.id}`) ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                  <component
+                    :is="
+                      isExpanded(`group:${group.id}`)
+                        ? svgIcons.chevronDown
+                        : svgIcons.chevronRight
+                    "
+                  />
                 </n-icon>
                 <n-icon size="16" class="tree-icon group-icon">
                   <component :is="svgIcons.task" />
@@ -229,7 +280,7 @@
                   </n-button>
                 </div>
               </div>
-              
+
               <!-- Group tasks -->
               <template v-if="isExpanded(`group:${group.id}`)">
                 <TaskNode
@@ -255,36 +306,58 @@
                 />
               </template>
             </template>
-            
+
             <!-- Divider between groups and folders -->
-            <div v-if="taskManager.treeItems.length > 0" class="section-divider"></div>
-            
+            <div
+              v-if="taskManager.treeItems.length > 0"
+              class="section-divider"
+            ></div>
+
             <!-- Folder tree -->
             <template v-for="folder in taskManager.treeItems" :key="folder.id">
               <!-- Folder node -->
-              <div 
+              <div
                 class="tree-node folder-node"
                 :class="{ 'has-error': folder.hasError }"
                 @click="toggleNode(folder.id)"
               >
                 <n-icon size="14" class="tree-icon expand-icon">
-                  <component :is="isExpanded(folder.id) ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                  <component
+                    :is="
+                      isExpanded(folder.id)
+                        ? svgIcons.chevronDown
+                        : svgIcons.chevronRight
+                    "
+                  />
                 </n-icon>
                 <n-icon size="16" class="tree-icon folder-icon">
                   <component :is="svgIcons.folder" />
                 </n-icon>
-                
+
                 <!-- Error tooltip -->
-                <n-tooltip v-if="folder.hasError" trigger="hover" placement="top" :style="{ maxWidth: '300px' }">
+                <n-tooltip
+                  v-if="folder.hasError"
+                  trigger="hover"
+                  placement="top"
+                  :style="{ maxWidth: '300px' }"
+                >
                   <template #trigger>
-                    <n-icon size="14" class="tree-icon error-icon" color="#d03050">
+                    <n-icon
+                      size="14"
+                      class="tree-icon error-icon"
+                      color="#d03050"
+                    >
                       <component :is="svgIcons.warning" />
                     </n-icon>
                   </template>
                   {{ folder.errorMessage }}
                 </n-tooltip>
 
-                <span class="tree-label" :class="{ 'error-label': folder.hasError }">{{ folder.label }}</span>
+                <span
+                  class="tree-label"
+                  :class="{ 'error-label': folder.hasError }"
+                  >{{ folder.label }}</span
+                >
                 <div class="folder-actions">
                   <n-tooltip trigger="hover" :delay="500">
                     <template #trigger>
@@ -292,7 +365,9 @@
                         size="tiny"
                         quaternary
                         :loading="taskManager.isScanning"
-                        @click.stop="handleScanFolder(folder.id.replace('folder:', ''))"
+                        @click.stop="
+                          handleScanFolder(folder.id.replace('folder:', ''))
+                        "
                       >
                         <template #icon>
                           <n-icon size="14">
@@ -301,14 +376,16 @@
                         </template>
                       </n-button>
                     </template>
-                    {{ t('task.scan') }}
+                    {{ t("task.scan") }}
                   </n-tooltip>
                   <n-tooltip v-if="isDesktopMode" trigger="hover" :delay="500">
                     <template #trigger>
                       <n-button
                         size="tiny"
                         quaternary
-                        @click.stop="handleOpenInExplorer(folder.id.replace('folder:', ''))"
+                        @click.stop="
+                          handleOpenInExplorer(folder.id.replace('folder:', ''))
+                        "
                       >
                         <template #icon>
                           <n-icon size="14">
@@ -317,12 +394,14 @@
                         </template>
                       </n-button>
                     </template>
-                    {{ t('task.openInExplorer') }}
+                    {{ t("task.openInExplorer") }}
                   </n-tooltip>
                   <n-button
                     size="tiny"
                     quaternary
-                    @click.stop="handleRemoveFolder(folder.id.replace('folder:', ''))"
+                    @click.stop="
+                      handleRemoveFolder(folder.id.replace('folder:', ''))
+                    "
                   >
                     <template #icon>
                       <n-icon size="14">
@@ -332,31 +411,49 @@
                   </n-button>
                 </div>
               </div>
-              
+
               <!-- Children nodes (subfolder or source) -->
               <template v-if="isExpanded(folder.id)">
                 <template v-for="child in folder.children" :key="child.id">
                   <!-- Subfolder node -->
                   <template v-if="child.type === 'subfolder'">
-                    <div 
+                    <div
                       class="tree-node subfolder-node"
                       @click="toggleNode(child.id)"
                     >
                       <n-icon size="14" class="tree-icon expand-icon">
-                        <component :is="isExpanded(child.id) ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                        <component
+                          :is="
+                            isExpanded(child.id)
+                              ? svgIcons.chevronDown
+                              : svgIcons.chevronRight
+                          "
+                        />
                       </n-icon>
-                      <n-icon size="16" class="tree-icon folder-icon subfolder-icon">
+                      <n-icon
+                        size="16"
+                        class="tree-icon folder-icon subfolder-icon"
+                      >
                         <component :is="svgIcons.folder" />
                       </n-icon>
                       <span class="tree-label">{{ child.label }}</span>
-                      <span class="tree-badge">{{ getChildTaskCount(child) }}</span>
+                      <span class="tree-badge">{{
+                        getChildTaskCount(child)
+                      }}</span>
                       <div v-if="isDesktopMode" class="subfolder-actions">
                         <n-tooltip trigger="hover" :delay="500">
                           <template #trigger>
                             <n-button
                               size="tiny"
                               quaternary
-                              @click.stop="handleOpenInExplorer(getSubfolderPath(folder.id, child.relativePath))"
+                              @click.stop="
+                                handleOpenInExplorer(
+                                  getSubfolderPath(
+                                    folder.id,
+                                    child.relativePath,
+                                  ),
+                                )
+                              "
                             >
                               <template #icon>
                                 <n-icon size="14">
@@ -365,36 +462,51 @@
                               </template>
                             </n-button>
                           </template>
-                          {{ t('task.openInExplorer') }}
+                          {{ t("task.openInExplorer") }}
                         </n-tooltip>
                       </div>
                     </div>
-                    
+
                     <!-- Source nodes inside subfolder -->
                     <template v-if="isExpanded(child.id)">
-                      <template v-for="source in child.children" :key="source.id">
-                        <div 
+                      <template
+                        v-for="source in child.children"
+                        :key="source.id"
+                      >
+                        <div
                           class="tree-node source-node subfolder-source-node"
                           @click="toggleNode(source.id)"
                         >
                           <n-icon size="14" class="tree-icon expand-icon">
-                            <component :is="isExpanded(source.id) ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                            <component
+                              :is="
+                                isExpanded(source.id)
+                                  ? svgIcons.chevronDown
+                                  : svgIcons.chevronRight
+                              "
+                            />
                           </n-icon>
                           <n-icon size="16" class="tree-icon source-icon">
                             <component :is="getSourceIcon(source.icon)" />
                           </n-icon>
                           <span class="tree-label">{{ source.label }}</span>
-                          <span class="tree-badge">{{ source.children?.length || 0 }}</span>
+                          <span class="tree-badge">{{
+                            source.children?.length || 0
+                          }}</span>
                         </div>
-                        
+
                         <!-- Task nodes inside subfolder source -->
                         <template v-if="isExpanded(source.id)">
                           <TaskNode
-                            v-for="taskItem in source.children" 
+                            v-for="taskItem in source.children"
                             :key="taskItem.id"
                             :task="taskItem.task!"
-                            :is-running="taskManager.isTaskRunning(taskItem.task!.id)"
-                            :is-favorite="taskManager.isFavorite(taskItem.task!.id)"
+                            :is-running="
+                              taskManager.isTaskRunning(taskItem.task!.id)
+                            "
+                            :is-favorite="
+                              taskManager.isFavorite(taskItem.task!.id)
+                            "
                             :show-icon="settingsStore.settings.showTaskIcons"
                             node-class="subfolder-task-node"
                             @click="handleTaskClick"
@@ -407,21 +519,29 @@
                       </template>
                     </template>
                   </template>
-                  
+
                   <!-- Source node (direct child of folder) -->
                   <template v-else-if="child.type === 'source'">
-                    <div 
+                    <div
                       class="tree-node source-node"
                       @click="toggleNode(child.id)"
                     >
                       <n-icon size="14" class="tree-icon expand-icon">
-                        <component :is="isExpanded(child.id) ? svgIcons.chevronDown : svgIcons.chevronRight" />
+                        <component
+                          :is="
+                            isExpanded(child.id)
+                              ? svgIcons.chevronDown
+                              : svgIcons.chevronRight
+                          "
+                        />
                       </n-icon>
                       <n-icon size="16" class="tree-icon source-icon">
                         <component :is="getSourceIcon(child.icon)" />
                       </n-icon>
                       <span class="tree-label">{{ child.label }}</span>
-                      <span class="tree-badge">{{ child.children?.length || 0 }}</span>
+                      <span class="tree-badge">{{
+                        child.children?.length || 0
+                      }}</span>
                       <div class="source-actions">
                         <n-tooltip trigger="hover" :delay="500">
                           <template #trigger>
@@ -429,7 +549,9 @@
                               size="tiny"
                               quaternary
                               :loading="taskManager.isScanning"
-                              @click.stop="handleScanFolder(getSourceFolderPath(child.id))"
+                              @click.stop="
+                                handleScanFolder(getSourceFolderPath(child.id))
+                              "
                             >
                               <template #icon>
                                 <n-icon size="14">
@@ -438,14 +560,22 @@
                               </template>
                             </n-button>
                           </template>
-                          {{ t('task.scan') }}
+                          {{ t("task.scan") }}
                         </n-tooltip>
-                        <n-tooltip v-if="isDesktopMode" trigger="hover" :delay="500">
+                        <n-tooltip
+                          v-if="isDesktopMode"
+                          trigger="hover"
+                          :delay="500"
+                        >
                           <template #trigger>
                             <n-button
                               size="tiny"
                               quaternary
-                              @click.stop="handleOpenInExplorer(getSourceFolderPath(child.id))"
+                              @click.stop="
+                                handleOpenInExplorer(
+                                  getSourceFolderPath(child.id),
+                                )
+                              "
                             >
                               <template #icon>
                                 <n-icon size="14">
@@ -454,18 +584,20 @@
                               </template>
                             </n-button>
                           </template>
-                          {{ t('task.openInExplorer') }}
+                          {{ t("task.openInExplorer") }}
                         </n-tooltip>
                       </div>
                     </div>
-                    
+
                     <!-- Task nodes -->
                     <template v-if="isExpanded(child.id)">
                       <TaskNode
-                        v-for="taskItem in child.children" 
+                        v-for="taskItem in child.children"
                         :key="taskItem.id"
                         :task="taskItem.task!"
-                        :is-running="taskManager.isTaskRunning(taskItem.task!.id)"
+                        :is-running="
+                          taskManager.isTaskRunning(taskItem.task!.id)
+                        "
                         :is-favorite="taskManager.isFavorite(taskItem.task!.id)"
                         :show-icon="settingsStore.settings.showTaskIcons"
                         @click="handleTaskClick"
@@ -484,7 +616,7 @@
       </div>
     </div>
   </n-layout-sider>
-  
+
   <!-- Dialogs -->
   <TaskEditDialog
     v-model:show="showTaskDialog"
@@ -497,27 +629,27 @@
     @update:group-id="editingTaskGroupId = $event"
     @save="handleSaveTask"
   />
-  
+
   <RenameGroupDialog
     v-model:show="showRenameGroupDialog"
     :group-id="renameGroupData.groupId"
     :group-name="renameGroupData.newName"
     @confirm="handleConfirmRenameGroup"
   />
-  
+
   <AddFolderDialog
     v-model:show="showAddFolderDialog"
     :group-options="userGroupOptions"
     @confirm="handleConfirmAddFolder"
   />
-  
+
   <TaskSelectionDialog
     v-model:show="showTaskSelectionDialog"
     :tasks="scannedTasks"
     :duplicate-task-names="duplicateTaskNames"
     @confirm="handleConfirmImport"
   />
-  
+
   <AICollabNativeCreateDialog
     v-model:show="showAICollabNativeDialog"
     :group-options="userGroupOptions"
@@ -529,15 +661,19 @@
     :task="editingAITask"
     @save="handleSaveAITask"
   />
-  
-  <DualAgentCreateDialog
-    v-model:show="showDualAgentDialog"
+
+  <DualAgentCreateDialog v-model:show="showDualAgentDialog" />
+
+  <ResumeSessionDialog
+    v-model:show="showResumeDialog"
+    :boulder-state="pendingBoulderState"
+    @resume="handleResumeSession"
+    @start-new="handleStartNewSession"
   />
-  
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from "vue";
 import {
   NLayoutSider,
   NButton,
@@ -546,23 +682,24 @@ import {
   NIcon,
   NSpin,
   NInput,
-} from 'naive-ui';
-import { useI18n } from 'vue-i18n';
-import { getAdapter, isTauri } from '../adapters';
-import { useUIStore } from '../stores/ui';
-import { useTaskManagerStore } from '../stores/taskManager';
-import { useSettingsStore } from '../stores/settings';
-import { useUpdaterStore } from '../stores/updater';
-import { useTerminalStore } from '../stores/terminal';
-import { useNotificationStore } from '../stores/notification';
-import { useTheme } from '../composables/useTheme';
-import { svgIcons } from '../utils/icons';
-import type { Task, TaskGroup, TaskTreeItem } from '../providers/types';
-import { TaskType } from '../providers/types';
+} from "naive-ui";
+import { useI18n } from "vue-i18n";
+import { getAdapter, isTauri } from "../adapters";
+import { useUIStore } from "../stores/ui";
+import { useTaskManagerStore } from "../stores/taskManager";
+import { useSettingsStore } from "../stores/settings";
+import { useUpdaterStore } from "../stores/updater";
+import { useTerminalStore } from "../stores/terminal";
+import { useDualAgentStore } from "../stores/dualAgent";
+import { useNotificationStore } from "../stores/notification";
+import { useTheme } from "../composables/useTheme";
+import { svgIcons } from "../utils/icons";
+import type { Task, TaskGroup, TaskTreeItem } from "../providers/types";
+import { TaskType } from "../providers/types";
 
 // Sub-components
 
-import TaskNode from './sidebar/TaskNode.vue';
+import TaskNode from "./sidebar/TaskNode.vue";
 import {
   TaskEditDialog,
   AddFolderDialog,
@@ -571,8 +708,10 @@ import {
   AICollabNativeCreateDialog,
   AICollabTaskEditDialog,
   DualAgentCreateDialog,
-} from './sidebar/dialogs';
-import type { AddFolderFormData } from './sidebar/dialogs';
+} from "./sidebar/dialogs";
+import ResumeSessionDialog from "./sidebar/dialogs/ResumeSessionDialog.vue";
+import type { BoulderStateInfo } from "../adapters/types";
+import type { AddFolderFormData } from "./sidebar/dialogs";
 
 const { t } = useI18n();
 const uiStore = useUIStore();
@@ -581,20 +720,22 @@ const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
+const dualAgentStore = useDualAgentStore();
 const { effectiveTheme } = useTheme();
 
 // Check if running in Tauri (desktop) mode
 const isDesktopMode = isTauri();
 
 // Search state
-const searchQuery = ref('');
+const searchQuery = ref("");
 const filteredTasks = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   if (!query) return [];
-  
-  return taskManager.combinedTasks.filter(task => 
-    task.name.toLowerCase().includes(query) || 
-    (task.command && task.command.toLowerCase().includes(query))
+
+  return taskManager.combinedTasks.filter(
+    (task) =>
+      task.name.toLowerCase().includes(query) ||
+      (task.command && task.command.toLowerCase().includes(query)),
   );
 });
 
@@ -605,7 +746,7 @@ const expandedNodes = ref<Set<string>>(new Set());
 const showTaskDialog = ref(false);
 const isEditMode = ref(false);
 const isUserTask = ref(false);
-const editingTaskGroupId = ref('default');
+const editingTaskGroupId = ref("default");
 const editingTask = ref<{
   id: string;
   name: string;
@@ -620,7 +761,7 @@ const editingTask = ref<{
   envStr: string;
   pythonEnv?: string;
   runAsAdmin?: boolean;
-  executionMode?: 'serial' | 'parallel';
+  executionMode?: "serial" | "parallel";
   dependsOn?: string[];
   subTasks?: string[];
   // SSH remote execution fields
@@ -628,18 +769,18 @@ const editingTask = ref<{
   sshConfigId?: string | null;
   sshPassphrase?: string;
 }>({
-  id: '',
-  name: '',
-  command: '',
-  cwd: '',
-  group: 'none' as TaskGroup,
+  id: "",
+  name: "",
+  command: "",
+  cwd: "",
+  group: "none" as TaskGroup,
   type: TaskType.SHELL,
-  sourceFile: '',
+  sourceFile: "",
   useSystemTerminal: false,
   systemTerminalId: null,
   shellPath: null,
-  envStr: '',
-  pythonEnv: '',
+  envStr: "",
+  pythonEnv: "",
   runAsAdmin: false,
 });
 
@@ -652,8 +793,8 @@ const addFolderFormData = ref<AddFolderFormData | null>(null);
 // Rename group dialog state
 const showRenameGroupDialog = ref(false);
 const renameGroupData = reactive({
-  groupId: '',
-  newName: '',
+  groupId: "",
+  newName: "",
 });
 
 // AI Collab Native dialog state
@@ -671,27 +812,30 @@ const dragOverGroupId = ref<string | null>(null);
 // Favorite drag and drop state
 const favoriteDraggedIndex = ref<number>(-1);
 const favoriteDragOverIndex = ref<number>(-1);
-const favoriteDragPosition = ref<'top' | 'bottom' | null>(null);
+const favoriteDragPosition = ref<"top" | "bottom" | null>(null);
 const isDraggingFavorite = ref(false);
 
 // User group options for select
-const userGroupOptions = computed(() => 
-  taskManager.userGroups.map(g => ({
+const userGroupOptions = computed(() =>
+  taskManager.userGroups.map((g) => ({
     label: g.name,
     value: g.id,
-  }))
+  })),
 );
 
 // Duplicate task names for selection dialog
 const duplicateTaskNames = computed(() => {
   if (!addFolderFormData.value) return [];
-  const targetGroupId = addFolderFormData.value.targetGroupId === '__new__' ? null : addFolderFormData.value.targetGroupId;
+  const targetGroupId =
+    addFolderFormData.value.targetGroupId === "__new__"
+      ? null
+      : addFolderFormData.value.targetGroupId;
   if (!targetGroupId) return [];
-  
-  const group = taskManager.userGroups.find(g => g.id === targetGroupId);
+
+  const group = taskManager.userGroups.find((g) => g.id === targetGroupId);
   if (!group) return [];
-  
-  return group.tasks.map(t => t.name);
+
+  return group.tasks.map((t) => t.name);
 });
 
 // Check if a node is expanded
@@ -709,9 +853,9 @@ const toggleNode = (nodeId: string) => {
 // Get source icon component
 const getSourceIcon = (icon?: string) => {
   switch (icon) {
-    case 'vscode':
+    case "vscode":
       return svgIcons.vscode || svgIcons.task;
-    case 'npm':
+    case "npm":
       return svgIcons.npm || svgIcons.task;
     default:
       return svgIcons.task;
@@ -721,10 +865,10 @@ const getSourceIcon = (icon?: string) => {
 // Get total task count for a subfolder node
 const getChildTaskCount = (node: TaskTreeItem): number => {
   if (!node.children || node.children.length === 0) return 0;
-  
+
   let count = 0;
   for (const child of node.children) {
-    if (child.type === 'task') {
+    if (child.type === "task") {
       count++;
     } else if (child.children) {
       count += getChildTaskCount(child);
@@ -735,36 +879,38 @@ const getChildTaskCount = (node: TaskTreeItem): number => {
 
 // Get full path for subfolder
 const getSubfolderPath = (folderId: string, relativePath?: string): string => {
-  const folderPath = folderId.replace('folder:', '');
+  const folderPath = folderId.replace("folder:", "");
   if (!relativePath) return folderPath;
   return `${folderPath}/${relativePath}`;
 };
 
 // Get folder label for favorite tasks
 const getFavoriteFolderLabel = (task: Task): string | null => {
-  if (task.source === 'user') return null;
+  if (task.source === "user") return null;
   const path = task.sourceFile || task.cwd;
   if (!path) return null;
-  
+
   const parts = path.split(/[/\\]/);
   if (task.sourceFile) {
-    const idx = parts.findIndex(p => p === '.vscode' || p === 'package.json' || p === 'tasks.json');
+    const idx = parts.findIndex(
+      (p) => p === ".vscode" || p === "package.json" || p === "tasks.json",
+    );
     if (idx > 0) return parts[idx - 1];
-    const nonEmpty = parts.filter(p => p);
+    const nonEmpty = parts.filter((p) => p);
     return nonEmpty.length >= 2 ? nonEmpty[nonEmpty.length - 2] : null;
   } else {
-    const nonEmpty = parts.filter(p => p);
+    const nonEmpty = parts.filter((p) => p);
     return nonEmpty.length > 0 ? nonEmpty[nonEmpty.length - 1] : null;
   }
 };
 
 // Get folder path from source id
 const getSourceFolderPath = (sourceId: string): string => {
-  const parts = sourceId.split(':');
+  const parts = sourceId.split(":");
   if (parts.length >= 3) {
-    return parts.slice(1, -1).join(':');
+    return parts.slice(1, -1).join(":");
   }
-  return '';
+  return "";
 };
 
 // Handle add folder
@@ -772,12 +918,11 @@ const handleAddFolder = () => {
   showAddFolderDialog.value = true;
 };
 
-
 // Handle confirm add folder
 
 const handleConfirmAddFolder = async (data: AddFolderFormData) => {
   addFolderFormData.value = data;
-  
+
   if (data.isImportMode) {
     try {
       const tasks = await taskManager.scanFolderForTasks(data.sourceFolder);
@@ -785,13 +930,13 @@ const handleConfirmAddFolder = async (data: AddFolderFormData) => {
       showAddFolderDialog.value = false;
       showTaskSelectionDialog.value = true;
     } catch (error) {
-      console.error('[TaskSidebar] Failed to scan folder for tasks:', error);
+      console.error("[TaskSidebar] Failed to scan folder for tasks:", error);
     }
   } else {
     try {
       await taskManager.addFolder(data.sourceFolder);
     } catch (error) {
-      console.error('[TaskSidebar] Failed to add folder:', error);
+      console.error("[TaskSidebar] Failed to add folder:", error);
     }
   }
 };
@@ -799,23 +944,33 @@ const handleConfirmAddFolder = async (data: AddFolderFormData) => {
 // Handle confirm import
 const handleConfirmImport = async (selectedTaskIds: string[]) => {
   if (selectedTaskIds.length === 0 || !addFolderFormData.value) return;
-  
+
   try {
     let targetGroupId = addFolderFormData.value.targetGroupId;
-    
-    if (targetGroupId === '__new__' && addFolderFormData.value.newGroupName.trim()) {
-      const newGroup = await taskManager.createUserGroup(addFolderFormData.value.newGroupName.trim());
+
+    if (
+      targetGroupId === "__new__" &&
+      addFolderFormData.value.newGroupName.trim()
+    ) {
+      const newGroup = await taskManager.createUserGroup(
+        addFolderFormData.value.newGroupName.trim(),
+      );
       targetGroupId = newGroup.id;
     }
-    
-    const tasksToImport = scannedTasks.value.filter(t => selectedTaskIds.includes(t.id));
-    const importedCount = await taskManager.importTasksToGroupWithOverwrite(targetGroupId, tasksToImport);
+
+    const tasksToImport = scannedTasks.value.filter((t) =>
+      selectedTaskIds.includes(t.id),
+    );
+    const importedCount = await taskManager.importTasksToGroupWithOverwrite(
+      targetGroupId,
+      tasksToImport,
+    );
     console.log(`[TaskSidebar] Imported ${importedCount} tasks`);
-    
+
     expandedNodes.value.add(`group:${targetGroupId}`);
     showTaskSelectionDialog.value = false;
   } catch (error) {
-    console.error('[TaskSidebar] Failed to import:', error);
+    console.error("[TaskSidebar] Failed to import:", error);
   }
 };
 
@@ -840,11 +995,11 @@ const handleOpenInExplorer = async (folderPath: string) => {
       await adapter.system.openExternal(folderPath);
     } catch (error) {
       notificationStore.addError(
-        t('task.openInExplorerFailed') || 'Failed to open folder',
+        t("task.openInExplorerFailed") || "Failed to open folder",
         String(error),
-        'system'
+        "system",
       );
-      console.error('[TaskSidebar] Failed to open folder:', error);
+      console.error("[TaskSidebar] Failed to open folder:", error);
     }
   }
 };
@@ -871,8 +1026,8 @@ const handleConfirmRenameGroup = async (groupId: string, newName: string) => {
 const handleDragStart = (event: DragEvent, task: Task) => {
   draggedTask.value = task;
   if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', task.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", task.id);
   }
 };
 
@@ -884,7 +1039,7 @@ const handleDragEnd = () => {
 const handleDragOver = (event: DragEvent, groupId: string) => {
   event.preventDefault();
   if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move';
+    event.dataTransfer.dropEffect = "move";
   }
   dragOverGroupId.value = groupId;
 };
@@ -896,7 +1051,7 @@ const handleDragLeave = () => {
 const handleDrop = async (event: DragEvent, targetGroupId: string) => {
   event.preventDefault();
   dragOverGroupId.value = null;
-  
+
   if (draggedTask.value) {
     await taskManager.moveTaskToGroup(draggedTask.value.id, targetGroupId);
     expandedNodes.value.add(`group:${targetGroupId}`);
@@ -905,47 +1060,51 @@ const handleDrop = async (event: DragEvent, targetGroupId: string) => {
 };
 
 // Favorite reorder handlers
-const handleFavoriteMouseDown = (event: MouseEvent, _task: Task, index: number) => {
+const handleFavoriteMouseDown = (
+  event: MouseEvent,
+  _task: Task,
+  index: number,
+) => {
   if (event.button !== 0) return;
   const target = event.target as HTMLElement;
-  if (target.closest('.task-actions-float')) return;
-  
+  if (target.closest(".task-actions-float")) return;
+
   favoriteDraggedIndex.value = index;
   isDraggingFavorite.value = false;
-  
-  document.addEventListener('mousemove', handleFavoriteMouseMove);
-  document.addEventListener('mouseup', handleFavoriteMouseUp);
+
+  document.addEventListener("mousemove", handleFavoriteMouseMove);
+  document.addEventListener("mouseup", handleFavoriteMouseUp);
 };
 
 const handleFavoriteMouseMove = (event: MouseEvent) => {
   if (favoriteDraggedIndex.value === -1) return;
-  
+
   if (!isDraggingFavorite.value) {
     isDraggingFavorite.value = true;
   }
-  
-  const favoriteNodes = document.querySelectorAll('.favorite-task-node');
+
+  const favoriteNodes = document.querySelectorAll(".favorite-task-node");
   let foundIndex = -1;
-  let position: 'top' | 'bottom' | null = null;
-  
+  let position: "top" | "bottom" | null = null;
+
   favoriteNodes.forEach((node, idx) => {
     if (!node || !(node instanceof Element)) return;
     const rect = node.getBoundingClientRect();
     if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
       foundIndex = idx;
       const midY = rect.top + rect.height / 2;
-      position = event.clientY < midY ? 'top' : 'bottom';
+      position = event.clientY < midY ? "top" : "bottom";
     }
   });
-  
+
   favoriteDragOverIndex.value = foundIndex;
   favoriteDragPosition.value = position;
 };
 
 const handleFavoriteMouseUp = async () => {
-  document.removeEventListener('mousemove', handleFavoriteMouseMove);
-  document.removeEventListener('mouseup', handleFavoriteMouseUp);
-  
+  document.removeEventListener("mousemove", handleFavoriteMouseMove);
+  document.removeEventListener("mouseup", handleFavoriteMouseUp);
+
   if (!isDraggingFavorite.value || favoriteDraggedIndex.value === -1) {
     favoriteDraggedIndex.value = -1;
     favoriteDragOverIndex.value = -1;
@@ -953,24 +1112,24 @@ const handleFavoriteMouseUp = async () => {
     isDraggingFavorite.value = false;
     return;
   }
-  
+
   const fromIndex = favoriteDraggedIndex.value;
   const targetIndex = favoriteDragOverIndex.value;
-  
+
   if (fromIndex !== -1 && targetIndex !== -1) {
     let toIndex = targetIndex;
-    if (favoriteDragPosition.value === 'bottom') {
+    if (favoriteDragPosition.value === "bottom") {
       toIndex = targetIndex + 1;
     }
     if (fromIndex < toIndex) {
       toIndex -= 1;
     }
-    
+
     if (fromIndex !== toIndex) {
       await taskManager.reorderFavorites(fromIndex, toIndex);
     }
   }
-  
+
   favoriteDraggedIndex.value = -1;
   favoriteDragOverIndex.value = -1;
   favoriteDragPosition.value = null;
@@ -986,20 +1145,20 @@ const handleDeleteUserTask = async (task: Task) => {
 const handleAddTask = () => {
   isEditMode.value = false;
   isUserTask.value = true;
-  editingTaskGroupId.value = 'default';
+  editingTaskGroupId.value = "default";
   editingTask.value = {
-    id: '',
-    name: '',
-    command: '',
-    cwd: '',
-    group: 'none',
+    id: "",
+    name: "",
+    command: "",
+    cwd: "",
+    group: "none",
     type: TaskType.SHELL,
-    sourceFile: '',
+    sourceFile: "",
     useSystemTerminal: false,
     systemTerminalId: null,
     shellPath: null,
-    envStr: '',
-    pythonEnv: '',
+    envStr: "",
+    pythonEnv: "",
     runAsAdmin: false,
     // Macro task fields (initialized for new tasks)
     executionMode: undefined,
@@ -1032,30 +1191,32 @@ const handleTaskEditVisual = (task: Task) => {
   }
 
   isEditMode.value = true;
-  isUserTask.value = task.source === 'user';
-  const group = taskManager.userGroups.find(g => g.tasks.some(t => t.id === task.id));
-  editingTaskGroupId.value = group?.id || 'default';
-  
-  let envStr = '';
+  isUserTask.value = task.source === "user";
+  const group = taskManager.userGroups.find((g) =>
+    g.tasks.some((t) => t.id === task.id),
+  );
+  editingTaskGroupId.value = group?.id || "default";
+
+  let envStr = "";
   if (task.env) {
     envStr = Object.entries(task.env)
       .map(([key, value]) => `${key}=${value}`)
-      .join('\n');
+      .join("\n");
   }
-  
+
   // Combine command and args into a single command string
-  const fullCommand = task.args?.length 
-    ? `${task.command} ${task.args.join(' ')}`
-    : task.command || '';  // Default to empty string for macro tasks
-  
+  const fullCommand = task.args?.length
+    ? `${task.command} ${task.args.join(" ")}`
+    : task.command || ""; // Default to empty string for macro tasks
+
   editingTask.value = {
     id: task.id,
     name: task.name,
     command: fullCommand,
-    cwd: task.cwd || '',
-    group: task.group || 'none',
+    cwd: task.cwd || "",
+    group: task.group || "none",
     type: (task.type || TaskType.SHELL) as TaskType,
-    sourceFile: task.sourceFile || '',
+    sourceFile: task.sourceFile || "",
     useSystemTerminal: task.useSystemTerminal || false,
     systemTerminalId: task.systemTerminalId || null,
     shellPath: task.shellPath || null,
@@ -1065,7 +1226,7 @@ const handleTaskEditVisual = (task: Task) => {
     dependsOn: task.dependsOn,
     subTasks: task.subTasks,
     // Other fields
-    pythonEnv: task.pythonEnv || '',
+    pythonEnv: task.pythonEnv || "",
     runAsAdmin: task.runAsAdmin || false,
     // SSH fields - use sshConfigId if available, otherwise check legacy definition.ssh
     useSsh: !!task.sshConfigId || !!task.definition?.ssh,
@@ -1075,16 +1236,20 @@ const handleTaskEditVisual = (task: Task) => {
 };
 
 // Handle save task
-const handleSaveTask = async (task: any, groupId: string, newGroupName: string) => {
+const handleSaveTask = async (
+  task: any,
+  groupId: string,
+  newGroupName: string,
+) => {
   try {
     let env: Record<string, string> | undefined;
     if (task.envStr.trim()) {
       env = {};
-      const lines = task.envStr.split('\n');
+      const lines = task.envStr.split("\n");
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const eqIndex = trimmed.indexOf('=');
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIndex = trimmed.indexOf("=");
         if (eqIndex > 0) {
           const key = trimmed.substring(0, eqIndex).trim();
           const value = trimmed.substring(eqIndex + 1).trim();
@@ -1093,13 +1258,13 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       }
       if (Object.keys(env).length === 0) env = undefined;
     }
-    
+
     let targetGroupId = groupId;
-    if (isUserTask.value && groupId === '__new__' && newGroupName.trim()) {
+    if (isUserTask.value && groupId === "__new__" && newGroupName.trim()) {
       const newGroup = await taskManager.createUserGroup(newGroupName.trim());
       targetGroupId = newGroup.id;
     }
-    
+
     // Prepare task data with macro task support
     const taskData: any = {
       name: task.name,
@@ -1115,11 +1280,11 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       runAsAdmin: task.runAsAdmin,
       env,
     };
-    
+
     // Add macro task fields if it's a macro task
-    if (task.type === 'macro') {
+    if (task.type === "macro") {
       taskData.executionMode = task.executionMode;
-      if (task.executionMode === 'parallel') {
+      if (task.executionMode === "parallel") {
         taskData.subTasks = task.subTasks;
         taskData.dependsOn = undefined;
       } else {
@@ -1127,23 +1292,25 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
         taskData.subTasks = undefined;
       }
     }
-    
+
     // Add SSH configuration ID if enabled
     if (task.useSsh && task.sshConfigId) {
       taskData.sshConfigId = task.sshConfigId;
     } else {
       // Clear SSH config ID if disabled
       taskData.sshConfigId = null;
-      
+
       // Also clear legacy SSH config in definition if present
       if (taskData.definition?.ssh) {
         delete taskData.definition.ssh;
       }
     }
-    
+
     if (isEditMode.value && isUserTask.value && task.id) {
       await taskManager.updateTaskInGroup(task.id, taskData);
-      const currentGroup = taskManager.userGroups.find(g => g.tasks.some(t => t.id === task.id));
+      const currentGroup = taskManager.userGroups.find((g) =>
+        g.tasks.some((t) => t.id === task.id),
+      );
       if (currentGroup && currentGroup.id !== targetGroupId) {
         await taskManager.moveTaskToGroup(task.id, targetGroupId);
       }
@@ -1154,76 +1321,252 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
       const folderPath = task.cwd || taskManager.folders[0].path;
       await taskManager.addUserTask(folderPath, taskData);
     }
-    
+
     showTaskDialog.value = false;
   } catch (error) {
-    console.error('[TaskSidebar] Failed to save task:', error);
+    console.error("[TaskSidebar] Failed to save task:", error);
   }
 };
 
 // Handle saving AI Task
 const handleSaveAITask = async (taskData: any) => {
   if (!editingAITask.value || !editingAITask.value.id) return;
-  
+
   try {
     await taskManager.updateTaskInGroup(editingAITask.value.id, taskData);
     showAICollabEditDialog.value = false;
     editingAITask.value = null;
   } catch (error) {
-    console.error('[TaskSidebar] Failed to save AI task:', error);
+    console.error("[TaskSidebar] Failed to save AI task:", error);
     notificationStore.addError(
-        t('common.saveFailed') || 'Failed to save',
-        String(error),
-        'frontend'
-      );
+      t("common.saveFailed") || "Failed to save",
+      String(error),
+      "frontend",
+    );
   }
 };
 
 // Handle AI collab task created
 const handleAICollabCreated = (sessionId: string, taskId: string) => {
-  console.log('[TaskSidebar] AI collab task created:', { sessionId, taskId });
+  console.log("[TaskSidebar] AI collab task created:", { sessionId, taskId });
   // The task is already added to the group in the dialog
   // Just need to ensure the UI updates
 };
 
 // Handle task click
 const handleTaskClick = (task: Task) => {
-  console.log('[TaskSidebar] Task clicked:', task.name);
-  
+  console.log("[TaskSidebar] Task clicked:", task.name);
+
   // For AI collab tasks, switch to the AI collab tab
-  if (task.type === 'ai-collab' && task.definition?.sessionId) {
+  if (task.type === "ai-collab" && task.definition?.sessionId) {
     const sessionId = task.definition.sessionId as string;
     // Check if a tab exists for this session
-    const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
+    const existingTab = terminalStore.tabs.find(
+      (t) => t.collabSessionId === sessionId,
+    );
     if (existingTab) {
       terminalStore.setActiveTab(existingTab.id);
     } else {
       // Create a new AI collab tab
-      terminalStore.createAICollabNativeTab(sessionId, task.name || 'AI 协作', task.cwd);
+      terminalStore.createAICollabNativeTab(
+        sessionId,
+        task.name || "AI 协作",
+        task.cwd,
+      );
     }
   }
 };
 
+// Resume session dialog state
+const showResumeDialog = ref(false);
+const pendingBoulderState = ref<BoulderStateInfo | null>(null);
+const pendingTask = ref<Task | null>(null);
+
 // Handle task run
 const handleTaskRun = async (task: Task) => {
   try {
+    console.log("[TaskSidebar] handleTaskRun called:", task.name, task.type);
     // For AI collab tasks, switch to the AI collab tab
-    if (task.type === 'ai-collab' && task.definition?.sessionId) {
+    if (task.type === TaskType.AI_COLLAB && task.definition?.sessionId) {
       const sessionId = task.definition.sessionId as string;
-      // Check if a tab exists for this session
-      const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
-      if (existingTab) {
-        terminalStore.setActiveTab(existingTab.id);
-      } else {
-        // Create a new AI collab tab
-        terminalStore.createAICollabNativeTab(sessionId, task.name || 'AI 协作', task.cwd);
+      const existingSession = dualAgentStore.getSession(sessionId);
+      if (existingSession) {
+        // Check if a tab exists for this session
+        const existingTab = terminalStore.tabs.find(
+          (t) => t.collabSessionId === sessionId,
+        );
+        if (existingTab) {
+          terminalStore.setActiveTab(existingTab.id);
+        } else {
+          // Create a new dual agent tab
+          terminalStore.createDualAgentTab(
+            sessionId,
+            task.name || "AI 协作",
+            task.cwd,
+          );
+        }
+        return;
       }
-      return;
     }
-    
+
+    // For AI collab tasks, check for boulder state before creating new session
+    if (task.type === TaskType.AI_COLLAB && isDesktopMode) {
+      const projectPath = task.cwd || "";
+      if (projectPath) {
+        try {
+          const adapter = await getAdapter();
+          const boulderState =
+            await adapter.orchestration.checkBoulderState(projectPath);
+          if (boulderState?.exists) {
+            // Show resume dialog
+            pendingBoulderState.value = boulderState;
+            pendingTask.value = task;
+            showResumeDialog.value = true;
+            return;
+          }
+        } catch (error) {
+          console.warn("[TaskSidebar] Failed to check boulder state:", error);
+        }
+      }
+    }
+
+    console.log("[TaskSidebar] Calling executeTask for:", task.name);
     await taskManager.executeTask(task);
   } catch (error) {
-    console.error('[TaskSidebar] Failed to run task:', error);
+    console.error("[TaskSidebar] Failed to run task:", error);
+  }
+};
+
+// Handle resume session
+const handleResumeSession = async () => {
+  if (!pendingTask.value || !pendingBoulderState.value) return;
+
+  try {
+    const task = pendingTask.value;
+    const boulderState = pendingBoulderState.value;
+
+    // Create session with the goal from boulder state
+
+    // Get provider config
+    const { PROVIDER_CONFIG } = await import("../services/ai/provider/models");
+    const providerType = "opencode" as const;
+    const defaultProviderConfig = PROVIDER_CONFIG[providerType];
+    const providerConfig = {
+      type: providerType,
+      model: "minimax-m2.1-free",
+      apiKey: "",
+      baseUrl: defaultProviderConfig?.baseUrl,
+    };
+
+    const session = await dualAgentStore.createSession({
+      projectPath: task.cwd || "",
+      goal: {
+        ...boulderState.goal,
+        objective:
+          boulderState.goal?.objective || task.name || "执行 AI 协作任务",
+        taskName: task.name,
+        acceptanceCriteria:
+          boulderState.goal?.acceptanceCriteria || ["任务成功完成"],
+        context: boulderState.goal?.context || "",
+        constraints: boulderState.goal?.constraints,
+      },
+      supervisorProvider: providerConfig,
+      workerProvider: providerConfig,
+      workerTools: task.definition?.tools || [
+        "read",
+        "write",
+        "edit",
+        "bash",
+        "glob",
+        "grep",
+      ],
+      skillsPath: task.definition?.skillsPath,
+      maxRounds: task.definition?.maxRounds || 20,
+      autoApprovePermissions: true,
+    });
+
+    const previousSessionId = task.definition?.sessionId as string | undefined;
+
+    // Load conversation history from previous session if available
+    if (boulderState.session_id) {
+      try {
+        let previousConversation =
+          await dualAgentStore.loadConversationFromStorage(
+            boulderState.session_id,
+          );
+        if (
+          (!previousConversation || previousConversation.length === 0) &&
+          previousSessionId
+        ) {
+          previousConversation =
+            await dualAgentStore.loadConversationFromStorage(previousSessionId);
+        }
+        if (previousConversation && previousConversation.length > 0) {
+          console.log(
+            "[TaskSidebar] Loading conversation history from previous session:",
+            boulderState.session_id,
+            "messages:",
+            previousConversation.length,
+          );
+          // Restore conversation history to the new session
+          const currentSession = dualAgentStore.getSession(session.id);
+          if (currentSession) {
+            currentSession.conversation = previousConversation;
+            console.log(
+              "[TaskSidebar] Restored conversation history:",
+              currentSession.conversation.length,
+              "messages",
+            );
+          }
+        }
+      } catch (error) {
+        console.warn(
+          "[TaskSidebar] Failed to load conversation history from previous session:",
+          error,
+        );
+      }
+    }
+
+    // Update task with session ID
+    task.definition = task.definition || {};
+    task.definition.sessionId = session.id;
+
+    // Create dual agent tab
+    terminalStore.createDualAgentTab(
+      session.id,
+      task.name || "AI 协作",
+      task.cwd,
+    );
+
+    // Start the session (it will automatically resume from boulder state)
+    console.log("[TaskSidebar] Resuming dual agent session:", session.id);
+    await dualAgentStore.startSession(session.id);
+
+    // Clear pending state
+    pendingTask.value = null;
+    pendingBoulderState.value = null;
+  } catch (error) {
+    console.error("[TaskSidebar] Failed to resume session:", error);
+    throw error;
+  }
+};
+
+// Handle start new session
+const handleStartNewSession = async () => {
+  if (!pendingTask.value) return;
+
+  try {
+    const task = pendingTask.value;
+    // Clear pending state
+    pendingTask.value = null;
+    pendingBoulderState.value = null;
+
+    // Execute task normally (will create new session)
+    console.log("[TaskSidebar] Starting new session for task:", task.name);
+    await taskManager.executeTask(task);
+  } catch (error) {
+    console.error("[TaskSidebar] Failed to start new session:", error);
+    throw error;
   }
 };
 
@@ -1232,7 +1575,7 @@ const handleTaskStop = async (task: Task) => {
   try {
     await taskManager.stopTask(task.id);
   } catch (error) {
-    console.error('[TaskSidebar] Failed to stop task:', error);
+    console.error("[TaskSidebar] Failed to stop task:", error);
   }
 };
 
@@ -1247,26 +1590,32 @@ onMounted(async () => {
   taskManager.scanRecursively = true;
   await taskManager.initialize();
 
-  watch(() => taskManager.recentTasks, (newVal) => {
-    console.log('[TaskSidebar] recentTasks changed:', newVal.map(t => ({ id: t.id, name: t.name })));
-  }, { immediate: true });
+  watch(
+    () => taskManager.recentTasks,
+    (newVal) => {
+      console.log(
+        "[TaskSidebar] recentTasks changed:",
+        newVal.map((t) => ({ id: t.id, name: t.name })),
+      );
+    },
+    { immediate: true },
+  );
 
-  expandedNodes.value.add('favorites');
-  expandedNodes.value.add('recent');
+  expandedNodes.value.add("favorites");
+  expandedNodes.value.add("recent");
 
-  window.addEventListener('add-folder', handleAddFolder);
-  window.addEventListener('add-task', handleAddTask);
-  window.addEventListener('port-management', handlePortManagement);
-  window.addEventListener('ai-collab-native', handleAICollabNative);
+  window.addEventListener("add-folder", handleAddFolder);
+  window.addEventListener("add-task", handleAddTask);
+  window.addEventListener("port-management", handlePortManagement);
+  window.addEventListener("ai-collab-native", handleAICollabNative);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('add-folder', handleAddFolder);
-  window.removeEventListener('add-task', handleAddTask);
-  window.removeEventListener('port-management', handlePortManagement);
-  window.removeEventListener('ai-collab-native', handleAICollabNative);
+  window.removeEventListener("add-folder", handleAddFolder);
+  window.removeEventListener("add-task", handleAddTask);
+  window.removeEventListener("port-management", handlePortManagement);
+  window.removeEventListener("ai-collab-native", handleAICollabNative);
 });
-
 </script>
 
 <style scoped>

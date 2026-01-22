@@ -2,7 +2,7 @@ export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { jwtVerify } from 'jose';
-import { getDB, generateId, User } from '@/lib/db';
+import { getDB, generateId, User, createInvitationCodesForUser } from '@/lib/db';
 import { createAccessToken, createRefreshToken, getRefreshTokenExpiry } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
@@ -173,8 +173,8 @@ export async function GET(request: NextRequest) {
       // Create new user
       const userId = generateId();
       await db.prepare(`
-        INSERT INTO users (id, email, password_hash, display_name, avatar_url, email_verified, auth_provider, created_at, updated_at)
-        VALUES (?, ?, NULL, ?, ?, 1, 'github', ?, ?)
+        INSERT INTO users (id, email, password_hash, display_name, avatar_url, email_verified, auth_provider, role, is_banned, created_at, updated_at)
+        VALUES (?, ?, NULL, ?, ?, 1, 'github', 'user', 0, ?, ?)
       `).bind(
         userId,
         email,
@@ -183,6 +183,9 @@ export async function GET(request: NextRequest) {
         now,
         now
       ).run();
+      
+      // Create 3 invitation codes for the new user
+      await createInvitationCodesForUser(userId, 3);
       
       user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<User>();
     } else {

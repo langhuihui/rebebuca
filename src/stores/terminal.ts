@@ -21,7 +21,7 @@ import { ref, computed, shallowRef } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab-native' | 'dual-agent';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab-native' | 'dual-agent' | 'room-info';
 
 /**
  * 终端截图结果
@@ -83,6 +83,7 @@ export interface TerminalTab {
   collabSessionId?: string; // 对于 ai-collab 类型，关联的协作会话 ID
   sshConfigId?: string; // SSH 配置 ID（用于 SSH 任务）
   sshExecId?: string;   // SSH 执行 ID（用于 SSH 任务）
+  roomInfo?: any;       // 对于 room-info 类型，存储房间信息数据
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -902,6 +903,32 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
 
+  // Create a room info tab
+  const createRoomInfoTab = (roomInfo: any): TerminalTab => {
+    // Check if room info tab already exists for this room
+    const existingTab = tabs.value.find(t => t.type === 'room-info' && t.roomInfo?.RoomId === roomInfo.RoomId);
+    if (existingTab) {
+      existingTab.roomInfo = roomInfo; // Update info
+      setActiveTab(existingTab.id);
+      return existingTab;
+    }
+
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'room-info',
+      label: roomInfo.Name || 'Room Info',
+      ptyId: '', // No PTY for room info tab
+      status: 'running',
+      startTime: Date.now(),
+      roomInfo,
+    };
+
+    tabs.value.push(tab);
+    setActiveTab(id);
+    return tab;
+  };
+
   // Toggle split mode
   const toggleSplitMode = () => {
     isSplitMode.value = !isSplitMode.value;
@@ -989,6 +1016,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     setSplitTab,
     createAICollabNativeTab,
     createDualAgentTab,
+    createRoomInfoTab,
     // Screenshot related
     registerScreenshotHandler,
     unregisterScreenshotHandler,

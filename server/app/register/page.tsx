@@ -45,14 +45,16 @@ export default function RegisterPage() {
         }),
       });
 
-      const data = await response.json() as { error?: string };
+      const data = await response.json() as { error?: string; message?: string };
 
       if (!response.ok) {
         setErrorMessage(data.error || 'Registration failed');
         return;
       }
 
-      router.push('/dashboard');
+      // Registration successful - redirect to login page
+      // After login, the system will check invitation code status
+      router.push('/login?registered=true');
       router.refresh();
     } catch {
       setErrorMessage('An unexpected error occurred');

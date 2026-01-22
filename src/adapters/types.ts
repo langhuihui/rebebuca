@@ -168,6 +168,7 @@ export interface StorageAdapter {
 export interface SystemAdapter {
   getPlatform(): Promise<'darwin' | 'windows' | 'linux'>;
   getArch(): Promise<string>;
+  getHomeDir(): Promise<string>;
   openExternal(url: string): Promise<void>;
   openInSystemTerminal(command: string, cwd?: string): Promise<void>;
   openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void>;
@@ -256,6 +257,191 @@ export interface TrayAdapter {
   onRunRecent(callback: (taskId: string) => void): () => void;
 }
 
+// =============================================================================
+// Orchestration Types (for AI Agent Collaboration)
+// =============================================================================
+
+/**
+ * Provider configuration for AI models
+ */
+export interface ProviderConfig {
+  provider: string;
+  model: string;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
+/**
+ * Orchestration configuration
+ */
+export interface OrchestrationConfig {
+  projectPath: string;
+  supervisorProvider: ProviderConfig;
+  workerProvider: ProviderConfig;
+  maxRounds?: number;
+  autoApprovePermissions?: boolean;
+}
+
+/**
+ * Task goal for orchestration
+ */
+export interface TaskGoal {
+  objective: string;
+  taskName?: string;
+  acceptanceCriteria: string[];
+  context?: string;
+  constraints?: string[];
+}
+
+/**
+ * Orchestration status
+ */
+export interface OrchestrationStatus {
+  sessionId: string;
+  status: 'idle' | 'running' | 'completed' | 'error';
+  currentRound: number;
+  maxRounds: number;
+  currentAction: string;
+}
+
+/**
+ * Orchestration events
+ */
+export interface OrchestrationProgressEvent {
+  sessionId: string;
+  currentStep: number;
+  totalSteps: number;
+  currentRound: number;
+  maxRounds: number;
+  currentAction: string;
+}
+
+export interface OrchestrationAgentMessageEvent {
+  sessionId: string;
+  fromAgent: string;
+  toAgent: string;
+  messageType: 'instruction' | 'report' | 'decision';
+  content: string;
+  timestamp: string;
+}
+
+export interface OrchestrationToolUseEvent {
+  sessionId: string;
+  toolName: string;
+  status: 'start' | 'complete' | 'error';
+  args?: Record<string, unknown>;
+  result?: string;
+  timestamp: string;
+}
+
+export interface OrchestrationWorkerStreamEvent {
+  sessionId: string;
+  content: string;
+  isComplete: boolean;
+  timestamp: string;
+  from?: string;
+}
+
+export interface OrchestrationCompleteEvent {
+  sessionId: string;
+  success: boolean;
+  summary: string;
+  durationMs: number;
+  timestamp: string;
+}
+
+export interface OrchestrationErrorEvent {
+  sessionId: string;
+  error: string;
+  agent?: string;
+  recoverable: boolean;
+  timestamp: string;
+}
+
+export interface OrchestrationUsageEvent {
+  sessionId: string;
+  agent?: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  timestamp: string;
+}
+
+// Room Info types
+export interface RoomInfo {
+  RoomId: string;
+  Name: string;
+  Owner: string;
+  OnlineCount: number;
+  MaxCount: number;
+  CreateTime: string;
+}
+
+export interface GetRoomInfoResult {
+  ErrorCode: number;
+  ErrorInfo: string;
+  ActionStatus: string;
+  RequestId: string;
+  Data: RoomInfo;
+}
+
+export type OrchestrationEvent =
+  | { type: 'progress'; data: OrchestrationProgressEvent }
+  | { type: 'agent_message'; data: OrchestrationAgentMessageEvent }
+  | { type: 'tool_use'; data: OrchestrationToolUseEvent }
+  | { type: 'worker_stream'; data: OrchestrationWorkerStreamEvent }
+  | { type: 'complete'; data: OrchestrationCompleteEvent }
+  | { type: 'error'; data: OrchestrationErrorEvent }
+  | { type: 'usage'; data: OrchestrationUsageEvent };
+
+/**
+ * Boulder State Info
+ */
+export interface BoulderStateInfo {
+  exists: boolean;
+  session_id?: string;
+  plan_name?: string;
+  goal?: TaskGoal;
+  progress?: {
+    current_round: number;
+    current_action: string;
+  };
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Orchestration Adapter Interface
+ */
+export interface OrchestrationAdapter {
+  /** Create a new orchestration session */
+  createSession(config: OrchestrationConfig): Promise<string>;
+  
+  /** Start orchestration with a goal */
+  start(sessionId: string, goal: TaskGoal): Promise<void>;
+  
+  /** Stop orchestration */
+  stop(sessionId: string): Promise<void>;
+  
+  /** Get orchestration status */
+  getStatus(sessionId: string): Promise<OrchestrationStatus>;
+  
+  /** Remove session */
+  removeSession(sessionId: string): Promise<void>;
+  
+  /** Check if boulder state exists for a project path */
+  checkBoulderState(projectPath: string): Promise<BoulderStateInfo | null>;
+  
+  /** Subscribe to orchestration events */
+  onProgress(callback: (event: OrchestrationProgressEvent) => void): () => void;
+  onAgentMessage(callback: (event: OrchestrationAgentMessageEvent) => void): () => void;
+  onToolUse(callback: (event: OrchestrationToolUseEvent) => void): () => void;
+  onWorkerStream(callback: (event: OrchestrationWorkerStreamEvent) => void): () => void;
+  onComplete(callback: (event: OrchestrationCompleteEvent) => void): () => void;
+  onError(callback: (event: OrchestrationErrorEvent) => void): () => void;
+  onUsage(callback: (event: OrchestrationUsageEvent) => void): () => void;
+}
+
 /**
  * Main Backend Adapter Interface
  * 
@@ -273,6 +459,7 @@ export interface BackendAdapter {
   updater: UpdaterAdapter;
   notification: NotificationAdapter;
   tray: TrayAdapter;
+  orchestration: OrchestrationAdapter;
   
   // Initialization
   init(): Promise<void>;

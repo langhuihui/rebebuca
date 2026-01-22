@@ -117,6 +117,25 @@
               </n-button>
             </n-input-group>
           </n-form-item>
+
+          <!-- Skills Path -->
+          <n-form-item :label="t('aiCollab.skillsPath')" path="skillsPath">
+            <n-input-group>
+              <n-input
+                v-model:value="basicForm.skillsPath"
+                :placeholder="t('aiCollab.skillsPathPlaceholder')"
+                readonly
+              />
+              <n-button @click="handleSelectSkillsPath">
+                {{ t('task.browse') }}
+              </n-button>
+              <n-button v-if="basicForm.skillsPath" quaternary @click="basicForm.skillsPath = ''">
+                <template #icon>
+                  <n-icon><component :is="svgIcons.close" /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
+          </n-form-item>
         </n-form>
       </div>
 
@@ -388,6 +407,7 @@ const basicForm = ref({
   groupId: '',
   newGroupName: '',
   projectPath: '',
+  skillsPath: '',
 });
 
 // Goal form (Step 2 - Optional)
@@ -434,6 +454,7 @@ const basicRules = computed<FormRules>(() => ({
 // Provider type options
 const providerTypeOptions = computed(() => [
   { label: 'OpenCode Zen (免费)', value: 'opencode' },
+  { label: 'OpenRouter', value: 'openrouter' },
   { label: 'Anthropic (Claude)', value: 'anthropic' },
   { label: 'OpenAI', value: 'openai' },
   { label: 'Google (Gemini)', value: 'google' },
@@ -471,6 +492,22 @@ const handleSelectProjectPath = async () => {
     }
   } catch (error) {
     console.error('[AICollabNativeCreateDialog] Failed to select folder:', error);
+  }
+};
+
+// Select skills path
+const handleSelectSkillsPath = async () => {
+  try {
+    const adapter = await getAdapter();
+    const result = await adapter.dialog.selectFolder({
+      title: t('aiCollab.selectSkillsDirectory'),
+    });
+    
+    if (result && typeof result === 'string') {
+      basicForm.value.skillsPath = result;
+    }
+  } catch (error) {
+    console.error('[AICollabNativeCreateDialog] Failed to select skills folder:', error);
   }
 };
 
@@ -564,6 +601,7 @@ const handleCreate = async () => {
         tools: providerForm.value.tools,
         goal: goalData,
         isConfigured: isGoalConfigured.value && !goalSkipped.value,
+        skillsPath: basicForm.value.skillsPath || undefined,
       },
     };
     
@@ -609,6 +647,7 @@ watch(() => props.show, (show) => {
     } else {
       basicForm.value.projectPath = '';
     }
+    basicForm.value.skillsPath = '';
     
     // Reset goal form
     goalForm.value.objective = '';

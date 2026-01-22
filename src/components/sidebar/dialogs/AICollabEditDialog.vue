@@ -274,7 +274,7 @@ const aiToolOptions = computed(() => {
 
 // 渲染 AI 工具选项标签
 const renderAIToolLabel = (option: { label: string; value: AIToolType; logo?: string }) => {
-  const needsInvert = option.value && ['opencode', 'augment-cli', 'ampcode'].includes(option.value);
+  const needsInvert = option.value && ['opencode', 'augment-cli', 'ampcode', 'kilocode'].includes(option.value);
   return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
     option.logo
       ? h('img', {

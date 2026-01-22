@@ -2,8 +2,8 @@ import { SignJWT, jwtVerify } from 'jose';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
 const JWT_ALGORITHM = 'HS256';
-const ACCESS_TOKEN_EXPIRY = '15m';
-const REFRESH_TOKEN_EXPIRY = '7d';
+const ACCESS_TOKEN_EXPIRY = '7d';
+const REFRESH_TOKEN_EXPIRY = '30d';
 
 function getJwtSecret(): Uint8Array {
   const ctx = getRequestContext();
@@ -44,6 +44,6 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
 
 export function getRefreshTokenExpiry(): Date {
   const expiry = new Date();
-  expiry.setDate(expiry.getDate() + 7);
+  expiry.setDate(expiry.getDate() + 30);
   return expiry;
 }

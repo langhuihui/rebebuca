@@ -55,7 +55,8 @@ export type CollabMessageType =
   | 'chat'              // 普通聊天
   | 'system'            // 系统消息
   | 'tool'              // 工具调用消息
-  | 'error';            // 错误消息
+  | 'error'             // 错误消息
+  | 'streaming';        // 流式输出（仅用于 UI 显示）
 
 /**
  * 消息来源
@@ -145,6 +146,7 @@ export interface AgentInstance {
  */
 export interface TaskGoal {
   objective: string;              // 任务目标描述
+  taskName?: string;              // 任务名称（可选）
   acceptanceCriteria: string[];    // 完成标准（验收条件）
   context?: string;                // 上下文信息
   constraints?: string[];          // 约束条件

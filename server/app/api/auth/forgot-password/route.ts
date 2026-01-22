@@ -1,6 +1,9 @@
 export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getDB, generateId, User } from '@/lib/db';
+import { sendPasswordResetEmail } from '@/lib/email';
+import type { D1Database } from '@cloudflare/workers-types';
 
 
 export async function POST(request: NextRequest) {
@@ -33,9 +36,25 @@ export async function POST(request: NextRequest) {
         VALUES (?, ?, ?, ?, ?)
       `).bind(generateId(), user.id, token, expiresAt.toISOString(), now).run();
 
-      // TODO: Send email with reset link
-      // For now, just log the token (in production, send email)
-      console.log(`Password reset token for ${email}: ${token}`);
+      // Get environment context for Cloudflare Workers
+      let env: any = null;
+      try {
+        const ctx = getRequestContext();
+        env = ctx.env;
+      } catch {
+        // If getRequestContext fails, env will be null and email will use environment variables
+      }
+
+      // Send email with reset link
+      const emailResult = await sendPasswordResetEmail(email, token, env, request);
+      if (!emailResult.success) {
+        console.error(`Failed to send password reset email to ${email}:`, emailResult.error);
+        // During debugging, we can return the error. In production, we'd hide this.
+        return NextResponse.json(
+          { error: `Email failed: ${emailResult.error}`, details: emailResult },
+          { status: 500 }
+        );
+      }
     }
 
     // Always return success to prevent email enumeration
@@ -44,8 +63,36 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Forgot password error:', error);
+    
+    // Add detailed error information for debugging
+    let errorMessage = 'Internal server error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      // Check if it's a D1 database error
+      if (error.message.includes('D1_ERROR') || error.message.includes('no such table')) {
+        try {
+          const ctx = getRequestContext();
+          const hasDB = ctx?.env?.DB ? 'yes' : 'no';
+          const envKeys = ctx?.env ? Object.keys(ctx.env).join(', ') : 'no env';
+          console.error('D1 Debug Info:', {
+            hasDB,
+            envKeys,
+            error: error.message,
+          });
+        } catch (ctxError) {
+          console.error('Failed to get context:', ctxError);
+        }
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: errorMessage,
+        // Only include debug info in development
+        ...(process.env.NODE_ENV === 'development' ? { 
+          details: error instanceof Error ? error.stack : String(error) 
+        } : {})
+      },
       { status: 500 }
     );
   }

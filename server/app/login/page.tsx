@@ -11,11 +11,20 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/dashboard';
   const error = searchParams.get('error');
+  const registered = searchParams.get('registered') === 'true';
+  const reset = searchParams.get('reset') === 'success';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(error ? 'Authentication failed' : '');
+  const [successMessage, setSuccessMessage] = useState(
+    registered 
+      ? 'Registration successful! Please login to continue.' 
+      : reset 
+        ? 'Password reset successful! Please login with your new password.'
+        : ''
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +43,22 @@ function LoginContent() {
       if (!response.ok) {
         setErrorMessage(data.error || 'Login failed');
         return;
+      }
+
+      // Check invitation code status before redirecting
+      try {
+        const statusResponse = await fetch('/api/user/invitation-status');
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json() as { hasUsedInvitationCode: boolean };
+          if (!statusData.hasUsedInvitationCode) {
+            router.push('/invitation-code');
+            router.refresh();
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Check invitation status error:', error);
+        // Continue to redirect even if check fails
       }
 
       router.push(redirect);
@@ -70,6 +95,11 @@ function LoginContent() {
 
         <Card>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {successMessage && (
+              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+                {successMessage}
+              </div>
+            )}
             {errorMessage && (
               <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
                 {errorMessage}

@@ -453,6 +453,12 @@ export const svgIcons = {
     h('polyline', { points: '20 6 9 17 4 12' })
   ]),
 
+  alertCircle: createSvgIcon([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('line', { x1: '12', y1: '8', x2: '12', y2: '12' }),
+    h('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' })
+  ]),
+
   refresh: createSvgIcon([
     h('path', { d: 'M21.5 2v6h-6' }),
     h('path', { d: 'M2.5 22v-6h6' }),
@@ -897,5 +903,29 @@ export const svgIcons = {
     h('line', { x1: '11', y1: '10', x2: '11', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
     h('line', { x1: '15', y1: '10', x2: '15', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
     h('line', { x1: '19', y1: '10', x2: '19', y2: '14', stroke: 'currentColor', 'stroke-width': '1.5' }),
+  ]),
+
+  // Eye icon (for view/read operations)
+  eye: createSvgIcon([
+    h('path', { d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' }),
+    h('circle', { cx: '12', cy: '12', r: '3' }),
+  ]),
+
+  // Tool icon (for tool operations)
+  tool: createSvgIcon([
+    h('path', { d: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' }),
+  ]),
+
+  // Target icon (for goals/objectives)
+  target: createSvgIcon([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('circle', { cx: '12', cy: '12', r: '6' }),
+    h('circle', { cx: '12', cy: '12', r: '2' }),
+  ]),
+
+  // Check circle icon (for success states)
+  checkCircle: createSvgIcon([
+    h('path', { d: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' }),
+    h('polyline', { points: '22 4 12 14.01 9 11.01' }),
   ]),
 };

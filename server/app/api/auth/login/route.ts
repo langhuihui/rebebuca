@@ -28,14 +28,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has password (OAuth users don't)
+    // Check if user has password
+    // OAuth users may not have a password_hash unless they set one later
+    // If they have a password, we allow login regardless of auth_provider
     if (!user.password_hash) {
+      const provider = user.auth_provider || 'OAuth';
       return NextResponse.json(
-        { error: 'Please use your OAuth provider to login' },
+        { error: `This account uses ${provider} login. Please use your ${provider} provider to login, or reset your password to enable email login.` },
         { status: 401 }
       );
     }
-
+    
     // Verify password
     const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
@@ -63,14 +66,14 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
-      maxAge: 15 * 60, // 15 minutes
+      maxAge: 7 * 24 * 60 * 60, // 7 days
       path: '/',
     });
     cookieStore.set('refresh_token', refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+      maxAge: 30 * 24 * 60 * 60, // 30 days
       path: '/',
     });
 
@@ -88,8 +91,8 @@ export async function POST(request: NextRequest) {
       session: {
         accessToken,
         refreshToken,
-        // Access tokens are 15 minutes by default
-        expiresAt: Date.now() + 15 * 60 * 1000,
+        // Access tokens are 7 days by default
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       },
     });
   } catch (error) {

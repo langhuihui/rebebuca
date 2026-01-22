@@ -74,6 +74,25 @@
             </n-input-group>
           </n-form-item>
           
+          <!-- Skills Path -->
+          <n-form-item :label="t('aiCollab.skillsPath')" path="skillsPath">
+            <n-input-group>
+              <n-input
+                v-model:value="goalForm.skillsPath"
+                :placeholder="t('aiCollab.skillsPathPlaceholder')"
+                readonly
+              />
+              <n-button @click="handleSelectSkillsPath">
+                {{ t('task.browse') }}
+              </n-button>
+              <n-button v-if="goalForm.skillsPath" quaternary @click="goalForm.skillsPath = ''">
+                <template #icon>
+                  <n-icon><component :is="svgIcons.close" /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
+          </n-form-item>
+          
           <!-- Task Objective -->
           <n-form-item :label="t('aiCollab.taskObjective')" path="objective">
             <n-input
@@ -151,12 +170,21 @@
           
           <!-- Model -->
           <n-form-item :label="t('aiCollab.model')">
-            <n-select
-              v-model:value="providerForm.model"
-              :options="modelOptions"
-              filterable
-              tag
-            />
+            <n-input-group>
+              <n-select
+                v-model:value="providerForm.model"
+                :options="modelOptions"
+                filterable
+                tag
+                style="flex: 1;"
+              />
+              <n-button 
+                v-if="['openrouter', 'custom'].includes(providerForm.type)"
+                @click="handleFetchModels"
+              >
+                {{ t('aiCollab.fetchModels') || '获取模型' }}
+              </n-button>
+            </n-input-group>
           </n-form-item>
           
           <!-- API Key -->
@@ -172,7 +200,7 @@
             />
           </n-form-item>
           
-          <!-- OpenCode Hint -->
+          <!-- 免费说明 -->
           <n-form-item v-if="providerForm.type === 'opencode'">
             <n-alert type="success" :show-icon="true">
               {{ t('aiCollab.opencodeHint') }}
@@ -180,7 +208,10 @@
           </n-form-item>
           
           <!-- Base URL (Optional) -->
-          <n-form-item :label="t('aiCollab.baseUrl')">
+          <n-form-item 
+            v-if="!['opencode'].includes(providerForm.type)"
+            :label="t('aiCollab.baseUrl')"
+          >
             <n-input
               v-model:value="providerForm.baseUrl"
               :placeholder="t('aiCollab.baseUrlPlaceholder')"
@@ -284,7 +315,7 @@ import { useTerminalStore } from '../../../stores/terminal';
 import { useDualAgentStore } from '../../../stores/dualAgent';
 import { useAuthStore } from '../../../stores/auth';
 import { useAITaskLimit } from '../../../services/aiTaskLimitService';
-import { getModelsForProvider } from '../../../services/ai/provider/models';
+import { getModelsForProvider, fetchAndRegisterKiloModels, fetchModelsFromEndpoint } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 import { svgIcons } from '../../../utils/icons';
 
@@ -317,6 +348,7 @@ const handleLogin = () => {
 // Goal form
 const goalForm = ref({
   projectPath: '',
+  skillsPath: '',
   objective: '',
   criteria: [''],
   context: '',
@@ -361,6 +393,7 @@ const goalRules: FormRules = {
 // Provider options
 const providerTypeOptions = computed(() => [
   { label: 'OpenCode Zen (Free)', value: 'opencode' },
+  { label: 'OpenRouter', value: 'openrouter' },
   { label: 'Anthropic (Claude)', value: 'anthropic' },
   { label: 'OpenAI', value: 'openai' },
   { label: 'Google (Gemini)', value: 'google' },
@@ -372,11 +405,40 @@ const providerTypeOptions = computed(() => [
 
 const modelOptions = computed(() => {
   const models = getModelsForProvider(providerForm.value.type);
-  return models.map((m: { name: string; contextWindow: number; id: string }) => ({
+  const options = models.map((m: { name: string; contextWindow: number; id: string }) => ({
     label: `${m.name} (${m.contextWindow.toLocaleString()} tokens)`,
     value: m.id,
   }));
+
+  return options;
 });
+
+const handleFetchModels = async () => {
+  if (providerForm.value.type === 'kilo') {
+    message.warning('Kilo provider is temporarily disabled');
+    return;
+  }
+  
+  const baseUrl = providerForm.value.baseUrl || '';
+  if (!baseUrl && providerForm.value.type !== 'openrouter') {
+    message.warning(t('aiCollab.baseUrlPlaceholder') || '请先输入 Base URL');
+    return;
+  }
+
+  try {
+    const models = await fetchModelsFromEndpoint(
+      baseUrl || 'https://openrouter.ai/api/v1',
+      providerForm.value.apiKey,
+      providerForm.value.type
+    );
+    if (models.length > 0) {
+      // For now we just show a message as modelOptions is computed from static/dynamic registration
+      message.success(t('aiCollab.modelsLoaded', { count: models.length }) || '已获取模型列表');
+    }
+  } catch (error) {
+    message.error('获取模型失败');
+  }
+};
 
 // Methods
 const handleSelectProjectPath = async () => {
@@ -391,6 +453,21 @@ const handleSelectProjectPath = async () => {
     }
   } catch (error) {
     console.error('[DualAgentCreateDialog] Failed to select folder:', error);
+  }
+};
+
+const handleSelectSkillsPath = async () => {
+  try {
+    const adapter = await getAdapter();
+    const result = await adapter.dialog.selectFolder({
+      title: t('aiCollab.selectSkillsDirectory'),
+    });
+    
+    if (result && typeof result === 'string') {
+      goalForm.value.skillsPath = result;
+    }
+  } catch (error) {
+    console.error('[DualAgentCreateDialog] Failed to select skills folder:', error);
   }
 };
 
@@ -442,6 +519,7 @@ const handleCreate = async () => {
       supervisorProvider: providerConfig,
       workerProvider: providerConfig, // Use same provider for both
       workerTools: providerForm.value.tools,
+      skillsPath: goalForm.value.skillsPath || undefined,
       maxRounds: providerForm.value.maxRounds,
     });
     

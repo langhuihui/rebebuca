@@ -13,6 +13,7 @@ import type { AgentConfig, WorkerReport } from './types';
 import type { Tool, ToolContext, ToolExecuteResult, PermissionRequest } from '../types';
 import { buildWorkerSystemPrompt, buildWorkerInstructionPrompt } from './prompts';
 import { getToolRegistry } from '../tools';
+import { TaskProgressDocument } from './TaskProgressDocument';
 
 // Helper to generate UUIDs using crypto
 function generateUUID(): string {
@@ -41,33 +42,47 @@ export class WorkerAgent extends BaseAgent {
   private pendingToolCalls: ToolCall[] = [];
   private completedActions: string[] = [];
   private issues: string[] = [];
-  
+  private lastExitReason: string | null = null;
+  private lastDone: boolean = false;
+
   // Tool context
   private sessionId: string;
   private abortSignal: AbortSignal;
-  
+  protected abortController: AbortController | null = null;
+
   // Callbacks
   private onToolStart?: (toolName: string, args: Record<string, unknown>) => void;
   private onToolComplete?: (toolName: string, result: ToolExecuteResult) => void;
   private onToolError?: (toolName: string, error: Error) => void;
   private onPermissionRequest?: (request: PermissionRequest) => Promise<void>;
-  
+
   // Auto-approve permissions flag
   private autoApprovePermissions: boolean = true;
-  
+
+  // Progress document for supervisor coordination
+  protected progressDocument: TaskProgressDocument | null = null;
+
   constructor(config: {
     provider: AgentConfig['provider'];
     projectPath: string;
     tools?: string[];
     maxSteps?: number;
     sessionId?: string;
+    taskName?: string;
     autoApprovePermissions?: boolean;
+    skillsPrompt?: string;
+    abortController?: AbortController;
+    progressDocument?: TaskProgressDocument;
   }) {
     super({
       role: 'worker',
       provider: config.provider,
-      systemPrompt: buildWorkerSystemPrompt(config.projectPath),
-      maxSteps: config.maxSteps ?? 30,
+      systemPrompt: buildWorkerSystemPrompt(
+        config.projectPath,
+        config.skillsPrompt,
+        config.taskName,
+      ),
+      maxSteps: config.maxSteps ?? 100,
       duplicateThreshold: 2,
       tools: config.tools,
     });
@@ -75,8 +90,14 @@ export class WorkerAgent extends BaseAgent {
     this.projectPath = config.projectPath;
     this.enabledTools = config.tools ?? ['read', 'write', 'edit', 'bash', 'glob', 'grep'];
     this.sessionId = config.sessionId ?? generateUUID();
-    this.abortSignal = new AbortController().signal;
+    this.abortSignal = config.abortController?.signal ?? new AbortController().signal;
     this.autoApprovePermissions = config.autoApprovePermissions ?? true;
+    this.progressDocument = config.progressDocument ?? null;
+
+    // Store abort controller reference
+    if (config.abortController) {
+      this.abortController = config.abortController;
+    }
   }
   
   // ============================================================================
@@ -151,17 +172,39 @@ export class WorkerAgent extends BaseAgent {
       console.log(`[Worker] Starting tool: ${toolCall.name}`, toolCall.args);
       this.onToolStart?.(toolCall.name, toolCall.args);
       
+      // Validate tool call arguments before execution
+      if (!toolCall.args || Object.keys(toolCall.args).length === 0) {
+        const errorMsg = `Tool '${toolCall.name}' called with empty arguments. Please provide required parameters.`;
+        console.warn(`[Worker] ${errorMsg}`);
+        toolCall.status = 'error';
+        toolCall.error = new Error(errorMsg);
+        this.issues.push(`${toolCall.name} 执行失败: ${errorMsg}`);
+        this.onToolError?.(toolCall.name, new Error(errorMsg));
+        results.push(`[${toolCall.name}] 错误: ${errorMsg}`);
+        this.addMessage('user', `工具执行错误 (${toolCall.name}):\n${errorMsg}`);
+        continue;
+      }
+      
       try {
         const result = await this.executeTool(toolCall.name, toolCall.args);
         toolCall.status = 'completed';
         toolCall.result = result;
-        
+
         console.log(`[Worker] Tool completed: ${toolCall.name}`, result.title);
         this.completedActions.push(`${toolCall.name}: ${result.title}`);
         this.onToolComplete?.(toolCall.name, result);
-        
+
         results.push(`[${toolCall.name}] ${result.title}\n${result.output}`);
-        
+
+        // Update progress document
+        this.progressDocument?.addAction({
+          action: result.title,
+          tool: toolCall.name,
+          result: result.output.slice(0, 200),
+        });
+        this.progressDocument?.heartbeat();
+        await this.progressDocument?.save();
+
         // Add tool result message
         this.addMessage('user', `工具执行结果 (${toolCall.name}):\n${result.output}`);
       } catch (error) {
@@ -198,26 +241,82 @@ export class WorkerAgent extends BaseAgent {
    * 执行指令
    */
   async executeInstruction(instruction: string): Promise<WorkerReport> {
-    // Reset state
     this.completedActions = [];
     this.issues = [];
+    this.lastExitReason = null;
+    this.lastDone = false;
     this.setState('running');
-    
-    // Add instruction
-    const prompt = buildWorkerInstructionPrompt(instruction);
+
+    // Read progress document to understand current state
+    const progressContext = await this.buildProgressContext();
+
+    // Update progress document with current action
+    this.progressDocument?.updateProgress({
+      currentAction: instruction.slice(0, 100),
+    });
+    await this.progressDocument?.save();
+
+    // Build instruction with progress context
+    const fullInstruction = this.buildInstructionWithContext(instruction, progressContext);
+    const prompt = buildWorkerInstructionPrompt(fullInstruction);
     this.addMessage('user', prompt);
     
     // Run until complete or max steps
     let stepCount = 0;
-    const maxInstructionSteps = 10;
+    const maxInstructionSteps = this.maxSteps;
     
     while (this._state === 'running' && stepCount < maxInstructionSteps) {
+      // Check abort signal
+      if (this.abortController?.signal.aborted) {
+        console.log('[Worker] Aborted during instruction execution');
+        this.setState('idle');
+        break;
+      }
+      
       stepCount++;
       await this.step();
+      
+      // Check abort after each step
+      if (this.abortController?.signal.aborted) {
+        console.log('[Worker] Aborted after step');
+        this.setState('idle');
+        break;
+      }
     }
-    
+
+    const wasAborted = this.abortController?.signal.aborted ?? false;
+    const reachedMaxSteps = stepCount >= maxInstructionSteps && this._state === 'running';
+    const isCompleted = this._state === 'completed';
+    const isError = this._state === 'error';
+
+    const exitReason = isError
+      ? 'error'
+      : wasAborted
+        ? 'aborted'
+        : isCompleted
+          ? 'completed'
+          : reachedMaxSteps
+            ? 'max_steps_reached'
+            : 'stopped';
+
+    this.lastExitReason = exitReason;
+    this.lastDone = isCompleted;
+
+    // Update progress document status based on execution result
+    const report = this.generateReport();
+    if (isError || !report.success) {
+      this.progressDocument?.setStatus('error', report.issues?.join('; ') ?? this.issues.join('; '));
+    } else if (isCompleted) {
+      this.progressDocument?.setStatus('completed');
+    } else if (wasAborted || reachedMaxSteps) {
+      this.progressDocument?.setStatus('stopped');
+    } else {
+      this.progressDocument?.setStatus('running');
+    }
+    await this.progressDocument?.save();
+
     // Generate report
-    return this.generateReport();
+    return report;
   }
   
   /**
@@ -246,15 +345,77 @@ export class WorkerAgent extends BaseAgent {
   setOnPermissionRequest(handler: (request: PermissionRequest) => Promise<void>): void {
     this.onPermissionRequest = handler;
   }
-  
+
+  setProgressDocument(document: TaskProgressDocument): void {
+    this.progressDocument = document;
+  }
+
+  getProgressDocument(): TaskProgressDocument | null {
+    return this.progressDocument;
+  }
+
   // ============================================================================
   // Private Methods
   // ============================================================================
-  
+
+  private async buildProgressContext(): Promise<string> {
+    if (!this.progressDocument) {
+      return '';
+    }
+
+    const doc = await this.progressDocument.readFromDisk();
+    if (!doc) {
+      return '';
+    }
+
+    let context = '\n\n=== 任务进度上下文 ===\n';
+
+    context += `当前状态: ${doc.status}\n`;
+    context += `当前步骤: ${doc.progress.currentStep}/${doc.progress.totalSteps}\n`;
+
+    if (doc.completedItems.length > 0) {
+      context += `\n已完成事项 (${doc.completedItems.length}):\n`;
+      doc.completedItems.forEach((item, i) => {
+        context += `${i + 1}. ${item.description}\n`;
+      });
+    }
+
+    if (doc.progress.completedMilestones.length > 0) {
+      context += `\n已达成里程碑:\n`;
+      doc.progress.completedMilestones.forEach((m, i) => {
+        context += `${i + 1}. ${m}\n`;
+      });
+    }
+
+    if (doc.recentActions.length > 0) {
+      context += `\n最近操作:\n`;
+      doc.recentActions.slice(-5).forEach((action) => {
+        context += `- ${action.action} (${action.tool || 'unknown'})\n`;
+      });
+    }
+
+    context += '\n=== 请根据以上进度继续工作 ===\n';
+
+    return context;
+  }
+
+  private buildInstructionWithContext(instruction: string, progressContext: string): string {
+    if (!progressContext) {
+      return instruction;
+    }
+    return instruction + progressContext;
+  }
+
   private async callLLMWithTools(tools: Tool[]): Promise<{
     content: string;
     toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> }>;
   }> {
+    // Check abort before calling LLM
+    if (this.abortController?.signal.aborted) {
+      console.log('[Worker] Aborted before LLM call');
+      throw new Error('Execution aborted by user');
+    }
+    
     const { createProvider } = await import('../provider');
     const llmProvider = createProvider(this.provider);
     
@@ -267,17 +428,24 @@ export class WorkerAgent extends BaseAgent {
       })),
     ];
     
-    // Build tool definitions
+    // Build tool definitions - pass Zod schemas directly to AI SDK
+    // AI SDK expects Zod schemas, not JSON schemas
     const toolDefs = tools.map(tool => ({
       type: 'function' as const,
       function: {
         name: tool.id,
         description: tool.description,
-        parameters: tool.parameters ? this.zodToJsonSchema(tool.parameters) : { type: 'object', properties: {} },
+        parameters: tool.parameters,  // Pass Zod schema directly
       },
     }));
     
     try {
+      // Check abort again before making the actual API call
+      if (this.abortController?.signal.aborted) {
+        console.log('[Worker] Aborted right before LLM API call');
+        throw new Error('Execution aborted by user');
+      }
+      
       const response = await llmProvider.chatWithTools(llmMessages, toolDefs, {
         stream: false,
       });
@@ -351,87 +519,69 @@ export class WorkerAgent extends BaseAgent {
   private isWorkerReport(content: string): boolean {
     try {
       const parsed = JSON.parse(content);
-      return 'report' in parsed && 'summary' in parsed.report;
+      const report = parsed.report ?? parsed;
+      if (!report || typeof report.summary !== 'string') {
+        return false;
+      }
+      const done =
+        report.done === true ||
+        parsed.done === true ||
+        report.exitReason === 'completed' ||
+        parsed.exitReason === 'completed' ||
+        report.exit_reason === 'completed' ||
+        parsed.exit_reason === 'completed';
+      return done === true;
     } catch {
-      // Check for report pattern
-      return content.includes('"report"') && content.includes('"summary"');
+      // Check for report pattern with explicit completion
+      return (
+        content.includes('"report"') &&
+        content.includes('"summary"') &&
+        (content.includes('"done": true') ||
+          content.includes('"exitReason":"completed"') ||
+          content.includes('"exitReason": "completed"') ||
+          content.includes('"exit_reason":"completed"') ||
+          content.includes('"exit_reason": "completed"'))
+      );
     }
   }
   
   private generateReport(): WorkerReport {
-    // Try to extract from last message
     const lastMessage = this.getLastAssistantMessage();
     if (lastMessage && typeof lastMessage.content === 'string') {
       try {
         const parsed = JSON.parse(lastMessage.content);
         if (parsed.report) {
-          return parsed.report;
+          const report = parsed.report as WorkerReport;
+          return {
+            ...report,
+            done: typeof report.done === 'boolean' ? report.done : this.lastDone,
+            exitReason: report.exitReason ?? this.lastExitReason ?? undefined,
+          };
         }
       } catch {
-        // Fall through to generate from actions
       }
     }
-    
-    // Generate from completed actions
-    return {
-      summary: this.completedActions.length > 0 
-        ? `执行了 ${this.completedActions.length} 个操作` 
+
+    const report: WorkerReport = {
+      summary: this.completedActions.length > 0
+        ? `执行了 ${this.completedActions.length} 个操作`
         : '未执行任何操作',
       success: this.issues.length === 0,
       actions: this.completedActions,
       issues: this.issues.length > 0 ? this.issues : undefined,
+      done: this.lastDone,
+      exitReason: this.lastExitReason ?? undefined,
     };
-  }
-  
-  private zodToJsonSchema(zodSchema: any): any {
-    // Simplified Zod to JSON Schema conversion
-    // In production, you'd want to use a proper library like zod-to-json-schema
-    if (zodSchema._def) {
-      const def = zodSchema._def;
-      
-      if (def.typeName === 'ZodObject') {
-        const properties: any = {};
-        const required: string[] = [];
-        
-        for (const [key, value] of Object.entries(def.shape())) {
-          properties[key] = this.zodToJsonSchema(value);
-          if (!((value as any)._def?.typeName === 'ZodOptional')) {
-            required.push(key);
-          }
-        }
-        
-        return {
-          type: 'object',
-          properties,
-          required: required.length > 0 ? required : undefined,
-        };
-      }
-      
-      if (def.typeName === 'ZodString') {
-        return { type: 'string', description: def.description };
-      }
-      
-      if (def.typeName === 'ZodNumber') {
-        return { type: 'number', description: def.description };
-      }
-      
-      if (def.typeName === 'ZodBoolean') {
-        return { type: 'boolean', description: def.description };
-      }
-      
-      if (def.typeName === 'ZodArray') {
-        return { 
-          type: 'array', 
-          items: this.zodToJsonSchema(def.type),
-          description: def.description,
-        };
-      }
-      
-      if (def.typeName === 'ZodOptional') {
-        return this.zodToJsonSchema(def.innerType);
+
+    if (report.success && report.actions.length > 0 && this.progressDocument) {
+      for (const action of report.actions) {
+        this.progressDocument.addCompletedItem({
+          description: action,
+        });
       }
     }
-    
-    return { type: 'string' };
+
+    return report;
   }
+  
 }

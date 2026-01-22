@@ -34,6 +34,15 @@ pub struct ProcessStats {
     pub memory_usage_mb: String,
 }
 
+/// Process information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessInfo {
+    pub pid: u32,
+    pub name: String,
+    pub cpu_usage: Option<f64>,
+    pub memory_usage: Option<f64>,
+}
+
 /// PTY process statistics (extends ProcessStats with pty_id)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PtyProcessStats {

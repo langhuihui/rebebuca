@@ -8,4 +8,4 @@ export * from './prompts';
 export { BaseAgent } from './BaseAgent';
 export { SupervisorAgent } from './SupervisorAgent';
 export { WorkerAgent } from './WorkerAgent';
-export { DualAgentOrchestrator } from './DualAgentOrchestrator';
+export { TaskProgressDocument } from './TaskProgressDocument';

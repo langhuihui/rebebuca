@@ -58,6 +58,9 @@ const NPM_PACKAGE_MAP: Record<AIToolType, NpmPackageInfo | null> = {
     packageName: '@charmland/crush',
   },
   'ampcode': null, // Installed via script, not npm
+  'kilocode': {
+    packageName: '@kilocode/cli',
+  },
 };
 
 /**

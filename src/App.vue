@@ -559,8 +559,108 @@ const suppressResizeObserverError = () => {
   };
 };
 
+// Global API for remote task management
+const setupGlobalAPI = () => {
+  if (typeof window === 'undefined') return;
+  
+  (window as any).rebebucaAPI = {
+    // Get all tasks from server
+    async getTasks(): Promise<any[]> {
+      try {
+        const response = await fetch('/api/tasks');
+        const data = await response.json();
+        return data.tasks || [];
+      } catch (error) {
+        console.error('[RebebucaAPI] Failed to get tasks:', error);
+        return [];
+      }
+    },
+    
+    // Save tasks to server
+    async saveTasks(tasks: any[]): Promise<boolean> {
+      try {
+        const response = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tasks),
+        });
+        const data = await response.json();
+        return data.success === true;
+      } catch (error) {
+        console.error('[RebebucaAPI] Failed to save tasks:', error);
+        return false;
+      }
+    },
+    
+    // Get a specific task
+    async getTask(taskId: string): Promise<any | null> {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`);
+        const data = await response.json();
+        return data.task || null;
+      } catch (error) {
+        console.error('[RebebucaAPI] Failed to get task:', error);
+        return null;
+      }
+    },
+    
+    // Run a task by ID - returns run info including sessionId
+    async runTask(taskId: string): Promise<{ success: boolean; runId?: string; sessionId?: string; error?: string }> {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}/run`, {
+          method: 'POST',
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          // Generate a session ID for the AI collab task
+          const sessionId = `collab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          return {
+            success: true,
+            runId: data.runId,
+            sessionId: sessionId,
+          };
+        }
+        return { success: false, error: data.error };
+      } catch (error) {
+        console.error('[RebebucaAPI] Failed to run task:', error);
+        return { success: false, error: String(error) };
+      }
+    },
+    
+    // Get conversation for a session
+    async getConversation(sessionId: string): Promise<any[]> {
+      try {
+        const response = await fetch(`/api/ai-collab/conversation/${sessionId}`);
+        const data = await response.json();
+        return data.conversation || [];
+      } catch (error) {
+        console.error('[RebebucaAPI] Failed to get conversation:', error);
+        return [];
+      }
+    },
+    
+    // Get run history for a task
+    async getRunHistory(taskId: string): Promise<any[]> {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}/history`);
+        const data = await response.json();
+        return data.runs || [];
+      } catch (error) {
+        console.error('[RebebucaAPI] Failed to get run history:', error);
+        return [];
+      }
+    },
+  };
+  
+  console.log('[Rebebuca] Global API exposed at window.rebebucaAPI');
+};
+
 // Setup Tauri event listeners on mount
 onMounted(async () => {
+  // Expose global API for remote execution
+  setupGlobalAPI();
+
   // Check platform for window controls styling
   uiStore.setWindowsPlatform(await isWindows());
 

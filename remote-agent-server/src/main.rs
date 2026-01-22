@@ -8,6 +8,7 @@ mod auth;
 mod config;
 mod connection;
 mod handlers;
+mod orchestration;
 mod protocol;
 
 use std::net::SocketAddr;

@@ -143,10 +143,10 @@ import {
 } from '@vicons/ionicons5';
 
 // Helper to open URL (works in both Tauri and browser modes)
-async function openExternalUrl(url: string): Promise<void> {
+async function openUrl(url: string): Promise<void> {
   if (isTauri()) {
-    const { openUrl } = await import('@tauri-apps/plugin-opener');
-    await openExternalUrl(url);
+    const { openUrl: tauriOpenUrl } = await import('@tauri-apps/plugin-opener');
+    await tauriOpenUrl(url);
   } else {
     window.open(url, '_blank');
   }

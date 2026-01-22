@@ -84,8 +84,17 @@
               <div class="message-header">
                 <span class="message-sender">{{ getSenderName(message.from) }}</span>
                 <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                <n-tag v-if="message.type === 'streaming'" size="tiny" type="warning">执行中</n-tag>
               </div>
-              <div class="message-body">
+              <!-- Worker 输出使用小窗口滚屏 -->
+              <WorkerOutputWindow
+                v-if="(message.from as string) === 'worker'"
+                :content="message.content"
+                :use-markdown="false"
+                :auto-scroll="true"
+              />
+              <!-- 其他消息类型 -->
+              <div v-else class="message-body">
                 <div v-if="(message.type as string) === 'tool'" class="tool-message">
                   <n-tag size="small" type="info">Tool: {{ message.metadata?.toolName }}</n-tag>
                   <pre class="message-text tool-content">{{ message.content }}</pre>
@@ -216,6 +225,7 @@
     <div v-if="session?.usage" class="usage-bar">
       <span>Tokens: {{ session.usage.totalTokens.toLocaleString() }}</span>
       <span>(Prompt: {{ session.usage.promptTokens.toLocaleString() }} / Completion: {{ session.usage.completionTokens.toLocaleString() }})</span>
+      <span v-if="(session as any)?.toolCallCount > 0">| Tools: {{ (session as any).toolCallCount }}</span>
     </div>
     
     <!-- 输入区域 -->
@@ -252,12 +262,22 @@
           />
         </n-form-item>
         <n-form-item :label="t('aiCollab.model')">
-          <n-select
-            v-model:value="providerForm.model"
-            :options="modelOptions"
-            filterable
-            tag
-          />
+          <n-input-group>
+            <n-select
+              v-model:value="providerForm.model"
+              :options="modelOptions"
+              filterable
+              tag
+              style="flex: 1;"
+            />
+            <n-button 
+              v-if="['openrouter', 'custom'].includes(providerForm.type)"
+              :loading="isFetchingModels"
+              @click="handleFetchModels"
+            >
+              {{ t('aiCollab.fetchModels') || '获取模型' }}
+            </n-button>
+          </n-input-group>
         </n-form-item>
         <n-form-item :label="t('aiCollab.apiKey')">
           <n-input
@@ -267,11 +287,20 @@
             :placeholder="t('aiCollab.apiKeyPlaceholder')"
           />
         </n-form-item>
-        <n-form-item :label="t('aiCollab.baseUrl')">
+        <n-form-item 
+          v-if="!['opencode'].includes(providerForm.type)"
+          :label="t('aiCollab.baseUrl')"
+        >
           <n-input
             v-model:value="providerForm.baseUrl"
             :placeholder="t('aiCollab.baseUrlPlaceholder')"
           />
+        </n-form-item>
+        <!-- 免费说明 -->
+        <n-form-item v-if="providerForm.type === 'opencode'">
+          <n-alert type="success" :show-icon="true">
+            {{ t('aiCollab.opencodeHint') }}
+          </n-alert>
         </n-form-item>
         <n-form-item :label="t('aiCollab.enabledTools')">
           <n-checkbox-group v-model:value="providerForm.tools">
@@ -321,11 +350,12 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { useAICollabNativeStore, type NativeCollabConfig } from '../stores/aiCollabNative';
-import { getModelsForProvider } from '../services/ai/provider/models';
+import { getModelsForProvider, fetchAndRegisterKiloModels, fetchModelsFromEndpoint } from '../services/ai/provider/models';
 import type { ProviderType, PermissionRequest } from '../services/ai/types';
 import { iconComponents, svgIcons } from '../utils/icons';
 import { renderMarkdown } from '../utils/markdown';
 import type { MessageFrom } from '../types/aiCollab';
+import WorkerOutputWindow from './orchestration/WorkerOutputWindow.vue';
 
 const props = defineProps<{
   sessionId?: string;
@@ -345,6 +375,8 @@ const messageListRef = ref<HTMLElement | null>(null);
 const inputMessage = ref('');
 const showSettingsModal = ref(false);
 
+// Worker 输出滚动由 WorkerOutputWindow 组件内部处理
+
 // Provider 配置表单
 const providerForm = ref({
   type: 'opencode' as ProviderType,
@@ -357,6 +389,7 @@ const providerForm = ref({
 // Provider 类型选项
 const providerTypeOptions = computed(() => [
   { label: 'OpenCode Zen (免费)', value: 'opencode' },
+  { label: 'OpenRouter', value: 'openrouter' },
   { label: 'Anthropic (Claude)', value: 'anthropic' },
   { label: 'OpenAI', value: 'openai' },
   { label: 'Google (Gemini)', value: 'google' },
@@ -369,10 +402,12 @@ const providerTypeOptions = computed(() => [
 // 模型选项
 const modelOptions = computed(() => {
   const models = getModelsForProvider(providerForm.value.type);
-  return models.map((m: { name: string; contextWindow: number; id: string }) => ({
+  const options = models.map((m: { name: string; contextWindow: number; id: string }) => ({
     label: `${m.name} (${m.contextWindow.toLocaleString()} tokens)`,
     value: m.id,
   }));
+  
+  return options;
 });
 
 // 当前会话
@@ -414,6 +449,36 @@ const sessionStatusText = computed(() => {
   }
 });
 
+const isFetchingModels = ref(false);
+const handleFetchModels = async () => {
+  if (providerForm.value.type === 'kilo') {
+    message.warning('Kilo provider is temporarily disabled');
+    return;
+  }
+  
+  const baseUrl = providerForm.value.baseUrl || '';
+  if (!baseUrl && providerForm.value.type !== 'openrouter') {
+    message.warning(t('aiCollab.baseUrlPlaceholder') || '请先输入 Base URL');
+    return;
+  }
+
+  isFetchingModels.value = true;
+  try {
+    const models = await fetchModelsFromEndpoint(
+      baseUrl || 'https://openrouter.ai/api/v1',
+      providerForm.value.apiKey,
+      providerForm.value.type
+    );
+    if (models.length > 0) {
+      message.success(t('aiCollab.modelsLoaded', { count: models.length }) || '已获取模型列表');
+    }
+  } catch (error) {
+    message.error('获取模型失败');
+  } finally {
+    isFetchingModels.value = false;
+  }
+};
+
 // 方法
 const truncatePath = (path: string): string => {
   if (path.length <= 40) return path;
@@ -422,29 +487,35 @@ const truncatePath = (path: string): string => {
   return `.../${parts.slice(-2).join('/')}`;
 };
 
-const getAvatarColor = (from: MessageFrom | 'assistant'): string => {
+const getAvatarColor = (from: MessageFrom | 'assistant' | 'worker' | 'supervisor'): string => {
   switch (from) {
     case 'assistant': return '#722ed1';
     case 'user': return '#1890ff';
     case 'system': return '#8c8c8c';
+    case 'worker': return '#52c41a';
+    case 'supervisor': return '#faad14';
     default: return '#d9d9d9';
   }
 };
 
-const getAvatarText = (from: MessageFrom | 'assistant'): string => {
+const getAvatarText = (from: MessageFrom | 'assistant' | 'worker' | 'supervisor'): string => {
   switch (from) {
     case 'assistant': return 'AI';
     case 'user': return 'U';
     case 'system': return 'S';
+    case 'worker': return 'W';
+    case 'supervisor': return 'S';
     default: return '?';
   }
 };
 
-const getSenderName = (from: MessageFrom | 'assistant'): string => {
+const getSenderName = (from: MessageFrom | 'assistant' | 'worker' | 'supervisor'): string => {
   switch (from) {
     case 'assistant': return t('aiCollab.assistant');
     case 'user': return t('aiCollab.user');
     case 'system': return t('aiCollab.system');
+    case 'worker': return t('aiCollab.worker');
+    case 'supervisor': return t('aiCollab.supervisor');
     default: return from;
   }
 };
@@ -519,8 +590,8 @@ const handleSend = async () => {
         tools: providerForm.value.tools,
       };
       
-      // OpenCode 免费模式不需要 API key
-      if (!config.provider.apiKey && config.provider.type !== 'opencode') {
+      // Kilo 免费模式不需要 API key
+      if (!config.provider.apiKey && !['opencode'].includes(config.provider.type)) {
         message.warning(t('aiCollab.apiKeyRequired'));
         showSettingsModal.value = true;
         return;
@@ -623,12 +694,16 @@ const handlePermissionAlways = (requestId: string) => {
 // 监听消息变化
 watch(
   () => session.value?.messages?.length,
-  () => scrollToBottom()
+  () => {
+    scrollToBottom();
+  }
 );
 
 watch(
   () => currentStreamingText.value,
-  () => scrollToBottom()
+  () => {
+    scrollToBottom();
+  }
 );
 
 // 监听会话变化，如果是新会话则自动启动
@@ -954,6 +1029,10 @@ const autoStartSession = async (sessionId: string) => {
   word-break: break-word;
   font-size: 13px;
   font-family: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .tool-message {
@@ -970,12 +1049,20 @@ const autoStartSession = async (sessionId: string) => {
   border-radius: 4px;
   max-height: 200px;
   overflow: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .markdown-body {
   font-size: 14px;
   line-height: 1.6;
   color: var(--n-text-color);
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .markdown-body :deep(h1),
@@ -1084,6 +1171,8 @@ const autoStartSession = async (sessionId: string) => {
   border-radius: 4px;
   margin: 6px 0;
 }
+
+/* Worker 输出样式已移至 WorkerOutputWindow 组件 */
 
 .tool-calls-status {
   display: flex;

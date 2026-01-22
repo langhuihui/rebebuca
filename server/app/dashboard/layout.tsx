@@ -29,6 +29,20 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  // Super admin and admin don't need invitation code
+  if (user.role !== 'super_admin' && user.role !== 'admin') {
+    // Check if user has used an invitation code
+    const usedCode = await db.prepare(`
+      SELECT id FROM invitation_codes
+      WHERE used_by_user_id = ?
+      LIMIT 1
+    `).bind(user.id).first();
+
+    if (!usedCode) {
+      redirect('/invitation-code');
+    }
+  }
+
   // Transform user to match expected format
   const userForNav = {
     id: user.id,
@@ -38,6 +52,8 @@ export default async function DashboardLayout({
       avatar_url: user.avatar_url ?? undefined,
     },
     created_at: user.created_at,
+    role: user.role,
+    is_banned: user.is_banned,
   };
 
   return (

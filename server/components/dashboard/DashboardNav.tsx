@@ -13,6 +13,8 @@ interface UserData {
     avatar_url?: string;
   };
   created_at?: string;
+  role?: 'user' | 'admin' | 'super_admin';
+  is_banned?: number;
 }
 
 interface DashboardNavProps {
@@ -24,11 +26,14 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const isSuperAdmin = user.role === 'super_admin' && !user.is_banned;
+
   const navItems = [
     { href: '/dashboard', label: 'Overview' },
     { href: '/dashboard/subscriptions', label: 'Subscriptions' },
     { href: '/dashboard/payments', label: 'Payment History' },
     { href: '/dashboard/settings', label: 'Settings' },
+    ...(isSuperAdmin ? [{ href: '/dashboard/admin', label: 'Admin' }] : []),
   ];
 
   const handleSignOut = async () => {

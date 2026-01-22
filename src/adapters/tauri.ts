@@ -15,6 +15,8 @@ import type {
   UpdaterAdapter,
   NotificationAdapter,
   TrayAdapter,
+  OrchestrationAdapter,
+  BoulderStateInfo,
   RunningProcessInfo,
   FavoriteTaskInfo,
   RecentTaskInfo,
@@ -30,6 +32,16 @@ import type {
   LogPathInfo,
   SystemTerminalInfo,
   ShellInfo,
+  OrchestrationConfig,
+  TaskGoal,
+  OrchestrationStatus,
+  OrchestrationProgressEvent,
+  OrchestrationAgentMessageEvent,
+  OrchestrationToolUseEvent,
+  OrchestrationWorkerStreamEvent,
+  OrchestrationCompleteEvent,
+  OrchestrationErrorEvent,
+  OrchestrationUsageEvent,
 } from './types';
 
 // Lazy imports for Tauri APIs
@@ -386,23 +398,44 @@ class TauriSystemAdapter implements SystemAdapter {
     return await tauriOs!.arch();
   }
 
+  async getHomeDir(): Promise<string> {
+    const { homeDir } = await import('@tauri-apps/api/path');
+    return homeDir();
+  }
+
   async openExternal(url: string): Promise<void> {
     await loadTauriModules();
     try {
       // Try using opener plugin (preferred in v2)
       // @ts-ignore - The type definition might be missing 'open' in some versions
       const opener = tauriOpener as any;
-      if (opener.openPath && !url.includes('://')) {
-          await opener.openPath(url);
+      // For file paths, ensure we use absolute path
+      if (!url.includes('://')) {
+        // It's a file path - try openPath first
+        if (opener.openPath) {
+          try {
+            await opener.openPath(url);
+            return;
+          } catch (error) {
+            console.warn('[TauriAdapter] openPath failed, trying other methods:', error);
+          }
+        }
+        // Fallback to shell.open for file paths
+        if (tauriShell && tauriShell.open) {
+          console.log('[TauriAdapter] Using shell.open for file path');
+          await tauriShell.open(url);
           return;
-      }
-      if (opener.open) {
-        await opener.open(url);
-        return;
-      } 
-      if (opener.openUrl) {
-        await opener.openUrl(url);
-        return;
+        }
+      } else {
+        // It's a URL
+        if (opener.open) {
+          await opener.open(url);
+          return;
+        } 
+        if (opener.openUrl) {
+          await opener.openUrl(url);
+          return;
+        }
       }
     } catch (error) {
       console.warn('[TauriAdapter] opener plugin failed:', error);
@@ -798,6 +831,187 @@ class TauriTrayAdapter implements TrayAdapter {
 }
 
 /**
+ * Tauri Orchestration Adapter
+ */
+class TauriOrchestrationAdapter implements OrchestrationAdapter {
+  private progressListeners = new Map<string, () => void>();
+  private agentMessageListeners = new Map<string, () => void>();
+  private toolUseListeners = new Map<string, () => void>();
+  private workerStreamListeners = new Map<string, () => void>();
+  private completeListeners = new Map<string, () => void>();
+  private errorListeners = new Map<string, () => void>();
+  private usageListeners = new Map<string, () => void>();
+
+  async createSession(config: OrchestrationConfig): Promise<string> {
+    await loadTauriModules();
+    return await tauriCore!.invoke('create_orchestration_session', { config });
+  }
+
+  async start(sessionId: string, goal: TaskGoal): Promise<void> {
+    console.log('[TauriOrchestrationAdapter] Starting orchestration:', sessionId, goal);
+    await loadTauriModules();
+    try {
+      await tauriCore!.invoke('start_orchestration', { sessionId, goal });
+      console.log('[TauriOrchestrationAdapter] start_orchestration command sent successfully');
+    } catch (error) {
+      console.error('[TauriOrchestrationAdapter] Failed to start orchestration:', error);
+      throw error;
+    }
+  }
+
+  async stop(sessionId: string): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('stop_orchestration', { sessionId });
+  }
+
+  async getStatus(sessionId: string): Promise<OrchestrationStatus> {
+    await loadTauriModules();
+    return await tauriCore!.invoke('get_orchestration_status', { sessionId });
+  }
+
+  async removeSession(sessionId: string): Promise<void> {
+    await loadTauriModules();
+    await tauriCore!.invoke('remove_orchestration_session', { sessionId });
+  }
+
+  async checkBoulderState(projectPath: string): Promise<BoulderStateInfo | null> {
+    await loadTauriModules();
+    try {
+      const result = await tauriCore!.invoke<BoulderStateInfo | null>('check_boulder_state', { projectPath });
+      return result;
+    } catch (error) {
+      console.error('[TauriOrchestrationAdapter] Failed to check boulder state:', error);
+      return null;
+    }
+  }
+
+  onProgress(callback: (event: OrchestrationProgressEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    console.log('[TauriOrchestrationAdapter] Setting up progress listener:', id);
+    loadTauriModules().then(async () => {
+      console.log('[TauriOrchestrationAdapter] Tauri modules loaded, registering progress listener');
+      const unlisten = await tauriEvent!.listen<OrchestrationProgressEvent>('orchestration:progress', (e) => {
+        console.log('[TauriOrchestrationAdapter] Progress event received:', e.payload);
+        callback(e.payload);
+      });
+      this.progressListeners.set(id, unlisten);
+      console.log('[TauriOrchestrationAdapter] Progress listener registered');
+    }).catch(err => {
+      console.error('[TauriOrchestrationAdapter] Failed to setup progress listener:', err);
+    });
+    return () => {
+      const fn = this.progressListeners.get(id);
+      if (fn) {
+        fn();
+        this.progressListeners.delete(id);
+      }
+    };
+  }
+
+  onAgentMessage(callback: (event: OrchestrationAgentMessageEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    loadTauriModules().then(async () => {
+      const unlisten = await tauriEvent!.listen<OrchestrationAgentMessageEvent>('orchestration:agent_message', (e) => {
+        callback(e.payload);
+      });
+      this.agentMessageListeners.set(id, unlisten);
+    });
+    return () => {
+      const fn = this.agentMessageListeners.get(id);
+      if (fn) {
+        fn();
+        this.agentMessageListeners.delete(id);
+      }
+    };
+  }
+
+  onToolUse(callback: (event: OrchestrationToolUseEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    loadTauriModules().then(async () => {
+      const unlisten = await tauriEvent!.listen<OrchestrationToolUseEvent>('orchestration:tool_use', (e) => {
+        callback(e.payload);
+      });
+      this.toolUseListeners.set(id, unlisten);
+    });
+    return () => {
+      const fn = this.toolUseListeners.get(id);
+      if (fn) {
+        fn();
+        this.toolUseListeners.delete(id);
+      }
+    };
+  }
+
+  onWorkerStream(callback: (event: OrchestrationWorkerStreamEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    loadTauriModules().then(async () => {
+      const unlisten = await tauriEvent!.listen<OrchestrationWorkerStreamEvent>('orchestration:worker_stream', (e) => {
+        callback(e.payload);
+      });
+      this.workerStreamListeners.set(id, unlisten);
+    });
+    return () => {
+      const fn = this.workerStreamListeners.get(id);
+      if (fn) {
+        fn();
+        this.workerStreamListeners.delete(id);
+      }
+    };
+  }
+
+  onComplete(callback: (event: OrchestrationCompleteEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    loadTauriModules().then(async () => {
+      const unlisten = await tauriEvent!.listen<OrchestrationCompleteEvent>('orchestration:complete', (e) => {
+        callback(e.payload);
+      });
+      this.completeListeners.set(id, unlisten);
+    });
+    return () => {
+      const fn = this.completeListeners.get(id);
+      if (fn) {
+        fn();
+        this.completeListeners.delete(id);
+      }
+    };
+  }
+
+  onError(callback: (event: OrchestrationErrorEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    loadTauriModules().then(async () => {
+      const unlisten = await tauriEvent!.listen<OrchestrationErrorEvent>('orchestration:error', (e) => {
+        callback(e.payload);
+      });
+      this.errorListeners.set(id, unlisten);
+    });
+    return () => {
+      const fn = this.errorListeners.get(id);
+      if (fn) {
+        fn();
+        this.errorListeners.delete(id);
+      }
+    };
+  }
+
+  onUsage(callback: (event: OrchestrationUsageEvent) => void): () => void {
+    const id = Math.random().toString(36).slice(2);
+    loadTauriModules().then(async () => {
+      const unlisten = await tauriEvent!.listen<OrchestrationUsageEvent>('orchestration:usage', (e) => {
+        callback(e.payload);
+      });
+      this.usageListeners.set(id, unlisten);
+    });
+    return () => {
+      const fn = this.usageListeners.get(id);
+      if (fn) {
+        fn();
+        this.usageListeners.delete(id);
+      }
+    };
+  }
+}
+
+/**
  * Tauri Backend Adapter - Main class
  */
 export class TauriAdapter implements BackendAdapter {
@@ -812,6 +1026,7 @@ export class TauriAdapter implements BackendAdapter {
   updater: UpdaterAdapter;
   notification: NotificationAdapter;
   tray: TrayAdapter;
+  orchestration: OrchestrationAdapter;
 
   constructor() {
     this.terminal = new TauriTerminalAdapter();
@@ -823,6 +1038,7 @@ export class TauriAdapter implements BackendAdapter {
     this.updater = new TauriUpdaterAdapter();
     this.notification = new TauriNotificationAdapter();
     this.tray = new TauriTrayAdapter();
+    this.orchestration = new TauriOrchestrationAdapter();
   }
 
   async init(): Promise<void> {

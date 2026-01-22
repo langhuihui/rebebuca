@@ -2432,6 +2432,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+
+[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3654,15 +3660,19 @@ name = "rebebuca"
 version = "0.5.3"
 dependencies = [
  "async-stream",
+ "async-trait",
  "axum",
  "base64 0.21.7",
  "chrono",
  "futures",
  "lazy_static",
  "log",
+ "md5",
  "openssl-sys",
  "portable-pty",
  "rebebuca-common",
+ "rebebuca-orchestration",
+ "reqwest",
  "serde",
  "serde_json",
  "ssh2",
@@ -3693,6 +3703,24 @@ dependencies = [
  "serde",
  "serde_json",
  "sysinfo 0.32.1",
+]
+
+[[package]]
+name = "rebebuca-orchestration"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "futures",
+ "log",
+ "rebebuca-common",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -440,7 +440,7 @@ const aiToolOptions = computed(() => {
     .map(toolType => {
       const logoUrl = aiToolsStore.getToolLogoUrl(toolType);
       const displayName = aiToolsStore.getToolDisplayName(toolType);
-      const needsInvert = ['opencode', 'augment-cli', 'ampcode'].includes(toolType);
+      const needsInvert = ['opencode', 'augment-cli', 'ampcode', 'kilocode'].includes(toolType);
       
       return {
         label: () => {

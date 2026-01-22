@@ -352,6 +352,36 @@ async fn handle_request(client_id: &str, request: Request, state: &AppState) -> 
             }
         }
 
+        "system.getProcessInfo" => {
+            #[derive(Deserialize)]
+            struct Params {
+                pid: u32,
+            }
+            match serde_json::from_value::<Params>(request.params) {
+                Ok(params) => {
+                    let info = state.system_adapter.get_process_info(params.pid);
+                    Response::success(id, info)
+                }
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
+        "system.killProcess" => {
+            #[derive(Deserialize)]
+            struct Params {
+                pid: u32,
+            }
+            match serde_json::from_value::<Params>(request.params) {
+                Ok(params) => {
+                    match state.system_adapter.kill_process(params.pid) {
+                        Ok(_) => Response::success(id, serde_json::Value::Null),
+                        Err(e) => Response::error(id, e),
+                    }
+                }
+                Err(e) => Response::error(id, format!("Invalid params: {}", e)),
+            }
+        }
+
         // Storage methods
         // Note: Use fixed user ID "default" for all clients to share storage
         // This ensures tasks and settings persist across browser sessions

@@ -3,6 +3,7 @@
  * Supported AI models and their configurations
  */
 
+import { reactive, ref } from 'vue';
 import type { ModelInfo } from '../types';
 
 export type { ProviderType } from '../types';
@@ -10,7 +11,42 @@ export type { ProviderType } from '../types';
 /**
  * Model definitions grouped by provider type for easy access
  */
-export const MODEL_DEFINITIONS: Record<string, ModelInfo[]> = {};
+export const MODEL_DEFINITIONS = reactive<Record<string, ModelInfo[]>>({});
+
+// 存储 Kilo AI 的最新版本号
+export const kiloLatestVersion = ref('4.151.0');
+
+/**
+ * 从 Marketplace 动态获取 Kilo Code 的最新版本号
+ */
+export async function updateKiloVersion(): Promise<string> {
+  const url = 'https://marketplace.visualstudio.com/items/kilocode.Kilo-Code/changelog';
+  try {
+    // 强制使用 tauriFetch，因为它处理 HTML 响应更可靠
+    const { tauriFetch } = await import('@/utils/tauriFetch');
+    const resp = await tauriFetch(url);
+    const text = await resp.text();
+    
+    // 匹配 <h2>4.151.0</h2> 这种格式
+    const match = text.match(/<h2>(\d+\.\d+\.\d+)<\/h2>/);
+    if (match && match[1]) {
+      kiloLatestVersion.value = match[1];
+      console.log('[Models] Dynamic Kilo version updated from HTML:', match[1]);
+      return match[1];
+    }
+    
+    // 备选匹配：Marketplace 可能会有不同的展示方式
+    const versionMatch = text.match(/"version":"(\d+\.\d+\.\d+)"/);
+    if (versionMatch && versionMatch[1]) {
+      kiloLatestVersion.value = versionMatch[1];
+      console.log('[Models] Dynamic Kilo version updated from JSON-in-HTML:', versionMatch[1]);
+      return versionMatch[1];
+    }
+  } catch (error) {
+    console.error('[Models] Failed to update Kilo version:', error);
+  }
+  return kiloLatestVersion.value;
+}
 
 export const MODELS: Record<string, ModelInfo> = {
   // Anthropic Claude - 简短 ID (用于兼容第三方 API 端点)
@@ -277,6 +313,15 @@ export const MODELS: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsVision: false,
   },
+  'openrouter/auto': {
+    id: 'openrouter/auto',
+    name: 'OpenRouter Auto',
+    provider: 'openrouter',
+    contextWindow: 128000,
+    maxOutput: 8192,
+    supportsTools: true,
+    supportsVision: false,
+  },
 
   // OpenCode Zen (免费网关)
   'gpt-5-nano': {
@@ -315,6 +360,15 @@ export const MODELS: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsVision: false,
   },
+  'giga-potato': {
+    id: 'giga-potato',
+    name: 'Giga Potato',
+    provider: 'kilo',
+    contextWindow: 256000,
+    maxOutput: 32000,
+    supportsTools: true,
+    supportsVision: true,
+  },
   'minimax-m2.1-free': {
     id: 'minimax-m2.1-free',
     name: 'MiniMax M2.1 (免费)',
@@ -330,7 +384,61 @@ export const MODELS: Record<string, ModelInfo> = {
  * Get models for a specific provider
  */
 export function getModelsForProvider(provider: ProviderType): ModelInfo[] {
-  return Object.values(MODELS).filter(m => m.provider === provider);
+  return MODEL_DEFINITIONS[provider] || [];
+}
+
+/**
+ * Fetch and register models from Kilo AI
+ */
+export async function fetchAndRegisterKiloModels(): Promise<ModelInfo[]> {
+  const config = PROVIDER_CONFIG.kilo;
+  if (!config || !config.baseUrl) {
+    console.warn('[Models] Kilo AI config or baseUrl missing');
+    return [];
+  }
+
+  try {
+    // 移除末尾的 /v1 或 /，以获取正确的 models 接口地址
+    const url = `${config.baseUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '')}/models`;
+    
+    console.log('[Models] Fetching Kilo AI models via Rust:', url);
+    
+    let data: any;
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      // 使用 Rust 后端请求，彻底解决 CORS 问题
+      data = await invoke('fetch_models', { url });
+    } else {
+      console.log('[Models] Falling back to browser fetch');
+      const response = await fetch(url, { method: 'GET' });
+      if (!response.ok) throw new Error(`Status: ${response.status}`);
+      data = await response.json();
+    }
+    
+    const remoteModels = data.data || [];
+
+    if (remoteModels.length > 0) {
+      const parsedModels = remoteModels.map((m: any) => ({
+        id: m.id,
+        name: m.name || m.id,
+        provider: 'kilo',
+        contextWindow: m.context_length || 256000,
+        maxOutput: m.top_provider?.max_completion_tokens || 32000,
+        supportsTools: (m.supported_parameters || []).includes('tools'),
+        supportsVision: m.id === 'giga-potato' || (m.architecture?.input_modalities || []).includes('image'),
+      }));
+      
+      // 更新响应式对象
+      MODEL_DEFINITIONS.kilo = parsedModels;
+      console.log('[Models] Successfully updated Kilo AI models:', parsedModels.length);
+      return parsedModels;
+    } else {
+      console.warn('[Models] Kilo AI returned empty model list', data);
+    }
+  } catch (error) {
+    console.error('[Models] Failed to fetch Kilo AI models:', error);
+  }
+  return [];
 }
 
 /**
@@ -345,7 +453,7 @@ export function getModelInfo(modelId: string): ModelInfo | undefined {
  */
 // Initialize MODEL_DEFINITIONS
 (function initModelDefinitions() {
-  const providers = ['anthropic', 'openai', 'google', 'deepseek', 'glm', 'kimi', 'opencode', 'custom'];
+  const providers = ['anthropic', 'openai', 'google', 'deepseek', 'glm', 'kimi', 'opencode', 'openrouter', 'custom'];
   for (const p of providers) {
     MODEL_DEFINITIONS[p] = Object.values(MODELS).filter(m => m.provider === p);
   }
@@ -396,30 +504,26 @@ export async function fetchModelsFromEndpoint(
   }
   
   try {
-    // Use tauriFetch if available (in Tauri environment), otherwise use fetch
-    let response: Response;
+    let data: any;
     
     // Check if we're in Tauri environment
-    if (typeof window !== 'undefined' && '__TAURI__' in window) {
-      // Dynamic import to avoid issues in non-Tauri environments
-      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-      response = await tauriFetch(modelsUrl, {
-        method: 'GET',
-        headers,
-      });
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      console.log('[fetchModelsFromEndpoint] Fetching models via Rust:', modelsUrl);
+      data = await invoke('fetch_models', { url: modelsUrl, headers });
     } else {
-      response = await fetch(modelsUrl, {
+      const response = await fetch(modelsUrl, {
         method: 'GET',
         headers,
       });
+      
+      if (!response.ok) {
+        console.warn(`[fetchModelsFromEndpoint] Failed to fetch models: ${response.status} ${response.statusText}`);
+        return [];
+      }
+      
+      data = await response.json();
     }
-    
-    if (!response.ok) {
-      console.warn(`[fetchModelsFromEndpoint] Failed to fetch models: ${response.status} ${response.statusText}`);
-      return [];
-    }
-    
-    const data = await response.json();
     
     // Handle both Anthropic and OpenAI response formats
     // OpenAI format: { data: [{ id, created, owned_by }] }
@@ -467,6 +571,14 @@ export const PROVIDER_CONFIG: Record<ProviderType, {
   opencode: {
     name: 'OpenCode Zen (免费)',
     baseUrl: 'https://opencode.ai/zen/v1',
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+  },
+  kilo: {
+    name: 'Kilo AI',
+    baseUrl: 'https://api.kilo.ai/api/openrouter',
   },
   custom: {
     name: 'Custom',

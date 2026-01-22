@@ -8,6 +8,11 @@ license = "MIT"
 [dependencies]
 # Common library
 rebebuca-common = { path = "../common" }
+# Orchestration library
+rebebuca-orchestration = { path = "../orchestration" }
+
+# Async trait
+async-trait = "0.1"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
@@ -33,6 +38,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 sha2 = "0.10"
 base64 = "0.22"
 time = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
 
 # Async utilities
 futures = "0.3"
@@ -47,7 +53,8 @@ anyhow = "1"
 thiserror = "2"
 
 # HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+hyper = "1" 
 
 # CLI
 clap = { version = "4", features = ["derive"] }

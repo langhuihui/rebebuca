@@ -424,6 +424,37 @@ export const AI_TOOL_PATTERNS: Record<AIToolType, OutputPatterns> = {
       /Exception:\s*(.+)/i,
     ],
   },
+  
+  'kilocode': {
+    completion: [
+      /Task completed/i,
+      /✓ Done/i,
+      /Finished/i,
+      /All changes applied/i,
+    ],
+    error: [
+      /Error:/i,
+      /Failed/i,
+      /Exception/i,
+      /✗/,
+    ],
+    waitingInput: [
+      /\?\s*$/,
+      />\s*$/,
+      /\[Y\/n\]/i,
+      /Confirm/i,
+    ],
+    working: [
+      /Processing/i,
+      /Working/i,
+      /Analyzing/i,
+      /Thinking/i,
+    ],
+    errorExtract: [
+      /Error:\s*(.+)/i,
+      /Failed:\s*(.+)/i,
+    ],
+  },
 };
 
 /**

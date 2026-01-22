@@ -18,6 +18,7 @@ import type {
   UpdaterAdapter,
   NotificationAdapter,
   TrayAdapter,
+  OrchestrationAdapter,
   RunningProcessInfo,
   FavoriteTaskInfo,
   RecentTaskInfo,
@@ -34,6 +35,17 @@ import type {
   SystemTerminalInfo,
   ShellInfo,
   PtyProcessStats,
+  OrchestrationConfig,
+  TaskGoal,
+  OrchestrationStatus,
+  OrchestrationProgressEvent,
+  OrchestrationAgentMessageEvent,
+  OrchestrationToolUseEvent,
+  OrchestrationWorkerStreamEvent,
+  OrchestrationCompleteEvent,
+  OrchestrationErrorEvent,
+  OrchestrationUsageEvent,
+  BoulderStateInfo,
 } from './types';
 
 // ============================================================================
@@ -341,6 +353,10 @@ class ServerSystemAdapter implements SystemAdapter {
     return this.client.request<string>('system.getArch');
   }
 
+  async getHomeDir(): Promise<string> {
+    return this.client.request<string>('system.getHomeDirectory');
+  }
+
   async openExternal(url: string): Promise<void> {
     // Open in browser for server mode
     window.open(url, '_blank');
@@ -367,16 +383,16 @@ class ServerSystemAdapter implements SystemAdapter {
     return { success: false, stdout: '', stderr: 'Admin execution not available in server mode' };
   }
 
-  async getProcessInfo(_pid: number): Promise<ProcessInfo | null> {
-    return null;
+  async getProcessInfo(pid: number): Promise<ProcessInfo | null> {
+    return this.client.request<ProcessInfo | null>('system.getProcessInfo', { pid });
   }
 
   async listPorts(): Promise<PortInfo[]> {
     return this.client.request<PortInfo[]>('system.listPorts');
   }
 
-  async killProcess(_pid: number): Promise<void> {
-    console.warn('[Server] killProcess not implemented');
+  async killProcess(pid: number): Promise<void> {
+    await this.client.request('system.killProcess', { pid });
   }
 
   async generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo> {
@@ -592,6 +608,75 @@ class ServerTrayAdapter implements TrayAdapter {
 }
 
 // ============================================================================
+// Orchestration Adapter
+// ============================================================================
+
+class ServerOrchestrationAdapter implements OrchestrationAdapter {
+  private client: WebSocketClient;
+  
+  constructor(client: WebSocketClient) {
+    this.client = client;
+  }
+
+  async createSession(config: OrchestrationConfig): Promise<string> {
+    return await this.client.request('orchestration.createSession', { config });
+  }
+
+  async start(sessionId: string, goal: TaskGoal): Promise<void> {
+    await this.client.request('orchestration.start', { sessionId, goal });
+  }
+
+  async stop(sessionId: string): Promise<void> {
+    await this.client.request('orchestration.stop', { sessionId });
+  }
+
+  async getStatus(sessionId: string): Promise<OrchestrationStatus> {
+    return await this.client.request('orchestration.getStatus', { sessionId });
+  }
+
+  async removeSession(sessionId: string): Promise<void> {
+    await this.client.request('orchestration.removeSession', { sessionId });
+  }
+
+  async checkBoulderState(projectPath: string): Promise<BoulderStateInfo | null> {
+    try {
+      return await this.client.request('orchestration.checkBoulderState', { projectPath });
+    } catch (error) {
+      console.error('[ServerOrchestrationAdapter] Failed to check boulder state:', error);
+      return null;
+    }
+  }
+
+  onProgress(callback: (event: OrchestrationProgressEvent) => void): () => void {
+    return this.client.on('orchestration.progress', callback);
+  }
+
+  onAgentMessage(callback: (event: OrchestrationAgentMessageEvent) => void): () => void {
+    return this.client.on('orchestration.agent_message', callback);
+  }
+
+  onToolUse(callback: (event: OrchestrationToolUseEvent) => void): () => void {
+    return this.client.on('orchestration.tool_use', callback);
+  }
+
+  onComplete(callback: (event: OrchestrationCompleteEvent) => void): () => void {
+    return this.client.on('orchestration.complete', callback);
+  }
+
+  onWorkerStream(callback: (event: OrchestrationWorkerStreamEvent) => void): () => void {
+    return this.client.on('orchestration.worker_stream', callback);
+  }
+
+  onError(callback: (event: OrchestrationErrorEvent) => void): () => void {
+    return this.client.on('orchestration.error', callback);
+  }
+
+  onUsage(callback: (event: OrchestrationUsageEvent) => void): () => void {
+    return this.client.on('orchestration.usage', callback);
+  }
+}
+
+// ============================================================================
 // Server Backend Adapter
 // ============================================================================
 
@@ -610,6 +695,7 @@ export class ServerAdapter implements BackendAdapter {
   updater!: UpdaterAdapter;
   notification!: NotificationAdapter;
   tray!: TrayAdapter;
+  orchestration!: OrchestrationAdapter;
 
   constructor(serverUrl: string = 'ws://localhost:8765/ws') {
     this.client = new WebSocketClient(serverUrl);
@@ -630,6 +716,7 @@ export class ServerAdapter implements BackendAdapter {
     this.updater = new ServerUpdaterAdapter(this.client);
     this.notification = new ServerNotificationAdapter();
     this.tray = new ServerTrayAdapter();
+    this.orchestration = new ServerOrchestrationAdapter(this.client);
 
     // Set fs adapter for directory picker service
     setDirectoryPickerFsAdapter(this.fs);

@@ -137,9 +137,17 @@
         
         <!-- Dual Agent tab -->
         <div v-show="terminalStore.activeTab?.type === 'dual-agent'" class="ai-collab-content-wrapper">
-          <DualAgentPanel 
+          <OrchestrationPanel 
             v-if="terminalStore.activeTab?.type === 'dual-agent' && terminalStore.activeTab.collabSessionId" 
             :session-id="terminalStore.activeTab.collabSessionId"
+          />
+        </div>
+
+        <!-- Room Info tab -->
+        <div v-show="terminalStore.activeTab?.type === 'room-info'" class="room-info-content-wrapper">
+          <RoomInfoPanel 
+            v-if="terminalStore.activeTab?.type === 'room-info' && terminalStore.activeTab.roomInfo" 
+            :room-info="terminalStore.activeTab.roomInfo"
           />
         </div>
         
@@ -282,7 +290,7 @@ import SettingsPanel from "./settings/SettingsPanel.vue";
 import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
 import AICollabPanelNative from "./AICollabPanelNative.vue";
-import DualAgentPanel from "./DualAgentPanel.vue";
+import { OrchestrationPanel } from "./orchestration";
 
 const { t } = useI18n();
 const message = useMessage();
@@ -660,6 +668,11 @@ const getTabIcon = (tab: TerminalTab) => {
   if (tab.type === 'dual-agent') {
     return svgIcons.zap;
   }
+
+  // For room info tab
+  if (tab.type === 'room-info') {
+    return svgIcons.home;
+  }
   
   // For task tabs, use command-based icon
   if (tab.type === 'task' && tab.execParams?.command) {
@@ -975,7 +988,8 @@ const onTerminalError = (error: string) => {
 .settings-content-wrapper,
 .notifications-content-wrapper,
 .port-management-content-wrapper,
-.ai-collab-content-wrapper {
+.ai-collab-content-wrapper,
+.room-info-content-wrapper {
   position: absolute;
   top: 0;
   left: 0;

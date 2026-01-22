@@ -32,7 +32,8 @@ Write-Host ""
 
 # Step 2: Build Tauri app
 Write-Host "[2/2] Building Tauri app..." -ForegroundColor Green
-pnpm tauri build
+# Use vendored-openssl feature for static linking in release builds
+pnpm tauri build --features vendored-openssl
 Write-Host "✓ Tauri build complete" -ForegroundColor Green
 Write-Host ""
 

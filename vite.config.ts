@@ -92,5 +92,16 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    // Proxy API requests to backend server in server mode
+    proxy: backendType === 'server' ? {
+      '/api': {
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:8765',
+        ws: true,
+      },
+    } : undefined,
   },
 }));

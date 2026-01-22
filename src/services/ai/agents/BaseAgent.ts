@@ -250,6 +250,12 @@ export abstract class BaseAgent {
     tools?: boolean;
     stream?: boolean;
   }): Promise<string> {
+    // Check abort before calling LLM
+    if (this.abortController?.signal.aborted) {
+      console.log(`[${this.role}] Aborted before LLM call`);
+      throw new Error('Execution aborted by user');
+    }
+    
     const llmProvider = createProvider(this.provider);
     
     // Build messages for LLM
@@ -262,6 +268,12 @@ export abstract class BaseAgent {
     ];
     
     try {
+      // Check abort again before making the actual API call
+      if (this.abortController?.signal.aborted) {
+        console.log(`[${this.role}] Aborted right before LLM API call`);
+        throw new Error('Execution aborted by user');
+      }
+      
       const response = await llmProvider.chat(llmMessages, {
         stream: options?.stream ?? false,
       });

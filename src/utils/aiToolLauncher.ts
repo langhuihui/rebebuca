@@ -122,6 +122,11 @@ export function getAIToolLaunchConfig(
       args: [],
       useSystemTerminal: true,
     },
+    'kilocode': {
+      command: AI_TOOL_METADATA['kilocode'].launchCommand,
+      args: [],
+      useSystemTerminal: true,
+    },
   };
   
   const launchConfig = { ...baseConfigs[toolType] };
@@ -164,6 +169,7 @@ export function getAIToolLaunchConfig(
       case 'augment-cli':
       case 'crush':
       case 'ampcode':
+      case 'kilocode':
         launchConfig.env['API_KEY'] = apiKey;
         break;
     }
@@ -247,6 +253,7 @@ export function createAIToolQuickLaunchTask(
     'cursor-cli': 'Cursor CLI',
     'crush': 'Crush',
     'ampcode': 'AmpCode',
+    'kilocode': 'KiloCode',
   };
   
   return {

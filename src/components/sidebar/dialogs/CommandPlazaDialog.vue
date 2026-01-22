@@ -150,6 +150,7 @@ const commands = computed<CommandItem[]>(() => {
     'cursor-cli': 'cursorCliLaunch',
     'crush': 'crushLaunch',
     'ampcode': 'ampcodeLaunch',
+    'kilocode': 'kilocodeLaunch',
   };
   
   for (const [toolType, config] of Object.entries(aiToolsStore.toolConfigs)) {
@@ -381,7 +382,7 @@ const columns = computed<DataTableColumns<CommandItem>>(() => [
       const logoUrl = toolType ? aiToolsStore.getToolLogoUrl(toolType) : undefined;
       
       if (logoUrl) {
-        const needsInvert = toolType && ['opencode', 'augment-cli', 'ampcode'].includes(toolType);
+        const needsInvert = toolType && ['opencode', 'augment-cli', 'ampcode', 'kilocode'].includes(toolType);
         return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
           h('img', {
             src: logoUrl,

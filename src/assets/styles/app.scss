@@ -1,7 +1,7 @@
 @use "./console-area.scss";
 
 /* 全局禁止文字选择和图片拖动，终端和日志查看器除外 */
-*:not(.xterm *):not(.xterm):not(.terminal-container *):not(.terminal-container):not(.log-content):not(.log-entry):not(.no-logs) {
+*:not(.xterm *):not(.xterm):not(.terminal-container *):not(.terminal-container):not(.log-content):not(.log-entry):not(.no-logs):not(.orchestration-panel *):not(.orchestration-panel):not(.timeline-view *):not(.timeline-view):not(.round-section *):not(.round-section):not(.message-text *):not(.message-text):not(.message-body *):not(.message-body) {
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -21,7 +21,8 @@ img.logo-clickable {
 }
 
 /* 允许输入框和日志查看器内文字选择 */
-input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, pre.log-content, .log-entry, .no-logs, .log-toolbar, .log-time, .log-level, .log-source, .log-message, .log-content {
+input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, pre.log-content, .log-entry, .no-logs, .log-toolbar, .log-time, .log-level, .log-source, .log-message, .log-content,
+.orchestration-panel, .orchestration-panel *, .timeline-view, .timeline-view *, .round-section, .round-section *, .message-text, .message-text *, .message-body, .message-body *, .timeline-content, .timeline-content *, .round-content, .round-content * {
   user-select: text !important;
   -webkit-user-select: text !important;
   -moz-user-select: text !important;

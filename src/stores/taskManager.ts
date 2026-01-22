@@ -41,6 +41,7 @@ import { safeInvoke } from '../utils/programUtils';
 import { startMonitoring as startSupervisorMonitoring } from '../services/supervisorAIService';
 import { useSupervisorAIStore } from './supervisorAI';
 import { syncTasksToMCP, initMCPTaskListener } from '../services/mcp/taskSync';
+import { isTauri } from '../adapters';
 import type { AIToolType } from './aiTools';
 
 /**
@@ -1451,168 +1452,113 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
    * If the task is not running, a new terminal tab will be created
    */
   async function executeTask(task: Task, options?: TaskExecutionOptions): Promise<void> {
-    // Handle AI collaboration tasks - these don't have commands, they open a special tab
+    // Handle AI collaboration tasks - always use dual agent mode
     if (task.type === TaskType.AI_COLLAB) {
       const terminalStore = useTerminalStore();
       
-      // Check if dual-agent mode is enabled (default to true for autonomous operation)
-      const isDualAgentMode = task.definition?.agentMode === 'dual' || task.definition?.agentMode !== 'single';
+      console.log('[TaskManager] Starting Dual Agent mode for task:', task.name);
       
-      if (isDualAgentMode) {
-        // Dual Agent Mode - Supervisor + Worker
-        console.log('[TaskManager] Starting Dual Agent mode for task:', task.name);
-        
-        const { useDualAgentStore } = await import('./dualAgent');
-        const dualAgentStore = useDualAgentStore();
-        
-        // Get provider config
-        const taskProvider = task.definition?.provider;
-        const providerType = (taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider)
-          ? taskProvider.type
-          : 'opencode';
-        
-        const { PROVIDER_CONFIG } = await import('../services/ai/provider/models');
-        const defaultProviderConfig = PROVIDER_CONFIG[providerType as keyof typeof PROVIDER_CONFIG];
-        
-        const providerConfig = taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider
-          ? {
-              type: taskProvider.type || 'opencode',
-              model: taskProvider.model || 'minimax-m2.1-free',
-              apiKey: taskProvider.apiKey || '',
-              baseUrl: taskProvider.baseUrl || defaultProviderConfig?.baseUrl,
-            }
-          : {
-              type: 'opencode' as const,
-              model: 'minimax-m2.1-free',
-              apiKey: '',
-              baseUrl: defaultProviderConfig?.baseUrl,
-            };
-        
-        // Check for existing session
-        if (task.definition?.sessionId) {
-          const sessionId = task.definition.sessionId as string;
-          const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
-          if (existingTab) {
-            terminalStore.setActiveTab(existingTab.id);
-            // Try to resume the session
-            try {
-              await dualAgentStore.resumeSession(sessionId);
-            } catch (error) {
-              console.warn('[TaskManager] Failed to resume dual agent session:', error);
-            }
-            await updateTaskRunStats(task.id);
-            return;
+      const { useDualAgentStore } = await import('./dualAgent');
+      const dualAgentStore = useDualAgentStore();
+      
+      // Get provider config
+      const taskProvider = task.definition?.provider;
+      const providerType = (taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider)
+        ? taskProvider.type
+        : 'opencode';
+      
+      const { PROVIDER_CONFIG } = await import('../services/ai/provider/models');
+      const defaultProviderConfig = PROVIDER_CONFIG[providerType as keyof typeof PROVIDER_CONFIG];
+      
+      const providerConfig = taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider
+        ? {
+            type: taskProvider.type || 'opencode',
+            model: taskProvider.model || 'minimax-m2.1-free',
+            apiKey: taskProvider.apiKey || '',
+            baseUrl: taskProvider.baseUrl || defaultProviderConfig?.baseUrl,
           }
-        }
-        
-        // Create new dual agent session
-        try {
-          const goal = task.definition?.goal || {
-            objective: task.name || '执行 AI 协作任务',
-            acceptanceCriteria: ['任务成功完成'],
-            context: task.definition?.context || '',
+        : {
+            type: 'opencode' as const,
+            model: 'minimax-m2.1-free',
+            apiKey: '',
+            baseUrl: defaultProviderConfig?.baseUrl,
           };
-          
-          const session = await dualAgentStore.createSession({
-            projectPath: task.cwd || options?.cwd || '',
-            goal,
-            supervisorProvider: providerConfig,
-            workerProvider: providerConfig,
-            workerTools: task.definition?.tools || ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
-            maxRounds: task.definition?.maxRounds || 20,
-            maxStepsPerRound: task.definition?.maxStepsPerRound || 30,
-            autoApprovePermissions: true, // Always auto-approve for autonomous operation
-          });
-          
-          // Update task with session ID
-          task.definition = task.definition || {};
-          task.definition.sessionId = session.id;
-          
-          // Create dual agent tab
-          terminalStore.createDualAgentTab(session.id, task.name || 'AI 协作', task.cwd);
-          
-          // Start the session automatically
-          console.log('[TaskManager] Starting dual agent session:', session.id);
-          await dualAgentStore.startSession(session.id);
-          
-          await updateTaskRunStats(task.id);
-        } catch (error) {
-          console.error('[TaskManager] Failed to create dual agent session:', error);
-          throw error;
-        }
-        return;
-      }
       
-      // Single Agent Mode (Native) - Original logic
+      // Check for existing session
       if (task.definition?.sessionId) {
         const sessionId = task.definition.sessionId as string;
-        // Check if a tab exists for this session
         const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
         if (existingTab) {
           terminalStore.setActiveTab(existingTab.id);
-        } else {
-          // Create a new Native AI collab tab
-          terminalStore.createAICollabNativeTab(sessionId, task.name || 'AI 协作', task.cwd);
+          // Try to resume the session
+          try {
+            await dualAgentStore.resumeSession(sessionId);
+          } catch (error) {
+            console.warn('[TaskManager] Failed to resume dual agent session:', error);
+          }
+          await updateTaskRunStats(task.id);
+          return;
         }
-        // Update task run statistics
-        await updateTaskRunStats(task.id);
-      } else {
-        // AI collab task without session - create a new Native AI collab session
-        const { useAICollabNativeStore } = await import('./aiCollabNative');
-        const aiCollabNativeStore = useAICollabNativeStore();
+      }
+      
+      // Check for boulder state before creating new session
+      const projectPath = task.cwd || options?.cwd || '';
+      
+      if (projectPath && isTauri()) {
+        try {
+          const adapter = await getAdapter();
+          const state = await adapter.orchestration.checkBoulderState(projectPath);
+          if (state?.exists) {
+            // Emit event to show resume dialog - the component will handle it
+            // For now, we'll use a simple approach: check and ask user
+            // This will be handled by the component that calls executeTask
+            // Note: We can't return here as executeTask returns Promise<void>
+            // The boulder state check should be done before calling executeTask
+            console.log('[TaskManager] Boulder state found, but executeTask cannot return it. Check should be done before calling executeTask.');
+          }
+        } catch (error) {
+          console.warn('[TaskManager] Failed to check boulder state:', error);
+        }
+      }
+      
+      // Create new dual agent session
+      try {
+        const goal = {
+          ...task.definition?.goal,
+          objective: task.definition?.goal?.objective || task.name || '执行 AI 协作任务',
+          taskName: task.name,
+          acceptanceCriteria:
+            task.definition?.goal?.acceptanceCriteria || ['任务成功完成'],
+          context: task.definition?.goal?.context || task.definition?.context || '',
+          constraints: task.definition?.goal?.constraints,
+        };
         
-        // Create a new session with task's provider config
-        const taskProvider = task.definition?.provider;
-        const providerType = (taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider)
-          ? taskProvider.type
-          : 'opencode';
-        
-        // 获取 provider 的默认配置
-        const { PROVIDER_CONFIG } = await import('../services/ai/provider/models');
-        const defaultProviderConfig = PROVIDER_CONFIG[providerType as keyof typeof PROVIDER_CONFIG];
-        
-        const providerConfig = taskProvider && typeof taskProvider === 'object' && 'type' in taskProvider
-          ? {
-              type: taskProvider.type || 'opencode',
-              model: taskProvider.model || 'gpt-5-nano',
-              apiKey: taskProvider.apiKey || '',
-              baseUrl: taskProvider.baseUrl || defaultProviderConfig?.baseUrl,
-            }
-          : {
-              type: 'opencode' as const,
-              model: 'gpt-5-nano',
-              apiKey: '',
-              baseUrl: defaultProviderConfig?.baseUrl,
-            };
-        
-        console.log('[TaskManager] Creating Native AI collab session with provider:', {
-          type: providerConfig.type,
-          model: providerConfig.model,
-          baseUrl: providerConfig.baseUrl || 'default',
+        const session = await dualAgentStore.createSession({
+          projectPath,
+          goal,
+          supervisorProvider: providerConfig,
+          workerProvider: providerConfig,
+          workerTools: task.definition?.tools || ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
+          skillsPath: task.definition?.skillsPath,
+          maxRounds: task.definition?.maxRounds || 20,
+          autoApprovePermissions: true,
         });
         
-        try {
-          const session = await aiCollabNativeStore.createSession({
-            projectPath: task.cwd || options?.cwd || '',
-            provider: providerConfig,
-            systemPrompts: [],
-            tools: task.definition?.tools || ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
-            goal: task.definition?.goal,
-          });
-          
-          // Update task with session ID
-          task.definition = task.definition || {};
-          task.definition.sessionId = session.id;
-          
-          // Create tab for the session
-          terminalStore.createAICollabNativeTab(session.id, task.name || 'AI 协作', task.cwd);
-          
-          // Update task run statistics
-          await updateTaskRunStats(task.id);
-        } catch (error) {
-          console.error('[TaskManager] Failed to create native AI collab session:', error);
-          throw error;
-        }
+        // Update task with session ID
+        task.definition = task.definition || {};
+        task.definition.sessionId = session.id;
+        
+        // Create dual agent tab
+        terminalStore.createDualAgentTab(session.id, task.name || 'AI 协作', task.cwd);
+        
+        // Start the session automatically
+        console.log('[TaskManager] Starting dual agent session:', session.id);
+        await dualAgentStore.startSession(session.id);
+        
+        await updateTaskRunStats(task.id);
+      } catch (error) {
+        console.error('[TaskManager] Failed to create dual agent session:', error);
+        throw error;
       }
       return;
     }

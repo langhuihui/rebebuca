@@ -45,20 +45,29 @@ impl StorageAdapter {
 
     /// Save user data to file
     async fn save_user_data(&self, user_id: &str, data: &HashMap<String, Value>) -> Result<(), String> {
+        tracing::debug!("Saving user data for user_id: {}, storage_dir: {:?}", user_id, self.storage_dir);
+
         // Ensure storage directory exists
         if !self.storage_dir.exists() {
-            fs::create_dir_all(&self.storage_dir)
-                .await
-                .map_err(|e| format!("Failed to create storage directory: {}", e))?;
+            tracing::debug!("Creating storage directory: {:?}", self.storage_dir);
+            if let Err(e) = fs::create_dir_all(&self.storage_dir).await {
+                return Err(format!("Failed to create storage directory: {}", e));
+            }
+            tracing::debug!("Storage directory created successfully");
         }
 
         let file_path = self.get_user_file(user_id);
+        tracing::debug!("Writing to file: {:?}", file_path);
+
         let content = serde_json::to_string_pretty(data)
             .map_err(|e| format!("Failed to serialize data: {}", e))?;
-        
-        fs::write(&file_path, content)
-            .await
-            .map_err(|e| format!("Failed to write storage file: {}", e))
+
+        if let Err(e) = fs::write(&file_path, content).await {
+            return Err(format!("Failed to write storage file: {}", e));
+        }
+
+        tracing::debug!("User data saved successfully");
+        Ok(())
     }
 
     /// Get a value from storage

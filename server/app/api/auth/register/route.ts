@@ -1,8 +1,7 @@
 export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB, generateId } from '@/lib/db';
-import { hashPassword, createAccessToken, createRefreshToken, getRefreshTokenExpiry } from '@/lib/auth';
-import { cookies } from 'next/headers';
+import { getDB, generateId, createInvitationCodesForUser } from '@/lib/db';
+import { hashPassword } from '@/lib/auth';
 
 
 export async function POST(request: NextRequest) {
@@ -51,40 +50,18 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     await db.prepare(`
-      INSERT INTO users (id, email, password_hash, display_name, locale, auth_provider, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'email', ?, ?)
+      INSERT INTO users (id, email, password_hash, display_name, locale, auth_provider, role, is_banned, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'email', 'user', 0, ?, ?)
     `).bind(userId, email, passwordHash, displayName || email.split('@')[0], locale || 'en', now, now).run();
 
-    // Create tokens
-    const accessToken = await createAccessToken(userId, email);
-    const refreshToken = await createRefreshToken(userId, email);
-    const refreshExpiry = getRefreshTokenExpiry();
+    // Create 3 invitation codes for the new user
+    await createInvitationCodesForUser(userId, 3);
 
-    // Store refresh token
-    await db.prepare(`
-      INSERT INTO sessions (id, user_id, refresh_token, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(generateId(), userId, refreshToken, refreshExpiry.toISOString(), now).run();
-
-    // Set cookies
-    const cookieStore = await cookies();
-    cookieStore.set('access_token', accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 15 * 60, // 15 minutes
-      path: '/',
-    });
-    cookieStore.set('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-      path: '/',
-    });
+    // Don't auto-login after registration - user needs to login first
+    // Then they will be checked for invitation code status
 
     return NextResponse.json({
-      message: 'Registration successful',
+      message: 'Registration successful. Please login to continue.',
       user: {
         id: userId,
         email,
@@ -92,11 +69,6 @@ export async function POST(request: NextRequest) {
         locale: locale || 'en',
         emailConfirmed: false,
         createdAt: now,
-      },
-      session: {
-        accessToken,
-        refreshToken,
-        expiresAt: Date.now() + 15 * 60 * 1000,
       },
     });
   } catch (error) {
