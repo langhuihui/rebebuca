@@ -27,7 +27,6 @@ declare module 'vue' {
     ImportTasksDialog: typeof import('./src/components/ImportTasksDialog.vue')['default']
     MCPPanel: typeof import('./src/components/settings/MCPPanel.vue')['default']
     NAlert: typeof import('naive-ui')['NAlert']
-    NButton: typeof import('naive-ui')['NButton']
     NDropdown: typeof import('naive-ui')['NDropdown']
     NIcon: typeof import('naive-ui')['NIcon']
     NList: typeof import('naive-ui')['NList']
