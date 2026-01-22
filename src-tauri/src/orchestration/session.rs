@@ -1127,7 +1127,7 @@ Progress files:
 - Human-readable task progress (<task>-progress.md):
   {progress_md_path}
 
-Update the markdown progress file when progress changes, and ensure you update it at least once at the end of each round.
+Update the markdown progress file immediately after each meaningful progress change (for example after a tool completes or a milestone is achieved), and ensure you update it at least once at the end of each round.
 Before reporting completion, confirm you have updated the markdown progress file for the current round.
 If the markdown progress file does not exist, create it.
 

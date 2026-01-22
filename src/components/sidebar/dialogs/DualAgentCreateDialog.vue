@@ -315,7 +315,7 @@ import { useTerminalStore } from '../../../stores/terminal';
 import { useDualAgentStore } from '../../../stores/dualAgent';
 import { useAuthStore } from '../../../stores/auth';
 import { useAITaskLimit } from '../../../services/aiTaskLimitService';
-import { getModelsForProvider, fetchAndRegisterKiloModels, fetchModelsFromEndpoint } from '../../../services/ai/provider/models';
+import { getModelsForProvider, fetchModelsFromEndpoint } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 import { svgIcons } from '../../../utils/icons';
 

@@ -252,7 +252,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { getAdapter } from '../../../adapters';
 import { useTaskManagerStore } from '../../../stores/taskManager';
-import { getModelsForProvider, fetchModelsFromEndpoint, fetchAndRegisterKiloModels, type RemoteModelInfo } from '../../../services/ai/provider/models';
+import { getModelsForProvider, fetchModelsFromEndpoint, type RemoteModelInfo } from '../../../services/ai/provider/models';
 import type { ProviderType } from '../../../services/ai/types';
 import type { Task } from '../../../providers/types';
 import { TaskType } from '../../../providers/types';

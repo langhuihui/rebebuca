@@ -279,11 +279,11 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
       { id: 'website-win', name: 'Website', command: 'echo "Please visit https://cursor.com/cn/cli"', platform: 'windows' },
     ],
     uninstallMethods: [
-      { id: 'manual', name: 'Manual', command: 'rm -rf ~/.local/bin/cursor-agent', platform: 'macos' },
-      { id: 'manual-linux', name: 'Manual', command: 'rm -rf ~/.local/bin/cursor-agent', platform: 'linux' },
+      { id: 'manual', name: 'Manual', command: 'rm -rf ~/.local/bin/agent', platform: 'macos' },
+      { id: 'manual-linux', name: 'Manual', command: 'rm -rf ~/.local/bin/agent', platform: 'linux' },
     ],
-    versionCommand: 'cursor-agent --version',
-    launchCommand: 'cursor-agent',
+    versionCommand: 'agent --version',
+    launchCommand: 'agent',
   },
   'crush': {
     name: 'Crush',
@@ -326,8 +326,8 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     uninstallMethods: [
       { id: 'npm', name: 'NPM', command: 'npm uninstall -g @kilocode/cli', platform: 'all' },
     ],
-    versionCommand: 'kilocode --version',
-    launchCommand: 'kilocode',
+    versionCommand: 'kilo --version',
+    launchCommand: 'kilo',
   },
 };
 

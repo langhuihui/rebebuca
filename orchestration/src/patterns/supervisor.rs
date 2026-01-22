@@ -390,36 +390,13 @@ impl SupervisorWorkerOrchestrator {
 
                 SupervisorDecision::Continue { instruction }
                 | SupervisorDecision::Retry { instruction, .. } => {
-                    // For round 2 and later, read progress document and include it in instruction
+                    // For round 2 and later, only remind worker of the progress doc path
                     let final_instruction = if current_round >= 1 {
-                        // Read progress document
-                        let progress_doc_content = match tool_executor
-                            .execute(
-                                "read",
-                                serde_json::json!({
-                                    "path": progress_doc_full_path.as_str()
-                            }),
-                            )
-                            .await
-                        {
-                            Ok(result) if result.success => Some(result.output),
-                            _ => None,
-                        };
-                        
-                        if let Some(content) = progress_doc_content {
-                            format!(
-                                "{}\n\n=== 任务进度文档内容 (绝对路径: {}) ===\n{}\n\n请根据以上进度文档继续工作。",
-                                instruction,
-                                progress_doc_full_path,
-                                content
-                            )
-                        } else {
-                            format!(
-                                "{}\n\n注意：任务进度文档 (绝对路径: {}) 不可用，请先创建/更新该文档后再继续工作。",
-                                instruction,
-                                progress_doc_full_path
-                            )
-                        }
+                        format!(
+                            "{}\n\n任务进度文档路径（绝对路径）：{}\n请自行读取该文档并在进度变化时及时更新。",
+                            instruction,
+                            progress_doc_full_path
+                        )
                     } else {
                         instruction.clone()
                     };

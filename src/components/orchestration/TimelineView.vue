@@ -95,7 +95,7 @@
           <!-- Running Indicator -->
           <div v-if="session?.status === 'running'" class="running-indicator">
             <n-spin size="small" />
-            <span>{{ getRunningText() }}</span>
+            <span>{{ getRunningText() }} · 已运行 {{ totalDurationText }}</span>
           </div>
 
           <!-- Empty State -->
@@ -122,6 +122,7 @@
             </div>
             <div class="completion-stats">
               <span>{{ rounds.length }} {{ t("aiCollab.rounds") }}</span>
+              <span>总耗时 {{ totalDurationText }}</span>
               <span
                 >{{ totalToolExecutions }} {{ t("aiCollab.toolsUsed") }}</span
               >
@@ -319,41 +320,93 @@ const formatTokens = (tokens: number): string => {
   return tokens.toString();
 };
 
+const formatDuration = (ms: number): string => {
+  if (ms <= 0) return "0s";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${((ms % 60000) / 1000).toFixed(0)}s`;
+};
+
+const getSessionStartTime = (): number => {
+  if (!props.session) return Date.now();
+  const timestamps = (props.session.conversation || [])
+    .map((m) => m.timestamp)
+    .filter((t) => typeof t === "number");
+  if (timestamps.length > 0) return Math.min(...timestamps);
+  return props.session.createdAt || Date.now();
+};
+
+const getSessionEndTime = (): number => {
+  if (!props.session) return Date.now();
+  if (props.session.status === "running") return Date.now();
+  const timestamps = (props.session.conversation || [])
+    .map((m) => m.timestamp)
+    .filter((t) => typeof t === "number");
+  if (timestamps.length > 0) return Math.max(...timestamps);
+  return props.session.updatedAt || props.session.createdAt || Date.now();
+};
+
+const totalDurationMs = computed(() => {
+  if (!props.session) return 0;
+  const start = getSessionStartTime();
+  const end = getSessionEndTime();
+  return Math.max(0, end - start);
+});
+
+const totalDurationText = computed(() => {
+  if (!totalDurationMs.value) return "0s";
+  return formatDuration(totalDurationMs.value);
+});
+
 // Auto-scroll to bottom when new content added
-const scrollToBottom = () => {
+const getScrollContainer = (): HTMLElement | null => {
+  if (!scrollbarRef.value) return null;
+  try {
+    const scrollbarEl = scrollbarRef.value.$el;
+    if (scrollbarEl && typeof scrollbarEl.querySelector === "function") {
+      return scrollbarEl.querySelector(".n-scrollbar-container");
+    }
+    return containerRef.value?.closest(".n-scrollbar-container") || null;
+  } catch (error) {
+    console.warn("Failed to locate scroll container:", error);
+    return null;
+  }
+};
+
+const isNearBottom = (threshold = 32): boolean => {
+  const container = getScrollContainer();
+  if (!container) return true;
+  return container.scrollTop + container.clientHeight >= container.scrollHeight - threshold;
+};
+
+const scrollToBottom = (force = false) => {
+  if (!force && !isNearBottom()) return;
   nextTick(() => {
-    if (scrollbarRef.value) {
-      try {
-        const scrollbarEl = scrollbarRef.value.$el;
-        let container: HTMLElement | null = null;
-
-        if (scrollbarEl && typeof scrollbarEl.querySelector === "function") {
-          container = scrollbarEl.querySelector(".n-scrollbar-container");
-        } else if (containerRef.value) {
-          container = containerRef.value.closest(".n-scrollbar-container");
-        }
-
-        if (container) {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "smooth",
-          });
-        }
-      } catch (error) {
-        console.warn("Failed to scroll to bottom:", error);
-      }
+    const container = getScrollContainer();
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
     }
   });
 };
 
+const maybeScrollToBottom = () => {
+  const shouldScroll = isNearBottom();
+  if (shouldScroll) scrollToBottom(true);
+};
+
 watch(
   () => props.session?.conversation?.length,
-  () => scrollToBottom(),
+  () => maybeScrollToBottom(),
+  { flush: "pre" },
 );
 
 watch(
   () => props.session?.toolExecutions?.length,
-  () => scrollToBottom(),
+  () => maybeScrollToBottom(),
+  { flush: "pre" },
 );
 </script>
 

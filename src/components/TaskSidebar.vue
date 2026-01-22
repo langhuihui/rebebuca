@@ -20,10 +20,15 @@
   <n-layout-sider
     v-show="uiStore.sidebarVisible"
     bordered
-    :width="250"
+    :width="uiStore.sidebarWidth"
     class="sidebar-layout"
     :class="{ 'light-theme': effectiveTheme === 'light' }"
   >
+    <div
+      class="sidebar-resizer"
+      :class="{ active: isResizing }"
+      @mousedown="handleResizeMouseDown"
+    ></div>
     <div class="sidebar-container">
       <div class="sidebar-search">
         <n-input
@@ -725,6 +730,58 @@ const { effectiveTheme } = useTheme();
 
 // Check if running in Tauri (desktop) mode
 const isDesktopMode = isTauri();
+
+const isResizing = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+
+const clampSidebarWidth = (width: number) =>
+  Math.min(420, Math.max(200, Math.round(width)));
+
+const syncMiniModeWindowWidth = async (width?: number) => {
+  if (!uiStore.miniMode || !isDesktopMode) return;
+  try {
+    const { getCurrentWindow, LogicalSize } = await import(
+      "@tauri-apps/api/window"
+    );
+    const appWindow = getCurrentWindow();
+    const targetWidth = clampSidebarWidth(width ?? uiStore.sidebarWidth);
+    const scaleFactor = await appWindow.scaleFactor();
+    const currentSize = await appWindow.innerSize();
+    const logicalHeight = Math.max(400, currentSize.height / scaleFactor || 600);
+    await appWindow.setMinSize(new LogicalSize(targetWidth, 400));
+    await appWindow.setSize(new LogicalSize(targetWidth, logicalHeight));
+  } catch (error) {
+    console.error("[MiniMode] Failed to sync mini width:", error);
+  }
+};
+
+const handleResizeMouseMove = (event: MouseEvent) => {
+  if (!isResizing.value) return;
+  const deltaX = event.clientX - resizeStartX.value;
+  uiStore.sidebarWidth = clampSidebarWidth(resizeStartWidth.value + deltaX);
+};
+
+const handleResizeMouseUp = async () => {
+  if (!isResizing.value) return;
+  isResizing.value = false;
+  document.removeEventListener("mousemove", handleResizeMouseMove);
+  document.removeEventListener("mouseup", handleResizeMouseUp);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+  await syncMiniModeWindowWidth();
+};
+
+const handleResizeMouseDown = (event: MouseEvent) => {
+  if (event.button !== 0) return;
+  isResizing.value = true;
+  resizeStartX.value = event.clientX;
+  resizeStartWidth.value = uiStore.sidebarWidth;
+  document.addEventListener("mousemove", handleResizeMouseMove);
+  document.addEventListener("mouseup", handleResizeMouseUp);
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+};
 
 // Search state
 const searchQuery = ref("");
@@ -1611,6 +1668,10 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  document.removeEventListener("mousemove", handleResizeMouseMove);
+  document.removeEventListener("mouseup", handleResizeMouseUp);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
   window.removeEventListener("add-folder", handleAddFolder);
   window.removeEventListener("add-task", handleAddTask);
   window.removeEventListener("port-management", handlePortManagement);
@@ -1625,6 +1686,13 @@ onUnmounted(() => {
   height: 100vh;
   display: flex !important;
   flex-direction: column !important;
+  position: relative;
+  overflow: visible;
+  transition: none !important;
+}
+
+:deep(.n-layout-sider) {
+  transition: none !important;
 }
 
 .light-theme.sidebar-layout {
@@ -1637,6 +1705,27 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 9999;
+  background: transparent;
+  pointer-events: auto;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-resizer.active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.light-theme .sidebar-resizer.active {
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .sidebar-search {
@@ -1652,6 +1741,18 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 0;
+}
+
+.task-tree-container :deep(.n-scrollbar) {
+  position: relative;
+  z-index: 0;
+}
+
+.task-tree-container :deep(.n-scrollbar-container) {
+  position: relative;
+  z-index: 0;
 }
 
 .task-tree-container :deep(.n-scrollbar-content) {
@@ -1660,7 +1761,7 @@ onUnmounted(() => {
 }
 
 .task-tree-container :deep(.n-scrollbar-rail) {
-  right: 0 !important;
+  display: none !important;
 }
 
 .loading-state {

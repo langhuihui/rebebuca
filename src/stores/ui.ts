@@ -8,6 +8,7 @@ export const useUIStore = defineStore("ui", () => {
   // UI state
   const sidebarVisible = ref(true);
   const miniMode = ref(false);
+  const sidebarWidth = ref(250);
   const isWindowsPlatform = ref(false);
   const selectedHistoryItem = ref<RunHistory | null>(null);
   const consoleScrollbarRef = ref<any>(null);
@@ -37,35 +38,63 @@ export const useUIStore = defineStore("ui", () => {
     ];
   });
 
+  const isTauri = () => {
+    try {
+      if (typeof window !== "undefined") {
+        if (
+          (window as any).__TAURI__ ||
+          (window as any).__TAURI_INTERNALS__ ||
+          (window as any).__TAURI_METADATA__
+        ) {
+          return true;
+        }
+      }
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.userAgent.includes("Tauri")
+      ) {
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const clampSidebarWidth = (width: number) =>
+    Math.min(420, Math.max(200, Math.round(width)));
+
   // Actions
   const toggleSidebar = () => {
     sidebarVisible.value = !sidebarVisible.value;
   };
 
-  const toggleMiniMode = async () => {
-    const isTauri = () => {
-      try {
-        if (typeof window !== "undefined") {
-          if (
-            (window as any).__TAURI__ ||
-            (window as any).__TAURI_INTERNALS__ ||
-            (window as any).__TAURI_METADATA__
-          ) {
-            return true;
-          }
-        }
-        if (
-          typeof navigator !== "undefined" &&
-          navigator.userAgent.includes("Tauri")
-        ) {
-          return true;
-        }
-        return false;
-      } catch (error) {
-        return false;
-      }
-    };
+  const setSidebarWidth = (width: number) => {
+    sidebarWidth.value = clampSidebarWidth(width);
+  };
 
+  const syncMiniModeWindowWidth = async (width?: number) => {
+    if (!miniMode.value || !isTauri()) return;
+    try {
+      const { getCurrentWindow, LogicalSize } = await import(
+        "@tauri-apps/api/window"
+      );
+      const appWindow = getCurrentWindow();
+      const targetWidth = clampSidebarWidth(width ?? sidebarWidth.value);
+      const scaleFactor = await appWindow.scaleFactor();
+      const currentSize = await appWindow.innerSize();
+      const logicalHeight = Math.max(
+        400,
+        currentSize.height / scaleFactor || 600,
+      );
+      await appWindow.setMinSize(new LogicalSize(targetWidth, 400));
+      await appWindow.setSize(new LogicalSize(targetWidth, logicalHeight));
+    } catch (error) {
+      console.error("[MiniMode] Failed to sync mini width:", error);
+    }
+  };
+
+  const toggleMiniMode = async () => {
     if (isTauri()) {
       try {
         const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
@@ -100,9 +129,9 @@ export const useUIStore = defineStore("ui", () => {
             height: logicalHeight
           };
           
-          // Resize to sidebar width (250px)
+          // Resize to sidebar width
           // Use a reasonable height for the mini window
-          const miniWidth = 250;
+          const miniWidth = clampSidebarWidth(sidebarWidth.value);
           const miniHeight = 600; // Default height for mini mode
           console.log("[MiniMode] Resizing to:", { width: miniWidth, height: miniHeight });
           
@@ -165,6 +194,7 @@ export const useUIStore = defineStore("ui", () => {
     // State
     sidebarVisible,
     miniMode,
+    sidebarWidth,
     isWindowsPlatform,
     selectedHistoryItem,
     consoleScrollbarRef,
@@ -176,6 +206,8 @@ export const useUIStore = defineStore("ui", () => {
     // Actions
     toggleSidebar,
     toggleMiniMode,
+    setSidebarWidth,
+    syncMiniModeWindowWidth,
     setWindowsPlatform,
     setSelectedHistoryItem,
     setConsoleScrollbarRef,

@@ -350,7 +350,7 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { useAICollabNativeStore, type NativeCollabConfig } from '../stores/aiCollabNative';
-import { getModelsForProvider, fetchAndRegisterKiloModels, fetchModelsFromEndpoint } from '../services/ai/provider/models';
+import { getModelsForProvider, fetchModelsFromEndpoint } from '../services/ai/provider/models';
 import type { ProviderType, PermissionRequest } from '../services/ai/types';
 import { iconComponents, svgIcons } from '../utils/icons';
 import { renderMarkdown } from '../utils/markdown';
@@ -543,31 +543,39 @@ const getPermissionDescription = (perm: PermissionRequest): string => {
   }
 };
 
-const scrollToBottom = () => {
+const getScrollContainer = (): HTMLElement | null => {
+  if (!scrollbarRef.value) return null;
+  try {
+    const scrollbarEl = scrollbarRef.value.$el;
+    if (scrollbarEl && typeof scrollbarEl.querySelector === 'function') {
+      return scrollbarEl.querySelector('.n-scrollbar-container');
+    }
+    return messageListRef.value?.querySelector('.n-scrollbar-container') || null;
+  } catch (error) {
+    console.warn('Failed to locate scroll container:', error);
+    return null;
+  }
+};
+
+const isNearBottom = (threshold = 32): boolean => {
+  const container = getScrollContainer();
+  if (!container) return true;
+  return container.scrollTop + container.clientHeight >= container.scrollHeight - threshold;
+};
+
+const scrollToBottom = (force = false) => {
+  if (!force && !isNearBottom()) return;
   nextTick(() => {
-    if (scrollbarRef.value) {
-      try {
-        // Try to access the scroll container through the scrollbar ref
-        const scrollbarEl = scrollbarRef.value.$el;
-        let container: HTMLElement | null = null;
-        
-        // Check if $el is a DOM element with querySelector
-        if (scrollbarEl && typeof scrollbarEl.querySelector === 'function') {
-          container = scrollbarEl.querySelector('.n-scrollbar-container');
-        } else if (messageListRef.value) {
-          // Fallback: find the container through the parent ref
-          container = messageListRef.value.querySelector('.n-scrollbar-container');
-        }
-        
-        if (container) {
-          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-        }
-      } catch (error) {
-        // Silently handle errors to prevent unhandled promise rejections
-        console.warn('Failed to scroll to bottom:', error);
-      }
+    const container = getScrollContainer();
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }
   });
+};
+
+const maybeScrollToBottom = () => {
+  const shouldScroll = isNearBottom();
+  if (shouldScroll) scrollToBottom(true);
 };
 
 // 事件处理
@@ -695,15 +703,17 @@ const handlePermissionAlways = (requestId: string) => {
 watch(
   () => session.value?.messages?.length,
   () => {
-    scrollToBottom();
-  }
+    maybeScrollToBottom();
+  },
+  { flush: 'pre' }
 );
 
 watch(
   () => currentStreamingText.value,
   () => {
-    scrollToBottom();
-  }
+    maybeScrollToBottom();
+  },
+  { flush: 'pre' }
 );
 
 // 监听会话变化，如果是新会话则自动启动

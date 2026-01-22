@@ -8,7 +8,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText, streamText, type LanguageModel } from 'ai';
 import type { ProviderConfig, ProviderType, TokenUsage } from '../types';
-import { PROVIDER_CONFIG, kiloLatestVersion } from './models';
+import { PROVIDER_CONFIG } from './models';
 import { tauriFetch } from '@/utils/tauriFetch';
 
 // Message format for chat
@@ -200,37 +200,17 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
     }
 
     case 'openrouter':
-    case 'kilo':
     case 'deepseek':
     case 'glm':
     case 'kimi':
     case 'custom': {
       // Use OpenAI-compatible endpoint
       const providerConfig = PROVIDER_CONFIG[type];
-      const effectiveApiKey = apiKey || (type === 'kilo' ? 'not-provided' : '');
-      const KILOCODE_VERSION = type === 'kilo' ? kiloLatestVersion.value : '4.149.0';
-      
-      const kiloHeaders: Record<string, string> = {
-        'HTTP-Referer': 'https://kilocode.ai',
-        'X-Title': 'Kilo Code',
-        'X-KiloCode-Version': KILOCODE_VERSION,
-        'X-KiloCode-EditorName': 'vscode',
-        'X-KiloCode-Tester': 'SUPPRESS',
-        'User-Agent': `Kilo-Code/${KILOCODE_VERSION}`,
-        'x-api-key': apiKey || '',
-        'X-Kilocode-Language': 'en',
-        'X-KiloCode-EditorVersion': '1.96.2',
-      };
-
-      if (type === 'kilo') {
-        console.log('[Provider] Kilo AI Request Headers Debug:', JSON.stringify(kiloHeaders, null, 2));
-      }
+      const effectiveApiKey = apiKey || '';
 
       const openai = createOpenAI({
         apiKey: effectiveApiKey,
         baseURL: baseUrl || providerConfig.baseUrl,
-        // Kilo AI requires specific headers to identify as Kilo Code and use free models
-        headers: type === 'kilo' ? kiloHeaders : undefined,
         // Use Tauri HTTP plugin to bypass CORS in Tauri environment
         fetch: tauriFetch,
       });
