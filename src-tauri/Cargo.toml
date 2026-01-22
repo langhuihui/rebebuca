@@ -1,6 +1,6 @@
 [package]
 name = "rebebuca"
-version = "0.5.3"
+version = "0.5.4"
 description = "A modern desktop application that helps developers quickly manage and execute various commands and scripts. Supports working directory, environment variables, and real-time output."
 authors = ["dexter"]
 edition = "2021"
