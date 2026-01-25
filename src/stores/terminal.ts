@@ -21,7 +21,7 @@ import { ref, computed, shallowRef } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab-native' | 'dual-agent' | 'room-info';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab-native' | 'dual-agent' | 'room-info' | 'ffmpeg-encoder';
 
 /**
  * 终端截图结果
@@ -84,6 +84,8 @@ export interface TerminalTab {
   sshConfigId?: string; // SSH 配置 ID（用于 SSH 任务）
   sshExecId?: string;   // SSH 执行 ID（用于 SSH 任务）
   roomInfo?: any;       // 对于 room-info 类型，存储房间信息数据
+  isFFmpegTask?: boolean; // 是否为 FFmpeg 任务
+  ffmpegTaskId?: string; // FFmpeg 任务 ID（用于进度追踪）
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -100,6 +102,9 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Event listeners cleanup function
   let unlistenExit: (() => void) | null = null;
   let unlistenData: (() => void) | null = null;
+  
+  // FFmpeg 进度处理
+  const ffmpegProgressCache = new Map<string, string[]>(); // ptyId -> 输出行缓存
   
   // Adapter instance (cached)
   let adapter: BackendAdapter | null = null;
@@ -192,6 +197,38 @@ export const useTerminalStore = defineStore('terminal', () => {
       unlistenData = adapterInstance.terminal.onData(async (event) => {
         const { ptyId, data } = event;
         
+        // 处理 FFmpeg 进度解析
+        const tab = tabs.value.find(t => t.ptyId === ptyId);
+        if (tab && tab.isFFmpegTask && tab.ffmpegTaskId) {
+          try {
+            // 缓存输出行
+            if (!ffmpegProgressCache.has(ptyId)) {
+              ffmpegProgressCache.set(ptyId, []);
+            }
+            const cache = ffmpegProgressCache.get(ptyId)!;
+            cache.push(data);
+            
+            // 逐行解析
+            const lines = data.split('\n');
+            for (const line of lines) {
+              if (line.trim()) {
+                const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
+                const ffmpegStore = useFFmpegProgressStore();
+                ffmpegStore.updateTask(tab.ffmpegTaskId, line);
+              }
+            }
+            
+            // 如果检测到 muxing，更新状态
+            if (data.toLowerCase().includes('muxing')) {
+              const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
+              const ffmpegStore = useFFmpegProgressStore();
+              ffmpegStore.setMuxing(tab.ffmpegTaskId);
+            }
+          } catch (error) {
+            console.warn('[Terminal Store] FFmpeg progress parse error:', error);
+          }
+        }
+        
         // Check if there's a pending auto-input for this PTY
         const pending = pendingAutoInputs.get(ptyId);
         if (pending && pending.pattern.test(data)) {
@@ -220,6 +257,18 @@ export const useTerminalStore = defineStore('terminal', () => {
         if (tab && (tab.type === 'task' || tab.type === 'shell')) {
           tab.exitCode = exitCode ?? undefined;
           tab.status = exitCode === 0 ? 'success' : 'error';
+          
+          // 完成 FFmpeg 进度追踪
+          if (tab.isFFmpegTask && tab.ffmpegTaskId) {
+            try {
+              const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
+              const ffmpegStore = useFFmpegProgressStore();
+              ffmpegStore.finishTask(tab.ffmpegTaskId, exitCode);
+              console.log('[Terminal Store] FFmpeg progress tracking finished:', tab.ffmpegTaskId);
+            } catch (error) {
+              console.warn('[Terminal Store] Failed to finish FFmpeg progress:', error);
+            }
+          }
           
           // Notify taskManager that this task has exited
           try {
@@ -347,6 +396,10 @@ export const useTerminalStore = defineStore('terminal', () => {
       input: string;
       timeout?: number;
     };
+    /** 是否为 FFmpeg 任务 */
+    isFFmpegTask?: boolean;
+    /** FFmpeg 任务文件名（用于进度显示） */
+    ffmpegFileName?: string;
   }): Promise<TerminalTab> => {
     const id = generateId();
     const ptyId = `task-${id}`;
@@ -373,6 +426,8 @@ export const useTerminalStore = defineStore('terminal', () => {
         autoInput: options.autoInput,
       },
       shellName: getShellName(options.shellPath),
+      isFFmpegTask: options.isFFmpegTask || false,
+      ffmpegFileName: options.ffmpegFileName || '',
     };
     
     tabs.value.push(tab);
@@ -480,6 +535,22 @@ export const useTerminalStore = defineStore('terminal', () => {
           taskManager.onTaskStart(tab.taskId, tab.id);
         } catch (error) {
           console.warn('[Terminal Store] Failed to notify taskManager of task start:', error);
+        }
+      }
+      
+      // 初始化 FFmpeg 进度追踪
+      if (tab.isFFmpegTask && tab.ffmpegFileName) {
+        try {
+          const ffmpegTaskId = `ffmpeg-${tab.id}-${Date.now()}`;
+          tab.ffmpegTaskId = ffmpegTaskId;
+          
+          const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
+          const ffmpegStore = useFFmpegProgressStore();
+          ffmpegStore.createTask(ffmpegTaskId, tab.id, tab.ffmpegFileName);
+          
+          console.log('[Terminal Store] FFmpeg progress tracking started:', ffmpegTaskId);
+        } catch (error) {
+          console.warn('[Terminal Store] Failed to initialize FFmpeg progress:', error);
         }
       }
       
@@ -643,6 +714,17 @@ export const useTerminalStore = defineStore('terminal', () => {
     tab.startTime = Date.now();
     tab.exitCode = undefined;
     tab.pid = undefined;
+    
+    // 清理旧的 FFmpeg 进度追踪
+    if (tab.isFFmpegTask && tab.ffmpegTaskId) {
+      try {
+        const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
+        const ffmpegStore = useFFmpegProgressStore();
+        ffmpegStore.removeTask(tab.ffmpegTaskId);
+      } catch (error) {
+        console.warn('[Terminal Store] Failed to remove FFmpeg progress:', error);
+      }
+    }
 
     // Set as active tab
     activeTabId.value = tab.id;
@@ -830,7 +912,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       setActiveTab(existingTab.id);
       return existingTab;
     }
-    
+
     const id = generateId();
     const tab: TerminalTab = {
       id,
@@ -840,12 +922,36 @@ export const useTerminalStore = defineStore('terminal', () => {
       status: 'running',
       startTime: Date.now(),
     };
-    
+
     tabs.value.push(tab);
     setActiveTab(id);
     return tab;
   };
-  
+
+  // Create an FFmpeg encoder tab
+  const createFFmpegEncoderTab = (): TerminalTab => {
+    // Check if FFmpeg encoder tab already exists
+    const existingTab = tabs.value.find(t => t.type === 'ffmpeg-encoder');
+    if (existingTab) {
+      setActiveTab(existingTab.id);
+      return existingTab;
+    }
+
+    const id = generateId();
+    const tab: TerminalTab = {
+      id,
+      type: 'ffmpeg-encoder',
+      label: 'FFmpeg 编码器',
+      ptyId: '', // No PTY for FFmpeg encoder tab
+      status: 'running',
+      startTime: Date.now(),
+    };
+
+    tabs.value.push(tab);
+    setActiveTab(id);
+    return tab;
+  };
+
   // Find tab by collab session ID
   const findTabByCollabSessionId = (sessionId: string): TerminalTab | undefined => {
     return tabs.value.find(t => t.type === 'ai-collab-native' && t.collabSessionId === sessionId);
@@ -1012,6 +1118,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     createSettingsTab,
     createNotificationsTab,
     createPortManagementTab,
+    createFFmpegEncoderTab,
     toggleSplitMode,
     setSplitTab,
     createAICollabNativeTab,

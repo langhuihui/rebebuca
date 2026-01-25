@@ -108,6 +108,23 @@
                 </template>
                 {{ t('aiCollab.nativeMode') }}
               </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    quaternary
+                    @click="handleFFmpegEncoder"
+                    class="titlebar-action-button"
+                  >
+                    <template #icon>
+                      <n-icon size="16">
+                        <component :is="svgIcons.ffmpeg" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                FFmpeg 编码器
+              </n-tooltip>
             </n-space>
           </div>
         </div>
@@ -259,6 +276,23 @@
                 </n-button>
               </template>
               {{ t('aiCollab.nativeMode') }}
+            </n-tooltip>
+            <n-tooltip>
+              <template #trigger>
+                <n-button
+                  size="small"
+                  quaternary
+                  @click="handleFFmpegEncoder"
+                  class="titlebar-action-button"
+                >
+                  <template #icon>
+                    <n-icon size="16">
+                      <component :is="svgIcons.ffmpeg" />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              FFmpeg 编码器
             </n-tooltip>
           </n-space>
         </div>
@@ -558,6 +592,10 @@ const handlePortManagement = () => {
 
 const handleAICollabNative = () => {
   window.dispatchEvent(new CustomEvent('ai-collab-native'));
+};
+
+const handleFFmpegEncoder = () => {
+  window.dispatchEvent(new CustomEvent('ffmpeg-encoder'));
 };
 
 // Handle split mode toggle

@@ -1238,6 +1238,11 @@ const handleAICollabNative = () => {
   showAICollabNativeDialog.value = true;
 };
 
+// Handle FFmpeg Encoder - open FFmpeg encoder page
+const handleFFmpegEncoder = () => {
+  terminalStore.createFFmpegEncoderTab();
+};
+
 // Handle task visual edit
 const handleTaskEditVisual = (task: Task) => {
   // If it is an AI Collab task, open the dedicated AI Collab edit dialog
@@ -1665,6 +1670,7 @@ onMounted(async () => {
   window.addEventListener("add-task", handleAddTask);
   window.addEventListener("port-management", handlePortManagement);
   window.addEventListener("ai-collab-native", handleAICollabNative);
+  window.addEventListener("ffmpeg-encoder", handleFFmpegEncoder);
 });
 
 onUnmounted(() => {
@@ -1676,6 +1682,7 @@ onUnmounted(() => {
   window.removeEventListener("add-task", handleAddTask);
   window.removeEventListener("port-management", handlePortManagement);
   window.removeEventListener("ai-collab-native", handleAICollabNative);
+  window.removeEventListener("ffmpeg-encoder", handleFFmpegEncoder);
 });
 </script>
 

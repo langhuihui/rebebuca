@@ -1,0 +1,703 @@
+{
+  "builtin": [
+    {
+      "id": "builtin-1080p-h264",
+      "name": "1080p H.264 (推荐)",
+      "description": "通用 1080p 视频编码，适合大多数场景",
+      "tags": ["通用", "推荐", "1080p"],
+      "preset": {
+        "output": {
+          "container": "mp4",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "encoded",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "h264",
+          "encoder": "libx264",
+          "preset": "medium",
+          "profile": "high",
+          "level": "4.0",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "23",
+          "bitrate": {
+            "base": "5M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "192k",
+          "channels": "2",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-720p-h264",
+      "name": "720p H.264 (移动端)",
+      "description": "适合移动设备和网络传输的 720p 编码",
+      "tags": ["移动端", "720p"],
+      "preset": {
+        "output": {
+          "container": "mp4",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "720p",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "h264",
+          "encoder": "libx264",
+          "preset": "medium",
+          "profile": "high",
+          "level": "3.1",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "24",
+          "bitrate": {
+            "base": "3M"
+          }
+        },
+        "filters": {
+          "scale": {
+            "enabled": true,
+            "width": "1280",
+            "height": "720",
+            "keepAspect": true,
+            "algorithm": "bicubic"
+          }
+        },
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "128k",
+          "channels": "2",
+          "sampleRate": "44100"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-4k-h265",
+      "name": "4K H.265 (高清)",
+      "description": "高质量 4K 视频编码，适合专业用途",
+      "tags": ["高清", "4K", "专业"],
+      "preset": {
+        "output": {
+          "container": "mkv",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "4k",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "hevc",
+          "encoder": "libx265",
+          "preset": "medium",
+          "profile": "main",
+          "level": "5.0",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "20",
+          "bitrate": {
+            "base": "15M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "256k",
+          "channels": "6",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-fast-compress",
+      "name": "快速压缩 (H.264)",
+      "description": "快速编码，适合紧急处理大量视频",
+      "tags": ["快速", "压缩"],
+      "preset": {
+        "output": {
+          "container": "mp4",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "fast",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "h264",
+          "encoder": "libx264",
+          "preset": "ultrafast",
+          "profile": "high",
+          "level": "4.0",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "28",
+          "bitrate": {
+            "base": "3M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "128k",
+          "channels": "2",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-high-quality",
+      "name": "高质量压制 (H.265)",
+      "description": "高质量二遍编码，适合专业压制",
+      "tags": ["高质量", "专业", "2-pass"],
+      "preset": {
+        "output": {
+          "container": "mkv",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "hq",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "hevc",
+          "encoder": "libx265",
+          "preset": "slow",
+          "profile": "main",
+          "level": "5.0",
+          "tune": "",
+          "passMode": 2
+        },
+        "quality": {
+          "controlMode": "VBR_HQ",
+          "paramName": "crf",
+          "value": "18",
+          "bitrate": {
+            "base": "8M",
+            "min": "4M",
+            "max": "12M",
+            "bufferSize": "16M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "256k",
+          "channels": "6",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-web-optimized",
+      "name": "Web 优化 (VP9)",
+      "description": "适合网页视频的 VP9 编码",
+      "tags": ["Web", "VP9"],
+      "preset": {
+        "output": {
+          "container": "webm",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "web",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "vp9",
+          "encoder": "libvpx-vp9",
+          "preset": "1",
+          "profile": "",
+          "level": "",
+          "tune": "",
+          "passMode": 2
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "25",
+          "bitrate": {
+            "base": "4M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "libopus",
+          "bitrate": "128k",
+          "channels": "2",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-audio-extract",
+      "name": "音频提取 (AAC)",
+      "description": "仅提取音频流",
+      "tags": ["音频"],
+      "preset": {
+        "output": {
+          "container": "mp4",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "audio",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": false,
+          "encoderCategory": "h264",
+          "encoder": "libx264",
+          "preset": "medium",
+          "profile": "high",
+          "level": "4.0",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "23",
+          "bitrate": {
+            "base": "5M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "192k",
+          "channels": "2",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": false,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-format-convert",
+      "name": "格式转换 (Copy)",
+      "description": "不重新编码，仅转换容器格式",
+      "tags": ["转换", "Copy"],
+      "preset": {
+        "output": {
+          "container": "mp4",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "converted",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "copy",
+          "encoder": "copy",
+          "preset": "",
+          "profile": "",
+          "level": "",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "23",
+          "bitrate": {
+            "base": "5M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "copy",
+          "bitrate": "",
+          "channels": "",
+          "sampleRate": ""
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": true,
+          "keepOtherAudioStreams": true,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": true
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-scale-1080p",
+      "name": "批量缩放 (1080p)",
+      "description": "将视频缩放到 1080p",
+      "tags": ["缩放", "1080p"],
+      "preset": {
+        "output": {
+          "container": "mp4",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "1080p",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "h264",
+          "encoder": "libx264",
+          "preset": "medium",
+          "profile": "high",
+          "level": "4.0",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "23",
+          "bitrate": {
+            "base": "5M"
+          }
+        },
+        "filters": {
+          "scale": {
+            "enabled": true,
+            "width": "1920",
+            "height": "1080",
+            "keepAspect": true,
+            "algorithm": "bicubic"
+          }
+        },
+        "audio": {
+          "enabled": true,
+          "encoder": "aac",
+          "bitrate": "192k",
+          "channels": "2",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    },
+    {
+      "id": "builtin-av1-next-gen",
+      "name": "AV1 新一代编码",
+      "description": "使用 AV1 编码器，压缩效率最高",
+      "tags": ["AV1", "新一代"],
+      "preset": {
+        "output": {
+          "container": "webm",
+          "naming": {
+            "useAutoNaming": true,
+            "autoNamingOption": 0,
+            "prefix": "",
+            "suffix": "av1",
+            "customPattern": ""
+          }
+        },
+        "decoder": {
+          "decoder": "auto",
+          "hwaccel": "auto"
+        },
+        "video": {
+          "enabled": true,
+          "encoderCategory": "av1",
+          "encoder": "libaom-av1",
+          "preset": "6",
+          "profile": "",
+          "level": "",
+          "tune": "",
+          "passMode": 0
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "paramName": "crf",
+          "value": "25",
+          "bitrate": {
+            "base": "4M"
+          }
+        },
+        "filters": {},
+        "audio": {
+          "enabled": true,
+          "encoder": "libopus",
+          "bitrate": "128k",
+          "channels": "2",
+          "sampleRate": "48000"
+        },
+        "trimming": {
+          "enabled": false,
+          "startTime": "00:00:00.000",
+          "endTime": "00:00:00.000"
+        },
+        "streamControl": {
+          "keepOtherVideoStreams": false,
+          "keepOtherAudioStreams": false,
+          "keepSubtitleStreams": true,
+          "keepAttachmentStreams": false
+        },
+        "custom": {
+          "preParams": "",
+          "videoFilter": "",
+          "audioFilter": "",
+          "videoParams": "",
+          "audioParams": "",
+          "postParams": "",
+          "fullCustom": ""
+        }
+      }
+    }
+  ]
+}

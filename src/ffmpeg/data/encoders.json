@@ -1,0 +1,278 @@
+{
+  "video": [
+    {
+      "id": "libx264",
+      "category": "h264",
+      "name": "H.264 (libx264)",
+      "ffmpegName": "libx264",
+      "description": "最常用的 H.264 编码器，兼容性最好",
+      "presets": ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
+      "profiles": ["baseline", "main", "high", "high10", "high422", "high444"],
+      "levels": ["3.0", "3.1", "4.0", "4.1", "4.2", "5.0", "5.1", "5.2"],
+      "tunes": ["film", "animation", "grain", "stillimage", "fastdecode", "zerolatency"],
+      "qualityModes": ["CRF", "VBR", "CQP", "CBR"],
+      "supportsPassEncoding": true,
+      "supportsColorManagement": true,
+      "recommendedSettings": {
+        "video": {
+          "preset": "medium"
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "value": "23"
+        }
+      }
+    },
+    {
+      "id": "libx265",
+      "category": "hevc",
+      "name": "H.265/HEVC (libx265)",
+      "ffmpegName": "libx265",
+      "description": "新一代视频编码标准，压缩效率更高",
+      "presets": ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
+      "profiles": ["main", "main10", "mainstillpicture"],
+      "levels": ["3.0", "3.1", "4.0", "4.1", "4.2", "5.0", "5.1", "5.2"],
+      "tunes": ["grain", "fastdecode", "zerolatency", "animation", "psnr", "ssim", "fastdecode"],
+      "qualityModes": ["CRF", "VBR", "CQP", "CBR"],
+      "supportsPassEncoding": true,
+      "supportsColorManagement": true,
+      "recommendedSettings": {
+        "video": {
+          "preset": "medium"
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "value": "20"
+        }
+      }
+    },
+    {
+      "id": "libvpx-vp9",
+      "category": "vp9",
+      "name": "VP9 (libvpx-vp9)",
+      "ffmpegName": "libvpx-vp9",
+      "description": "Google 开发的开源视频编码器",
+      "presets": ["0", "1", "2", "3", "4", "5"],
+      "qualityModes": ["CRF", "VBR", "CBR"],
+      "supportsPassEncoding": true,
+      "supportsColorManagement": true,
+      "recommendedSettings": {
+        "video": {
+          "preset": "1"
+        },
+        "quality": {
+          "controlMode": "CRF",
+          "value": "25"
+        }
+      }
+    },
+    {
+      "id": "libaom-av1",
+      "category": "av1",
+      "name": "AV1 (libaom-av1)",
+      "ffmpegName": "libaom-av1",
+      "description": "新一代视频编码标准，压缩效率最高",
+      "presets": ["0", "1", "2", "3", "4", "5", "6", "7", "8"],
+      "qualityModes": ["CRF", "VBR", "CBR"],
+      "supportsPassEncoding": false,
+      "supportsColorManagement": true,
+      "recommendedSettings": {
+        "quality": {
+          "controlMode": "CRF",
+          "value": "25"
+        }
+      }
+    },
+    {
+      "id": "mpeg4",
+      "category": "mpeg4",
+      "name": "MPEG-4 Part 2",
+      "ffmpegName": "mpeg4",
+      "description": "经典视频编码格式",
+      "presets": ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
+      "qualityModes": ["CRF", "VBR", "CBR"],
+      "supportsPassEncoding": false,
+      "supportsColorManagement": false,
+      "recommendedSettings": {
+        "quality": {
+          "controlMode": "CRF",
+          "value": "23"
+        }
+      }
+    },
+    {
+      "id": "prores",
+      "category": "prores",
+      "name": "ProRes",
+      "ffmpegName": "prores_ks",
+      "description": "Apple 专业视频编码格式",
+      "presets": ["proxy", "lt", "standard", "hq", "4444"],
+      "qualityModes": ["CBR"],
+      "supportsPassEncoding": false,
+      "supportsColorManagement": true,
+      "recommendedSettings": {
+        "video": {
+          "preset": "hq"
+        }
+      }
+    },
+    {
+      "id": "copy",
+      "category": "copy",
+      "name": "Copy (不重新编码)",
+      "ffmpegName": "copy",
+      "description": "直接复制视频流，不重新编码",
+      "qualityModes": [],
+      "supportsPassEncoding": false,
+      "supportsColorManagement": false
+    }
+  ],
+  "audio": [
+    {
+      "id": "aac",
+      "category": "aac",
+      "name": "AAC",
+      "ffmpegName": "aac",
+      "description": "最常用的音频编码格式",
+      "bitrates": ["64k", "96k", "128k", "192k", "256k", "320k"],
+      "channelCounts": [1, 2, 6],
+      "sampleRates": [44100, 48000, 96000],
+      "supportsVBR": false,
+      "recommendedSettings": {
+        "audio": {
+          "bitrate": "192k",
+          "sampleRate": "48000"
+        }
+      }
+    },
+    {
+      "id": "libopus",
+      "category": "opus",
+      "name": "Opus",
+      "ffmpegName": "libopus",
+      "description": "高质量音频编码格式",
+      "bitrates": ["32k", "64k", "96k", "128k", "192k", "256k"],
+      "channelCounts": [1, 2, 6],
+      "sampleRates": [48000],
+      "supportsVBR": true,
+      "recommendedSettings": {
+        "audio": {
+          "bitrate": "128k",
+          "sampleRate": "48000"
+        }
+      }
+    },
+    {
+      "id": "libmp3lame",
+      "category": "mp3",
+      "name": "MP3",
+      "ffmpegName": "libmp3lame",
+      "description": "经典音频编码格式",
+      "bitrates": ["64k", "96k", "128k", "192k", "256k", "320k"],
+      "channelCounts": [1, 2],
+      "sampleRates": [44100, 48000],
+      "supportsVBR": true,
+      "recommendedSettings": {
+        "audio": {
+          "bitrate": "192k",
+          "sampleRate": "44100"
+        }
+      }
+    },
+    {
+      "id": "flac",
+      "category": "flac",
+      "name": "FLAC",
+      "ffmpegName": "flac",
+      "description": "无损音频编码格式",
+      "channelCounts": [1, 2, 6],
+      "sampleRates": [44100, 48000, 96000],
+      "supportsVBR": false,
+      "recommendedSettings": {
+        "audio": {
+          "sampleRate": "48000"
+        }
+      }
+    },
+    {
+      "id": "libvorbis",
+      "category": "vorbis",
+      "name": "Vorbis",
+      "ffmpegName": "libvorbis",
+      "description": "开源音频编码格式",
+      "bitrates": ["64k", "96k", "128k", "192k", "256k"],
+      "channelCounts": [1, 2, 6],
+      "sampleRates": [44100, 48000],
+      "supportsVBR": true,
+      "recommendedSettings": {
+        "audio": {
+          "bitrate": "128k",
+          "sampleRate": "48000"
+        }
+      }
+    },
+    {
+      "id": "ac3",
+      "category": "ac3",
+      "name": "AC3",
+      "ffmpegName": "ac3",
+      "description": "杜比数字音频格式",
+      "bitrates": ["192k", "224k", "256k", "320k", "384k", "448k", "640k"],
+      "channelCounts": [1, 2, 6],
+      "sampleRates": [48000],
+      "supportsVBR": false,
+      "recommendedSettings": {
+        "audio": {
+          "bitrate": "448k",
+          "sampleRate": "48000"
+        }
+      }
+    },
+    {
+      "id": "copy",
+      "category": "copy",
+      "name": "Copy (不重新编码)",
+      "ffmpegName": "copy",
+      "description": "直接复制音频流，不重新编码",
+      "supportsVBR": false
+    }
+  ],
+  "containers": {
+    "mp4": {
+      "name": "MP4",
+      "description": "最常用的视频容器格式",
+      "videoEncoders": ["libx264", "libx265", "libvpx-vp9", "mpeg4"],
+      "audioEncoders": ["aac", "libopus", "libmp3lame"]
+    },
+    "mkv": {
+      "name": "MKV",
+      "description": "Matroska 容器格式，支持多种编码",
+      "videoEncoders": ["libx264", "libx265", "libvpx-vp9", "libaom-av1", "mpeg4", "prores"],
+      "audioEncoders": ["aac", "libopus", "libmp3lame", "flac", "libvorbis", "ac3"]
+    },
+    "avi": {
+      "name": "AVI",
+      "description": "经典视频容器格式",
+      "videoEncoders": ["mpeg4"],
+      "audioEncoders": ["libmp3lame", "ac3"]
+    },
+    "mov": {
+      "name": "MOV",
+      "description": "QuickTime 容器格式",
+      "videoEncoders": ["libx264", "libx265", "prores"],
+      "audioEncoders": ["aac", "libmp3lame"]
+    },
+    "webm": {
+      "name": "WebM",
+      "description": "Web 优化的容器格式",
+      "videoEncoders": ["libvpx-vp9", "libaom-av1"],
+      "audioEncoders": ["libopus", "libvorbis"]
+    },
+    "flv": {
+      "name": "FLV",
+      "description": "Flash Video 容器格式",
+      "videoEncoders": ["libx264"],
+      "audioEncoders": ["aac", "libmp3lame"]
+    }
+  }
+}

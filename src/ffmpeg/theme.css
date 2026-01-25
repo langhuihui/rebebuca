@@ -1,0 +1,72 @@
+/**
+ * FFmpeg 模块全局主题样式
+ * 确保所有组件适配 Naive UI 的主题系统
+ */
+
+/* 背景 */
+.ffmpeg-theme-bg {
+  background-color: var(--n-color-embedded) !important;
+}
+
+.ffmpeg-theme-bg-card {
+  background-color: var(--n-card-color) !important;
+}
+
+.ffmpeg-theme-bg-modal {
+  background-color: var(--n-modal-color) !important;
+}
+
+/* 边框 */
+.ffmpeg-theme-border {
+  border-color: var(--n-border-color) !important;
+}
+
+/* 文本颜色 */
+.ffmpeg-theme-text-1 {
+  color: var(--n-text-color-1) !important;
+}
+
+.ffmpeg-theme-text-2 {
+  color: var(--n-text-color-2) !important;
+}
+
+.ffmpeg-theme-text-3 {
+  color: var(--n-text-color-3) !important;
+}
+
+/* 主题色 */
+.ffmpeg-theme-primary {
+  color: var(--n-primary-color) !important;
+}
+
+.ffmpeg-theme-primary-bg {
+  background-color: var(--n-primary-color) !important;
+}
+
+/* 状态颜色 */
+.ffmpeg-theme-success {
+  color: var(--n-success-color) !important;
+}
+
+.ffmpeg-theme-warning {
+  color: var(--n-warning-color) !important;
+}
+
+.ffmpeg-theme-error {
+  color: var(--n-error-color) !important;
+}
+
+.ffmpeg-theme-info {
+  color: var(--n-info-color) !important;
+}
+
+/* 悬停状态 */
+.ffmpeg-theme-hover:hover {
+  background-color: var(--n-color-hover) !important;
+}
+
+/* 禁用状态 */
+.ffmpeg-theme-disabled {
+  opacity: var(--n-disabled-opacity) !important;
+  cursor: not-allowed !important;
+}

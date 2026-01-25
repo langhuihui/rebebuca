@@ -127,12 +127,17 @@
         
         <!-- AI Collaboration Native tab -->
         <div v-show="terminalStore.activeTab?.type === 'ai-collab-native'" class="ai-collab-content-wrapper">
-          <AICollabPanelNative 
-            v-if="terminalStore.activeTab?.type === 'ai-collab-native'" 
+          <AICollabPanelNative
+            v-if="terminalStore.activeTab?.type === 'ai-collab-native'"
             :session-id="terminalStore.activeTab.collabSessionId"
             :project-path="terminalStore.activeTab.command || ''"
             @session-created="handleNativeSessionCreated"
           />
+        </div>
+
+        <!-- FFmpeg Encoder tab -->
+        <div v-show="terminalStore.activeTab?.type === 'ffmpeg-encoder'" class="ffmpeg-encoder-content-wrapper">
+          <FFmpegEncoderPage v-if="terminalStore.activeTab?.type === 'ffmpeg-encoder'" />
         </div>
         
         <!-- Dual Agent tab -->
@@ -290,6 +295,7 @@ import SettingsPanel from "./settings/SettingsPanel.vue";
 import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
 import AICollabPanelNative from "./AICollabPanelNative.vue";
+import FFmpegEncoderPage from "../ffmpeg/components/FFmpegEncoderPage.vue";
 import { OrchestrationPanel } from "./orchestration";
 
 const { t } = useI18n();
@@ -663,6 +669,11 @@ const getTabIcon = (tab: TerminalTab) => {
   if (tab.type === 'ai-collab-native') {
     return svgIcons.zap;
   }
+
+  // For FFmpeg Encoder tab
+  if (tab.type === 'ffmpeg-encoder') {
+    return svgIcons.ffmpeg;
+  }
   
   // For dual agent tab
   if (tab.type === 'dual-agent') {
@@ -712,6 +723,9 @@ const getTabLabel = (tab: TerminalTab): string => {
   }
   if (tab.type === 'ai-collab-native') {
     return tab.label || t('aiCollab.assistant');
+  }
+  if (tab.type === 'ffmpeg-encoder') {
+    return tab.label || 'FFmpeg 编码器';
   }
   if (tab.type === 'dual-agent') {
     return tab.label || t('aiCollab.title');
@@ -989,6 +1003,7 @@ const onTerminalError = (error: string) => {
 .notifications-content-wrapper,
 .port-management-content-wrapper,
 .ai-collab-content-wrapper,
+.ffmpeg-encoder-content-wrapper,
 .room-info-content-wrapper {
   position: absolute;
   top: 0;

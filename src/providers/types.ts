@@ -45,6 +45,7 @@ export enum TaskType {
   NPM = 'npm',           // npm script execution
   MACRO = 'macro',       // Macro task (orchestrates other tasks)
   AI_COLLAB = 'ai-collab', // AI collaboration task
+  FFMPEG = 'ffmpeg',    // FFmpeg encoding task
 }
 
 /**
