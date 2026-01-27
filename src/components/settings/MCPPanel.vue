@@ -1,19 +1,19 @@
 <!--
  * Rebebuca
  * Copyright (C) 2025 rebebuca contributors
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  -->
 
 <template>
@@ -21,7 +21,7 @@
     <n-alert type="info" style="margin-bottom: 16px;">
       {{ t('settings.mcpDescription') }}
     </n-alert>
-    
+
     <n-form label-placement="left" label-width="auto" class="compact-settings-form">
       <!-- Server Status -->
       <n-form-item :label="t('settings.mcpServerStatus')">
@@ -32,8 +32,8 @@
           <span v-if="mcpServerRunning" class="mcp-port-info">
             {{ t('settings.mcpPort') }}: {{ mcpServerPort }}
           </span>
-          <n-button 
-            size="small" 
+          <n-button
+            size="small"
             quaternary
             @click="checkMcpServerStatus"
             :loading="checkingStatus"
@@ -42,73 +42,124 @@
           </n-button>
         </n-space>
       </n-form-item>
-      
-      <!-- Server Endpoints -->
-      <n-form-item v-if="mcpServerRunning" :label="t('settings.mcpEndpoints')">
-        <n-space vertical style="width: 100%;">
-          <div class="endpoint-item">
-            <span class="endpoint-label">SSE:</span>
-            <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/mcp/sse</n-tag>
-          </div>
-          <div class="endpoint-item">
-            <span class="endpoint-label">HTTP:</span>
-            <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/mcp</n-tag>
-          </div>
-          <div class="endpoint-item">
-            <span class="endpoint-label">Health:</span>
-            <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/health</n-tag>
-          </div>
-        </n-space>
-      </n-form-item>
-      
-      <!-- Available Tools -->
-      <n-form-item v-if="mcpServerRunning" :label="t('settings.mcpTools')">
-        <n-space>
-          <n-tag v-for="tool in mcpTools" :key="tool" size="small" type="info">
-            {{ tool }}
-          </n-tag>
-        </n-space>
-      </n-form-item>
     </n-form>
-    
-    <!-- Configuration JSON -->
-    <n-divider title-placement="left">{{ t('settings.mcpConfigJson') }}</n-divider>
-    
-    <n-alert type="default" style="margin-bottom: 12px;">
-      {{ t('settings.mcpConfigHint') }}
-    </n-alert>
-    
-    <div class="config-json-container">
-      <div class="config-json-header">
-        <span class="config-json-title">mcp-config.json</span>
-        <n-button size="small" quaternary @click="copyConfig">
-          <template #icon>
-            <n-icon><component :is="svgIcons.copy" /></n-icon>
-          </template>
-          {{ t('settings.mcpCopyConfig') }}
-        </n-button>
-      </div>
-      <n-code :code="configJson" language="json" :hljs="hljs" />
-    </div>
-    
-    <!-- Claude Desktop Configuration -->
-    <n-divider title-placement="left">Claude Desktop</n-divider>
-    
-    <n-alert type="default" style="margin-bottom: 12px;">
-      {{ t('settings.mcpClaudeHint') }}
-    </n-alert>
-    
-    <div class="config-json-container">
-      <div class="config-json-header">
-        <span class="config-json-title">claude_desktop_config.json</span>
-        <n-button size="small" quaternary @click="copyClaudeConfig">
-          <template #icon>
-            <n-icon><component :is="svgIcons.copy" /></n-icon>
-          </template>
-          {{ t('settings.mcpCopyConfig') }}
-        </n-button>
-      </div>
-      <n-code :code="claudeConfigJson" language="json" :hljs="hljs" />
+
+    <!-- Tab Navigation -->
+    <n-tabs v-model:value="activeTab" type="line" animated class="mcp-tabs">
+      <n-tab-pane name="debug" tab="debug">
+        <template #tab>
+          <n-icon><component :is="svgIcons.tool" /></n-icon>
+          <span style="margin-left: 6px;">{{ t('settings.mcpDebugTools') }}</span>
+        </template>
+
+        <div class="tab-content">
+          <n-form label-placement="left" label-width="auto" class="compact-settings-form">
+            <!-- Debug Endpoints -->
+            <n-form-item v-if="mcpServerRunning" :label="t('settings.mcpDebugEndpoints')">
+              <n-space vertical style="width: 100%;">
+                <div class="endpoint-item">
+                  <span class="endpoint-label">{{ t('settings.mcpSSE') }}:</span>
+                  <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/mcp/debug/sse</n-tag>
+                </div>
+                <div class="endpoint-item">
+                  <span class="endpoint-label">{{ t('settings.mcpHTTP') }}:</span>
+                  <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/mcp/debug</n-tag>
+                </div>
+              </n-space>
+            </n-form-item>
+
+            <!-- Debug Tools List -->
+            <n-form-item v-if="mcpServerRunning" :label="t('settings.mcpDebugTools')">
+              <n-space>
+                <n-tag v-for="tool in debugTools" :key="tool" size="small" type="info">
+                  {{ tool }}
+                </n-tag>
+              </n-space>
+            </n-form-item>
+          </n-form>
+
+          <!-- Debug Configuration JSON -->
+          <n-divider title-placement="left">{{ t('settings.mcpDebugConfigJson') }}</n-divider>
+
+          <n-alert type="default" style="margin-bottom: 12px;">
+            {{ t('settings.mcpConfigHint') }}
+          </n-alert>
+
+          <div class="config-json-container">
+            <div class="config-json-header">
+              <span class="config-json-title">mcp-debug-config.json</span>
+              <n-button size="small" quaternary @click="copyDebugConfig">
+                <template #icon>
+                  <n-icon><component :is="svgIcons.copy" /></n-icon>
+                </template>
+                {{ t('settings.mcpCopyConfig') }}
+              </n-button>
+            </div>
+            <n-code :code="debugConfigJson" language="json" :hljs="hljs" />
+          </div>
+        </div>
+      </n-tab-pane>
+
+      <n-tab-pane name="ai" tab="ai">
+        <template #tab>
+          <n-icon><component :is="svgIcons.robot" /></n-icon>
+          <span style="margin-left: 6px;">{{ t('settings.mcpAITools') }}</span>
+        </template>
+
+        <div class="tab-content">
+          <n-form label-placement="left" label-width="auto" class="compact-settings-form">
+            <!-- AI Endpoints -->
+            <n-form-item v-if="mcpServerRunning" :label="t('settings.mcpAIEndpoints')">
+              <n-space vertical style="width: 100%;">
+                <div class="endpoint-item">
+                  <span class="endpoint-label">{{ t('settings.mcpSSE') }}:</span>
+                  <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/mcp/ai/sse</n-tag>
+                </div>
+                <div class="endpoint-item">
+                  <span class="endpoint-label">{{ t('settings.mcpHTTP') }}:</span>
+                  <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/mcp/ai</n-tag>
+                </div>
+              </n-space>
+            </n-form-item>
+
+            <!-- AI Tools List -->
+            <n-form-item v-if="mcpServerRunning" :label="t('settings.mcpAITools')">
+              <n-space>
+                <n-tag v-for="tool in aiTools" :key="tool" size="small" type="success">
+                  {{ tool }}
+                </n-tag>
+              </n-space>
+            </n-form-item>
+          </n-form>
+
+          <!-- AI Configuration JSON -->
+          <n-divider title-placement="left">{{ t('settings.mcpAIConfigJson') }}</n-divider>
+
+          <n-alert type="default" style="margin-bottom: 12px;">
+            {{ t('settings.mcpConfigHint') }}
+          </n-alert>
+
+          <div class="config-json-container">
+            <div class="config-json-header">
+              <span class="config-json-title">mcp-ai-config.json</span>
+              <n-button size="small" quaternary @click="copyAIConfig">
+                <template #icon>
+                  <n-icon><component :is="svgIcons.copy" /></n-icon>
+                </template>
+                {{ t('settings.mcpCopyConfig') }}
+              </n-button>
+            </div>
+            <n-code :code="aiConfigJson" language="json" :hljs="hljs" />
+          </div>
+        </div>
+      </n-tab-pane>
+    </n-tabs>
+
+    <!-- Health Endpoint -->
+    <n-divider title-placement="left">{{ t('settings.mcpHealthEndpoint') }}</n-divider>
+    <div class="endpoint-item">
+      <span class="endpoint-label">{{ t('settings.mcpHealth') }}:</span>
+      <n-tag size="small" class="endpoint-url">http://127.0.0.1:{{ mcpServerPort }}/health</n-tag>
     </div>
   </div>
 </template>
@@ -123,6 +174,8 @@ import {
   NDivider,
   NButton,
   NTag,
+  NTabs,
+  NTabPane,
   NIcon,
   NCode,
   useMessage,
@@ -143,26 +196,31 @@ const mcpServerRunning = ref(false);
 const mcpServerPort = ref(3001);
 const checkingStatus = ref(false);
 
-// MCP tools list
-const mcpTools = ref<string[]>([]);
+// Tab selection
+const activeTab = ref('debug');
 
-// Configuration JSON
-const configJson = computed(() => {
+// MCP tools lists
+const debugTools = ref<string[]>([]);
+const aiTools = ref<string[]>([]);
+
+// Configuration JSON for debug
+const debugConfigJson = computed(() => {
   return JSON.stringify({
     mcpServers: {
-      "rebebuca": {
-        url: `http://127.0.0.1:${mcpServerPort.value}/mcp/sse`
+      "rebebuca-debug": {
+        url: `http://127.0.0.1:${mcpServerPort.value}/mcp/debug/sse`,
+        disabled: false
       }
     }
   }, null, 2);
 });
 
-// Claude Desktop configuration JSON
-const claudeConfigJson = computed(() => {
+// Configuration JSON for AI
+const aiConfigJson = computed(() => {
   return JSON.stringify({
     mcpServers: {
-      "rebebuca": {
-        url: `http://127.0.0.1:${mcpServerPort.value}/mcp/sse`,
+      "rebebuca-ai": {
+        url: `http://127.0.0.1:${mcpServerPort.value}/mcp/ai/sse`,
         disabled: false
       }
     }
@@ -171,7 +229,7 @@ const claudeConfigJson = computed(() => {
 
 const checkMcpServerStatus = async () => {
   checkingStatus.value = true;
-  
+
   try {
     if (isTauri()) {
       const { invoke } = await import('@tauri-apps/api/core');
@@ -179,39 +237,33 @@ const checkMcpServerStatus = async () => {
         const port = await invoke<number>('mcp_get_server_port');
         mcpServerRunning.value = true;
         mcpServerPort.value = port;
-        
-        // Fetch tools list from health endpoint
-        await fetchToolsList();
+
+        // Fetch debug and AI tools list
+        await fetchDebugToolsList();
+        await fetchAIToolsList();
       } catch (error) {
         console.log('[MCP Panel] MCP server not running:', error);
         mcpServerRunning.value = false;
-        mcpTools.value = [];
+        debugTools.value = [];
+        aiTools.value = [];
       }
-    } else {
-      // In web mode, try to fetch health endpoint directly
-      try {
-        const response = await fetch(`http://127.0.0.1:${mcpServerPort.value}/health`);
-        if (response.ok) {
-          const data = await response.json();
-          mcpServerRunning.value = true;
-          mcpTools.value = Array(data.tools).fill('').map((_, i) => `tool-${i + 1}`);
-        } else {
+      } else {
+        // In web mode, try to fetch health endpoint directly
+        try {
+          const response = await fetch(`http://127.0.0.1:${mcpServerPort.value}/health`);
+          mcpServerRunning.value = response.ok;
+        } catch {
           mcpServerRunning.value = false;
-          mcpTools.value = [];
         }
-      } catch {
-        mcpServerRunning.value = false;
-        mcpTools.value = [];
       }
-    }
   } finally {
     checkingStatus.value = false;
   }
 };
 
-const fetchToolsList = async () => {
+const fetchDebugToolsList = async () => {
   try {
-    const response = await fetch(`http://127.0.0.1:${mcpServerPort.value}/mcp`, {
+    const response = await fetch(`http://127.0.0.1:${mcpServerPort.value}/mcp/debug`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -221,35 +273,60 @@ const fetchToolsList = async () => {
         params: {}
       })
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       if (data.result?.tools) {
-        mcpTools.value = data.result.tools.map((tool: { name: string }) => tool.name);
+        debugTools.value = data.result.tools.map((tool: { name: string }) => tool.name);
       }
     }
   } catch (error) {
-    console.error('[MCP Panel] Failed to fetch tools list:', error);
-    mcpTools.value = [];
+    console.error('[MCP Panel] Failed to fetch debug tools list:', error);
+    debugTools.value = [];
   }
 };
 
-const copyConfig = async () => {
+const fetchAIToolsList = async () => {
   try {
-    await navigator.clipboard.writeText(configJson.value);
+    const response = await fetch(`http://127.0.0.1:${mcpServerPort.value}/mcp/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {}
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.result?.tools) {
+        aiTools.value = data.result.tools.map((tool: { name: string }) => tool.name);
+      }
+    }
+  } catch (error) {
+    console.error('[MCP Panel] Failed to fetch AI tools list:', error);
+    aiTools.value = [];
+  }
+};
+
+const copyDebugConfig = async () => {
+  try {
+    await navigator.clipboard.writeText(debugConfigJson.value);
     message.success(t('settings.mcpCopySuccess'));
   } catch (error) {
-    console.error('Failed to copy config:', error);
+    console.error('Failed to copy debug config:', error);
     message.error(t('settings.mcpCopyFailed'));
   }
 };
 
-const copyClaudeConfig = async () => {
+const copyAIConfig = async () => {
   try {
-    await navigator.clipboard.writeText(claudeConfigJson.value);
+    await navigator.clipboard.writeText(aiConfigJson.value);
     message.success(t('settings.mcpCopySuccess'));
   } catch (error) {
-    console.error('Failed to copy Claude config:', error);
+    console.error('Failed to copy AI config:', error);
     message.error(t('settings.mcpCopyFailed'));
   }
 };
@@ -267,7 +344,7 @@ onMounted(() => {
 .compact-settings-form {
   :deep(.n-form-item) {
     margin-bottom: 12px;
-    
+
     .n-form-item-label {
       padding-right: 12px;
     }
@@ -283,17 +360,35 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  
+
   .endpoint-label {
     font-size: 12px;
     color: var(--n-text-color-3);
     min-width: 50px;
   }
-  
+
   .endpoint-url {
     font-family: monospace;
     font-size: 12px;
   }
+}
+
+.mcp-tabs {
+  margin-top: 16px;
+
+  :deep(.n-tabs-nav) {
+    padding: 0 8px;
+  }
+
+  :deep(.n-tabs-tab) {
+    .n-icon {
+      margin-right: 4px;
+    }
+  }
+}
+
+.tab-content {
+  padding: 16px 0;
 }
 
 .config-json-container {
@@ -301,7 +396,7 @@ onMounted(() => {
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 16px;
-  
+
   .config-json-header {
     display: flex;
     justify-content: space-between;
@@ -309,18 +404,18 @@ onMounted(() => {
     padding: 8px 12px;
     background: var(--n-color-embedded);
     border-bottom: 1px solid var(--n-border-color);
-    
+
     .config-json-title {
       font-size: 13px;
       font-weight: 500;
       color: var(--n-text-color-2);
     }
   }
-  
+
   :deep(.n-code) {
     margin: 0;
     border-radius: 0;
-    
+
     code {
       padding: 12px !important;
       font-size: 13px;

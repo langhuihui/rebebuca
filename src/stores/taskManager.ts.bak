@@ -39,6 +39,8 @@ import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } 
 import { useSshStore } from './ssh';
 import { safeInvoke } from '../utils/programUtils';
 import { syncTasksToMCP, initMCPTaskListener } from '../services/mcp/taskSync';
+import { isTauri } from '../adapters';
+import type { AIToolType } from './aiTools';
 
 /**
  * Check if command contains sudo and inject password if stored
@@ -1474,15 +1476,107 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         const resolvedTasks = resolveTaskDependencies(task.id);
         await executeTasksSerial(resolvedTasks, options);
       } else if (task.subTasks) {
+        const sessionId = task.definition.sessionId as string;
+        const existingTab = terminalStore.tabs.find(t => t.collabSessionId === sessionId);
+        if (existingTab) {
+          terminalStore.setActiveTab(existingTab.id);
+          // Try to resume the session
+          try {
+            await dualAgentStore.resumeSession(sessionId);
+          } catch (error) {
+            console.warn('[TaskManager] Failed to resume dual agent session:', error);
+          }
+          await updateTaskRunStats(task.id);
+          return;
+        }
+      }
+      
+      // Check for boulder state before creating new session
+      const projectPath = task.cwd || options?.cwd || '';
+      
+      if (projectPath && isTauri()) {
+        try {
+          const adapter = await getAdapter();
+          const state = await adapter.orchestration.checkBoulderState(projectPath);
+          if (state?.exists) {
+            // Emit event to show resume dialog - the component will handle it
+            // For now, we'll use a simple approach: check and ask user
+            // This will be handled by the component that calls executeTask
+            // Note: We can't return here as executeTask returns Promise<void>
+            // The boulder state check should be done before calling executeTask
+            console.log('[TaskManager] Boulder state found, but executeTask cannot return it. Check should be done before calling executeTask.');
+          }
+        } catch (error) {
+          console.warn('[TaskManager] Failed to check boulder state:', error);
+        }
+      }
+      
+      // Create new dual agent session
+      try {
+        const goal = {
+          ...task.definition?.goal,
+          objective: task.definition?.goal?.objective || task.name || '执行 AI 协作任务',
+          taskName: task.name,
+          acceptanceCriteria:
+            task.definition?.goal?.acceptanceCriteria || ['任务成功完成'],
+          context: task.definition?.goal?.context || task.definition?.context || '',
+          constraints: task.definition?.goal?.constraints,
+        };
+        
+        const session = await dualAgentStore.createSession({
+          projectPath,
+          goal,
+          supervisorProvider: providerConfig,
+          workerProvider: providerConfig,
+          workerTools: task.definition?.tools || ['read', 'write', 'edit', 'bash', 'glob', 'grep'],
+          skillsPath: task.definition?.skillsPath,
+          maxRounds: task.definition?.maxRounds || 20,
+          autoApprovePermissions: true,
+        });
+        
+        // Update task with session ID
+        task.definition = task.definition || {};
+        task.definition.sessionId = session.id;
+        
+        // Create dual agent tab
+        terminalStore.createDualAgentTab(session.id, task.name || 'AI 协作', task.cwd);
+        
+        // Start the session automatically
+        console.log('[TaskManager] Starting dual agent session:', session.id);
+        await dualAgentStore.startSession(session.id);
+        
+        await updateTaskRunStats(task.id);
+      } catch (error) {
+        console.error('[TaskManager] Failed to create dual agent session:', error);
+        throw error;
+      }
+      return;
+    }
+    
+    // Handle macro tasks (tasks that orchestrate other tasks, no command of their own)
+    // Only tasks explicitly marked as 'macro' or compound tasks without commands are macro tasks
+    const isMacroTask = task.type === TaskType.MACRO || (!task.command && (task.dependsOn || task.subTasks));
+    
+    if (isMacroTask) {
+      console.log('[TaskManager] Executing macro task:', task.name);
+      
+      // Check if this is a parallel macro task
+      if (task.executionMode === 'parallel' && task.subTasks) {
+        await executeTasksParallel(task.subTasks, options);
+      } else if (task.dependsOn) {
+        // Serial execution with dependencies
+        const resolvedTasks = resolveTaskDependencies(task.id);
+        await executeTasksSerial(resolvedTasks, options);
+      } else if (task.subTasks) {
         // Serial execution without dependencies (default)
         await executeTasksSerial(task.subTasks, options);
       }
-
+      
       // Update task run statistics for macro task
       await updateTaskRunStats(task.id);
       return;
     }
-
+    
     // For regular tasks with dependencies, first execute dependencies, then the task itself
     if (task.dependsOn && task.dependsOn.length > 0 && task.command) {
       console.log('[TaskManager] Task has dependencies, resolving:', task.name);
@@ -1490,7 +1584,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       await executeTasksSerial(resolvedTasks, options);
       return;
     }
-
+    
     // Execute as a simple task
     await executeTaskInternal(task, options);
   }

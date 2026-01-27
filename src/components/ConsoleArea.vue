@@ -124,28 +124,10 @@
         <div v-show="terminalStore.activeTab?.type === 'port-management'" class="port-management-content-wrapper">
           <PortManagementPanel v-if="terminalStore.activeTab?.type === 'port-management'" />
         </div>
-        
-        <!-- AI Collaboration Native tab -->
-        <div v-show="terminalStore.activeTab?.type === 'ai-collab-native'" class="ai-collab-content-wrapper">
-          <AICollabPanelNative
-            v-if="terminalStore.activeTab?.type === 'ai-collab-native'"
-            :session-id="terminalStore.activeTab.collabSessionId"
-            :project-path="terminalStore.activeTab.command || ''"
-            @session-created="handleNativeSessionCreated"
-          />
-        </div>
 
         <!-- FFmpeg Encoder tab -->
         <div v-show="terminalStore.activeTab?.type === 'ffmpeg-encoder'" class="ffmpeg-encoder-content-wrapper">
           <FFmpegEncoderPage v-if="terminalStore.activeTab?.type === 'ffmpeg-encoder'" />
-        </div>
-        
-        <!-- Dual Agent tab -->
-        <div v-show="terminalStore.activeTab?.type === 'dual-agent'" class="ai-collab-content-wrapper">
-          <OrchestrationPanel 
-            v-if="terminalStore.activeTab?.type === 'dual-agent' && terminalStore.activeTab.collabSessionId" 
-            :session-id="terminalStore.activeTab.collabSessionId"
-          />
         </div>
 
         <!-- Room Info tab -->
@@ -281,6 +263,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { NSpace, NButton, NScrollbar, NText, NTag, NEmpty, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
+import { listen } from '@tauri-apps/api/event';
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
@@ -294,9 +277,16 @@ import TerminalView from "./TerminalView.vue";
 import SettingsPanel from "./settings/SettingsPanel.vue";
 import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
-import AICollabPanelNative from "./AICollabPanelNative.vue";
 import FFmpegEncoderPage from "../ffmpeg/components/FFmpegEncoderPage.vue";
-import { OrchestrationPanel } from "./orchestration";
+
+// Event payload type for terminal-task-created event
+interface TerminalTaskCreatedEvent {
+  taskId: string;
+  command: string;
+  tabId: string;
+  ptyId: string;
+  cwd: string;
+}
 
 const { t } = useI18n();
 const message = useMessage();
@@ -541,14 +531,50 @@ const refreshProcessStats = async () => {
 // Initialize terminal store listeners
 onMounted(async () => {
   await terminalStore.initListeners();
-  
+
+  // Listen for terminal-task-created event from MCP
+  const unlistenTaskCreated = await listen('terminal-task-created', (event) => {
+    const payload = event.payload as TerminalTaskCreatedEvent;
+    const { taskId, command, tabId, ptyId } = payload;
+    console.log('[ConsoleArea] terminal-task-created event:', event.payload);
+
+    // Check if tab already exists
+    const existingTab = terminalStore.tabs.find(t => t.id === tabId);
+    if (existingTab) {
+      console.log('[ConsoleArea] Tab already exists for task:', tabId);
+      return;
+    }
+
+    // Create new tab for MCP task
+    terminalStore.tabs.push({
+      id: tabId,
+      type: 'task',
+      label: command,
+      ptyId: ptyId,
+      taskId: taskId,
+      status: 'running',
+      startTime: Date.now(),
+      command: command,
+    });
+
+    // Set as active tab
+    terminalStore.setActiveTab(tabId);
+
+    console.log('[ConsoleArea] MCP task tab created:', tabId);
+  });
+
   // Register screenshot handler
   terminalStore.registerScreenshotHandler(handleTerminalScreenshot);
-  
+
   // Start stats refresh interval (every 2 seconds)
   statsInterval = setInterval(refreshProcessStats, 2000);
   // Initial refresh
   refreshProcessStats();
+
+  // Store cleanup function for task created listener
+  onUnmounted(() => {
+    unlistenTaskCreated();
+  });
 });
 
 onUnmounted(() => {
@@ -664,20 +690,10 @@ const getTabIcon = (tab: TerminalTab) => {
   if (tab.type === 'port-management') {
     return svgIcons.network;
   }
-  
-  // For AI collaboration Native tab
-  if (tab.type === 'ai-collab-native') {
-    return svgIcons.zap;
-  }
 
   // For FFmpeg Encoder tab
   if (tab.type === 'ffmpeg-encoder') {
     return svgIcons.ffmpeg;
-  }
-  
-  // For dual agent tab
-  if (tab.type === 'dual-agent') {
-    return svgIcons.zap;
   }
 
   // For room info tab
@@ -721,14 +737,8 @@ const getTabLabel = (tab: TerminalTab): string => {
   if (tab.type === 'port-management') {
     return t('task.portManagement');
   }
-  if (tab.type === 'ai-collab-native') {
-    return tab.label || t('aiCollab.assistant');
-  }
   if (tab.type === 'ffmpeg-encoder') {
     return tab.label || 'FFmpeg 编码器';
-  }
-  if (tab.type === 'dual-agent') {
-    return tab.label || t('aiCollab.title');
   }
   return tab.label;
 };
@@ -812,15 +822,6 @@ const handleRestartTask = async () => {
 // Clear terminal
 const handleClearTerminal = () => {
   getActiveTerminalRef()?.clear();
-};
-
-// Handle native AI session created
-const handleNativeSessionCreated = (sessionId: string) => {
-  // Update the current tab with the session ID
-  const activeTab = terminalStore.activeTab;
-  if (activeTab && activeTab.type === 'ai-collab-native') {
-    activeTab.collabSessionId = sessionId;
-  }
 };
 
 // Terminal event handlers

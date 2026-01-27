@@ -1,4 +1,5 @@
 use crate::shell_env::get_shell_env;
+use log::info;
 use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -7,13 +8,25 @@ use std::io::{Read, Write, BufWriter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
+use std::process::Command;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-#[cfg(target_os = "windows")]
-use std::process::Command;
+
+/// Check if a command exists in PATH (non-Windows only)
+#[cfg(not(target_os = "windows"))]
+fn command_exists(cmd: &str) -> bool {
+    // Use 'which' command to check if command exists
+    match Command::new("which")
+        .arg(cmd)
+        .output()
+    {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PtyOptions {
@@ -469,31 +482,48 @@ impl PtyManager {
 
         #[cfg(not(target_os = "windows"))]
         let mut cmd = {
-            // Use shell to execute the command to ensure proper TTY handling
-            // This is important for sudo password prompts on macOS
-            let shell = options.shell_path.as_ref()
-                .unwrap_or(&Self::get_default_shell())
-                .clone();
-            let mut c = CommandBuilder::new(&shell);
-            c.arg("-c");
+            // Try to execute command directly if it exists in PATH
+            // Fall back to shell -c if command not found or needs shell features
+            let can_execute_directly = command_exists(&command);
 
-            // Build the full command string with proper escaping
-            let full_command = if args.is_empty() {
-                command.clone()
+            if can_execute_directly && options.shell_path.is_none() {
+                // Execute command directly without shell -c for better performance
+                let mut c = CommandBuilder::new(&command);
+                for arg in &args {
+                    c.arg(arg);
+                }
+                info!("[PTY] Executing command directly: {} {}", command, args.join(" "));
+                c
             } else {
-                // Escape arguments and join them
-                let escaped_args: Vec<String> = args.iter().map(|arg| {
-                    // If arg contains spaces or special chars, quote it
-                    if arg.contains(' ') || arg.contains('"') || arg.contains('\'') || arg.contains('$') {
-                        format!("'{}'", arg.replace("'", "'\\''"))
-                    } else {
-                        arg.clone()
-                    }
-                }).collect();
-                format!("{} {}", command, escaped_args.join(" "))
-            };
-            c.arg(&full_command);
-            c
+                // Use shell to execute the command to ensure proper TTY handling
+                // This is important for sudo password prompts on macOS
+                // Also used when shell_path is explicitly provided or command not found in PATH
+                let shell = options.shell_path.as_ref()
+                    .unwrap_or(&Self::get_default_shell())
+                    .clone();
+                let mut c = CommandBuilder::new(&shell);
+                c.arg("-c");
+
+                // Build the full command string with proper escaping
+                let full_command = if args.is_empty() {
+                    command.clone()
+                } else {
+                    // Escape arguments and join them
+                    let escaped_args: Vec<String> = args.iter().map(|arg| {
+                        // If arg contains spaces or special chars, quote it
+                        if arg.contains(' ') || arg.contains('"') || arg.contains('\'') || arg.contains('$') {
+                            format!("'{}'", arg.replace("'", "'\\''"))
+                        } else {
+                            arg.clone()
+                        }
+                    }).collect();
+                    format!("{} {}", command, escaped_args.join(" "))
+                };
+
+                info!("[PTY] Executing command via shell: {} -c \"{}\"", shell, full_command);
+                c.arg(&full_command);
+                c
+            }
         };
 
         // Set working directory

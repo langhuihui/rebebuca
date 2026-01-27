@@ -39,6 +39,8 @@ import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } 
 import { useSshStore } from './ssh';
 import { safeInvoke } from '../utils/programUtils';
 import { syncTasksToMCP, initMCPTaskListener } from '../services/mcp/taskSync';
+import { isTauri } from '../adapters';
+import type { AIToolType } from './aiTools';
 
 /**
  * Check if command contains sudo and inject password if stored
@@ -1473,24 +1475,12 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         // Serial execution with dependencies
         const resolvedTasks = resolveTaskDependencies(task.id);
         await executeTasksSerial(resolvedTasks, options);
-      } else if (task.subTasks) {
-        // Serial execution without dependencies (default)
-        await executeTasksSerial(task.subTasks, options);
-      }
-
-      // Update task run statistics for macro task
-      await updateTaskRunStats(task.id);
-      return;
-    }
-
-    // For regular tasks with dependencies, first execute dependencies, then the task itself
-    if (task.dependsOn && task.dependsOn.length > 0 && task.command) {
       console.log('[TaskManager] Task has dependencies, resolving:', task.name);
       const resolvedTasks = resolveTaskDependencies(task.id);
       await executeTasksSerial(resolvedTasks, options);
       return;
     }
-
+    
     // Execute as a simple task
     await executeTaskInternal(task, options);
   }

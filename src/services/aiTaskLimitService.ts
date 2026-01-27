@@ -10,8 +10,7 @@
 
 import { computed, type ComputedRef } from 'vue';
 import { useAuthStore } from '../stores/auth';
-import { useAICollabNativeStore } from '../stores/aiCollabNative';
-import { useDualAgentStore } from '../stores/dualAgent';
+import { useTaskManagerStore } from '../stores/taskManager';
 
 // Concurrency limits by plan type
 export const TASK_LIMITS = {
@@ -57,29 +56,19 @@ export function useAITaskLimit(): {
   checkCanCreateTask: () => { allowed: boolean; reason?: string };
 } {
   const authStore = useAuthStore();
-  const nativeStore = useAICollabNativeStore();
-  const dualAgentStore = useDualAgentStore();
+  const taskManagerStore = useTaskManagerStore();
 
   const limitInfo = computed<AITaskLimitInfo>(() => {
     const isLoggedIn = authStore.isAuthenticated;
-    const planType: PlanType = isLoggedIn 
+    const planType: PlanType = isLoggedIn
       ? (authStore.planType as PlanType) || 'free'
       : 'anonymous';
-    
+
     const maxLimit = getLimitForPlan(planType);
-    
-    // Count active sessions from both stores
-    // Native store: sessions with status 'idle' or 'running'
-    const nativeActiveSessions = Array.from(nativeStore.sessions.values()).filter(
-      s => s.status === 'idle' || s.status === 'running' || s.status === 'paused'
-    ).length;
-    
-    // Dual agent store: sessions with status not 'completed' or 'error'
-    const dualAgentActiveSessions = Array.from(dualAgentStore.sessions.values()).filter(
-      s => s.status !== 'completed' && s.status !== 'error'
-    ).length;
-    
-    const currentCount = nativeActiveSessions + dualAgentActiveSessions;
+
+    // Count active tasks from task manager store
+    const currentCount = taskManagerStore.runningTasks.size;
+
     const remainingSlots = Math.max(0, maxLimit - currentCount);
     const canCreateTask = currentCount < maxLimit;
 
@@ -133,26 +122,18 @@ class AITaskLimitService {
    */
   checkCanCreateTask(): { allowed: boolean; reason?: string; info: AITaskLimitInfo } {
     const authStore = useAuthStore();
-    const nativeStore = useAICollabNativeStore();
-    const dualAgentStore = useDualAgentStore();
+    const taskManagerStore = useTaskManagerStore();
 
     const isLoggedIn = authStore.isAuthenticated;
-    const planType: PlanType = isLoggedIn 
+    const planType: PlanType = isLoggedIn
       ? (authStore.planType as PlanType) || 'free'
       : 'anonymous';
-    
+
     const maxLimit = getLimitForPlan(planType);
-    
-    // Count active sessions
-    const nativeActiveSessions = Array.from(nativeStore.sessions.values()).filter(
-      s => s.status === 'idle' || s.status === 'running' || s.status === 'paused'
-    ).length;
-    
-    const dualAgentActiveSessions = Array.from(dualAgentStore.sessions.values()).filter(
-      s => s.status !== 'completed' && s.status !== 'error'
-    ).length;
-    
-    const currentCount = nativeActiveSessions + dualAgentActiveSessions;
+
+    // Count active tasks from task manager store
+    const currentCount = taskManagerStore.runningTasks.size;
+
     const remainingSlots = Math.max(0, maxLimit - currentCount);
     const canCreateTask = currentCount < maxLimit;
 

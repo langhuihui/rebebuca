@@ -91,23 +91,6 @@
                 </template>
                 {{ t('task.portManagement') }}
               </n-tooltip>
-              <n-tooltip v-if="featureFlagsStore.flags.aiCollab && (isDevelopmentMode() || authStore.isAuthenticated)">
-                <template #trigger>
-                  <n-button
-                    size="small"
-                    quaternary
-                    @click="handleAICollabNative"
-                    class="titlebar-action-button"
-                  >
-                    <template #icon>
-                      <n-icon size="16">
-                        <component :is="svgIcons.zap" />
-                      </n-icon>
-                    </template>
-                  </n-button>
-                </template>
-                {{ t('aiCollab.nativeMode') }}
-              </n-tooltip>
               <n-tooltip>
                 <template #trigger>
                   <n-button
@@ -259,23 +242,6 @@
                 </n-button>
               </template>
               {{ t('task.portManagement') }}
-            </n-tooltip>
-            <n-tooltip v-if="featureFlagsStore.flags.aiCollab && (isDevelopmentMode() || authStore.isAuthenticated)">
-              <template #trigger>
-                <n-button
-                  size="small"
-                  quaternary
-                  @click="handleAICollabNative"
-                  class="titlebar-action-button"
-                >
-                  <template #icon>
-                    <n-icon size="16">
-                      <component :is="svgIcons.zap" />
-                    </n-icon>
-                  </template>
-                </n-button>
-              </template>
-              {{ t('aiCollab.nativeMode') }}
             </n-tooltip>
             <n-tooltip>
               <template #trigger>
@@ -588,10 +554,6 @@ const handleAddTask = () => {
 
 const handlePortManagement = () => {
   window.dispatchEvent(new CustomEvent('port-management'));
-};
-
-const handleAICollabNative = () => {
-  window.dispatchEvent(new CustomEvent('ai-collab-native'));
 };
 
 const handleFFmpegEncoder = () => {

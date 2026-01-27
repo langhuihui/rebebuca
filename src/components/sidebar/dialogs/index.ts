@@ -14,12 +14,8 @@ export { default as TaskSelectionDialog } from './TaskSelectionDialog.vue';
 export { default as RenameGroupDialog } from './RenameGroupDialog.vue';
 export { default as AICollabTaskEditDialog } from './AICollabTaskEditDialog.vue';
 export { default as CommandPlazaDialog } from './CommandPlazaDialog.vue';
-export { default as AICollabNativeCreateDialog } from './AICollabNativeCreateDialog.vue';
 export { default as AICollabEditDialog } from './AICollabEditDialog.vue';
 export { default as RemoteDirectoryPicker } from './RemoteDirectoryPicker.vue';
-export { default as DualAgentCreateDialog } from './DualAgentCreateDialog.vue';
-
-import type { AIToolType } from '../../../stores/aiTools';
 
 // Re-export types inline
 export interface AddFolderFormData {
@@ -27,34 +23,4 @@ export interface AddFolderFormData {
   isImportMode: boolean;
   targetGroupId: string;
   newGroupName: string;
-}
-
-export interface AICollabFormData {
-  projectPath: string;
-  sessionName: string;
-  supervisorType: 'ai-tool' | 'custom-cli';
-  supervisorAITool?: AIToolType;
-  supervisorCommand?: string;
-  workerType: 'ai-tool' | 'custom-cli';
-  workerAITool?: AIToolType;
-  workerCommand?: string;
-  decisionTimeout: number;
-  envVars: string;
-  groupId?: string;
-  newGroupName?: string;
-}
-
-export interface AICollabEditFormData {
-  taskId: string;
-  projectPath: string;
-  sessionName: string;
-  supervisorType: 'ai-tool' | 'custom-cli';
-  supervisorAITool?: AIToolType;
-  supervisorCommand?: string;
-  workerType: 'ai-tool' | 'custom-cli';
-  workerAITool?: AIToolType;
-  workerCommand?: string;
-  decisionTimeout: number;
-  envVars: string;
-  sessionId?: string;
 }

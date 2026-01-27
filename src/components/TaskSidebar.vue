@@ -655,19 +655,11 @@
     @confirm="handleConfirmImport"
   />
 
-  <AICollabNativeCreateDialog
-    v-model:show="showAICollabNativeDialog"
-    :group-options="userGroupOptions"
-    @created="handleAICollabCreated"
-  />
-
   <AICollabTaskEditDialog
     v-model:show="showAICollabEditDialog"
     :task="editingAITask"
     @save="handleSaveAITask"
   />
-
-  <DualAgentCreateDialog v-model:show="showDualAgentDialog" />
 
   <ResumeSessionDialog
     v-model:show="showResumeDialog"
@@ -695,7 +687,6 @@ import { useTaskManagerStore } from "../stores/taskManager";
 import { useSettingsStore } from "../stores/settings";
 import { useUpdaterStore } from "../stores/updater";
 import { useTerminalStore } from "../stores/terminal";
-import { useDualAgentStore } from "../stores/dualAgent";
 import { useNotificationStore } from "../stores/notification";
 import { useTheme } from "../composables/useTheme";
 import { svgIcons } from "../utils/icons";
@@ -710,9 +701,7 @@ import {
   AddFolderDialog,
   TaskSelectionDialog,
   RenameGroupDialog,
-  AICollabNativeCreateDialog,
   AICollabTaskEditDialog,
-  DualAgentCreateDialog,
 } from "./sidebar/dialogs";
 import ResumeSessionDialog from "./sidebar/dialogs/ResumeSessionDialog.vue";
 import type { BoulderStateInfo } from "../adapters/types";
@@ -725,7 +714,6 @@ const settingsStore = useSettingsStore();
 const updaterStore = useUpdaterStore();
 const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
-const dualAgentStore = useDualAgentStore();
 const { effectiveTheme } = useTheme();
 
 // Check if running in Tauri (desktop) mode
@@ -850,17 +838,13 @@ const addFolderFormData = ref<AddFolderFormData | null>(null);
 // Rename group dialog state
 const showRenameGroupDialog = ref(false);
 const renameGroupData = reactive({
-  groupId: "",
-  newName: "",
+groupId: "",
+newName: "",
 });
 
-// AI Collab Native dialog state
-const showAICollabNativeDialog = ref(false);
+// AI Collab dialog state
 const showAICollabEditDialog = ref(false);
 const editingAITask = ref<Task | null>(null);
-
-// Dual Agent dialog state
-const showDualAgentDialog = ref(false);
 
 // Drag and drop state
 const draggedTask = ref<Task | null>(null);
@@ -1233,11 +1217,6 @@ const handlePortManagement = () => {
   terminalStore.createPortManagementTab();
 };
 
-// Handle AI collaboration Native - show AI collab native create dialog
-const handleAICollabNative = () => {
-  showAICollabNativeDialog.value = true;
-};
-
 // Handle FFmpeg Encoder - open FFmpeg encoder page
 const handleFFmpegEncoder = () => {
   terminalStore.createFFmpegEncoderTab();
@@ -1408,35 +1387,12 @@ const handleSaveAITask = async (taskData: any) => {
   }
 };
 
-// Handle AI collab task created
-const handleAICollabCreated = (sessionId: string, taskId: string) => {
-  console.log("[TaskSidebar] AI collab task created:", { sessionId, taskId });
-  // The task is already added to the group in the dialog
-  // Just need to ensure the UI updates
-};
-
 // Handle task click
 const handleTaskClick = (task: Task) => {
   console.log("[TaskSidebar] Task clicked:", task.name);
 
-  // For AI collab tasks, switch to the AI collab tab
-  if (task.type === "ai-collab" && task.definition?.sessionId) {
-    const sessionId = task.definition.sessionId as string;
-    // Check if a tab exists for this session
-    const existingTab = terminalStore.tabs.find(
-      (t) => t.collabSessionId === sessionId,
-    );
-    if (existingTab) {
-      terminalStore.setActiveTab(existingTab.id);
-    } else {
-      // Create a new AI collab tab
-      terminalStore.createAICollabNativeTab(
-        sessionId,
-        task.name || "AI 协作",
-        task.cwd,
-      );
-    }
-  }
+  // Note: AI collab tabs are now handled by MCP
+  // No special tab handling needed
 };
 
 // Resume session dialog state
@@ -1448,28 +1404,7 @@ const pendingTask = ref<Task | null>(null);
 const handleTaskRun = async (task: Task) => {
   try {
     console.log("[TaskSidebar] handleTaskRun called:", task.name, task.type);
-    // For AI collab tasks, switch to the AI collab tab
-    if (task.type === TaskType.AI_COLLAB && task.definition?.sessionId) {
-      const sessionId = task.definition.sessionId as string;
-      const existingSession = dualAgentStore.getSession(sessionId);
-      if (existingSession) {
-        // Check if a tab exists for this session
-        const existingTab = terminalStore.tabs.find(
-          (t) => t.collabSessionId === sessionId,
-        );
-        if (existingTab) {
-          terminalStore.setActiveTab(existingTab.id);
-        } else {
-          // Create a new dual agent tab
-          terminalStore.createDualAgentTab(
-            sessionId,
-            task.name || "AI 协作",
-            task.cwd,
-          );
-        }
-        return;
-      }
-    }
+    // Note: Dual agent functionality has been removed - AI collab tasks now use MCP-based execution
 
     // For AI collab tasks, check for boulder state before creating new session
     if (task.type === TaskType.AI_COLLAB && isDesktopMode) {
@@ -1504,105 +1439,11 @@ const handleResumeSession = async () => {
   if (!pendingTask.value || !pendingBoulderState.value) return;
 
   try {
-    const task = pendingTask.value;
-    const boulderState = pendingBoulderState.value;
-
-    // Create session with the goal from boulder state
-
-    // Get provider config
-    const { PROVIDER_CONFIG } = await import("../services/ai/provider/models");
-    const providerType = "opencode" as const;
-    const defaultProviderConfig = PROVIDER_CONFIG[providerType];
-    const providerConfig = {
-      type: providerType,
-      model: "minimax-m2.1-free",
-      apiKey: "",
-      baseUrl: defaultProviderConfig?.baseUrl,
-    };
-
-    const session = await dualAgentStore.createSession({
-      projectPath: task.cwd || "",
-      goal: {
-        ...boulderState.goal,
-        objective:
-          boulderState.goal?.objective || task.name || "执行 AI 协作任务",
-        taskName: task.name,
-        acceptanceCriteria:
-          boulderState.goal?.acceptanceCriteria || ["任务成功完成"],
-        context: boulderState.goal?.context || "",
-        constraints: boulderState.goal?.constraints,
-      },
-      supervisorProvider: providerConfig,
-      workerProvider: providerConfig,
-      workerTools: task.definition?.tools || [
-        "read",
-        "write",
-        "edit",
-        "bash",
-        "glob",
-        "grep",
-      ],
-      skillsPath: task.definition?.skillsPath,
-      maxRounds: task.definition?.maxRounds || 20,
-      autoApprovePermissions: true,
-    });
-
-    const previousSessionId = task.definition?.sessionId as string | undefined;
-
-    // Load conversation history from previous session if available
-    if (boulderState.session_id) {
-      try {
-        let previousConversation =
-          await dualAgentStore.loadConversationFromStorage(
-            boulderState.session_id,
-          );
-        if (
-          (!previousConversation || previousConversation.length === 0) &&
-          previousSessionId
-        ) {
-          previousConversation =
-            await dualAgentStore.loadConversationFromStorage(previousSessionId);
-        }
-        if (previousConversation && previousConversation.length > 0) {
-          console.log(
-            "[TaskSidebar] Loading conversation history from previous session:",
-            boulderState.session_id,
-            "messages:",
-            previousConversation.length,
-          );
-          // Restore conversation history to the new session
-          const currentSession = dualAgentStore.getSession(session.id);
-          if (currentSession) {
-            currentSession.conversation = previousConversation;
-            console.log(
-              "[TaskSidebar] Restored conversation history:",
-              currentSession.conversation.length,
-              "messages",
-            );
-          }
-        }
-      } catch (error) {
-        console.warn(
-          "[TaskSidebar] Failed to load conversation history from previous session:",
-          error,
-        );
-      }
-    }
-
-    // Update task with session ID
-    task.definition = task.definition || {};
-    task.definition.sessionId = session.id;
-
-    // Create dual agent tab
-    terminalStore.createDualAgentTab(
-      session.id,
-      task.name || "AI 协作",
-      task.cwd,
-    );
-
-    // Start the session (it will automatically resume from boulder state)
-    console.log("[TaskSidebar] Resuming dual agent session:", session.id);
-    await dualAgentStore.startSession(session.id);
+    // Note: Dual agent functionality has been removed
+    // AI collab tasks now use MCP-based execution
+    // Session management and conversation history are no longer supported
+    console.log("[TaskSidebar] AI collab session functionality has been removed");
+    console.log("[TaskSidebar] Please use executeTask instead");
 
     // Clear pending state
     pendingTask.value = null;
@@ -1612,7 +1453,6 @@ const handleResumeSession = async () => {
     throw error;
   }
 };
-
 // Handle start new session
 const handleStartNewSession = async () => {
   if (!pendingTask.value) return;
@@ -1669,7 +1509,6 @@ onMounted(async () => {
   window.addEventListener("add-folder", handleAddFolder);
   window.addEventListener("add-task", handleAddTask);
   window.addEventListener("port-management", handlePortManagement);
-  window.addEventListener("ai-collab-native", handleAICollabNative);
   window.addEventListener("ffmpeg-encoder", handleFFmpegEncoder);
 });
 
@@ -1681,7 +1520,6 @@ onUnmounted(() => {
   window.removeEventListener("add-folder", handleAddFolder);
   window.removeEventListener("add-task", handleAddTask);
   window.removeEventListener("port-management", handlePortManagement);
-  window.removeEventListener("ai-collab-native", handleAICollabNative);
   window.removeEventListener("ffmpeg-encoder", handleFFmpegEncoder);
 });
 </script>

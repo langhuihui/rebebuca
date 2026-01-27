@@ -4,14 +4,14 @@
 //! This server runs inside the Tauri application and can access real application state.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::Method,
     response::{sse::{Event, Sse}, IntoResponse},
     routing::{get, post},
     Json, Router,
 };
 use futures::stream::Stream;
-use log::{error, info};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -25,6 +25,8 @@ use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::debug;
+use crate::terminal_task_manager::TerminalTaskManager;
+use crate::terminal_task_types::{CreateTaskRequest, TaskEvent};
 
 /// MCP Server state
 #[derive(Clone)]
@@ -43,6 +45,8 @@ pub struct MCPServerState {
     task_list: Arc<RwLock<Vec<Value>>>,
     /// Server port
     port: u16,
+    /// Terminal task manager
+    task_manager: Option<Arc<TerminalTaskManager>>,
 }
 
 impl MCPServerState {
@@ -55,7 +59,13 @@ impl MCPServerState {
             resource_subscriptions: Arc::new(RwLock::new(HashMap::new())),
             task_list: Arc::new(RwLock::new(Vec::new())),
             port,
+            task_manager: None,
         }
+    }
+
+    /// Set the terminal task manager
+    pub fn set_task_manager(&mut self, task_manager: Arc<TerminalTaskManager>) {
+        self.task_manager = Some(task_manager);
     }
 
     /// Get the server port
@@ -135,8 +145,8 @@ const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 const MCP_SERVER_NAME: &str = "rebebuca-debug";
 const MCP_SERVER_VERSION: &str = "1.0.0";
 
-/// Tool definitions
-fn get_tools() -> Vec<Value> {
+/// Debug tool definitions
+fn get_debug_tools() -> Vec<Value> {
     vec![
         json!({
             "name": "get_frontend_logs",
@@ -169,24 +179,6 @@ fn get_tools() -> Vec<Value> {
                     "maxChildren": {
                         "type": "number",
                         "description": "Maximum children per node to include (default: 50)"
-                    }
-                },
-                "required": []
-            }
-        }),
-        json!({
-            "name": "get_all_debug_info",
-            "description": "Get all debug information including frontend logs, Tauri logs, and DOM tree in a single call.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "maxDepth": {
-                        "type": "number",
-                        "description": "Maximum depth for DOM tree traversal (default: 10)"
-                    },
-                    "maxChildren": {
-                        "type": "number",
-                        "description": "Maximum children per node in DOM tree (default: 50)"
                     }
                 },
                 "required": []
@@ -227,8 +219,85 @@ fn get_tools() -> Vec<Value> {
     ]
 }
 
-/// Resource definitions
-fn get_resources() -> Vec<Value> {
+/// AI tool definitions
+fn get_ai_tools() -> Vec<Value> {
+    vec![
+        json!({
+            "name": "execute_command_with_stream",
+            "description": "Execute a command and stream the output via SSE. Returns task information including outputUri for SSE subscription.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Command to execute"
+                    },
+                    "cwd": {
+                        "type": "string",
+                        "description": "Working directory for command execution (optional, defaults to project root)"
+                    },
+                    "shell": {
+                        "type": "string",
+                        "description": "Shell type to use (optional, defaults to system shell)"
+                    },
+                    "env": {
+                        "type": "object",
+                        "description": "Environment variables as key-value pairs (optional)"
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (optional, 0 means no limit)"
+                    }
+                },
+                "required": ["command"]
+            }
+        }),
+        json!({
+            "name": "list_agent_tasks",
+            "description": "List all agent tasks managed by the task manager. Returns task information including status, command, and timestamps.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }),
+        json!({
+            "name": "stop_agent_task",
+            "description": "Stop a running agent task. Returns updated task information.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "description": "Task ID to stop"
+                    },
+                    "signal": {
+                        "type": "string",
+                        "description": "Signal type: SIGTERM or SIGKILL (optional, defaults to SIGTERM)"
+                    }
+                },
+                "required": ["taskId"]
+            }
+        }),
+        json!({
+            "name": "get_agent_task_status",
+            "description": "Get the status of a specific agent task including output buffer size.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "description": "Task ID to query"
+                    }
+                },
+                "required": ["taskId"]
+            }
+        }),
+    ]
+}
+
+/// Debug resource definitions
+fn get_debug_resources() -> Vec<Value> {
     vec![
         json!({
             "uri": "log://rebebuca/frontend",
@@ -249,6 +318,11 @@ fn get_resources() -> Vec<Value> {
             "mimeType": "application/json"
         }),
     ]
+}
+
+/// AI resource definitions
+fn get_ai_resources() -> Vec<Value> {
+    vec![]
 }
 
 /// Read a resource by URI
@@ -346,8 +420,8 @@ struct MessageQuery {
     session_id: Option<String>,
 }
 
-/// Execute a tool call
-async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Result<Value, String> {
+/// Execute a debug tool call
+async fn execute_debug_tool(state: &MCPServerState, name: &str, args: &Value) -> Result<Value, String> {
     match name {
         "get_frontend_logs" => {
             let logs = state.frontend_logs.read().await;
@@ -375,27 +449,10 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
             }))
         }
 
-        "get_all_debug_info" => {
-            let frontend_logs = state.frontend_logs.read().await.clone();
-            let dom_tree = state.dom_tree.read().await.clone();
-            
-            let tauri_logs = match debug::get_tauri_logs(state.app_handle.clone()).await {
-                Ok(response) => response.data,
-                Err(e) => json!({ "error": e, "lines": [] }),
-            };
-
-            Ok(json!({
-                "frontend_logs": frontend_logs,
-                "tauri_logs": tauri_logs,
-                "dom_tree": dom_tree,
-                "timestamp": chrono::Local::now().to_rfc3339()
-            }))
-        }
-
         "list_tasks" => {
             let tasks = state.task_list.read().await.clone();
             let source_filter = args.get("source").and_then(|v| v.as_str());
-            
+
             let filtered_tasks: Vec<Value> = if let Some(source) = source_filter {
                 tasks.into_iter()
                     .filter(|t| t.get("source").and_then(|s| s.as_str()) == Some(source))
@@ -403,7 +460,7 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
             } else {
                 tasks
             };
-            
+
             Ok(json!({
                 "tasks": filtered_tasks,
                 "count": filtered_tasks.len()
@@ -413,7 +470,7 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
         "execute_task" => {
             let task_id = args.get("taskId").and_then(|v| v.as_str());
             let cwd_override = args.get("cwd").and_then(|v| v.as_str()).map(|s| s.to_string());
-            
+
             match task_id {
                 Some(id) => {
                     // Emit an event to the frontend to execute the task
@@ -421,7 +478,7 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
                         "taskId": id,
                         "cwd": cwd_override
                     });
-                    
+
                     if let Err(e) = state.app_handle.emit("mcp-execute-task", payload.clone()) {
                         error!("[MCP] Failed to emit execute-task event: {}", e);
                         Err(format!("Failed to trigger task execution: {}", e))
@@ -438,12 +495,135 @@ async fn execute_tool(state: &MCPServerState, name: &str, args: &Value) -> Resul
             }
         }
 
-        _ => Err(format!("Unknown tool: {}", name)),
+        _ => Err(format!("Unknown debug tool: {}", name)),
     }
 }
 
-/// Handle MCP JSON-RPC message
-async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, session_id: Option<&str>) -> JsonRpcResponse {
+/// Execute an AI tool call
+async fn execute_ai_tool(state: &MCPServerState, name: &str, args: &Value) -> Result<Value, String> {
+    match name {
+        "execute_command_with_stream" => {
+            if let Some(task_manager) = &state.task_manager {
+                let command = args.get("command").and_then(|v| v.as_str());
+                let cwd = args.get("cwd").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let shell = args.get("shell").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let timeout = args.get("timeout").and_then(|v| v.as_u64());
+                let env_map = args.get("env").and_then(|v| v.as_object());
+
+                match command {
+                    Some(cmd) => {
+                        let request = CreateTaskRequest {
+                            command: cmd.to_string(),
+                            cwd,
+                            shell,
+                            env: env_map.and_then(|obj| {
+                                let mut map = std::collections::HashMap::new();
+                                for (k, v) in obj {
+                                    if let Some(s) = v.as_str() {
+                                        map.insert(k.clone(), s.to_string());
+                                    }
+                                }
+                                if map.is_empty() { None } else { Some(map) }
+                            }),
+                            timeout,
+                        };
+
+                        match task_manager.create_task(request).await {
+                            Ok(task_info) => {
+                                info!("[MCP] Command executed: {}", task_info.task_id);
+                                Ok(json!({
+                                    "taskId": task_info.task_id,
+                                    "command": task_info.command,
+                                    "status": task_info.status,
+                                    "outputUri": task_info.output_uri,
+                                    "startedAt": task_info.started_at,
+                                    "cwd": task_info.cwd
+                                }))
+                            }
+                            Err(e) => Err(e.to_string()),
+                        }
+                    }
+                    None => Err("Missing command parameter".to_string()),
+                }
+            } else {
+                Err("Terminal task manager not initialized".to_string())
+            }
+        }
+
+        "list_agent_tasks" => {
+            if let Some(task_manager) = &state.task_manager {
+                let tasks = task_manager.list_tasks().await;
+                Ok(json!({
+                    "tasks": tasks,
+                    "count": tasks.len()
+                }))
+            } else {
+                Err("Terminal task manager not initialized".to_string())
+            }
+        }
+
+        "stop_agent_task" => {
+            if let Some(task_manager) = &state.task_manager {
+                let task_id = args.get("taskId").and_then(|v| v.as_str());
+                let signal = args.get("signal").and_then(|v| v.as_str());
+
+                match task_id {
+                    Some(id) => {
+                        match task_manager.stop_task(id, signal).await {
+                            Ok(task_info) => {
+                                info!("[MCP] Task stopped: {}", id);
+                                Ok(json!({
+                                    "taskId": task_info.task_id,
+                                    "status": task_info.status,
+                                    "stoppedAt": task_info.stopped_at
+                                }))
+                            }
+                            Err(e) => Err(e.to_string()),
+                        }
+                    }
+                    None => Err("Missing taskId parameter".to_string()),
+                }
+            } else {
+                Err("Terminal task manager not initialized".to_string())
+            }
+        }
+
+        "get_agent_task_status" => {
+            if let Some(task_manager) = &state.task_manager {
+                let task_id = args.get("taskId").and_then(|v| v.as_str());
+
+                match task_id {
+                    Some(id) => {
+                        if let Some(task_info) = task_manager.get_task(id).await {
+                            let output_size = task_manager.get_output_size(id).await.unwrap_or(0);
+                            Ok(json!({
+                                "taskId": task_info.task_id,
+                                "status": task_info.status,
+                                "command": task_info.command,
+                                "cwd": task_info.cwd,
+                                "startedAt": task_info.started_at,
+                                "stoppedAt": task_info.stopped_at,
+                                "exitCode": task_info.exit_code,
+                                "outputSize": output_size,
+                                "pid": task_info.pid
+                            }))
+                        } else {
+                            Err(format!("Task not found: {}", id))
+                        }
+                    }
+                    None => Err("Missing taskId parameter".to_string()),
+                }
+            } else {
+                Err("Terminal task manager not initialized".to_string())
+            }
+        }
+
+        _ => Err(format!("Unknown AI tool: {}", name)),
+    }
+}
+
+/// Handle debug MCP JSON-RPC message
+async fn handle_debug_mcp_message(state: &MCPServerState, request: JsonRpcRequest, session_id: Option<&str>) -> JsonRpcResponse {
     match request.method.as_str() {
         "initialize" => {
             JsonRpcResponse::success(
@@ -458,7 +638,7 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
                         }
                     },
                     "serverInfo": {
-                        "name": MCP_SERVER_NAME,
+                        "name": format!("{}-debug", MCP_SERVER_NAME),
                         "version": MCP_SERVER_VERSION
                     }
                 }),
@@ -466,13 +646,9 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
         }
 
         "initialized" | "notifications/initialized" => {
-            // This is a notification, not a request. According to JSON-RPC 2.0 spec,
-            // notifications MUST NOT have an "id" field and servers MUST NOT reply to them.
-            // However, some clients expect a response, so we only respond if there's an id.
             if request.id.is_some() {
                 JsonRpcResponse::success(request.id, json!({}))
             } else {
-                // Return a minimal response that won't be sent (notification has no id)
                 JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     id: None,
@@ -486,7 +662,7 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
             JsonRpcResponse::success(
                 request.id,
                 json!({
-                    "tools": get_tools()
+                    "tools": get_debug_tools()
                 }),
             )
         }
@@ -497,7 +673,7 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
 
             match tool_name {
                 Some(name) => {
-                    match execute_tool(state, name, &tool_args).await {
+                    match execute_debug_tool(state, name, &tool_args).await {
                         Ok(result) => JsonRpcResponse::success(
                             request.id,
                             json!({
@@ -518,24 +694,28 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
             }
         }
 
-        // ===== Resources Methods =====
         "resources/list" => {
             JsonRpcResponse::success(
                 request.id,
                 json!({
-                    "resources": get_resources()
+                    "resources": get_debug_resources()
                 }),
             )
         }
 
         "resources/read" => {
             let uri = request.params.get("uri").and_then(|v| v.as_str());
-            
+
             match uri {
                 Some(uri) => {
-                    match read_resource(state, uri).await {
-                        Ok(result) => JsonRpcResponse::success(request.id, result),
-                        Err(e) => JsonRpcResponse::error(request.id, -32002, e),
+                    // Only allow debug resources
+                    if uri.starts_with("log://") || uri == "debug://rebebuca/dom" {
+                        match read_resource(state, uri).await {
+                            Ok(result) => JsonRpcResponse::success(request.id, result),
+                            Err(e) => JsonRpcResponse::error(request.id, -32002, e),
+                        }
+                    } else {
+                        JsonRpcResponse::error(request.id, -32002, format!("Debug endpoint does not serve resource: {}", uri))
                     }
                 }
                 None => JsonRpcResponse::error(
@@ -548,25 +728,29 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
 
         "resources/subscribe" => {
             let uri = request.params.get("uri").and_then(|v| v.as_str());
-            
+
             match (uri, session_id) {
                 (Some(uri), Some(session_id)) => {
-                    // Verify the resource exists
-                    let resources = get_resources();
-                    let exists = resources.iter().any(|r| {
-                        r.get("uri").and_then(|u| u.as_str()) == Some(uri)
-                    });
-                    
-                    if exists {
-                        state.subscribe_resource(session_id, uri).await;
-                        info!("[MCP] Session {} subscribed to resource {}", session_id, uri);
-                        JsonRpcResponse::success(request.id, json!({}))
+                    // Only allow debug resources
+                    if uri.starts_with("log://") || uri == "debug://rebebuca/dom" {
+                        let resources = get_debug_resources();
+                        let exists = resources.iter().any(|r| {
+                            r.get("uri").and_then(|u| u.as_str()) == Some(uri)
+                        });
+
+                        if exists {
+                            state.subscribe_resource(session_id, uri).await;
+                            info!("[MCP Debug] Session {} subscribed to resource {}", session_id, uri);
+                            JsonRpcResponse::success(request.id, json!({}))
+                        } else {
+                            JsonRpcResponse::error(
+                                request.id,
+                                -32002,
+                                format!("Resource not found: {}", uri),
+                            )
+                        }
                     } else {
-                        JsonRpcResponse::error(
-                            request.id,
-                            -32002,
-                            format!("Resource not found: {}", uri),
-                        )
+                        JsonRpcResponse::error(request.id, -32002, format!("Debug endpoint does not serve resource: {}", uri))
                     }
                 }
                 (None, _) => JsonRpcResponse::error(
@@ -584,11 +768,11 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
 
         "resources/unsubscribe" => {
             let uri = request.params.get("uri").and_then(|v| v.as_str());
-            
+
             match (uri, session_id) {
                 (Some(uri), Some(session_id)) => {
                     state.unsubscribe_resource(session_id, uri).await;
-                    info!("[MCP] Session {} unsubscribed from resource {}", session_id, uri);
+                    info!("[MCP Debug] Session {} unsubscribed from resource {}", session_id, uri);
                     JsonRpcResponse::success(request.id, json!({}))
                 }
                 (None, _) => JsonRpcResponse::error(
@@ -606,6 +790,58 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
 
         "ping" => JsonRpcResponse::success(request.id, json!({})),
 
+        // Cursor MCP client extensions
+        "GetInstructions" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "instructions": format!(
+                        "Rebebuca Debug MCP Server\n\
+                        Version: {}\n\
+                        \n\
+                        This server provides debug tools for the Rebebuca application:\n\
+                        - get_frontend_logs: Get frontend console logs\n\
+                        - get_tauri_logs: Get Tauri backend logs\n\
+                        - get_dom_tree: Get current DOM tree structure\n\
+                        - list_tasks: List all available tasks\n\
+                        - execute_task: Execute a task by ID\n\
+                        \n\
+                        Available resources:\n\
+                        - log://rebebuca/frontend: Frontend logs\n\
+                        - log://rebebuca/tauri: Tauri logs\n\
+                        - debug://rebebuca/dom: DOM tree\n\
+                        \n\
+                        Endpoints:\n\
+                        - SSE: /mcp/debug/sse\n\
+                        - Streamable HTTP: /mcp/debug\n\
+                        - Message: /mcp/debug/message",
+                        MCP_SERVER_VERSION
+                    )
+                }),
+            )
+        }
+
+        "ListOfferings" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "offerings": [
+                        {
+                            "name": "rebebuca-debug",
+                            "description": "Rebebuca Debug MCP Server",
+                            "endpoints": {
+                                "sse": format!("http://127.0.0.1:{}/mcp/debug/sse", state.get_port()),
+                                "streamableHttp": format!("http://127.0.0.1:{}/mcp/debug", state.get_port()),
+                                "message": format!("http://127.0.0.1:{}/mcp/debug/message", state.get_port())
+                            },
+                            "tools": get_debug_tools().len(),
+                            "resources": get_debug_resources().len()
+                        }
+                    ]
+                }),
+            )
+        }
+
         _ => JsonRpcResponse::error(
             request.id,
             -32601,
@@ -614,8 +850,230 @@ async fn handle_mcp_message(state: &MCPServerState, request: JsonRpcRequest, ses
     }
 }
 
-/// SSE endpoint - establishes connection and sends endpoint event
-async fn sse_handler(
+/// Handle AI MCP JSON-RPC message
+async fn handle_ai_mcp_message(state: &MCPServerState, request: JsonRpcRequest, session_id: Option<&str>) -> JsonRpcResponse {
+    match request.method.as_str() {
+        "initialize" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "protocolVersion": MCP_PROTOCOL_VERSION,
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {
+                            "subscribe": true,
+                            "listChanged": true
+                        }
+                    },
+                    "serverInfo": {
+                        "name": format!("{}-ai", MCP_SERVER_NAME),
+                        "version": MCP_SERVER_VERSION
+                    }
+                }),
+            )
+        }
+
+        "initialized" | "notifications/initialized" => {
+            if request.id.is_some() {
+                JsonRpcResponse::success(request.id, json!({}))
+            } else {
+                JsonRpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: None,
+                    result: None,
+                    error: None,
+                }
+            }
+        }
+
+        "tools/list" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "tools": get_ai_tools()
+                }),
+            )
+        }
+
+        "tools/call" => {
+            let tool_name = request.params.get("name").and_then(|v| v.as_str());
+            let tool_args = request.params.get("arguments").cloned().unwrap_or(json!({}));
+
+            match tool_name {
+                Some(name) => {
+                    match execute_ai_tool(state, name, &tool_args).await {
+                        Ok(result) => JsonRpcResponse::success(
+                            request.id,
+                            json!({
+                                "content": [{
+                                    "type": "text",
+                                    "text": serde_json::to_string_pretty(&result).unwrap_or_default()
+                                }]
+                            }),
+                        ),
+                        Err(e) => JsonRpcResponse::error(request.id, -32603, e),
+                    }
+                }
+                None => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing tool name".to_string(),
+                ),
+            }
+        }
+
+        "resources/list" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "resources": get_ai_resources()
+                }),
+            )
+        }
+
+        "resources/read" => {
+            let uri = request.params.get("uri").and_then(|v| v.as_str());
+
+            match uri {
+                Some(uri) => {
+                    // Only allow AI resources
+                    if uri.starts_with("agent://") {
+                        match read_resource(state, uri).await {
+                            Ok(result) => JsonRpcResponse::success(request.id, result),
+                            Err(e) => JsonRpcResponse::error(request.id, -32002, e),
+                        }
+                    } else {
+                        JsonRpcResponse::error(request.id, -32002, format!("AI endpoint does not serve resource: {}", uri))
+                    }
+                }
+                None => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing resource URI".to_string(),
+                ),
+            }
+        }
+
+        "resources/subscribe" => {
+            let uri = request.params.get("uri").and_then(|v| v.as_str());
+
+            match (uri, session_id) {
+                (Some(uri), Some(session_id)) => {
+                    // Only allow AI resources
+                    if uri.starts_with("agent://") {
+                        let resources = get_ai_resources();
+                        let exists = resources.iter().any(|r| {
+                            r.get("uri").and_then(|u| u.as_str()) == Some(uri)
+                        });
+
+                        if exists {
+                            state.subscribe_resource(session_id, uri).await;
+                            info!("[MCP AI] Session {} subscribed to resource {}", session_id, uri);
+                            JsonRpcResponse::success(request.id, json!({}))
+                        } else {
+                            JsonRpcResponse::error(
+                                request.id,
+                                -32002,
+                                format!("Resource not found: {}", uri),
+                            )
+                        }
+                    } else {
+                        JsonRpcResponse::error(request.id, -32002, format!("AI endpoint does not serve resource: {}", uri))
+                    }
+                }
+                (None, _) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing resource URI".to_string(),
+                ),
+                (_, None) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing session ID for subscription".to_string(),
+                ),
+            }
+        }
+
+        "resources/unsubscribe" => {
+            let uri = request.params.get("uri").and_then(|v| v.as_str());
+
+            match (uri, session_id) {
+                (Some(uri), Some(session_id)) => {
+                    state.unsubscribe_resource(session_id, uri).await;
+                    info!("[MCP AI] Session {} unsubscribed from resource {}", session_id, uri);
+                    JsonRpcResponse::success(request.id, json!({}))
+                }
+                (None, _) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing resource URI".to_string(),
+                ),
+                (_, None) => JsonRpcResponse::error(
+                    request.id,
+                    -32602,
+                    "Missing session ID for unsubscription".to_string(),
+                ),
+            }
+        }
+
+        "ping" => JsonRpcResponse::success(request.id, json!({})),
+
+        // Cursor MCP client extensions
+        "GetInstructions" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "instructions": format!(
+                        "Rebebuca AI MCP Server\n\
+                        Version: {}\n\
+                        \n\
+                        This server provides AI tools for the Rebebuca application:\n\
+                        - execute_command_with_stream: Execute shell commands with streaming output\n\
+                        - get_task_status: Get status of a running task\n\
+                        - get_task_output: Get output from a task\n\
+                        - cancel_task: Cancel a running task\n\
+                        \n\
+                        Endpoints:\n\
+                        - SSE: /mcp/ai/sse\n\
+                        - Streamable HTTP: /mcp/ai\n\
+                        - Message: /mcp/ai/message",
+                        MCP_SERVER_VERSION
+                    )
+                }),
+            )
+        }
+
+        "ListOfferings" => {
+            JsonRpcResponse::success(
+                request.id,
+                json!({
+                    "offerings": [
+                        {
+                            "name": "rebebuca-ai",
+                            "description": "Rebebuca AI MCP Server",
+                            "endpoints": {
+                                "sse": format!("http://127.0.0.1:{}/mcp/ai/sse", state.get_port()),
+                                "streamableHttp": format!("http://127.0.0.1:{}/mcp/ai", state.get_port()),
+                                "message": format!("http://127.0.0.1:{}/mcp/ai/message", state.get_port())
+                            },
+                            "tools": get_ai_tools().len(),
+                            "resources": get_ai_resources().len()
+                        }
+                    ]
+                }),
+            )
+        }
+
+        _ => JsonRpcResponse::error(
+            request.id,
+            -32601,
+            format!("Method not found: {}", request.method),
+        ),
+    }
+}
+
+/// SSE endpoint for debug - establishes connection and sends endpoint event
+async fn debug_sse_handler(
     State(state): State<MCPServerState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let connection_id = format!(
@@ -624,7 +1082,7 @@ async fn sse_handler(
         uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x")
     );
     
-    info!("[MCP] New SSE connection: {}", connection_id);
+    info!("[MCP Debug] New SSE connection: {}", connection_id);
     
     // Create a broadcast channel for this connection
     let (tx, mut rx) = broadcast::channel::<Value>(100);
@@ -641,7 +1099,7 @@ async fn sse_handler(
     // Create the SSE stream
     let stream = async_stream::stream! {
         // First, send the endpoint event as required by MCP SSE transport
-        let endpoint_data = format!("/mcp/message?sessionId={}", conn_id);
+        let endpoint_data = format!("/mcp/debug/message?sessionId={}", conn_id);
         yield Ok(Event::default().event("endpoint").data(endpoint_data));
         
         // Then listen for messages to send
@@ -666,7 +1124,7 @@ async fn sse_handler(
         // Cleanup on disconnect
         let mut connections = state_clone.connections.write().await;
         connections.remove(&conn_id);
-        info!("[MCP] SSE connection closed: {}", conn_id);
+        info!("[MCP Debug] SSE connection closed: {}", conn_id);
     };
 
     Sse::new(stream).keep_alive(
@@ -676,18 +1134,80 @@ async fn sse_handler(
     )
 }
 
-/// Message endpoint - receives JSON-RPC messages and sends responses via SSE
-async fn message_handler(
+/// SSE endpoint for AI - establishes connection and sends endpoint event
+async fn ai_sse_handler(
+    State(state): State<MCPServerState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let connection_id = format!(
+        "conn_{}_{}",
+        chrono::Utc::now().timestamp_millis(),
+        uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x")
+    );
+    
+    info!("[MCP AI] New SSE connection: {}", connection_id);
+    
+    // Create a broadcast channel for this connection
+    let (tx, mut rx) = broadcast::channel::<Value>(100);
+    
+    // Store the connection
+    {
+        let mut connections = state.connections.write().await;
+        connections.insert(connection_id.clone(), tx);
+    }
+    
+    let conn_id = connection_id.clone();
+    let state_clone = state.clone();
+    
+    // Create the SSE stream
+    let stream = async_stream::stream! {
+        // First, send the endpoint event as required by MCP SSE transport
+        let endpoint_data = format!("/mcp/ai/message?sessionId={}", conn_id);
+        yield Ok(Event::default().event("endpoint").data(endpoint_data));
+        
+        // Then listen for messages to send
+        loop {
+            match rx.recv().await {
+                Ok(msg) => {
+                    if let Ok(json_str) = serde_json::to_string(&msg) {
+                        // MCP SSE transport: responses are sent as data-only events (no event type)
+                        yield Ok(Event::default().data(json_str));
+                    }
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    break;
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    // Skip lagged messages
+                    continue;
+                }
+            }
+        }
+        
+        // Cleanup on disconnect
+        let mut connections = state_clone.connections.write().await;
+        connections.remove(&conn_id);
+        info!("[MCP AI] SSE connection closed: {}", conn_id);
+    };
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(30))
+            .text("ping"),
+    )
+}
+
+/// Debug message endpoint - receives JSON-RPC messages for debug tools
+async fn debug_message_handler(
     State(state): State<MCPServerState>,
     Query(query): Query<MessageQuery>,
     Json(request): Json<JsonRpcRequest>,
 ) -> impl IntoResponse {
     let session_id = query.session_id.unwrap_or_else(|| "default".to_string());
     let has_id = request.id.is_some();
-    
-    // Handle the message with session_id for subscription support
-    let response = handle_mcp_message(&state, request, Some(&session_id)).await;
-    
+
+    // Handle the debug message with session_id for subscription support
+    let response = handle_debug_mcp_message(&state, request, Some(&session_id)).await;
+
     // Only send response via SSE if this was a request (has id), not a notification
     if has_id {
         let connections = state.connections.read().await;
@@ -695,18 +1215,52 @@ async fn message_handler(
             let _ = tx.send(serde_json::to_value(&response).unwrap_or(json!({})));
         }
     }
-    
+
     // Return 202 Accepted as per MCP SSE transport spec
     axum::http::StatusCode::ACCEPTED
 }
 
-/// Streamable HTTP endpoint - handles JSON-RPC directly without SSE
-async fn streamable_http_handler(
+/// AI message endpoint - receives JSON-RPC messages for AI tools
+async fn ai_message_handler(
+    State(state): State<MCPServerState>,
+    Query(query): Query<MessageQuery>,
+    Json(request): Json<JsonRpcRequest>,
+) -> impl IntoResponse {
+    let session_id = query.session_id.unwrap_or_else(|| "default".to_string());
+    let has_id = request.id.is_some();
+
+    // Handle the AI message with session_id for subscription support
+    let response = handle_ai_mcp_message(&state, request, Some(&session_id)).await;
+
+    // Only send response via SSE if this was a request (has id), not a notification
+    if has_id {
+        let connections = state.connections.read().await;
+        if let Some(tx) = connections.get(&session_id) {
+            let _ = tx.send(serde_json::to_value(&response).unwrap_or(json!({})));
+        }
+    }
+
+    // Return 202 Accepted as per MCP SSE transport spec
+    axum::http::StatusCode::ACCEPTED
+}
+
+/// Debug streamable HTTP endpoint - handles JSON-RPC for debug tools
+async fn debug_streamable_http_handler(
     State(state): State<MCPServerState>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     // For streamable HTTP, we don't have a persistent session for subscriptions
-    let response = handle_mcp_message(&state, request, None).await;
+    let response = handle_debug_mcp_message(&state, request, None).await;
+    Json(response)
+}
+
+/// AI streamable HTTP endpoint - handles JSON-RPC for AI tools
+async fn ai_streamable_http_handler(
+    State(state): State<MCPServerState>,
+    Json(request): Json<JsonRpcRequest>,
+) -> Json<JsonRpcResponse> {
+    // For streamable HTTP, we don't have a persistent session for subscriptions
+    let response = handle_ai_mcp_message(&state, request, None).await;
     Json(response)
 }
 
@@ -716,9 +1270,185 @@ async fn health_handler() -> Json<Value> {
         "status": "ok",
         "server": MCP_SERVER_NAME,
         "version": MCP_SERVER_VERSION,
-        "tools": get_tools().len(),
-        "resources": get_resources().len()
+        "debug_tools": get_debug_tools().len(),
+        "ai_tools": get_ai_tools().len(),
+        "debug_resources": get_debug_resources().len(),
+        "ai_resources": get_ai_resources().len()
     }))
+}
+
+/// SSE endpoint for terminal task output
+async fn terminal_output_sse_handler(
+    State(state): State<MCPServerState>,
+    Path(task_id): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    info!("[MCP] Terminal output SSE connection for task: {}", task_id);
+
+    // Get output channel from task manager
+    let mut rx_opt = if let Some(task_manager) = &state.task_manager {
+        task_manager.subscribe_output(&task_id).await
+    } else {
+        None
+    };
+
+    let task_id_clone = task_id.clone();
+    let state_clone = state.clone();
+
+    // Create SSE stream
+    let stream = async_stream::stream! {
+        // Send buffered output first
+        if let Some(task_manager) = &state_clone.task_manager {
+            if let Some(buffered) = task_manager.get_buffered_output(&task_id_clone).await {
+                for line in buffered {
+                    let event_data = json!({
+                        "event": "output",
+                        "data": {
+                            "type": line.output_type,
+                            "content": line.content,
+                            "timestamp": line.timestamp
+                        }
+                    });
+
+                    if let Ok(json_str) = serde_json::to_string(&event_data) {
+                        yield Ok(Event::default().event("output").data(json_str));
+                    }
+                }
+            }
+        }
+
+        // Listen for new output events if we have a channel
+        if let Some(mut rx) = rx_opt {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => {
+                        match event {
+                            TaskEvent::Output(line) => {
+                                let event_data = json!({
+                                    "event": "output",
+                                    "data": {
+                                        "type": line.output_type,
+                                        "content": line.content,
+                                        "timestamp": line.timestamp
+                                    }
+                                });
+
+                                if let Ok(json_str) = serde_json::to_string(&event_data) {
+                                    yield Ok(Event::default().event("output").data(json_str));
+                                }
+                            }
+                            TaskEvent::Exit { exit_code, timestamp } => {
+                                let event_data = json!({
+                                    "event": "exit",
+                                    "data": {
+                                        "exitCode": exit_code,
+                                        "timestamp": timestamp
+                                    }
+                                });
+
+                                if let Ok(json_str) = serde_json::to_string(&event_data) {
+                                    yield Ok(Event::default().event("exit").data(json_str));
+                                }
+                                // Exit event closes the connection
+                                break;
+                            }
+                            TaskEvent::Error { message, code } => {
+                                let event_data = json!({
+                                    "event": "error",
+                                    "data": {
+                                        "message": message,
+                                        "code": code
+                                    }
+                                });
+
+                                if let Ok(json_str) = serde_json::to_string(&event_data) {
+                                    yield Ok(Event::default().event("error").data(json_str));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        break;
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        // Skip lagged messages
+                        continue;
+                    }
+                }
+            }
+        } else {
+            // No output channel available - task may not exist or not started yet
+            warn!("[MCP] No output channel found for task: {}", task_id_clone);
+        }
+
+        info!("[MCP] Terminal output SSE closed for task: {}", task_id_clone);
+    };
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(30))
+            .text("ping"),
+    )
+}
+
+/// SSE endpoint for terminal tasks list
+async fn terminal_tasks_sse_handler(
+    State(state): State<MCPServerState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    info!("[MCP] Terminal tasks list SSE connection");
+
+    // Subscribe to task list events if available
+    let rx_opt = state.task_manager.as_ref().map(|tm| tm.subscribe_task_list());
+
+    // Create SSE stream
+    let stream = async_stream::stream! {
+        // Send current task list first
+        if let Some(task_manager) = &state.task_manager {
+            let tasks = task_manager.list_tasks().await;
+            let event_data = json!({
+                "tasks": tasks,
+                "count": tasks.len()
+            });
+
+            if let Ok(json_str) = serde_json::to_string(&event_data) {
+                yield Ok(Event::default().event("tasks").data(json_str));
+            }
+        }
+
+        // Listen for task list events if available
+        if let Some(mut rx) = rx_opt {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => {
+                        let event_name = match &event {
+                            crate::terminal_task_types::TaskListEvent::TaskCreated(_) => "task_created",
+                            crate::terminal_task_types::TaskListEvent::TaskUpdated(_) => "task_updated",
+                            crate::terminal_task_types::TaskListEvent::TaskDeleted { .. } => "task_deleted",
+                        };
+
+                        if let Ok(json_str) = serde_json::to_string(&event) {
+                            yield Ok(Event::default().event(event_name).data(json_str));
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        break;
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        // Skip lagged messages
+                        continue;
+                    }
+                }
+            }
+        }
+
+        info!("[MCP] Terminal tasks list SSE closed");
+    };
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(30))
+            .text("ping"),
+    )
 }
 
 /// Update frontend logs (called from Tauri command)
@@ -732,9 +1462,18 @@ pub async fn update_dom_tree(state: &MCPServerState, dom: Value) {
 }
 
 /// Start the MCP HTTP server
-pub async fn start_server(app_handle: tauri::AppHandle, port: u16) -> Result<(), String> {
-    let state = MCPServerState::new(app_handle.clone(), port);
-    
+pub async fn start_server(
+    app_handle: tauri::AppHandle,
+    port: u16,
+    task_manager: Option<Arc<TerminalTaskManager>>,
+) -> Result<(), String> {
+    let mut state = MCPServerState::new(app_handle.clone(), port);
+
+    // Set task manager if provided
+    if let Some(tm) = task_manager {
+        state.set_task_manager(tm);
+    }
+
     // Store state in app for later access
     app_handle.manage(state.clone());
     
@@ -746,23 +1485,36 @@ pub async fn start_server(app_handle: tauri::AppHandle, port: u16) -> Result<(),
     
     // Build router
     let app = Router::new()
-        .route("/mcp/sse", get(sse_handler))
-        .route("/mcp/message", post(message_handler))
-        .route("/mcp", post(streamable_http_handler))
+        // Debug MCP endpoints
+        .route("/mcp/debug/sse", get(debug_sse_handler))
+        .route("/mcp/debug/message", post(debug_message_handler))
+        .route("/mcp/debug", post(debug_streamable_http_handler))
+        // AI MCP endpoints
+        .route("/mcp/ai/sse", get(ai_sse_handler))
+        .route("/mcp/ai/message", post(ai_message_handler))
+        .route("/mcp/ai", post(ai_streamable_http_handler))
+        // Health and terminal endpoints
         .route("/health", get(health_handler))
+        .route("/terminal/output/:task_id/sse", get(terminal_output_sse_handler))
+        .route("/terminal/tasks/sse", get(terminal_tasks_sse_handler))
         .layer(cors)
         .with_state(state);
-    
+
     let addr = format!("127.0.0.1:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
-    
+
     info!("[MCP] HTTP server started on http://{}", addr);
-    info!("[MCP] SSE endpoint: http://{}/mcp/sse", addr);
-    info!("[MCP] Streamable HTTP endpoint: http://{}/mcp", addr);
-    info!("[MCP] Message endpoint: http://{}/mcp/message", addr);
+    info!("[MCP] Debug SSE endpoint: http://{}/mcp/debug/sse", addr);
+    info!("[MCP] Debug Streamable HTTP endpoint: http://{}/mcp/debug", addr);
+    info!("[MCP] Debug Message endpoint: http://{}/mcp/debug/message", addr);
+    info!("[MCP] AI SSE endpoint: http://{}/mcp/ai/sse", addr);
+    info!("[MCP] AI Streamable HTTP endpoint: http://{}/mcp/ai", addr);
+    info!("[MCP] AI Message endpoint: http://{}/mcp/ai/message", addr);
     info!("[MCP] Health check: http://{}/health", addr);
+    info!("[MCP] Terminal output SSE: http://{}/terminal/output/:task_id/sse", addr);
+    info!("[MCP] Terminal tasks SSE: http://{}/terminal/tasks/sse", addr);
     
     // Run server in background
     tokio::spawn(async move {

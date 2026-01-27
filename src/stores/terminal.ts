@@ -21,7 +21,7 @@ import { ref, computed, shallowRef } from 'vue';
 import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'ai-collab-native' | 'dual-agent' | 'room-info' | 'ffmpeg-encoder';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'room-info' | 'ffmpeg-encoder' | 'mcp-task';
 
 /**
  * 终端截图结果
@@ -80,12 +80,12 @@ export interface TerminalTab {
   pid?: number;         // 进程 PID
   initialTab?: string;  // 对于 settings 类型，可以指定初始 tab
   shellName?: string;   // 终端类型名称（用于状态栏显示）
-  collabSessionId?: string; // 对于 ai-collab 类型，关联的协作会话 ID
   sshConfigId?: string; // SSH 配置 ID（用于 SSH 任务）
   sshExecId?: string;   // SSH 执行 ID（用于 SSH 任务）
   roomInfo?: any;       // 对于 room-info 类型，存储房间信息数据
   isFFmpegTask?: boolean; // 是否为 FFmpeg 任务
   ffmpegTaskId?: string; // FFmpeg 任务 ID（用于进度追踪）
+  ffmpegFileName?: string; // FFmpeg 任务文件名（用于进度显示）
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -263,7 +263,7 @@ export const useTerminalStore = defineStore('terminal', () => {
             try {
               const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
               const ffmpegStore = useFFmpegProgressStore();
-              ffmpegStore.finishTask(tab.ffmpegTaskId, exitCode);
+              ffmpegStore.finishTask(tab.ffmpegTaskId, exitCode ?? undefined);
               console.log('[Terminal Store] FFmpeg progress tracking finished:', tab.ffmpegTaskId);
             } catch (error) {
               console.warn('[Terminal Store] Failed to finish FFmpeg progress:', error);
@@ -615,19 +615,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         console.warn('[Terminal Store] Failed to notify taskManager on closeTab:', error);
       }
     }
-    
-    // For native AI collab tabs, stop the session
-    if (tab.type === 'ai-collab-native' && tab.collabSessionId) {
-      try {
-        const { useAICollabNativeStore } = await import('./aiCollabNative');
-        const nativeStore = useAICollabNativeStore();
-        await nativeStore.stopSession(tab.collabSessionId);
-        console.log('[Terminal Store] Stopped native AI collab session:', tab.collabSessionId);
-      } catch (error) {
-        console.warn('[Terminal Store] Failed to stop native AI collab session:', error);
-      }
-    }
-    
+
     // Remove tab
     const index = tabs.value.findIndex(t => t.id === tabId);
     if (index !== -1) {
@@ -952,63 +940,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
 
-  // Find tab by collab session ID
-  const findTabByCollabSessionId = (sessionId: string): TerminalTab | undefined => {
-    return tabs.value.find(t => t.type === 'ai-collab-native' && t.collabSessionId === sessionId);
-  };
-  
-  // Create an AI collaboration tab (Native mode - direct LLM communication)
-  const createAICollabNativeTab = (sessionId: string, label?: string, projectPath?: string): TerminalTab => {
-    // Check if a tab for this session already exists
-    const existingTab = tabs.value.find(t => t.type === 'ai-collab-native' && t.collabSessionId === sessionId);
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab;
-    }
-    
-    const id = generateId();
-    const tab: TerminalTab = {
-      id,
-      type: 'ai-collab-native',
-      label: label || 'AI Native',
-      ptyId: '', // No PTY for native AI tab
-      status: 'running',
-      startTime: Date.now(),
-      collabSessionId: sessionId,
-      command: projectPath, // Store project path in command field for display
-    };
-    
-    tabs.value.push(tab);
-    setActiveTab(id);
-    return tab;
-  };
-
-  // Create a dual agent tab
-  const createDualAgentTab = (sessionId: string, label?: string, projectPath?: string): TerminalTab => {
-    // Check if a tab for this session already exists
-    const existingTab = tabs.value.find(t => t.type === 'dual-agent' && t.collabSessionId === sessionId);
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab;
-    }
-    
-    const id = generateId();
-    const tab: TerminalTab = {
-      id,
-      type: 'dual-agent',
-      label: label || 'Dual Agent',
-      ptyId: '', // No PTY for dual agent tab
-      status: 'running',
-      startTime: Date.now(),
-      collabSessionId: sessionId,
-      command: projectPath, // Store project path in command field for display
-    };
-    
-    tabs.value.push(tab);
-    setActiveTab(id);
-    return tab;
-  };
-
   // Create a room info tab
   const createRoomInfoTab = (roomInfo: any): TerminalTab => {
     // Check if room info tab already exists for this room
@@ -1110,7 +1041,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     setActiveTab,
     findTabByHistoryId,
     findTabByPtyId,
-    findTabByCollabSessionId,
     updateTabStatus,
     updateTabStats,
     getTabProcessStats,
@@ -1121,8 +1051,6 @@ export const useTerminalStore = defineStore('terminal', () => {
     createFFmpegEncoderTab,
     toggleSplitMode,
     setSplitTab,
-    createAICollabNativeTab,
-    createDualAgentTab,
     createRoomInfoTab,
     // Screenshot related
     registerScreenshotHandler,

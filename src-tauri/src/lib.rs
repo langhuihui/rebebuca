@@ -10,17 +10,21 @@ mod process;
 mod pty;
 mod shell_env;
 mod ssh;
+mod terminal_task_manager;
+mod terminal_task_types;
 mod tray;
 mod types;
 
 use log::{info, warn};
 use pty::{close_pty, create_pty, execute_task, force_kill_task, get_pty_process_stats, get_shell_integration_path, is_task_running, kill_task, resize_pty, write_pty, PtyManager};
+use std::sync::Arc;
 use tauri::{
     async_runtime,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
-    Emitter, Manager,
+    Emitter, Manager, Listener,
 };
+use terminal_task_manager::TerminalTaskManager;
 
 // Re-export types for use in other modules
 pub use types::*;
@@ -67,14 +71,73 @@ pub fn run() {
             #[cfg(debug_assertions)]
             {
                 let app_handle = app.app_handle().clone();
+
+                // Listen for PTY output events and forward to task manager
+                // This must be registered before task manager is created to catch early events
+                app.listen("pty-output", {
+                    let app_handle = app_handle.clone();
+                    move |event| {
+                        let payload = event.payload();
+                        if let Ok(pty_event) = serde_json::from_str::<serde_json::Value>(payload) {
+                            if let (Some(pty_id), Some(data)) = (
+                                pty_event.get("pty_id").and_then(|v| v.as_str()),
+                                pty_event.get("data").and_then(|v| v.as_str()),
+                            ) {
+                                // Only process MCP tasks (pty_id starts with "mcp_")
+                                if pty_id.starts_with("mcp_") {
+                                    let app_handle = app_handle.clone();
+                                    let pty_id = pty_id.to_string();
+                                    let data = data.to_string();
+                                    async_runtime::spawn(async move {
+                                        if let Some(task_manager) = app_handle.try_state::<Arc<TerminalTaskManager>>() {
+                                            task_manager.handle_pty_output(&pty_id, &data).await;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Listen for PTY exit events and forward to task manager
+                app.listen("pty-exit", {
+                    let app_handle = app_handle.clone();
+                    move |event| {
+                        let payload = event.payload();
+                        if let Ok(pty_event) = serde_json::from_str::<serde_json::Value>(payload) {
+                            if let Some(pty_id) = pty_event.get("pty_id").and_then(|v| v.as_str()) {
+                                // Only process MCP tasks (pty_id starts with "mcp_")
+                                if pty_id.starts_with("mcp_") {
+                                    let exit_code = pty_event.get("exit_code").and_then(|v| v.as_i64()).map(|c| c as i32);
+                                    let app_handle = app_handle.clone();
+                                    let pty_id = pty_id.to_string();
+                                    async_runtime::spawn(async move {
+                                        if let Some(task_manager) = app_handle.try_state::<Arc<TerminalTaskManager>>() {
+                                            task_manager.handle_pty_exit(&pty_id, exit_code).await;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                });
+
                 async_runtime::spawn(async move {
                     // Small delay to ensure app is fully initialized
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    
-                    if let Err(e) = mcp_http_server::start_server(app_handle, 3001).await {
+
+                    // Create and initialize terminal task manager without PtyManager for now
+                    // We'll need to refactor to allow passing PtyManager later
+                    let pty_manager = PtyManager::new();
+                    let task_manager = Arc::new(TerminalTaskManager::new(Arc::new(pty_manager), app_handle.clone()));
+
+                    // Store task manager in app state
+                    app_handle.manage(task_manager.clone());
+
+                    if let Err(e) = mcp_http_server::start_server(app_handle, 3001, Some(task_manager)).await {
                         warn!("[MCP] Failed to start MCP HTTP server: {}", e);
                     } else {
-                        info!("[MCP] MCP HTTP server started successfully");
+                        info!("[MCP] MCP HTTP server started successfully with terminal task manager");
                     }
                 });
             }
