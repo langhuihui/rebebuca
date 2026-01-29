@@ -1,7 +1,10 @@
 {
   "mcpServers": {
     "rebebuca-debug": {
-      "url": "http://127.0.0.1:3001/mcp/sse"
+      "url": "http://127.0.0.1:3001/mcp/debug/sse"
+    },
+    "rebebuca": {
+      "url": "http://127.0.0.1:3001/mcp/ai"
     }
   }
 }

@@ -24,11 +24,24 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "Version: ${YELLOW}${VERSION}${NC}"
 echo ""
 
-# Check if we have signing keys
-if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
-    echo -e "${YELLOW}Warning: No signing keys found. Build will be unsigned.${NC}"
-    echo -e "Set TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD environment variables for signed builds."
+# Setup signing keys
+if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+    # Try to read from tauri_signing_key file and base64 encode it
+    SIGNING_KEY_FILE="${PROJECT_ROOT}/src-tauri/tauri_signing_key"
+    if [ -f "$SIGNING_KEY_FILE" ]; then
+        echo -e "${GREEN}Reading signing key from file and encoding to base64...${NC}"
+        export TAURI_SIGNING_PRIVATE_KEY=$(cat "$SIGNING_KEY_FILE" | base64 | tr -d '\n')
+        export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+        echo -e "${GREEN}✓ Signing key loaded from file${NC}"
+    else
+        # Fallback to the key from SKILL.md (already base64 encoded)
+        echo -e "${YELLOW}Warning: tauri_signing_key file not found. Using default key from SKILL.md${NC}"
+        export TAURI_SIGNING_PRIVATE_KEY="dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5VDBiYmFGMkF4SG40WnovMHJrV3FoZFg2dFJQcWxueXlnMjV5dHRrUTdLSUFBQkFBQUFBQUFBQUFBQUlBQUFBQUl6UVJBTEllcnBsbytWSm9RZnVYOHUrM2tLbzFpb24zcktlbnZQZ2FiSE1mTEVkYjAzUEQvWTZJRitWSHJGRXZzSjJqZTk5M1g4VUNvQThPUkNybXVMV1RIQjFsT2pPemR4UEJMSkhBNG5ndWdrRkMrV0xySmdZMjBGM1QvZWQ4WjZPTUdXUWtPamM9Cg=="
+        export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+    fi
     echo ""
+elif [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 fi
 
 # Step 1: Build remote-agent for both architectures

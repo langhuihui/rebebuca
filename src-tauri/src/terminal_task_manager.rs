@@ -11,7 +11,7 @@ use chrono::{Duration, Utc};
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use uuid::Uuid;
 
@@ -130,6 +130,7 @@ impl TerminalTaskManager {
         // Generate IDs
         let task_id = Self::generate_task_id();
         let pty_id = Self::generate_pty_id();
+        let tab_id = format!("tab_{}", Uuid::new_v4().to_string().replace("-", ""));
         let session_id = Uuid::new_v4().to_string();
         let output_uri = format!("terminal://output/{}", task_id);
 
@@ -153,7 +154,7 @@ impl TerminalTaskManager {
             started_at: Utc::now(),
             stopped_at: None,
             exit_code: None,
-            tab_id: None,
+            tab_id: Some(tab_id.clone()),
             pty_id: pty_id.clone(),
             output_uri: output_uri.clone(),
             env: request.env.clone(),
@@ -179,6 +180,19 @@ impl TerminalTaskManager {
 
         // Broadcast task created event
         let _ = self.task_list_tx.send(TaskListEvent::TaskCreated(task_info.clone()));
+
+        // Emit terminal-task-created event to frontend to create tab
+        let _ = self.app_handle.emit(
+            "terminal-task-created",
+            serde_json::json!({
+                "taskId": task_id,
+                "tabId": tab_id,
+                "command": request.command,
+                "cwd": cwd,
+                "ptyId": pty_id
+            }),
+        );
+        info!("[TaskManager] Emitted terminal-task-created event for task: {}", task_id);
 
         // Execute task via PTY manager
         let pty_options = TaskExecuteOptions {
@@ -329,10 +343,13 @@ impl TerminalTaskManager {
         for (task_id, state) in tasks.iter_mut() {
             if state.pty_id() == _pty_id && state.is_running() {
                 // Update status based on exit code
+                // If exit_code is None, assume Finished (normal completion without explicit exit code)
+                // This is common for shell commands that complete successfully
                 state.info.status = match exit_code {
                     Some(0) => TaskStatus::Finished,
-                    Some(_) => TaskStatus::Failed,
-                    None => TaskStatus::Failed,
+                    Some(code) if code > 0 => TaskStatus::Failed,
+                    Some(_) => TaskStatus::Finished, // Negative codes might be signals, but treat as finished
+                    None => TaskStatus::Finished, // None means normal completion without explicit exit code
                 };
                 state.info.exit_code = exit_code;
                 state.info.stopped_at = Some(Utc::now());

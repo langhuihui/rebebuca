@@ -223,8 +223,8 @@ fn get_debug_tools() -> Vec<Value> {
 fn get_ai_tools() -> Vec<Value> {
     vec![
         json!({
-            "name": "execute_command_with_stream",
-            "description": "Execute a command and stream the output via SSE. Returns task information including outputUri for SSE subscription.",
+            "name": "start_agent_task",
+            "description": "Start a new agent task to execute a command and wait for completion. Returns task information including taskId, status, exitCode, and the last output line.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -246,7 +246,7 @@ fn get_ai_tools() -> Vec<Value> {
                     },
                     "timeout": {
                         "type": "number",
-                        "description": "Timeout in seconds (optional, 0 means no limit)"
+                        "description": "Timeout in seconds (optional, defaults to 300 seconds)"
                     }
                 },
                 "required": ["command"]
@@ -499,10 +499,37 @@ async fn execute_debug_tool(state: &MCPServerState, name: &str, args: &Value) ->
     }
 }
 
+/// Check if a string contains meaningful output (not just ANSI/control chars)
+fn is_meaningful_output(s: &str) -> bool {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    // Check if it's mostly ANSI escape sequences
+    let mut non_ansi_chars = 0;
+    let mut in_ansi = false;
+    for c in trimmed.chars() {
+        if c == '\x1b' {
+            in_ansi = true;
+        } else if in_ansi {
+            if c.is_alphabetic() && c != 'm' && c != 'h' && c != 'l' {
+                in_ansi = false;
+                non_ansi_chars += 1;
+            } else if c == 'm' || c == 'h' || c == 'l' {
+                in_ansi = false;
+            }
+        } else if !c.is_control() {
+            non_ansi_chars += 1;
+        }
+    }
+    // Consider meaningful if it has at least 2 non-ANSI characters
+    non_ansi_chars >= 2
+}
+
 /// Execute an AI tool call
 async fn execute_ai_tool(state: &MCPServerState, name: &str, args: &Value) -> Result<Value, String> {
     match name {
-        "execute_command_with_stream" => {
+        "start_agent_task" => {
             if let Some(task_manager) = &state.task_manager {
                 let command = args.get("command").and_then(|v| v.as_str());
                 let cwd = args.get("cwd").and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -530,14 +557,113 @@ async fn execute_ai_tool(state: &MCPServerState, name: &str, args: &Value) -> Re
 
                         match task_manager.create_task(request).await {
                             Ok(task_info) => {
-                                info!("[MCP] Command executed: {}", task_info.task_id);
+                                let task_id = task_info.task_id.clone();
+                                info!("[MCP] Agent task started: {}, waiting for completion...", task_id);
+
+                                // Wait for task completion with timeout
+                                let wait_timeout = timeout.map(|t| Duration::from_secs(t)).unwrap_or(Duration::from_secs(300));
+                                let start_time = std::time::Instant::now();
+                                
+                                let mut last_output: Option<String> = None;
+                                let mut exit_code: Option<i32> = None;
+                                let mut task_completed = false;
+
+                                // Subscribe to task output events to wait for completion
+                                if let Some(mut rx) = task_manager.subscribe_output(&task_id).await {
+                                    // Poll for events until exit or timeout
+                                    while start_time.elapsed() < wait_timeout && !task_completed {
+                                        match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
+                                            Ok(Ok(event)) => {
+                                                match event {
+                                                    TaskEvent::Output(line) => {
+                                                        // Only update last_output if it's meaningful
+                                                        if is_meaningful_output(&line.content) {
+                                                            last_output = Some(line.content);
+                                                        }
+                                                    }
+                                                    TaskEvent::Exit { exit_code: code, .. } => {
+                                                        exit_code = code;
+                                                        task_completed = true;
+                                                        break;
+                                                    }
+                                                    TaskEvent::Error { message, .. } => {
+                                                        return Err(format!("Task error: {}", message));
+                                                    }
+                                                }
+                                            }
+                                            Ok(Err(_)) => {
+                                                // Channel closed, check task status
+                                                break;
+                                            }
+                                            Err(_) => {
+                                                // Timeout, check if task is still running
+                                                if let Some(task) = task_manager.get_task(&task_id).await {
+                                                    use crate::terminal_task_types::TaskStatus;
+                                                    if !matches!(task.status, TaskStatus::Running) {
+                                                        task_completed = true;
+                                                        exit_code = task.exit_code;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Check if we timed out waiting for completion
+                                    if !task_completed && start_time.elapsed() >= wait_timeout {
+                                        warn!("[MCP] Task {} exceeded wait timeout of {} seconds, returning current status", 
+                                            task_id, wait_timeout.as_secs());
+                                        // Don't return error, just return current status so caller can check
+                                    }
+                                }
+
+                                // Small delay to ensure all output is captured
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+
+                                // Get final task status
+                                let final_task = task_manager.get_task(&task_id).await;
+                                let mut status = final_task.as_ref().map(|t| t.status.clone()).unwrap_or_else(|| task_info.status.clone());
+                                let exit_code_final = exit_code.or_else(|| final_task.as_ref().and_then(|t| t.exit_code));
+                                
+                                // If task is still running after wait timeout, log a warning
+                                // The task will continue running in the background, caller can check status later
+                                if !task_completed && matches!(status, crate::terminal_task_types::TaskStatus::Running) {
+                                    warn!("[MCP] Task {} is still running after {} seconds wait timeout. Returning current status. Caller can check status later using get_agent_task_status.", 
+                                        task_id, wait_timeout.as_secs());
+                                }
+
+                                // Get last output from buffer if not captured from events
+                                // Filter out ANSI escape sequences and empty/whitespace-only lines
+                                let last_output_final = if last_output.is_none() {
+                                    if let Some(buffered) = task_manager.get_buffered_output(&task_id).await {
+                                        // Find the last meaningful output line
+                                        buffered.iter()
+                                            .rev()
+                                            .find(|line| is_meaningful_output(&line.content))
+                                            .map(|line| line.content.clone())
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    // Filter the captured last_output
+                                    last_output.and_then(|output| {
+                                        if is_meaningful_output(&output) {
+                                            Some(output)
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                };
+
+                                info!("[MCP] Agent task completed: {}, exit_code: {:?}, last_output: {:?}", 
+                                    task_id, exit_code_final, last_output_final.as_ref().map(|s| s.len()));
+                                
                                 Ok(json!({
-                                    "taskId": task_info.task_id,
-                                    "command": task_info.command,
-                                    "status": task_info.status,
-                                    "outputUri": task_info.output_uri,
-                                    "startedAt": task_info.started_at,
-                                    "cwd": task_info.cwd
+                                    "taskId": task_id,
+                                    "status": status,
+                                    "exitCode": exit_code_final,
+                                    "lastOutput": last_output_final,
+                                    "startedAt": task_info.started_at
                                 }))
                             }
                             Err(e) => Err(e.to_string()),
@@ -1028,10 +1154,10 @@ async fn handle_ai_mcp_message(state: &MCPServerState, request: JsonRpcRequest, 
                         Version: {}\n\
                         \n\
                         This server provides AI tools for the Rebebuca application:\n\
-                        - execute_command_with_stream: Execute shell commands with streaming output\n\
-                        - get_task_status: Get status of a running task\n\
-                        - get_task_output: Get output from a task\n\
-                        - cancel_task: Cancel a running task\n\
+                        - start_agent_task: Start a new agent task to execute a command\n\
+                        - get_agent_task_status: Get status of a running task\n\
+                        - list_agent_tasks: List all agent tasks\n\
+                        - stop_agent_task: Stop a running task\n\
                         \n\
                         Endpoints:\n\
                         - SSE: /mcp/ai/sse\n\

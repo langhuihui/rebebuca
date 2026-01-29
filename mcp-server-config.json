@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "rebebuca-debug": {
-      "url": "http://127.0.0.1:3001/mcp/sse",
+      "url": "http://127.0.0.1:3001/mcp/debug/sse",
       "description": "Rebebuca Debug MCP Server - provides access to frontend logs, Tauri logs, DOM tree, task list, and task execution"
+    },
+    "rebebuca": {
+      "url": "http://127.0.0.1:3001/mcp/ai",
+      "description": "Rebebuca AI MCP Server - provides AI tools for command execution and task management"
     }
   }
 }

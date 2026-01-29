@@ -17,7 +17,10 @@
  -->
 
 <template>
-  <div class="console-area" :class="{ 'light-theme': effectiveTheme === 'light' }">
+  <div
+    class="console-area"
+    :class="{ 'light-theme': effectiveTheme === 'light' }"
+  >
     <!-- Welcome screen when no tabs and no history selected -->
     <WelcomeScreen
       v-if="terminalStore.tabs.length === 0 && !uiStore.selectedHistoryItem"
@@ -29,7 +32,7 @@
           <template #icon>
             <component :is="iconComponents.terminal" />
           </template>
-          {{ t('terminal.open') }}
+          {{ t("terminal.open") }}
         </n-button>
       </template>
     </WelcomeScreen>
@@ -45,11 +48,23 @@
               v-for="tab in terminalStore.tabs"
               :key="tab.id"
               class="terminal-tab"
-              :class="{ 
+              :class="{
                 active: terminalStore.activeTabId === tab.id,
-                running: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'running',
-                success: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'success',
-                error: (tab.type === 'task' || tab.type === 'shell') && tab.status === 'error'
+                running:
+                  (tab.type === 'task' ||
+                    tab.type === 'shell' ||
+                    tab.type === 'agent-task') &&
+                  tab.status === 'running',
+                success:
+                  (tab.type === 'task' ||
+                    tab.type === 'shell' ||
+                    tab.type === 'agent-task') &&
+                  tab.status === 'success',
+                error:
+                  (tab.type === 'task' ||
+                    tab.type === 'shell' ||
+                    tab.type === 'agent-task') &&
+                  tab.status === 'error',
               }"
               draggable="true"
               @dragstart="handleDragStart($event, tab)"
@@ -60,8 +75,11 @@
               </span>
               <span class="tab-label">{{ getTabLabel(tab) }}</span>
               <!-- Tab action buttons (only for active task/shell tabs) -->
-              <span 
-                v-if="terminalStore.activeTabId === tab.id && (tab.type === 'task' || tab.type === 'shell')" 
+              <span
+                v-if="
+                  terminalStore.activeTabId === tab.id &&
+                  (tab.type === 'task' || tab.type === 'shell')
+                "
                 class="tab-actions"
                 @click.stop
               >
@@ -92,10 +110,7 @@
                   <component :is="iconComponents.clear" />
                 </span>
               </span>
-              <span 
-                class="tab-close" 
-                @click.stop="closeTab(tab.id)"
-              >
+              <span class="tab-close" @click.stop="closeTab(tab.id)">
                 <component :is="iconComponents.close" />
               </span>
             </div>
@@ -111,47 +126,87 @@
       <!-- Active terminal content -->
       <div class="terminal-content">
         <!-- Settings tab -->
-        <div v-show="terminalStore.activeTab?.type === 'settings'" class="settings-content-wrapper">
-          <SettingsPanel v-if="terminalStore.activeTab?.type === 'settings'" :initial-tab="terminalStore.activeTab.initialTab" />
+        <div
+          v-show="terminalStore.activeTab?.type === 'settings'"
+          class="settings-content-wrapper"
+        >
+          <SettingsPanel
+            v-if="terminalStore.activeTab?.type === 'settings'"
+            :initial-tab="terminalStore.activeTab.initialTab"
+          />
         </div>
-        
+
         <!-- Notifications tab -->
-        <div v-show="terminalStore.activeTab?.type === 'notifications'" class="notifications-content-wrapper">
-          <NotificationsPanel v-if="terminalStore.activeTab?.type === 'notifications'" />
+        <div
+          v-show="terminalStore.activeTab?.type === 'notifications'"
+          class="notifications-content-wrapper"
+        >
+          <NotificationsPanel
+            v-if="terminalStore.activeTab?.type === 'notifications'"
+          />
         </div>
-        
+
         <!-- Port Management tab -->
-        <div v-show="terminalStore.activeTab?.type === 'port-management'" class="port-management-content-wrapper">
-          <PortManagementPanel v-if="terminalStore.activeTab?.type === 'port-management'" />
+        <div
+          v-show="terminalStore.activeTab?.type === 'port-management'"
+          class="port-management-content-wrapper"
+        >
+          <PortManagementPanel
+            v-if="terminalStore.activeTab?.type === 'port-management'"
+          />
         </div>
 
         <!-- FFmpeg Encoder tab -->
-        <div v-show="terminalStore.activeTab?.type === 'ffmpeg-encoder'" class="ffmpeg-encoder-content-wrapper">
-          <FFmpegEncoderPage v-if="terminalStore.activeTab?.type === 'ffmpeg-encoder'" />
+        <div
+          v-show="terminalStore.activeTab?.type === 'ffmpeg-encoder'"
+          class="ffmpeg-encoder-content-wrapper"
+        >
+          <FFmpegEncoderPage
+            v-if="terminalStore.activeTab?.type === 'ffmpeg-encoder'"
+          />
         </div>
 
         <!-- Room Info tab -->
-        <div v-show="terminalStore.activeTab?.type === 'room-info'" class="room-info-content-wrapper">
-          <RoomInfoPanel 
-            v-if="terminalStore.activeTab?.type === 'room-info' && terminalStore.activeTab.roomInfo" 
+        <div
+          v-show="terminalStore.activeTab?.type === 'room-info'"
+          class="room-info-content-wrapper"
+        >
+          <RoomInfoPanel
+            v-if="
+              terminalStore.activeTab?.type === 'room-info' &&
+              terminalStore.activeTab.roomInfo
+            "
             :room-info="terminalStore.activeTab.roomInfo"
           />
         </div>
-        
+
         <!-- Terminal tabs (task or shell) - Always render terminals, use v-show to preserve instances -->
-        <div v-show="terminalStore.activeTab && (terminalStore.activeTab.type === 'task' || terminalStore.activeTab.type === 'shell')" class="terminal-tab-content">
+        <div
+          v-show="
+            terminalStore.activeTab &&
+            (terminalStore.activeTab.type === 'task' ||
+              terminalStore.activeTab.type === 'shell')
+          "
+          class="terminal-tab-content"
+        >
           <!-- Terminal view - render all terminal tabs, show only active one -->
           <!-- IMPORTANT: Always render terminals (even when settings tab is active) to preserve instances -->
-          <div 
-            class="console-output-container terminal-wrapper" 
+          <div
+            class="console-output-container terminal-wrapper"
             :class="{ 'split-grid': terminalStore.isSplitMode }"
           >
-            <div 
-              v-for="tab in terminalStore.tabs.filter(t => t.type === 'task' || t.type === 'shell')"
+            <div
+              v-for="tab in terminalStore.tabs.filter(
+                (t) => t.type === 'task' || t.type === 'shell',
+              )"
               v-show="shouldShowTab(tab.id)"
               :key="tab.id"
               class="terminal-view-wrapper"
-              :class="{ 'split-active': terminalStore.isSplitMode && terminalStore.activeTabId === tab.id }"
+              :class="{
+                'split-active':
+                  terminalStore.isSplitMode &&
+                  terminalStore.activeTabId === tab.id,
+              }"
               :style="getTabStyle(tab.id)"
               @click.capture="handleSplitClick(tab.id)"
               @dragover.prevent
@@ -165,18 +220,22 @@
                       v-for="availableTab in getAvailableTabsForSplit(tab.id)"
                       :key="availableTab.id"
                       class="split-tab"
-                      :class="{ 
+                      :class="{
                         active: availableTab.id === tab.id,
                         running: availableTab.status === 'running',
                         success: availableTab.status === 'success',
-                        error: availableTab.status === 'error'
+                        error: availableTab.status === 'error',
                       }"
-                      @click.stop="handleSplitTabChange(tab.id, availableTab.id)"
+                      @click.stop="
+                        handleSplitTabChange(tab.id, availableTab.id)
+                      "
                     >
                       <span class="split-tab-icon">
                         <component :is="getTabIcon(availableTab)" />
                       </span>
-                      <span class="split-tab-label">{{ getTabLabel(availableTab) }}</span>
+                      <span class="split-tab-label">{{
+                        getTabLabel(availableTab)
+                      }}</span>
                     </div>
                   </div>
                 </n-scrollbar>
@@ -185,7 +244,8 @@
                 :pty-id="tab.ptyId"
                 :theme="effectiveTheme"
                 :cwd="getTabCwd(tab)"
-                :attach-only="tab.type === 'task'"
+                :attach-only="tab.type === 'task' || tab.type === 'shell'"
+                :enable-shell-integration="tab.type === 'shell'"
                 :ref="(el) => setTerminalRef(tab.id, el)"
                 @ready="() => onTerminalReady(tab.id)"
                 @exit="(code) => onTerminalExit(tab.id, code)"
@@ -195,8 +255,8 @@
 
             <!-- Split Placeholders -->
             <template v-if="terminalStore.isSplitMode">
-              <div 
-                v-for="(splitTabId, index) in terminalStore.splitTabs" 
+              <div
+                v-for="(splitTabId, index) in terminalStore.splitTabs"
                 v-show="!splitTabId"
                 :key="'split-placeholder-' + index"
                 class="split-placeholder"
@@ -210,8 +270,31 @@
           </div>
         </div>
 
+        <!-- Agent task tabs - Render agent task view for JSON visualization -->
+        <div
+          v-show="
+            terminalStore.activeTab &&
+            terminalStore.activeTab.type === 'agent-task'
+          "
+          class="agent-task-tab-content"
+        >
+          <div
+            v-for="tab in terminalStore.tabs.filter(
+              (t) => t.type === 'agent-task',
+            )"
+            v-show="shouldShowTab(tab.id)"
+            :key="tab.id"
+            class="agent-task-view-wrapper"
+          >
+            <AgentTaskView :tab="tab" :pty-id="tab.ptyId" />
+          </div>
+        </div>
+
         <!-- History output view (when history selected but no terminal tab) -->
-        <div v-show="!terminalStore.activeTab && showHistoryOutput" class="history-output-wrapper">
+        <div
+          v-show="!terminalStore.activeTab && showHistoryOutput"
+          class="history-output-wrapper"
+        >
           <!-- History toolbar -->
           <n-space class="console-toolbar" size="small">
             <!-- 命令信息 -->
@@ -220,13 +303,21 @@
             </n-text>
 
             <!-- 状态标签 -->
-            <n-tag 
-              :type="uiStore.selectedHistoryItem?.status === 'success' ? 'success' : 'error'"
+            <n-tag
+              :type="
+                uiStore.selectedHistoryItem?.status === 'success'
+                  ? 'success'
+                  : 'error'
+              "
               size="small"
             >
-              {{ uiStore.selectedHistoryItem?.status === 'success' ? 'Exit: 0' : 'Exit: N/A' }}
+              {{
+                uiStore.selectedHistoryItem?.status === "success"
+                  ? "Exit: 0"
+                  : "Exit: N/A"
+              }}
             </n-tag>
-            
+
             <!-- 时间信息 -->
             <n-text depth="3" class="history-time">
               {{ formatHistoryTime(uiStore.selectedHistoryItem?.timestamp) }}
@@ -237,19 +328,30 @@
           <div class="console-output-container history-output-wrapper">
             <n-scrollbar class="history-output-scrollbar">
               <div v-if="isLoadingHistoryOutput" class="history-loading">
-                {{ t('console.loading') || 'Loading...' }}
+                {{ t("console.loading") || "Loading..." }}
               </div>
-              <pre v-else class="history-output" v-html="formatAnsiOutput(currentHistoryOutput || t('console.noOutput'))"></pre>
+              <pre
+                v-else
+                class="history-output"
+                v-html="
+                  formatAnsiOutput(
+                    currentHistoryOutput || t('console.noOutput'),
+                  )
+                "
+              ></pre>
             </n-scrollbar>
           </div>
         </div>
 
         <!-- No active tab -->
-        <div v-show="!terminalStore.activeTab && !showHistoryOutput" class="no-terminal">
+        <div
+          v-show="!terminalStore.activeTab && !showHistoryOutput"
+          class="no-terminal"
+        >
           <n-empty :description="t('console.noOutput')">
             <template #extra>
               <n-button size="small" @click="openShellTerminal">
-                {{ t('terminal.new') }}
+                {{ t("terminal.new") }}
               </n-button>
             </template>
           </n-empty>
@@ -261,19 +363,32 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
-import { NSpace, NButton, NScrollbar, NText, NTag, NEmpty, useMessage } from "naive-ui";
+import {
+  NSpace,
+  NButton,
+  NScrollbar,
+  NText,
+  NTag,
+  NEmpty,
+  useMessage,
+} from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { listen } from '@tauri-apps/api/event';
+import { listen } from "@tauri-apps/api/event";
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useRunConfigStore } from "../stores/runConfig";
-import { useTerminalStore, type TerminalTab, type TerminalScreenshotResult } from "../stores/terminal";
+import {
+  useTerminalStore,
+  type TerminalTab,
+  type TerminalScreenshotResult,
+} from "../stores/terminal";
 import { useSettingsStore } from "../stores/settings";
 import { useTaskManagerStore } from "../stores/taskManager";
 import { iconComponents, svgIcons, getCommandIconName } from "../utils/icons";
 import { ansiToHtml } from "../utils/ansiUtils";
 import WelcomeScreen from "./WelcomeScreen.vue";
 import TerminalView from "./TerminalView.vue";
+import AgentTaskView from "./AgentTaskView.vue";
 import SettingsPanel from "./settings/SettingsPanel.vue";
 import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
@@ -306,13 +421,13 @@ const shouldShowTab = (tabId: string) => {
 
 const getTabStyle = (tabId: string) => {
   if (!terminalStore.isSplitMode) return {};
-  
+
   const index = terminalStore.splitTabs.indexOf(tabId);
-  if (index === -1) return { display: 'none' };
-  
+  if (index === -1) return { display: "none" };
+
   const row = Math.floor(index / 2) + 1;
   const col = (index % 2) + 1;
-  
+
   return {
     gridRow: row,
     gridColumn: col,
@@ -324,16 +439,22 @@ const getSplitStyle = (index: number) => {
   const col = (index % 2) + 1;
   return {
     gridRow: row,
-    gridColumn: col
+    gridColumn: col,
   };
 };
 
 // Get available tabs for a split position (exclude tabs shown in other splits)
 const getAvailableTabsForSplit = (currentTabId: string): TerminalTab[] => {
-  const terminalTabs = terminalStore.tabs.filter(t => t.type === 'task' || t.type === 'shell');
-  const otherSplitTabs = terminalStore.splitTabs.filter(id => id && id !== currentTabId);
-  
-  return terminalTabs.filter(tab => tab.id === currentTabId || !otherSplitTabs.includes(tab.id));
+  const terminalTabs = terminalStore.tabs.filter(
+    (t) => t.type === "task" || t.type === "shell",
+  );
+  const otherSplitTabs = terminalStore.splitTabs.filter(
+    (id) => id && id !== currentTabId,
+  );
+
+  return terminalTabs.filter(
+    (tab) => tab.id === currentTabId || !otherSplitTabs.includes(tab.id),
+  );
 };
 
 // Handle split tab selection change
@@ -347,7 +468,7 @@ const handleSplitTabChange = (currentTabId: string, newTabId: string) => {
     });
     return;
   }
-  
+
   const splitIndex = terminalStore.splitTabs.indexOf(currentTabId);
   if (splitIndex !== -1) {
     terminalStore.setSplitTab(splitIndex, newTabId);
@@ -370,40 +491,42 @@ const handleSplitClick = (tabId: string) => {
 
 const handleDragStart = (event: DragEvent, tab: TerminalTab) => {
   if (event.dataTransfer) {
-    event.dataTransfer.setData('text/plain', tab.id);
-    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData("text/plain", tab.id);
+    event.dataTransfer.effectAllowed = "move";
   }
 };
 
 const handleDropOnSplit = (event: DragEvent, index: number) => {
-  const tabId = event.dataTransfer?.getData('text/plain');
+  const tabId = event.dataTransfer?.getData("text/plain");
   if (tabId) {
     terminalStore.setSplitTab(index, tabId);
-    terminalStore.setActiveTab(tabId); 
-    
+    terminalStore.setActiveTab(tabId);
+
     nextTick(() => {
-        const termRef = terminalRefs.value.get(tabId);
-        if (termRef) termRef.focus();
+      const termRef = terminalRefs.value.get(tabId);
+      if (termRef) termRef.focus();
     });
   }
 };
 
 const handleDropOnTab = (event: DragEvent, targetTabId: string) => {
-  const tabId = event.dataTransfer?.getData('text/plain');
+  const tabId = event.dataTransfer?.getData("text/plain");
   if (tabId && tabId !== targetTabId && terminalStore.isSplitMode) {
     const index = terminalStore.splitTabs.indexOf(targetTabId);
     if (index !== -1) {
       terminalStore.setSplitTab(index, tabId);
       terminalStore.setActiveTab(tabId);
       nextTick(() => {
-          const termRef = terminalRefs.value.get(tabId);
-          if (termRef) termRef.focus();
+        const termRef = terminalRefs.value.get(tabId);
+        if (termRef) termRef.focus();
       });
     }
   }
 };
 
-const terminalRefs = ref<Map<string, InstanceType<typeof TerminalView> | null>>(new Map());
+const terminalRefs = ref<Map<string, InstanceType<typeof TerminalView> | null>>(
+  new Map(),
+);
 
 // Set terminal ref for a specific tab
 const setTerminalRef = (tabId: string, el: any) => {
@@ -421,18 +544,20 @@ const getActiveTerminalRef = () => {
 };
 
 // Screenshot handler for terminal store
-const handleTerminalScreenshot = async (tabId: string): Promise<TerminalScreenshotResult | null> => {
+const handleTerminalScreenshot = async (
+  tabId: string,
+): Promise<TerminalScreenshotResult | null> => {
   const termRef = terminalRefs.value.get(tabId);
-  const tab = terminalStore.tabs.find(t => t.id === tabId);
-  
+  const tab = terminalStore.tabs.find((t) => t.id === tabId);
+
   if (!termRef || !tab) {
     return null;
   }
-  
+
   try {
     const screenshot = await termRef.takeScreenshot();
     const textContent = termRef.getTextContent(500); // 最近 500 行
-    
+
     return {
       screenshot,
       textContent,
@@ -440,70 +565,78 @@ const handleTerminalScreenshot = async (tabId: string): Promise<TerminalScreensh
       ptyId: tab.ptyId,
     };
   } catch (error) {
-    console.error('[ConsoleArea] Failed to take screenshot:', error);
+    console.error("[ConsoleArea] Failed to take screenshot:", error);
     return null;
   }
 };
 
 // History output content (may be loaded from log file)
-const historyOutputContent = ref<string>('');
+const historyOutputContent = ref<string>("");
 const isLoadingHistoryOutput = ref(false);
 
 // Computed: show history output when history is selected but terminal tab doesn't exist
 const showHistoryOutput = computed(() => {
   const historyItem = uiStore.selectedHistoryItem;
   if (!historyItem) return false;
-  
+
   // If the terminal tab exists, don't show history output (terminal will be shown)
   if (historyItem.terminalTabId) {
-    const tabExists = terminalStore.tabs.some(t => t.id === historyItem.terminalTabId);
+    const tabExists = terminalStore.tabs.some(
+      (t) => t.id === historyItem.terminalTabId,
+    );
     if (tabExists) return false;
   }
-  
+
   // Show history output if there's saved output or a log file
-  return !!(historyItem.output || historyItem.logFilename || historyOutputContent.value);
+  return !!(
+    historyItem.output ||
+    historyItem.logFilename ||
+    historyOutputContent.value
+  );
 });
 
 // Load history output from log file if needed
-const loadHistoryOutput = async (historyItem: typeof uiStore.selectedHistoryItem) => {
+const loadHistoryOutput = async (
+  historyItem: typeof uiStore.selectedHistoryItem,
+) => {
   if (!historyItem) {
-    historyOutputContent.value = '';
+    historyOutputContent.value = "";
     return;
   }
-  
+
   // If we already have output in the history item, use that
   if (historyItem.output) {
     historyOutputContent.value = historyItem.output;
     return;
   }
-  
+
   // If we have a log file, try to load from it
   if (historyItem.logFilename) {
     isLoadingHistoryOutput.value = true;
     try {
       const content = await runConfigStore.readLogFile(historyItem.logFilename);
-      historyOutputContent.value = content || '';
-      
+      historyOutputContent.value = content || "";
+
       // Also update the history item's output for caching
       if (content) {
         runConfigStore.updateHistory(historyItem.id, { output: content });
       }
     } catch (error) {
-      console.error('[ConsoleArea] Failed to load log file:', error);
-      historyOutputContent.value = '';
+      console.error("[ConsoleArea] Failed to load log file:", error);
+      historyOutputContent.value = "";
     } finally {
       isLoadingHistoryOutput.value = false;
     }
   } else {
-    historyOutputContent.value = '';
+    historyOutputContent.value = "";
   }
 };
 
 // Get the current history output (from item or loaded from file)
 const currentHistoryOutput = computed(() => {
   const historyItem = uiStore.selectedHistoryItem;
-  if (!historyItem) return '';
-  return historyItem.output || historyOutputContent.value || '';
+  if (!historyItem) return "";
+  return historyItem.output || historyOutputContent.value || "";
 });
 
 // Format ANSI escape codes in output to HTML
@@ -513,7 +646,7 @@ const formatAnsiOutput = (output: string): string => {
 
 // Format timestamp for history display
 const formatHistoryTime = (timestamp?: Date): string => {
-  if (!timestamp) return '';
+  if (!timestamp) return "";
   const date = new Date(timestamp);
   return date.toLocaleString();
 };
@@ -533,34 +666,56 @@ onMounted(async () => {
   await terminalStore.initListeners();
 
   // Listen for terminal-task-created event from MCP
-  const unlistenTaskCreated = await listen('terminal-task-created', (event) => {
+  const unlistenTaskCreated = await listen("terminal-task-created", (event) => {
     const payload = event.payload as TerminalTaskCreatedEvent;
     const { taskId, command, tabId, ptyId } = payload;
-    console.log('[ConsoleArea] terminal-task-created event:', event.payload);
+    console.log("[ConsoleArea] terminal-task-created event:", event.payload);
 
     // Check if tab already exists
-    const existingTab = terminalStore.tabs.find(t => t.id === tabId);
+    const existingTab = terminalStore.tabs.find((t) => t.id === tabId);
     if (existingTab) {
-      console.log('[ConsoleArea] Tab already exists for task:', tabId);
+      console.log("[ConsoleArea] Tab already exists for task:", tabId);
       return;
     }
+
+    // Detect if this is an agent task (command starts with 'agent' or 'cbc')
+    // 'agent' = cursor CLI command, 'cbc' = codebuddy CLI command
+    const trimmedCommand = command ? command.trim() : "";
+    const isAgentTask =
+      trimmedCommand.startsWith("agent ") || trimmedCommand.startsWith("cbc ");
+
+    console.log("[ConsoleArea] Creating tab:", {
+      tabId,
+      command: trimmedCommand,
+      isAgentTask,
+      ptyId,
+      taskId,
+    });
 
     // Create new tab for MCP task
     terminalStore.tabs.push({
       id: tabId,
-      type: 'task',
+      type: isAgentTask ? "agent-task" : "task",
       label: command,
       ptyId: ptyId,
       taskId: taskId,
-      status: 'running',
+      status: "running",
       startTime: Date.now(),
       command: command,
+      isAgentTask: isAgentTask,
     });
 
     // Set as active tab
     terminalStore.setActiveTab(tabId);
 
-    console.log('[ConsoleArea] MCP task tab created:', tabId);
+    console.log(
+      "[ConsoleArea] MCP task tab created:",
+      tabId,
+      "isAgentTask:",
+      isAgentTask,
+      "activeTab:",
+      terminalStore.activeTabId,
+    );
   });
 
   // Register screenshot handler
@@ -579,10 +734,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   terminalStore.cleanupListeners();
-  
+
   // Unregister screenshot handler
   terminalStore.unregisterScreenshotHandler();
-  
+
   // Clear stats interval
   if (statsInterval) {
     clearInterval(statsInterval);
@@ -596,18 +751,20 @@ watch(
   async (historyItem) => {
     if (historyItem?.terminalTabId) {
       // Check if terminal tab exists
-      const tabExists = terminalStore.tabs.some(t => t.id === historyItem.terminalTabId);
+      const tabExists = terminalStore.tabs.some(
+        (t) => t.id === historyItem.terminalTabId,
+      );
       if (tabExists) {
         // Switch to the terminal tab for this history item
         terminalStore.setActiveTab(historyItem.terminalTabId);
         return;
       }
     }
-    
+
     // If no tab exists, load history output (from memory or log file)
     await loadHistoryOutput(historyItem);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Watch for active tab changes - focus terminal and fit size
@@ -617,16 +774,21 @@ watch(
     if (newTabId) {
       const activeTab = terminalStore.activeTab;
       // Only handle terminal tabs (task or shell), not special tabs like port-management
-      if (activeTab && (activeTab.type === 'task' || activeTab.type === 'shell')) {
+      if (
+        activeTab &&
+        (activeTab.type === "task" || activeTab.type === "shell")
+      ) {
         // Use nextTick with a longer delay when switching from non-terminal tabs
         // This ensures v-show has taken effect and terminal container is visible
-        const oldTab = oldTabId ? terminalStore.tabs.find(t => t.id === oldTabId) : null;
-        const isSwitchingFromNonTerminalTab = oldTab && 
-          !['task', 'shell'].includes(oldTab.type);
-        const delay = isSwitchingFromNonTerminalTab 
+        const oldTab = oldTabId
+          ? terminalStore.tabs.find((t) => t.id === oldTabId)
+          : null;
+        const isSwitchingFromNonTerminalTab =
+          oldTab && !["task", "shell"].includes(oldTab.type);
+        const delay = isSwitchingFromNonTerminalTab
           ? 200 // Longer delay when switching from settings/notifications tabs
           : 50; // Normal delay for tab-to-tab switches
-        
+
         nextTick(() => {
           setTimeout(() => {
             const ref = terminalRefs.value.get(newTabId);
@@ -634,12 +796,16 @@ watch(
               // Always try to restore renderer when switching from non-terminal tabs
               // For normal tab switches, also try restore to handle any edge cases
               if (isSwitchingFromNonTerminalTab && ref.restoreRenderer) {
-                console.log('[ConsoleArea] Restoring renderer after switching from non-terminal tab');
+                console.log(
+                  "[ConsoleArea] Restoring renderer after switching from non-terminal tab",
+                );
                 ref.restoreRenderer();
               } else {
                 // For normal tab switches, try restore first, then fallback to fit/focus
                 if (ref.restoreRenderer) {
-                  console.log('[ConsoleArea] Restoring renderer after tab switch');
+                  console.log(
+                    "[ConsoleArea] Restoring renderer after tab switch",
+                  );
                   ref.restoreRenderer();
                 } else {
                   ref.fit();
@@ -650,20 +816,23 @@ watch(
                 }
               }
             } else {
-              console.warn('[ConsoleArea] Terminal ref not found for tab:', newTabId);
+              console.warn(
+                "[ConsoleArea] Terminal ref not found for tab:",
+                newTabId,
+              );
             }
           }, delay);
         });
       }
     }
-  }
+  },
 );
 
 // Watch for tabs being removed - clean up refs
 watch(
   () => terminalStore.tabs,
   (newTabs) => {
-    const tabIds = new Set(newTabs.map(t => t.id));
+    const tabIds = new Set(newTabs.map((t) => t.id));
     // Remove refs for tabs that no longer exist
     for (const [tabId] of terminalRefs.value) {
       if (!tabIds.has(tabId)) {
@@ -671,76 +840,103 @@ watch(
       }
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Get icon for tab based on type, command, and status
 const getTabIcon = (tab: TerminalTab) => {
   // For settings tab
-  if (tab.type === 'settings') {
+  if (tab.type === "settings") {
     return svgIcons.settings;
   }
-  
+
   // For notifications tab
-  if (tab.type === 'notifications') {
+  if (tab.type === "notifications") {
     return svgIcons.notifications;
   }
-  
+
   // For port management tab
-  if (tab.type === 'port-management') {
+  if (tab.type === "port-management") {
     return svgIcons.network;
   }
 
   // For FFmpeg Encoder tab
-  if (tab.type === 'ffmpeg-encoder') {
+  if (tab.type === "ffmpeg-encoder") {
     return svgIcons.ffmpeg;
   }
 
   // For room info tab
-  if (tab.type === 'room-info') {
+  if (tab.type === "room-info") {
     return svgIcons.home;
   }
-  
+
+  // For agent task tabs
+  if (tab.type === "agent-task") {
+    return iconComponents.task; // Use task icon for agent tasks
+  }
+
   // For task tabs, use command-based icon
-  if (tab.type === 'task' && tab.execParams?.command) {
+  if (tab.type === "task" && tab.execParams?.command) {
     const settingsStore = useSettingsStore();
     const customIcons = settingsStore.settings.commandIcons || {};
     const iconName = getCommandIconName(tab.execParams.command, customIcons);
-    if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {
+    if (iconName !== "task" && svgIcons[iconName as keyof typeof svgIcons]) {
       return svgIcons[iconName as keyof typeof svgIcons];
     }
     return iconComponents.task;
   }
-  
+
   // For shell tabs (only show status icons for shell/task tabs)
-  if (tab.type === 'shell') {
-    if (tab.status === 'success') {
+  if (tab.type === "shell") {
+    if (tab.status === "success") {
       return iconComponents.success;
     }
-    if (tab.status === 'error') {
+    if (tab.status === "error") {
       return iconComponents.error;
     }
     return iconComponents.terminal;
   }
-  
+
   return iconComponents.terminal;
 };
 
 // Get translated label for tab
 const getTabLabel = (tab: TerminalTab): string => {
-  if (tab.type === 'settings') {
-    return t('task.settings');
+  if (tab.type === "settings") {
+    return t("task.settings");
   }
-  if (tab.type === 'notifications') {
-    return t('notifications.title');
+  if (tab.type === "notifications") {
+    return t("notifications.title");
   }
-  if (tab.type === 'port-management') {
-    return t('task.portManagement');
+  if (tab.type === "port-management") {
+    return t("task.portManagement");
   }
-  if (tab.type === 'ffmpeg-encoder') {
-    return tab.label || 'FFmpeg 编码器';
+  if (tab.type === "ffmpeg-encoder") {
+    return tab.label || "FFmpeg 编码器";
   }
-  return tab.label;
+  if (tab.type === "agent-task") {
+    // For agent tasks, show a shortened version of the command
+    const command = tab.command || tab.label;
+    if (command && command.length > 30) {
+      // Extract agent name (e.g., "agent" or "cbc" from "agent /test-director ..." or "cbc ...")
+      const match = command.match(/^(agent|cbc)(\s+[^\s]+)?/);
+      if (match) {
+        // Return "agent" or "cbc" followed by the next token if available
+        if (match[2]) {
+          return match[1] + match[2].trim().substring(0, 20);
+        }
+        return match[1];
+      }
+      return command.substring(0, 27) + "...";
+    }
+    return command || tab.label;
+  }
+  // For regular tasks, truncate long commands
+  const label = tab.label || "";
+  if (label.length > 30) {
+    return label.substring(0, 27) + "...";
+  }
+  return label;
 };
 
 // Get working directory for a tab
@@ -756,11 +952,11 @@ const getTabCwd = (tab: TerminalTab) => {
 const openShellTerminal = async () => {
   try {
     await terminalStore.createShellTerminal({
-      label: t('terminal.title'),
+      label: t("terminal.title"),
     });
   } catch (error) {
-    console.error('Failed to open shell terminal:', error);
-    message.error(t('terminal.error', { error: String(error) }));
+    console.error("Failed to open shell terminal:", error);
+    message.error(t("terminal.error", { error: String(error) }));
   }
 };
 
@@ -780,8 +976,8 @@ const handleStopTask = async () => {
         taskManager.onTaskExit(tab.id);
       }
     } catch (error) {
-      console.error('Failed to stop task:', error);
-      message.error(t('console.stopFailed'));
+      console.error("Failed to stop task:", error);
+      message.error(t("console.stopFailed"));
     }
   }
 };
@@ -790,7 +986,9 @@ const handleStopTask = async () => {
 const handleRestartTask = async () => {
   const tab = terminalStore.activeTab;
   if (!tab || !tab.taskId) {
-    console.warn('[ConsoleArea] Cannot restart: no active task tab or no taskId');
+    console.warn(
+      "[ConsoleArea] Cannot restart: no active task tab or no taskId",
+    );
     return;
   }
 
@@ -798,24 +996,24 @@ const handleRestartTask = async () => {
     // Use restartTask to reuse the existing tab
     const restartedTab = await terminalStore.restartTask(tab.id);
     if (restartedTab) {
-      console.log('[ConsoleArea] Task restarted (reused tab):', tab.id);
+      console.log("[ConsoleArea] Task restarted (reused tab):", tab.id);
     } else {
       // Fallback: if restartTask fails (e.g., no execParams), try executeTask
       const task = taskManager.findTask(tab.taskId);
       if (!task) {
-        message.error(t('console.restartFailed'));
-        console.warn('[ConsoleArea] Task not found:', tab.taskId);
+        message.error(t("console.restartFailed"));
+        console.warn("[ConsoleArea] Task not found:", tab.taskId);
         return;
       }
-      
+
       // Close the old tab and create a new one
       await terminalStore.closeTab(tab.id);
       await taskManager.executeTask(task);
-      console.log('[ConsoleArea] Task restarted (new tab):', task.name);
+      console.log("[ConsoleArea] Task restarted (new tab):", task.name);
     }
   } catch (error) {
-    console.error('[ConsoleArea] Failed to restart task:', error);
-    message.error(t('console.restartFailed'));
+    console.error("[ConsoleArea] Failed to restart task:", error);
+    message.error(t("console.restartFailed"));
   }
 };
 
@@ -826,18 +1024,26 @@ const handleClearTerminal = () => {
 
 // Terminal event handlers
 const onTerminalReady = async (tabId: string) => {
-  console.log('[Terminal] Ready:', tabId);
-  
-  // Start pending task if this is a task tab
-  const tab = terminalStore.tabs.find(t => t.id === tabId);
-  if (tab && tab.type === 'task' && tab.status === 'pending') {
+  console.log("[Terminal] Ready:", tabId);
+
+  // Start pending task/shell after terminal UI is ready
+  const tab = terminalStore.tabs.find((t) => t.id === tabId);
+  if (tab && tab.type === "task" && tab.status === "pending") {
     try {
       await terminalStore.startTask(tabId);
     } catch (error) {
-      console.error('[Terminal] Failed to start task:', error);
+      console.error("[Terminal] Failed to start task:", error);
     }
   }
-  
+
+  if (tab && tab.type === "shell" && tab.status === "pending") {
+    try {
+      await terminalStore.startShell(tabId);
+    } catch (error) {
+      console.error("[Terminal] Failed to start shell:", error);
+    }
+  }
+
   // Focus only if this is the active tab
   if (terminalStore.activeTabId === tabId) {
     const ref = terminalRefs.value.get(tabId);
@@ -846,13 +1052,13 @@ const onTerminalReady = async (tabId: string) => {
 };
 
 const onTerminalExit = (tabId: string, exitCode: number | null) => {
-  console.log('[Terminal] Exited with code:', exitCode, 'tab:', tabId);
+  console.log("[Terminal] Exited with code:", exitCode, "tab:", tabId);
   // Status update is handled by terminal store listening to pty-exit event
 };
 
 const onTerminalError = (error: string) => {
-  console.error('[Terminal] Error:', error);
-  message.error(t('terminal.error', { error }));
+  console.error("[Terminal] Error:", error);
+  message.error(t("terminal.error", { error }));
 };
 </script>
 
@@ -1014,6 +1220,20 @@ const onTerminalError = (error: string) => {
   overflow: auto;
 }
 
+.agent-task-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.agent-task-view-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .terminal-tab-content {
   flex: 1;
   display: flex;
@@ -1093,7 +1313,8 @@ const onTerminalError = (error: string) => {
 .history-output {
   margin: 0;
   padding: 12px 16px;
-  font-family: 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+  font-family:
+    "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
   line-height: 1.5;
   color: #d4d4d4;
@@ -1145,7 +1366,9 @@ const onTerminalError = (error: string) => {
   position: relative;
   box-sizing: border-box;
   border: 1px solid transparent;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
 }
@@ -1224,7 +1447,7 @@ const onTerminalError = (error: string) => {
 /* Split mode active glow effect */
 .terminal-view-wrapper.split-active {
   border-color: var(--primary-color, #18a058);
-  box-shadow: 
+  box-shadow:
     inset 0 0 0 1px var(--primary-color, #18a058),
     0 0 8px rgba(24, 160, 88, 0.3),
     inset 0 0 12px rgba(24, 160, 88, 0.1);
@@ -1259,7 +1482,7 @@ const onTerminalError = (error: string) => {
 :global(.n-config-provider--light) .terminal-view-wrapper.split-active,
 .console-area.light-theme .terminal-view-wrapper.split-active {
   border-color: var(--primary-color, #18a058);
-  box-shadow: 
+  box-shadow:
     inset 0 0 0 1px var(--primary-color, #18a058),
     0 0 8px rgba(24, 160, 88, 0.25),
     inset 0 0 12px rgba(24, 160, 88, 0.08);

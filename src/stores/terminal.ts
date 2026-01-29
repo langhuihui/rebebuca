@@ -18,10 +18,10 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed, shallowRef } from 'vue';
-import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
+import { getAdapter, isTauri, type BackendAdapter, type TerminalExitEvent } from '../adapters';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
-export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'room-info' | 'ffmpeg-encoder' | 'mcp-task';
+export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'room-info' | 'ffmpeg-encoder' | 'mcp-task' | 'agent-task';
 
 /**
  * 终端截图结果
@@ -86,15 +86,18 @@ export interface TerminalTab {
   isFFmpegTask?: boolean; // 是否为 FFmpeg 任务
   ffmpegTaskId?: string; // FFmpeg 任务 ID（用于进度追踪）
   ffmpegFileName?: string; // FFmpeg 任务文件名（用于进度显示）
+  isAgentTask?: boolean; // 是否为 Agent 任务
+  agentOutput?: string; // Agent 任务的 JSON 输出（用于可视化）
+  agentResult?: any; // Agent 任务的最后结果（从 JSON 中提取）
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
   // Terminal tabs
   const tabs = ref<TerminalTab[]>([]);
-  
+
   // Currently active tab ID
   const activeTabId = ref<string | null>(null);
-  
+
   // Split screen state
   const isSplitMode = ref(false);
   const splitTabs = ref<(string | null)[]>([null, null, null, null]);
@@ -102,13 +105,13 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Event listeners cleanup function
   let unlistenExit: (() => void) | null = null;
   let unlistenData: (() => void) | null = null;
-  
+
   // FFmpeg 进度处理
   const ffmpegProgressCache = new Map<string, string[]>(); // ptyId -> 输出行缓存
-  
+
   // Adapter instance (cached)
   let adapter: BackendAdapter | null = null;
-  
+
   // Pending auto-input handlers (ptyId -> config)
   // Used to auto-enter passwords after detecting prompts in PTY output
   const pendingAutoInputs = new Map<string, {
@@ -116,51 +119,51 @@ export const useTerminalStore = defineStore('terminal', () => {
     input: string;
     timeoutId: ReturnType<typeof setTimeout>;
   }>();
-  
+
   // Terminal screenshot handler (will be set by ConsoleArea)
   // 使用 shallowRef 来存储函数引用，避免深度响应式
   const screenshotHandler = shallowRef<((tabId: string) => Promise<TerminalScreenshotResult | null>) | null>(null);
-  
+
   // 注册截图处理器（由 ConsoleArea 调用）
   const registerScreenshotHandler = (handler: (tabId: string) => Promise<TerminalScreenshotResult | null>) => {
     screenshotHandler.value = handler;
   };
-  
+
   // 注销截图处理器
   const unregisterScreenshotHandler = () => {
     screenshotHandler.value = null;
   };
-  
+
   // 获取终端截图（供外部调用，如 MCP Server）
   const takeTerminalScreenshot = async (tabIdOrPtyId: string): Promise<TerminalScreenshotResult | null> => {
     // 首先尝试按 tabId 查找
     let tab = tabs.value.find(t => t.id === tabIdOrPtyId);
-    
+
     // 如果没找到，尝试按 ptyId 查找
     if (!tab) {
       tab = tabs.value.find(t => t.ptyId === tabIdOrPtyId);
     }
-    
+
     if (!tab) {
       console.warn('[Terminal Store] Cannot take screenshot: tab not found:', tabIdOrPtyId);
       return null;
     }
-    
+
     if (tab.type !== 'task' && tab.type !== 'shell') {
       console.warn('[Terminal Store] Cannot take screenshot: not a terminal tab:', tab.type);
       return null;
     }
-    
+
     if (!screenshotHandler.value) {
       console.warn('[Terminal Store] Cannot take screenshot: no handler registered');
       return null;
     }
-    
+
     return await screenshotHandler.value(tab.id);
   };
-  
+
   // 获取所有可用于截图的终端列表
-  const getScreenshotableTerminals = (): Array<{ tabId: string; ptyId: string; label: string; status: TerminalStatus }> => {
+  const getScreenshotableTerminals = (): Array<{ tabId: string; ptyId: string; label: string; status: TerminalStatus; }> => {
     return tabs.value
       .filter(t => t.type === 'task' || t.type === 'shell')
       .map(t => ({
@@ -170,7 +173,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         status: t.status,
       }));
   };
-  
+
   // Get adapter instance
   const getAdapterInstance = async (): Promise<BackendAdapter> => {
     if (!adapter) {
@@ -178,25 +181,25 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
     return adapter;
   };
-  
+
   // Computed
   const activeTabs = computed(() => tabs.value.filter(t => t.status !== 'closed'));
-  const runningTabs = computed(() => tabs.value.filter(t => 
+  const runningTabs = computed(() => tabs.value.filter(t =>
     t.status === 'running' && (t.type === 'task' || t.type === 'shell')
   ));
   const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value));
-  
+
   // Initialize event listeners
   const initListeners = async () => {
     if (unlistenExit) return; // Already initialized
-    
+
     try {
       const adapterInstance = await getAdapterInstance();
-      
+
       // Listen for PTY data events to handle auto-input (e.g., SSH password prompts)
       unlistenData = adapterInstance.terminal.onData(async (event) => {
         const { ptyId, data } = event;
-        
+
         // 处理 FFmpeg 进度解析
         const tab = tabs.value.find(t => t.ptyId === ptyId);
         if (tab && tab.isFFmpegTask && tab.ffmpegTaskId) {
@@ -207,7 +210,7 @@ export const useTerminalStore = defineStore('terminal', () => {
             }
             const cache = ffmpegProgressCache.get(ptyId)!;
             cache.push(data);
-            
+
             // 逐行解析
             const lines = data.split('\n');
             for (const line of lines) {
@@ -217,7 +220,7 @@ export const useTerminalStore = defineStore('terminal', () => {
                 ffmpegStore.updateTask(tab.ffmpegTaskId, line);
               }
             }
-            
+
             // 如果检测到 muxing，更新状态
             if (data.toLowerCase().includes('muxing')) {
               const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
@@ -228,16 +231,16 @@ export const useTerminalStore = defineStore('terminal', () => {
             console.warn('[Terminal Store] FFmpeg progress parse error:', error);
           }
         }
-        
+
         // Check if there's a pending auto-input for this PTY
         const pending = pendingAutoInputs.get(ptyId);
         if (pending && pending.pattern.test(data)) {
           console.log('[Terminal Store] Auto-input pattern matched for:', ptyId);
-          
+
           // Clear the pending entry
           clearTimeout(pending.timeoutId);
           pendingAutoInputs.delete(ptyId);
-          
+
           // Write the input
           try {
             await adapterInstance.terminal.write(ptyId, pending.input);
@@ -246,18 +249,18 @@ export const useTerminalStore = defineStore('terminal', () => {
           }
         }
       });
-      
+
       // Listen for PTY exit events via adapter
       unlistenExit = adapterInstance.terminal.onExit(async (event: TerminalExitEvent) => {
         const { ptyId, exitCode } = event;
         console.log('[Terminal Store] PTY exit event:', ptyId, exitCode);
-        
+
         const tab = tabs.value.find(t => t.ptyId === ptyId);
         // Only process exit events for task/shell tabs, not special tabs like settings/notifications
         if (tab && (tab.type === 'task' || tab.type === 'shell')) {
           tab.exitCode = exitCode ?? undefined;
           tab.status = exitCode === 0 ? 'success' : 'error';
-          
+
           // 完成 FFmpeg 进度追踪
           if (tab.isFFmpegTask && tab.ffmpegTaskId) {
             try {
@@ -269,7 +272,7 @@ export const useTerminalStore = defineStore('terminal', () => {
               console.warn('[Terminal Store] Failed to finish FFmpeg progress:', error);
             }
           }
-          
+
           // Notify taskManager that this task has exited
           try {
             const { useTaskManagerStore } = await import('./taskManager');
@@ -278,14 +281,14 @@ export const useTerminalStore = defineStore('terminal', () => {
           } catch (error) {
             console.error('[Terminal Store] Failed to notify taskManager:', error);
           }
-          
+
           // Update history record if this tab has a historyId
           if (tab.historyId) {
             try {
               const { useRunConfigStore } = await import('./runConfig');
               const runConfigStore = useRunConfigStore();
               const historyItem = runConfigStore.history.find(h => h.id === tab.historyId);
-              
+
               if (historyItem) {
                 const duration = historyItem.startTime ? Date.now() - historyItem.startTime : undefined;
                 await runConfigStore.updateHistory(tab.historyId, {
@@ -304,7 +307,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       console.error('[Terminal Store] Failed to init listeners:', error);
     }
   };
-  
+
   // Cleanup listeners
   const cleanupListeners = () => {
     if (unlistenData) {
@@ -316,21 +319,21 @@ export const useTerminalStore = defineStore('terminal', () => {
       unlistenExit = null;
     }
   };
-  
+
   // Generate unique ID for terminal
   const generateId = () => `term-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
+
   // Extract shell name from shell path
   const getShellName = (shellPath?: string | null): string | undefined => {
     if (!shellPath) return undefined;
-    
+
     // Get the base name of the shell (last part of the path)
     const parts = shellPath.split(/[/\\]/);
     const baseName = parts[parts.length - 1] || '';
-    
+
     // Remove extension on Windows
     const name = baseName.replace(/\.(exe|cmd|bat)$/i, '');
-    
+
     // Map common shell names to display names
     const shellNameMap: Record<string, string> = {
       'cmd': 'CMD',
@@ -350,10 +353,10 @@ export const useTerminalStore = defineStore('terminal', () => {
       'xonsh': 'Xonsh',
       'ion': 'Ion',
     };
-    
+
     return shellNameMap[name.toLowerCase()] || name;
   };
-  
+
   // Create a new shell terminal
   const createShellTerminal = async (options?: {
     cwd?: string;
@@ -362,22 +365,86 @@ export const useTerminalStore = defineStore('terminal', () => {
   }): Promise<TerminalTab> => {
     const id = generateId();
     const ptyId = `shell-${id}`;
-    
+
     const tab: TerminalTab = {
       id,
       type: 'shell',
       label: options?.label || 'Terminal',
       ptyId,
-      status: 'running',
+      status: 'pending', // wait until TerminalView is ready, then startShell()
       startTime: Date.now(),
     };
-    
+
     tabs.value.push(tab);
     setActiveTab(id);
-    
+
     return tab;
   };
-  
+
+  // Start a pending shell - call this after terminal is ready (only for shell tabs)
+  const startShell = async (tabId: string): Promise<void> => {
+    const tab = tabs.value.find(t => t.id === tabId);
+    if (!tab || tab.type !== 'shell' || tab.status !== 'pending') {
+      console.warn('[Terminal Store] Cannot start shell - invalid state:', tabId, tab?.status);
+      return;
+    }
+
+    try {
+      tab.status = 'running';
+
+      if (isTauri()) {
+        // Create shell PTY in Tauri backend with the client-specified ptyId
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { useSettingsStore } = await import('./settings');
+        const settingsStore = useSettingsStore();
+
+        await invoke('create_pty', {
+          ptyId: tab.ptyId,
+          options: {
+            rows: 24,
+            cols: 80,
+            cwd: undefined,
+            env: undefined,
+            shell: settingsStore.settings.preferredShell || null,
+          },
+        });
+      } else {
+        // Server mode: create a PTY by running an interactive shell command
+        const adapterInstance = await getAdapterInstance();
+        const { useSettingsStore } = await import('./settings');
+        const settingsStore = useSettingsStore();
+        const platform = await adapterInstance.system.getPlatform();
+        const defaultShell = platform === 'windows' ? 'cmd.exe' : '/bin/bash';
+        const shell = settingsStore.settings.preferredShell || defaultShell;
+
+        const result = await adapterInstance.terminal.create({
+          ptyId: tab.ptyId,
+          command: shell,
+          args: [],
+          cwd: undefined,
+          env: {},
+          rows: 24,
+          cols: 80,
+        });
+
+        // If backend generated a different ptyId, update the tab so listeners match
+        if (result?.ptyId && result.ptyId !== tab.ptyId) {
+          tab.ptyId = result.ptyId;
+        }
+
+        if (result?.pid) {
+          tab.pid = result.pid;
+        }
+      }
+
+      console.log('[Terminal Store] Shell started:', tab.ptyId);
+    } catch (error) {
+      console.error('[Terminal Store] Failed to start shell:', error);
+      tab.status = 'error';
+      throw error;
+    }
+  };
+
   // Execute a task in a new terminal
   // This creates a pending tab - call startTask() after terminal is ready
   const executeTask = async (options: {
@@ -403,7 +470,7 @@ export const useTerminalStore = defineStore('terminal', () => {
   }): Promise<TerminalTab> => {
     const id = generateId();
     const ptyId = `task-${id}`;
-    
+
     const tab: TerminalTab = {
       id,
       type: 'task',
@@ -413,7 +480,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       historyId: options.historyId,
       status: 'pending',  // Start as pending, wait for terminal ready
       startTime: Date.now(),
-      command: options.args?.length 
+      command: options.args?.length
         ? `${options.command} ${options.args.join(' ')}`
         : options.command,
       execParams: {
@@ -429,14 +496,14 @@ export const useTerminalStore = defineStore('terminal', () => {
       isFFmpegTask: options.isFFmpegTask || false,
       ffmpegFileName: options.ffmpegFileName || '',
     };
-    
+
     tabs.value.push(tab);
     setActiveTab(id);
-    
+
     console.log('[Terminal Store] Task tab created (pending):', ptyId);
     return tab;
   };
-  
+
   // Execute an SSH task in a new terminal tab
   const executeSshTask = async (options: {
     sshConfigId: string;
@@ -450,7 +517,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     const id = generateId();
     // Use sshExecId as ptyId so TerminalView can receive pty-output events
     const ptyId = options.sshExecId;
-    
+
     const tab: TerminalTab = {
       id,
       type: 'task',
@@ -465,14 +532,14 @@ export const useTerminalStore = defineStore('terminal', () => {
       sshConfigId: options.sshConfigId,
       sshExecId: options.sshExecId,
     };
-    
+
     tabs.value.push(tab);
     setActiveTab(id);
-    
+
     console.log('[Terminal Store] SSH task tab created:', ptyId, 'execId:', options.sshExecId);
     return tab;
   };
-  
+
   // Start a pending task - call this after terminal is ready (only for task tabs)
   const startTask = async (tabId: string): Promise<void> => {
     const tab = tabs.value.find(t => t.id === tabId);
@@ -480,12 +547,12 @@ export const useTerminalStore = defineStore('terminal', () => {
       console.warn('[Terminal Store] Cannot start task - invalid state:', tabId, tab?.status);
       return;
     }
-    
+
     const { command, args, cwd, env, logPath, shellPath } = tab.execParams;
-    
+
     try {
       tab.status = 'running';
-      
+
       const adapterInstance = await getAdapterInstance();
       const result = await adapterInstance.terminal.create({
         command,
@@ -495,7 +562,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         logPath,
         shellPath,
       });
-      
+
       // Update tab with actual ptyId from adapter
       tab.ptyId = result.ptyId;
       if (result.pid) {
@@ -505,28 +572,28 @@ export const useTerminalStore = defineStore('terminal', () => {
       // Register auto-input handler if configured (e.g., for SSH password)
       if (tab.execParams?.autoInput) {
         const { pattern, input, timeout = 30000 } = tab.execParams.autoInput;
-        
+
         // Create case-insensitive regex
         const regex = new RegExp(pattern, 'i');
-        
+
         // Set up timeout to clean up if pattern is never matched
         const timeoutId = setTimeout(() => {
           console.log('[Terminal Store] Auto-input timeout for:', tab.ptyId);
           pendingAutoInputs.delete(tab.ptyId);
         }, timeout);
-        
+
         pendingAutoInputs.set(tab.ptyId, {
           pattern: regex,
           input,
           timeoutId,
         });
-        
+
         console.log('[Terminal Store] Registered auto-input for:', tab.ptyId, 'pattern:', pattern);
-        
+
         // Clear sensitive data from execParams
         tab.execParams.autoInput = undefined;
       }
-      
+
       // Notify taskManager to update running status (important for restart scenario)
       if (tab.taskId) {
         try {
@@ -537,23 +604,23 @@ export const useTerminalStore = defineStore('terminal', () => {
           console.warn('[Terminal Store] Failed to notify taskManager of task start:', error);
         }
       }
-      
+
       // 初始化 FFmpeg 进度追踪
       if (tab.isFFmpegTask && tab.ffmpegFileName) {
         try {
           const ffmpegTaskId = `ffmpeg-${tab.id}-${Date.now()}`;
           tab.ffmpegTaskId = ffmpegTaskId;
-          
+
           const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
           const ffmpegStore = useFFmpegProgressStore();
           ffmpegStore.createTask(ffmpegTaskId, tab.id, tab.ffmpegFileName);
-          
+
           console.log('[Terminal Store] FFmpeg progress tracking started:', ffmpegTaskId);
         } catch (error) {
           console.warn('[Terminal Store] Failed to initialize FFmpeg progress:', error);
         }
       }
-      
+
       // If we have a PID and historyId, try to rename the log file
       if (result.pid && tab.historyId) {
         try {
@@ -578,7 +645,7 @@ export const useTerminalStore = defineStore('terminal', () => {
           console.warn('[Terminal Store] Failed to rename log file:', error);
         }
       }
-      
+
       console.log('[Terminal Store] Task started:', tab.ptyId, command);
     } catch (error) {
       console.error('[Terminal Store] Failed to execute task:', error);
@@ -586,12 +653,12 @@ export const useTerminalStore = defineStore('terminal', () => {
       throw error;
     }
   };
-  
+
   // Close a terminal tab
   const closeTab = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab) return;
-    
+
     // If running, try to kill the task/close the PTY (only for task/shell tabs)
     if (tab.status === 'running' && (tab.type === 'task' || tab.type === 'shell')) {
       try {
@@ -604,7 +671,7 @@ export const useTerminalStore = defineStore('terminal', () => {
           console.warn('[Terminal Store] Failed to close PTY:', error);
         }
       }
-      
+
       // Notify taskManager that this task has exited (in case pty-exit event is not received)
       // This is a fallback for Windows where taskkill might not trigger the pty-exit event properly
       try {
@@ -621,7 +688,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     if (index !== -1) {
       tabs.value.splice(index, 1);
     }
-    
+
     // Split mode handling: remove from splitTabs
     const splitIndex = splitTabs.value.indexOf(tabId);
     if (splitIndex !== -1) {
@@ -639,19 +706,19 @@ export const useTerminalStore = defineStore('terminal', () => {
       activeTabId.value = tabs.value.length > 0 ? tabs.value[tabs.value.length - 1].id : null;
     }
   };
-  
+
   // Stop a running task (only for task/shell tabs)
   const stopTask = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running') return;
-    
+
     // SSH tasks don't have a local PTY to kill
     if (tab.sshConfigId) {
       console.log('[Terminal Store] SSH task stopped (no PTY to kill):', tab.sshExecId);
       tab.status = 'success'; // SSH tasks that are stopped are considered successful
       return;
     }
-    
+
     try {
       const adapterInstance = await getAdapterInstance();
       await adapterInstance.terminal.kill(tab.ptyId);
@@ -662,7 +729,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       throw error;
     }
   };
-  
+
   // Restart a task using saved execution params (reuse existing tab, only for task tabs)
   const restartTask = async (tabId: string): Promise<TerminalTab | null> => {
     const tab = tabs.value.find(t => t.id === tabId);
@@ -681,7 +748,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         // Continue anyway, as we want to restart regardless
       }
     }
-    
+
     // Notify taskManager that the old task has exited (will be re-registered in startTask)
     if (tab.taskId) {
       try {
@@ -702,7 +769,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     tab.startTime = Date.now();
     tab.exitCode = undefined;
     tab.pid = undefined;
-    
+
     // 清理旧的 FFmpeg 进度追踪
     if (tab.isFFmpegTask && tab.ffmpegTaskId) {
       try {
@@ -724,7 +791,7 @@ export const useTerminalStore = defineStore('terminal', () => {
 
     return tab;
   };
-  
+
   // Set active tab
   const setActiveTab = (tabId: string | null) => {
     if (!tabId) {
@@ -735,7 +802,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     if (isSplitMode.value) {
       // Check if target tab is already visible in a split
       const existingSplitIndex = splitTabs.value.indexOf(tabId);
-      
+
       if (existingSplitIndex !== -1) {
         // Case 1: Tab is already visible in a split
         // Just focus it (set as active)
@@ -745,31 +812,31 @@ export const useTerminalStore = defineStore('terminal', () => {
         // We need to show it in a split pane.
         // Priority 1: Fill an empty split if available.
         // Priority 2: Replace the currently active split.
-        
+
         let targetSplitIndex = -1;
-        
+
         // Priority 1: Check for empty slots
         const emptySlotIndex = splitTabs.value.indexOf(null);
         if (emptySlotIndex !== -1) {
-             targetSplitIndex = emptySlotIndex;
+          targetSplitIndex = emptySlotIndex;
         } else {
-             // Priority 2: Replace active tab's slot
-             const currentActiveTabId = activeTabId.value;
-             if (currentActiveTabId) {
-                 targetSplitIndex = splitTabs.value.indexOf(currentActiveTabId);
-             }
-             
-             // Priority 3: Fallback to first slot
-             if (targetSplitIndex === -1) {
-                 targetSplitIndex = 0;
-             }
+          // Priority 2: Replace active tab's slot
+          const currentActiveTabId = activeTabId.value;
+          if (currentActiveTabId) {
+            targetSplitIndex = splitTabs.value.indexOf(currentActiveTabId);
+          }
+
+          // Priority 3: Fallback to first slot
+          if (targetSplitIndex === -1) {
+            targetSplitIndex = 0;
+          }
         }
 
         // Replace the tab in the target split
         const newSplits = [...splitTabs.value];
         newSplits[targetSplitIndex] = tabId;
         splitTabs.value = newSplits;
-        
+
         // Set new tab as active
         activeTabId.value = tabId;
       }
@@ -778,17 +845,17 @@ export const useTerminalStore = defineStore('terminal', () => {
       activeTabId.value = tabId;
     }
   };
-  
+
   // Find tab by history ID
   const findTabByHistoryId = (historyId: string) => {
     return tabs.value.find(t => t.historyId === historyId);
   };
-  
+
   // Find tab by PTY ID
   const findTabByPtyId = (ptyId: string) => {
     return tabs.value.find(t => t.ptyId === ptyId);
   };
-  
+
   // Update tab status (only for task/shell tabs, not special tabs)
   const updateTabStatus = (tabId: string, status: TerminalStatus, exitCode?: number) => {
     const tab = tabs.value.find(t => t.id === tabId);
@@ -799,9 +866,9 @@ export const useTerminalStore = defineStore('terminal', () => {
       }
     }
   };
-  
+
   // Update tab process stats
-  const updateTabStats = (tabId: string, stats: { cpuUsage?: string; memoryUsage?: string; pid?: number }) => {
+  const updateTabStats = (tabId: string, stats: { cpuUsage?: string; memoryUsage?: string; pid?: number; }) => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (tab) {
       if (stats.cpuUsage !== undefined) tab.cpuUsage = stats.cpuUsage;
@@ -809,37 +876,37 @@ export const useTerminalStore = defineStore('terminal', () => {
       if (stats.pid !== undefined) tab.pid = stats.pid;
     }
   };
-  
+
   // Get process stats for a running tab (only for task/shell tabs)
   const getTabProcessStats = async (tabId: string) => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running') {
       return null;
     }
-    
+
     try {
       const adapterInstance = await getAdapterInstance();
       const stats = await adapterInstance.terminal.getProcessStats(tab.ptyId);
-      
+
       if (!stats) return null;
-      
+
       const cpuUsage = `${stats.cpuUsage.toFixed(1)}%`;
       const memoryUsage = stats.memoryUsageMb;
-      
+
       updateTabStats(tabId, { cpuUsage, memoryUsage, pid: stats.pid });
-      
+
       return { cpuUsage, memoryUsage, pid: stats.pid };
     } catch (error) {
       console.error('[Terminal Store] Failed to get process stats:', error);
       return null;
     }
   };
-  
+
   // Clear all closed tabs
   const clearClosedTabs = () => {
     tabs.value = tabs.value.filter(t => t.status !== 'closed');
   };
-  
+
   // Create a settings tab
   const createSettingsTab = (initialTab?: string): TerminalTab => {
     // Check if settings tab already exists
@@ -851,7 +918,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       }
       return existingTab;
     }
-    
+
     const id = generateId();
     const tab: TerminalTab = {
       id,
@@ -862,12 +929,12 @@ export const useTerminalStore = defineStore('terminal', () => {
       startTime: Date.now(),
       initialTab,
     };
-    
+
     tabs.value.push(tab);
     setActiveTab(id);
     return tab;
   };
-  
+
   // Create a notifications tab
   const createNotificationsTab = (): TerminalTab => {
     // Check if notifications tab already exists
@@ -876,7 +943,7 @@ export const useTerminalStore = defineStore('terminal', () => {
       setActiveTab(existingTab.id);
       return existingTab;
     }
-    
+
     const id = generateId();
     const tab: TerminalTab = {
       id,
@@ -886,12 +953,12 @@ export const useTerminalStore = defineStore('terminal', () => {
       status: 'pending', // Special tab doesn't have real status
       startTime: Date.now(),
     };
-    
+
     tabs.value.push(tab);
     setActiveTab(id);
     return tab;
   };
-  
+
   // Create a port management tab
   const createPortManagementTab = (): TerminalTab => {
     // Check if port management tab already exists
@@ -969,13 +1036,13 @@ export const useTerminalStore = defineStore('terminal', () => {
   // Toggle split mode
   const toggleSplitMode = () => {
     isSplitMode.value = !isSplitMode.value;
-    
+
     if (isSplitMode.value) {
       // Initialize split tabs with valid tabs (task or shell)
       const validTabs = tabs.value.filter(t => t.type === 'task' || t.type === 'shell');
       const newSplits: (string | null)[] = [null, null, null, null];
       let availableTabs = [...validTabs];
-      
+
       // If active tab is valid, put it in first slot
       if (activeTabId.value) {
         const activeIdx = availableTabs.findIndex(t => t.id === activeTabId.value);
@@ -984,14 +1051,14 @@ export const useTerminalStore = defineStore('terminal', () => {
           availableTabs.splice(activeIdx, 1);
         }
       }
-      
+
       // Fill remaining slots
       for (let i = 0; i < 4; i++) {
         if (newSplits[i] === null && availableTabs.length > 0) {
           newSplits[i] = availableTabs.shift()!.id;
         }
       }
-      
+
       splitTabs.value = newSplits;
     }
   };
@@ -1000,38 +1067,39 @@ export const useTerminalStore = defineStore('terminal', () => {
   const setSplitTab = (index: number, tabId: string | null) => {
     if (index >= 0 && index < 4) {
       const newSplits = [...splitTabs.value];
-      
+
       // If tab is already in another split, remove it from there (or swap?)
       // For simplicity, just remove it from old position. 
       // Ideally we might want to swap if we drag one split to another.
       if (tabId) {
         const existingIndex = newSplits.indexOf(tabId);
         if (existingIndex !== -1 && existingIndex !== index) {
-          newSplits[existingIndex] = null; 
+          newSplits[existingIndex] = null;
         }
       }
-      
+
       newSplits[index] = tabId;
       splitTabs.value = newSplits;
     }
   };
-  
+
   return {
     // State
     tabs,
     activeTabId,
     isSplitMode,
     splitTabs,
-    
+
     // Computed
     activeTabs,
     runningTabs,
     activeTab,
-    
+
     // Methods
     initListeners,
     cleanupListeners,
     createShellTerminal,
+    startShell,
     executeTask,
     executeSshTask,
     startTask,
