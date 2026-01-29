@@ -33,6 +33,9 @@ nix = { version = "0.29", features = ["term", "process", "signal", "fs"] }
 libc = "0.2"
 sysinfo = "0.32"
 
+# SSH support
+ssh2 = "0.9"
+
 # Authentication
 uuid = { version = "1", features = ["v4", "serde"] }
 sha2 = "0.10"
