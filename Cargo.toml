@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "src-tauri",
+    "common",
+    "orchestration"
+]
+exclude = [
+    "remote-agent-server",
+    "remote-agent"
+]
+resolver = "2"

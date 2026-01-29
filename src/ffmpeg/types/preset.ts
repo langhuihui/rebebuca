@@ -17,6 +17,92 @@ export interface SubtitleStyling {
 }
 
 /**
+ * 滤镜配置类型
+ */
+export type Filters = {
+  // 裁剪
+  crop?: {
+    enabled: boolean;
+    width: string;
+    height: string;
+    x: string;
+    y: string;
+  };
+
+  // 缩放
+  scale?: {
+    enabled: boolean;
+    width: string;           // 目标宽度 (例如: 1920, iw/2)
+    height: string;          // 目标高度 (例如: 1080, ih/2)
+    keepAspect: boolean;     // 保持宽高比
+    algorithm?: string;      // 缩放算法 (bicubic, lanczos, etc.)
+  };
+
+  // 帧率
+  framerate?: {
+    enabled: boolean;
+    fps: string;            // 目标帧率 (例如: 30, 29.97)
+    mode?: number;          // 帧率转换模式
+  };
+
+  // 去隔行
+  deinterlace?: {
+    enabled: boolean;
+    mode: number;           // 去隔行模式
+  };
+
+  // 降噪
+  denoise?: {
+    enabled: boolean;
+    mode: string;          // 降噪模式
+    strength: string;       // 降噪强度
+  };
+
+  // 锐化
+  sharpen?: {
+    enabled: boolean;
+    strength: string;       // 锐化强度
+  };
+
+  // 字幕烧录
+  subtitle?: SubtitleFilter;
+
+  // 色彩管理
+  colorManagement?: ColorManagement;
+
+  // 旋转/翻转
+  transform?: {
+    enabled: boolean;
+    rotation: string;       // 旋转角度 (0, 90, 180, 270)
+    flipH?: boolean;        // 水平翻转
+    flipV?: boolean;        // 垂直翻转
+  };
+};
+
+/**
+ * 字幕滤镜配置
+ */
+export type SubtitleFilter = {
+  enabled: boolean;
+  source: 'embedded' | 'external';
+  file?: string;         // 外部字幕文件路径
+  streamIndex?: number;   // 内置字幕流索引
+  styling?: SubtitleStyling;
+};
+
+/**
+ * 色彩管理配置
+ */
+export type ColorManagement = {
+  enabled: boolean;
+  pixelFormat: string;    // 像素格式 (yuv420p, yuv422p, etc.)
+  colorSpace: string;     // 色彩空间 (bt709, bt2020, etc.)
+  transfer: string;       // 传输特性 (bt709, smpte2084, etc.)
+  primaries: string;      // 原色 (bt709, bt2020, etc.)
+  range?: string;        // 色彩范围 (tv, pc, limited, full)
+};
+
+/**
  * FFmpeg 预设完整数据结构
  */
 export interface FFmpegPreset {
@@ -185,6 +271,17 @@ export interface FFmpegPreset {
     postParams: string;         // 输出后的参数
     fullCustom: string;         // 完全自定义命令行
   };
+
+  // ==================== 可视化编辑数据（可选） ====================
+  visualEditorData?: {
+    graphData: FilterGraphData;
+    viewport: {
+      x: number;
+      y: number;
+      zoom: number;
+    };
+    editorMode: EditorMode;
+  };
 }
 
 /**
@@ -200,3 +297,217 @@ export interface PresetMetadata {
   author?: string;
   tags?: string[];
 }
+
+// ==================== 节点图编辑器类型定义 ====================
+
+/**
+ * 节点图完整数据结构
+ */
+export interface FilterGraphData {
+  nodes: FilterNode[];
+  edges: FilterEdge[];
+  viewport?: {
+    x: number;
+    y: number;
+    zoom: number;
+  };
+}
+
+/**
+ * 节点类型
+ */
+export type NodeType = 'input' | 'filter' | 'output';
+
+/**
+ * 端口类型
+ */
+export type PortType = 'v' | 'a';  // v: 视频, a: 音频
+
+/**
+ * 滤镜节点
+ */
+export interface FilterNode {
+  id: string;  // 唯一标识，格式: "filter-{timestamp}"
+  type: NodeType;
+  position: {
+    x: number;
+    y: number;
+  };
+  data: {
+    // 通用字段
+    name: string;
+    label: string;
+    description?: string;
+    icon: string;
+    enabled: boolean;
+
+    // filter 类型特有字段
+    filterId?: string;  // 滤镜库中的 ID
+    filterType?: FilterType;
+    params?: Record<string, any>;  // 滤镜参数
+    paramDefinitions?: FilterParamDefinition[];  // 参数定义
+
+    // input/output 类型特有字段
+    streamType?: PortType;
+    streamIndex?: number;
+  };
+  style?: Record<string, any>;
+}
+
+/**
+ * 节点连接边
+ */
+export interface FilterEdge {
+  id: string;  // 唯一标识，格式: "edge-{timestamp}"
+  source: string;  // 源节点 ID
+  target: string;  // 目标节点 ID
+  sourceHandle?: string;  // 源端口 ID，格式: "v" 或 "a"
+  targetHandle?: string;  // 目标端口 ID
+  animated?: boolean;  // 是否动画
+  style?: Record<string, any>;
+  markerEnd?: string;  // 连线末端箭头
+}
+
+/**
+ * 滤镜类型
+ */
+export type FilterType =
+  | 'video'      // 视频滤镜 (V->V)
+  | 'audio'      // 音频滤镜 (A->A)
+  | 'generator'  // 生成器 (N->V 或 N->A)
+  | 'splitter'   // 分流器 (V->V,V 或 A->A,A)
+  | 'merger'     // 合流器 (V,V->V 或 A,A->A)
+  | 'complex';   // 复杂滤镜 (多输入多输出)
+
+/**
+ * 滤镜定义（来自 filters.json）
+ */
+export interface FilterDefinition {
+  id: string;
+  name: string;
+  category: FilterCategory;
+  description: string;
+  icon: string;
+  filterType: FilterType;
+  inputPorts: PortType[];  // ['v'], ['a'], ['v', 'v'], etc.
+  outputPorts: PortType[];  // ['v'], ['a'], ['v', 'a'], etc.
+  params: FilterParamDefinition[];
+  example?: string;
+  documentation?: string;
+}
+
+/**
+ * 滤镜分类
+ */
+export type FilterCategory =
+  | 'basic'       // 基础滤镜
+  | 'transform'   // 变换滤镜
+  | 'color'       // 色彩滤镜
+  | 'audio'       // 音频滤镜
+  | 'subtitle'    // 字幕滤镜
+  | 'overlay'     // 叠加滤镜
+  | 'advanced';   // 高级滤镜
+
+/**
+ * 滤镜参数定义
+ */
+export interface FilterParamDefinition {
+  name: string;
+  label: string;
+  type: ParamType;
+  default: any;
+  required: boolean;
+  description?: string;
+  desc?: string;  // 从 filters.json 加载的描述字段
+
+  // 分组相关
+  group?: string;  // 参数分组名
+
+  // 数字类型特有
+  min?: number;
+  max?: number;
+  step?: number;
+  precision?: number;  // 小数位数
+  unit?: string;  // 单位
+
+  // 选择类型特有
+  options?: Array<{
+    label: string;
+    value: any;
+    description?: string;
+    desc?: string;  // 从 filters.json 加载的描述字段
+  }>;
+
+  // 颜色类型特有
+  colorSpace?: string;  // 'hex', 'rgb', 'hsl', 'yuv'
+}
+
+/**
+ * 参数类型
+ */
+export type ParamType =
+  | 'number'    // 数字
+  | 'int'       // 整数
+  | 'double'    // 浮点数
+  | 'float'     // 浮点数
+  | 'string'    // 字符串
+  | 'boolean'   // 布尔值
+  | 'select'    // 选择器
+  | 'color'     // 颜色
+  | 'font'      // 字体
+  | 'range'     // 范围滑块
+  | 'size'      // 尺寸 (用于分辨率)
+  | 'time'      // 时间 (用于持续时间)
+  | 'point'     // 坐标点
+  | 'textarea';  // 多行文本
+
+/**
+ * 节点图验证结果
+ */
+export interface GraphValidationResult {
+  valid: boolean;
+  errors: GraphValidationError[];
+  warnings: GraphValidationWarning[];
+}
+
+/**
+ * 节点图错误
+ */
+export interface GraphValidationError {
+  type: 'cycle' | 'port_mismatch' | 'missing_param' | 'invalid_param' | 'orphan_node';
+  nodeId: string;
+  message: string;
+  details?: any;
+}
+
+/**
+ * 节点图警告
+ */
+export interface GraphValidationWarning {
+  type: 'disabled_node' | 'unused_input' | 'redundant_filter' | 'orphan_node';
+  nodeId: string;
+  message: string;
+  details?: any;
+}
+
+/**
+ * FFmpeg 滤镜链生成结果
+ */
+export interface FilterChainGenerationResult {
+  success: boolean;
+  filterComplex?: string;  // -filter_complex 参数值
+  videoFilter?: string;   // -vf 参数值
+  audioFilter?: string;   // -af 参数值
+  streamMaps?: string[];   // -map 参数列表
+  errors?: string[];
+}
+
+/**
+ * 编辑器模式
+ */
+export type EditorMode = 'list' | 'graph';
+
+/**
+ * 布局模式
+ */
+export type LayoutMode = 'auto' | 'manual' | 'hierarchical' | 'force' | 'grid' | 'tree' | 'circular';

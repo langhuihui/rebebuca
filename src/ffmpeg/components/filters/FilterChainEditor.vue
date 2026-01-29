@@ -21,7 +21,12 @@
         <div v-if="filterChain.length === 0" class="empty-state">
           <n-empty description="没有启用的滤镜">
             <template #icon>
-              <span style="font-size: 48px">🔗</span>
+              <n-icon size="48" color="var(--n-text-color-3)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </n-icon>
             </template>
           </n-empty>
         </div>
@@ -81,7 +86,12 @@
         <div v-if="activeFilters.length === 0" class="empty-state">
           <n-empty description="没有启用的滤镜，请从其他标签页添加">
             <template #icon>
-              <span style="font-size: 48px">📋</span>
+              <n-icon size="48" color="var(--n-text-color-3)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 11l3 3L22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+              </n-icon>
             </template>
           </n-empty>
         </div>
@@ -156,7 +166,8 @@ import {
   NFormItem,
   NInput,
   NCollapse,
-  NCollapseItem
+  NCollapseItem,
+  NIcon
 } from 'naive-ui';
 import type { Filters } from '../../types/preset';
 import { useMessage } from 'naive-ui';
@@ -203,7 +214,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'crop',
       name: '裁剪',
-      icon: '✂️',
+      icon: '◫',
       enabled: f.crop.enabled,
       params: params.join(', ') || '未设置参数',
       filterType: 'crop'
@@ -221,7 +232,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'scale',
       name: '缩放',
-      icon: '📐',
+      icon: '⤢',
       enabled: f.scale.enabled,
       params: params.join(', ') || '未设置参数',
       filterType: 'scale'
@@ -233,7 +244,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'framerate',
       name: '帧率',
-      icon: '🔄',
+      icon: '↻',
       enabled: f.framerate.enabled,
       params: `fps: ${f.framerate.fps}`,
       filterType: 'framerate'
@@ -246,7 +257,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'deinterlace',
       name: '去隔行',
-      icon: '📺',
+      icon: '▦',
       enabled: f.deinterlace.enabled,
       params: `模式: ${modes[f.deinterlace.mode] || 'yadif'}`,
       filterType: 'deinterlace'
@@ -258,7 +269,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'denoise',
       name: '降噪',
-      icon: '🔇',
+      icon: '≋',
       enabled: f.denoise.enabled,
       params: `${f.denoise.mode}, 强度: ${f.denoise.strength}`,
       filterType: 'denoise'
@@ -270,7 +281,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'sharpen',
       name: '锐化',
-      icon: '🔍',
+      icon: '◈',
       enabled: f.sharpen.enabled,
       params: `强度: ${f.sharpen.strength}`,
       filterType: 'sharpen'
@@ -285,7 +296,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'subtitle',
       name: '字幕烧录',
-      icon: '📝',
+      icon: 'T',
       enabled: f.subtitle.enabled,
       params: sourceText,
       filterType: 'subtitle'
@@ -302,7 +313,7 @@ const generateActiveFilters = (): ActiveFilter[] => {
     filters.push({
       id: 'transform',
       name: '旋转/翻转',
-      icon: '↻',
+      icon: '⟲',
       enabled: f.transform.enabled,
       params: transforms.join(', ') || '未启用',
       filterType: 'transform'

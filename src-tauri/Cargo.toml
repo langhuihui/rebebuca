@@ -56,14 +56,14 @@ portable-pty = "0.8"
 log = "0.4"
 # Use system OpenSSL by default for faster development builds
 # Enable vendored-openssl feature for static linking in release builds
-ssh2 = { version = "0.9", features = [] }
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }
 base64 = "0.21"
 lazy_static = "1.4"
 md5 = "0.7"
 
 # OpenSSL bindings - only vendored when feature is enabled
 # In development, use system OpenSSL (faster compilation)
-openssl-sys = { version = "0.9", features = [] }
+openssl-sys = { version = "0.9", features = ["vendored"] }
 
 # MCP HTTP Server
 axum = "0.7"

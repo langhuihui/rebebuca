@@ -1,21 +1,21 @@
 <template>
   <div class="expert-mode-panel">
-    <n-alert type="warning" :show-icon="false" style="margin-bottom: 16px">
+    <n-alert type="warning" :show-icon="false" size="small" style="margin-bottom: 12px; padding: 8px 12px;">
       <template #header>
         <span class="panel-title">专家模式</span>
       </template>
-      显示所有参数配置。不熟悉参数请参考帮助文档或切换到简单模式。
+      <span style="font-size: 12px;">显示所有参数配置。不熟悉参数请参考帮助文档或切换到简单模式。</span>
     </n-alert>
 
     <!-- 标签页 -->
-    <n-tabs type="line" animated>
+    <n-tabs type="line" size="small" animated>
       <!-- 视频参数 -->
-      <n-tab-pane name="video" tab="视频参数">
+      <n-tab-pane name="video" tab="视频">
         <VideoParamsPanel />
       </n-tab-pane>
 
       <!-- 音频参数 -->
-      <n-tab-pane name="audio" tab="音频参数">
+      <n-tab-pane name="audio" tab="音频">
         <AudioParamsPanel />
       </n-tab-pane>
 
@@ -25,7 +25,7 @@
       </n-tab-pane>
 
       <!-- 剪辑 -->
-      <n-tab-pane name="trimming" tab="剪辑区间">
+      <n-tab-pane name="trimming" tab="剪辑">
         <TrimmingPanel />
       </n-tab-pane>
 
@@ -45,26 +45,25 @@
       </n-tab-pane>
     </n-tabs>
 
-    <!-- 快速参考 -->
-    <n-card size="small" :bordered="false" style="margin-top: 24px; background: var(--n-color-embedded);">
-      <template #header>
-        <span style="font-size: 13px; font-weight: 600;">📚 快速参考</span>
-      </template>
-      <n-space vertical :size="8">
-        <div style="font-size: 12px;">
-          <strong>CRF 质量参考:</strong> 18-20=高质量, 23=平衡, 26-28=小文件
-        </div>
-        <div style="font-size: 12px;">
-          <strong>编码速度参考:</strong> ultrafast > fast > medium > slow > veryslow
-        </div>
-        <div style="font-size: 12px;">
-          <strong>像素格式参考:</strong> yuv420p=8-bit, yuv420p10le=10-bit
-        </div>
-        <div style="font-size: 12px; color: #666;">
-          更多信息请查看 <a href="#" @click.prevent="openDocs">帮助文档</a>
-        </div>
-      </n-space>
-    </n-card>
+    <!-- 快速参考 - 折叠面板 -->
+    <n-collapse style="margin-top: 12px;">
+      <n-collapse-item title="📚 快速参考" name="reference">
+        <n-space vertical :size="6">
+          <div style="font-size: 12px;">
+            <strong>CRF 质量参考:</strong> 18-20=高质量, 23=平衡, 26-28=小文件
+          </div>
+          <div style="font-size: 12px;">
+            <strong>编码速度参考:</strong> ultrafast > fast > medium > slow > veryslow
+          </div>
+          <div style="font-size: 12px;">
+            <strong>像素格式参考:</strong> yuv420p=8-bit, yuv420p10le=10-bit
+          </div>
+          <div style="font-size: 12px; color: #666;">
+            更多信息请查看 <a href="#" @click.prevent="openDocs">帮助文档</a>
+          </div>
+        </n-space>
+      </n-collapse-item>
+    </n-collapse>
   </div>
 </template>
 
@@ -74,7 +73,9 @@ import {
   NTabs,
   NTabPane,
   NCard,
-  NSpace
+  NSpace,
+  NCollapse,
+  NCollapseItem
 } from 'naive-ui';
 import { VideoParamsPanel } from './index';
 import { AudioParamsPanel } from './index';
@@ -93,11 +94,11 @@ const openDocs = () => {
 
 <style scoped>
 .expert-mode-panel {
-  padding: 16px;
+  padding: 8px;
 }
 
 .panel-title {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 14px;
 }
 </style>

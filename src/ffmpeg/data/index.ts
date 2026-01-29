@@ -4,3 +4,4 @@
 
 export { default as encodersData } from './encoders.json';
 export { default as presetsData } from './presets.json';
+export { default as examplesData } from './examples.json';

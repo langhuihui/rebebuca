@@ -2,76 +2,79 @@
   <div class="video-params-panel">
     <div class="section-header">
       <h3>视频编码</h3>
-      <n-switch v-model:value="store.currentPreset.video.enabled" />
+      <n-switch v-model:value="store.currentPreset.video.enabled" size="small" />
     </div>
 
     <n-form
       v-if="store.currentPreset.video.enabled"
-      :label-width="100"
+      :label-width="80"
+      size="small"
       :model="store.currentPreset.video"
     >
       <!-- 编码器 -->
-      <n-form-item label="编码器">
+      <n-form-item label="编码器" :show-feedback="false">
         <n-select
           v-model:value="store.currentPreset.video.encoder"
           :options="videoEncoderOptions"
+          size="small"
           @update:value="handleEncoderChange"
           :disabled="isCopyMode"
         />
       </n-form-item>
 
       <template v-if="!isCopyMode">
-        <!-- 编码预设 -->
-        <n-form-item
-          v-if="encoderPresets.length > 0"
-          label="编码预设"
-        >
-          <n-select
-            v-model:value="store.currentPreset.video.preset"
-            :options="encoderPresetOptions"
-          />
-        </n-form-item>
-
-        <!-- 配置文件 -->
-        <n-form-item
-          v-if="encoderProfiles.length > 0"
-          label="配置文件"
-        >
-          <n-select
-            v-model:value="store.currentPreset.video.profile"
-            :options="encoderProfileOptions"
-          />
-        </n-form-item>
-
-        <!-- 级别 -->
-        <n-form-item
-          v-if="encoderLevels.length > 0"
-          label="级别"
-        >
-          <n-select
-            v-model:value="store.currentPreset.video.level"
-            :options="encoderLevelOptions"
-          />
-        </n-form-item>
+        <!-- 编码预设/配置文件/级别 - 使用网格布局 -->
+        <n-grid :cols="3" :x-gap="8">
+          <n-gi v-if="encoderPresets.length > 0">
+            <n-form-item label="编码预设" :show-feedback="false">
+              <n-select
+                v-model:value="store.currentPreset.video.preset"
+                :options="encoderPresetOptions"
+                size="small"
+              />
+            </n-form-item>
+          </n-gi>
+          <n-gi v-if="encoderProfiles.length > 0">
+            <n-form-item label="配置文件" :show-feedback="false">
+              <n-select
+                v-model:value="store.currentPreset.video.profile"
+                :options="encoderProfileOptions"
+                size="small"
+              />
+            </n-form-item>
+          </n-gi>
+          <n-gi v-if="encoderLevels.length > 0">
+            <n-form-item label="级别" :show-feedback="false">
+              <n-select
+                v-model:value="store.currentPreset.video.level"
+                :options="encoderLevelOptions"
+                size="small"
+              />
+            </n-form-item>
+          </n-gi>
+        </n-grid>
 
         <!-- 调整参数 -->
         <n-form-item
           v-if="encoderTunes.length > 0"
           label="调整参数"
+          :show-feedback="false"
         >
           <n-select
             v-model:value="store.currentPreset.video.tune"
             :options="encoderTuneOptions"
+            size="small"
             clearable
           />
         </n-form-item>
 
-        <n-divider />
+        <n-divider style="margin: 12px 0" />
 
         <!-- 质量控制 -->
-        <n-form-item label="质量控制">
+        <n-form-item label="质量控制" :show-feedback="false">
           <n-radio-group
             v-model:value="store.currentPreset.quality.controlMode"
+            size="small"
             @update:value="handleQualityModeChange"
           >
             <n-radio-button value="CRF">CRF</n-radio-button>
@@ -85,44 +88,50 @@
         <n-form-item
           v-if="store.currentPreset.quality.controlMode !== 'CBR'"
           :label="qualityParamLabel"
+          :show-feedback="false"
         >
-          <n-slider
-            v-model:value="qualityValue"
-            :min="0"
-            :max="51"
-            :step="1"
-            :marks="{ 0: '0', 23: '23 (默认)', 51: '51' }"
-            style="margin-right: 16px"
-          />
-          <n-input-number
-            v-model:value="qualityValue"
-            :min="0"
-            :max="51"
-            size="small"
-            style="width: 80px"
-          />
+          <n-space align="center" :size="8">
+            <n-slider
+              v-model:value="qualityValue"
+              :min="0"
+              :max="51"
+              :step="1"
+              style="width: 200px"
+            />
+            <n-input-number
+              v-model:value="qualityValue"
+              :min="0"
+              :max="51"
+              size="small"
+              style="width: 70px"
+            />
+          </n-space>
         </n-form-item>
 
         <!-- 比特率 -->
-        <n-form-item label="目标码率">
+        <n-form-item label="目标码率" :show-feedback="false">
           <n-input-group>
             <n-input-number
               v-model:value="bitrateValue"
               :min="0"
               :step="0.1"
+              size="small"
+              style="width: 100px"
             />
             <n-select
               v-model:value="bitrateUnit"
               :options="bitrateUnitOptions"
-              style="width: 80px"
+              size="small"
+              style="width: 70px"
             />
           </n-input-group>
         </n-form-item>
 
         <!-- 二遍编码 -->
-        <n-form-item label="编码方式">
+        <n-form-item label="编码方式" :show-feedback="false">
           <n-radio-group
             v-model:value="store.currentPreset.video.passMode"
+            size="small"
             :disabled="!supportsPassEncoding"
           >
             <n-radio-button :value="0">单次</n-radio-button>
@@ -138,9 +147,10 @@
       v-if="videoErrors.length > 0"
       type="error"
       title="配置错误"
-      style="margin-top: 16px"
+      size="small"
+      style="margin-top: 12px"
     >
-      <ul>
+      <ul style="font-size: 12px; margin: 0; padding-left: 16px;">
         <li v-for="(error, index) in videoErrors" :key="index">
           {{ error.message }}
         </li>
@@ -164,6 +174,9 @@ import {
   NInputGroup,
   NInput,
   NAlert,
+  NSpace,
+  NGrid,
+  NGi,
   useMessage
 } from 'naive-ui';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
@@ -335,27 +348,27 @@ const handleQualityModeChange = (mode: string) => {
 
 <style scoped>
 .video-params-panel {
-  padding: 16px;
+  padding: 12px;
   background-color: var(--n-color-embedded);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .section-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
 }
 
 ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 16px;
 }
 </style>

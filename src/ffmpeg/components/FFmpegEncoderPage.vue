@@ -5,19 +5,34 @@
       subtitle="快速生成 FFmpeg 命令行并进行视频转码"
     >
       <template #extra>
-        <n-space>
-          <n-button @click="handleLoadExample">加载示例</n-button>
-          <n-button @click="handleSaveToTaskList" :disabled="!canSaveTask">
+        <n-space :size="8">
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" circle @click="handleLoadExample">
+                <n-icon><BulbIcon /></n-icon>
+              </n-button>
+            </template>
+            加载示例
+          </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" circle @click="handleSaveToTaskList" :disabled="!canSaveTask">
+                <n-icon><SaveIcon /></n-icon>
+              </n-button>
+            </template>
             保存到任务列表
-          </n-button>
-          <n-button type="primary" @click="handleStartEncoding" :disabled="!canStartEncoding">
+          </n-tooltip>
+          <n-button type="primary" size="small" @click="handleStartEncoding" :disabled="!canStartEncoding">
+            <template #icon>
+              <n-icon><PlayIcon /></n-icon>
+            </template>
             开始转码
           </n-button>
         </n-space>
       </template>
     </n-page-header>
 
-    <n-card :bordered="false" style="margin-top: 24px">
+    <n-card :bordered="false" size="small" style="margin-top: 12px">
       <FFmpegConfigPanel />
     </n-card>
 
@@ -43,8 +58,15 @@ import {
   NCard,
   NSpace,
   NButton,
+  NIcon,
+  NTooltip,
   useMessage
 } from 'naive-ui';
+import {
+  BulbOutline as BulbIcon,
+  SaveOutline as SaveIcon,
+  PlayOutline as PlayIcon
+} from '@vicons/ionicons5';
 import { FFmpegConfigPanel } from './index';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
 import { useTaskManagerStore } from '../../stores/taskManager';
@@ -212,7 +234,7 @@ const handleStartEncoding = async () => {
 
 <style scoped>
 .ffmpeg-encoder-page {
-  padding: 24px;
+  padding: 16px;
   max-width: 1200px;
   margin: 0 auto;
 }

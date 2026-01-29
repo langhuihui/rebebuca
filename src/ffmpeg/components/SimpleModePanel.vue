@@ -1,24 +1,25 @@
 <template>
   <div class="simple-mode-panel">
-    <n-alert type="info" :show-icon="false" style="margin-bottom: 16px">
+    <n-alert type="info" :show-icon="false" size="small" style="margin-bottom: 12px; padding: 8px 12px;">
       <template #header>
         <span class="panel-title">简单模式</span>
       </template>
-      只显示常用参数,快速上手。需要更多选项可切换到专家模式。
+      <span style="font-size: 12px;">只显示常用参数,快速上手。需要更多选项可切换到专家模式。</span>
     </n-alert>
 
     <!-- 快速场景选择 -->
     <div class="quick-scenarios">
-      <n-divider>快速场景</n-divider>
-      <n-space :size="12">
+      <n-divider style="margin: 8px 0;">快速场景</n-divider>
+      <n-space :size="8">
         <n-button
           v-for="scenario in quickScenarios"
           :key="scenario.id"
+          size="small"
           :type="selectedScenario === scenario.id ? 'primary' : 'default'"
           @click="applyScenario(scenario)"
         >
           <template #icon>
-            <n-icon>
+            <n-icon size="14">
               <component :is="scenario.icon" />
             </n-icon>
           </template>
@@ -27,71 +28,97 @@
       </n-space>
     </div>
 
-    <n-divider />
+    <n-divider style="margin: 12px 0" />
 
-    <!-- 输出格式 -->
-    <div class="param-group">
-      <div class="param-label">
-        <n-icon><FolderOpenIcon /></n-icon>
-        <span>输出格式</span>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-icon size="16" class="help-icon"><HelpCircleIcon /></n-icon>
-          </template>
-          选择输出视频容器格式
-        </n-tooltip>
-      </div>
-      <n-select
-        :value="store.currentPreset.output.container"
-        :options="containerOptions"
-        @update:value="handleContainerChange"
-      />
-    </div>
+    <!-- 参数网格布局 -->
+    <n-grid :cols="2" :x-gap="16" :y-gap="12">
+      <!-- 输出格式 -->
+      <n-gi>
+        <div class="param-group compact">
+          <div class="param-label">
+            <n-icon size="14"><FolderOpenIcon /></n-icon>
+            <span>输出格式</span>
+            <n-tooltip trigger="hover">
+              <template #trigger>
+                <n-icon size="14" class="help-icon"><HelpCircleIcon /></n-icon>
+              </template>
+              选择输出视频容器格式
+            </n-tooltip>
+          </div>
+          <n-select
+            :value="store.currentPreset.output.container"
+            :options="containerOptions"
+            size="small"
+            @update:value="handleContainerChange"
+          />
+        </div>
+      </n-gi>
+
+      <!-- 音频质量 -->
+      <n-gi>
+        <div class="param-group compact">
+          <div class="param-label">
+            <n-icon size="14"><MusicalNotesIcon /></n-icon>
+            <span>音频比特率</span>
+            <n-tooltip trigger="hover">
+              <template #trigger>
+                <n-icon size="14" class="help-icon"><HelpCircleIcon /></n-icon>
+              </template>
+              音频比特率,越高音质越好
+            </n-tooltip>
+          </div>
+          <n-select
+            :value="store.currentPreset.audio.bitrate"
+            :options="bitrateOptions"
+            size="small"
+            @update:value="handleBitrateChange"
+          />
+        </div>
+      </n-gi>
+    </n-grid>
 
     <!-- 视频质量 -->
-    <div class="param-group">
+    <div class="param-group compact" style="margin-top: 12px;">
       <div class="param-label">
-        <n-icon><VideocamIcon /></n-icon>
-        <span>视频质量</span>
+        <n-icon size="14"><VideocamIcon /></n-icon>
+        <span>视频质量 (CRF)</span>
         <n-tooltip trigger="hover">
           <template #trigger>
-            <n-icon size="16" class="help-icon"><HelpCircleIcon /></n-icon>
+            <n-icon size="14" class="help-icon"><HelpCircleIcon /></n-icon>
           </template>
           CRF 值越低画质越好,文件越大。推荐范围: 18-28
         </n-tooltip>
+        <span class="quality-badge">{{ store.currentPreset.quality.value }}</span>
       </div>
-      <n-space vertical :size="8">
-        <n-slider
-          :value="parseInt(store.currentPreset.quality.value)"
-          :min="18"
-          :max="32"
-          :step="1"
-          :marks="{ 18: '高质量', 23: '平衡', 28: '小文件' }"
-          @update:value="handleQualityChange"
-        />
-        <div class="quality-value">
-          CRF: <span class="value">{{ store.currentPreset.quality.value }}</span>
-        </div>
-      </n-space>
+      <n-slider
+        :value="parseInt(store.currentPreset.quality.value)"
+        :min="18"
+        :max="32"
+        :step="1"
+        :marks="{ 18: '高', 23: '平衡', 28: '小' }"
+        style="margin: 4px 0;"
+        @update:value="handleQualityChange"
+      />
     </div>
 
     <!-- 输出分辨率 -->
-    <div class="param-group">
+    <div class="param-group compact" style="margin-top: 12px;">
       <div class="param-label">
-        <n-icon><ResizeIcon /></n-icon>
+        <n-icon size="14"><ResizeIcon /></n-icon>
         <span>输出分辨率</span>
         <n-tooltip trigger="hover">
           <template #trigger>
-            <n-icon size="16" class="help-icon"><HelpCircleIcon /></n-icon>
+            <n-icon size="14" class="help-icon"><HelpCircleIcon /></n-icon>
           </template>
           选择输出视频的分辨率
         </n-tooltip>
       </div>
       <n-radio-group
         :value="selectedResolution"
+        size="small"
         @update:value="handleResolutionChange"
       >
-        <n-space>
+        <n-space :size="8">
           <n-radio
             v-for="res in resolutionOptions"
             :key="res.value"
@@ -102,37 +129,17 @@
       </n-radio-group>
     </div>
 
-    <!-- 音频质量 -->
-    <div class="param-group">
-      <div class="param-label">
-        <n-icon><MusicalNotesIcon /></n-icon>
-        <span>音频比特率</span>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-icon size="16" class="help-icon"><HelpCircleIcon /></n-icon>
-          </template>
-          音频比特率,越高音质越好
-        </n-tooltip>
-      </div>
-      <n-select
-        :value="store.currentPreset.audio.bitrate"
-        :options="bitrateOptions"
-        @update:value="handleBitrateChange"
-      />
-    </div>
-
-    <!-- 快速预设提示 -->
-    <n-card size="small" :bordered="false" style="margin-top: 24px; background: var(--n-color-embedded);">
-      <template #header>
-        <span style="font-size: 13px; font-weight: 600;">💡 使用提示</span>
-      </template>
-      <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--n-text-color-3);">
-        <li>上传视频即可开始转码</li>
-        <li>选择"快速压缩"可快速减小文件大小</li>
-        <li>需要更多参数配置请切换到专家模式</li>
-        <li>命令行预览在下方可见</li>
-      </ul>
-    </n-card>
+    <!-- 使用提示 - 折叠面板 -->
+    <n-collapse style="margin-top: 12px;">
+      <n-collapse-item title="💡 使用提示" name="tips">
+        <ul style="margin: 0; padding-left: 16px; font-size: 12px; color: var(--n-text-color-3);">
+          <li>上传视频即可开始转码</li>
+          <li>选择"快速压缩"可快速减小文件大小</li>
+          <li>需要更多参数配置请切换到专家模式</li>
+          <li>命令行预览在下方可见</li>
+        </ul>
+      </n-collapse-item>
+    </n-collapse>
   </div>
 </template>
 
@@ -149,7 +156,11 @@ import {
   NSlider,
   NRadioGroup,
   NRadio,
-  NCard
+  NCard,
+  NGrid,
+  NGi,
+  NCollapse,
+  NCollapseItem
 } from 'naive-ui';
 import {
   FolderOpen as FolderOpenIcon,
@@ -312,29 +323,33 @@ const handleBitrateChange = (value: string) => {
 
 <style scoped>
 .simple-mode-panel {
-  padding: 16px;
+  padding: 8px;
 }
 
 .panel-title {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .quick-scenarios {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .param-group {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.param-group.compact {
+  margin-bottom: 8px;
 }
 
 .param-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 6px;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .help-icon {
@@ -346,15 +361,13 @@ const handleBitrateChange = (value: string) => {
   color: #666;
 }
 
-.quality-value {
-  text-align: center;
+.quality-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 4px;
   font-size: 12px;
-  color: #666;
-}
-
-.quality-value .value {
   font-weight: 600;
-  color: #3b82f6;
-  font-size: 14px;
 }
 </style>

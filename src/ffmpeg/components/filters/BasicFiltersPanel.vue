@@ -2,7 +2,21 @@
   <n-space vertical :size="16">
     <!-- 裁剪滤镜 -->
     <n-collapse :default-expanded-names="crop.enabled ? ['crop'] : []">
-      <n-collapse-item title="✂️ 裁剪" name="crop">
+      <n-collapse-item name="crop">
+        <template #header>
+          <n-space align="center" :size="6">
+            <n-icon size="16">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="6" cy="6" r="3"/>
+                <path d="M8.12 8.12 12 12"/>
+                <path d="M20 4 8.12 15.88"/>
+                <circle cx="6" cy="18" r="3"/>
+                <path d="M14.8 14.8 20 20"/>
+              </svg>
+            </n-icon>
+            <span>裁剪</span>
+          </n-space>
+        </template>
         <template #header-extra>
           <n-switch v-model:value="crop.enabled" size="small" />
         </template>
@@ -56,7 +70,20 @@
 
     <!-- 缩放滤镜 -->
     <n-collapse :default-expanded-names="scale.enabled ? ['scale'] : []">
-      <n-collapse-item title="📐 缩放" name="scale">
+      <n-collapse-item name="scale">
+        <template #header>
+          <n-space align="center" :size="6">
+            <n-icon size="16">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 3 9 15"/>
+                <path d="M12 3H3v18h18v-9"/>
+                <path d="M16 3h5v5"/>
+                <path d="M14 15l7 7"/>
+              </svg>
+            </n-icon>
+            <span>缩放</span>
+          </n-space>
+        </template>
         <template #header-extra>
           <n-switch v-model:value="scale.enabled" size="small" />
         </template>
@@ -110,7 +137,18 @@
 
     <!-- 帧率滤镜 -->
     <n-collapse :default-expanded-names="framerate.enabled ? ['framerate'] : []">
-      <n-collapse-item title="🔄 帧率" name="framerate">
+      <n-collapse-item name="framerate">
+        <template #header>
+          <n-space align="center" :size="6">
+            <n-icon size="16">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/>
+                <path d="M3 3v9h9"/>
+              </svg>
+            </n-icon>
+            <span>帧率</span>
+          </n-space>
+        </template>
         <template #header-extra>
           <n-switch v-model:value="framerate.enabled" size="small" />
         </template>
@@ -142,7 +180,18 @@
 
     <!-- 旋转/翻转滤镜 -->
     <n-collapse :default-expanded-names="transform.enabled ? ['transform'] : []">
-      <n-collapse-item title="↻ 旋转/翻转" name="transform">
+      <n-collapse-item name="transform">
+        <template #header>
+          <n-space align="center" :size="6">
+            <n-icon size="16">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/>
+                <path d="M3 3v9h9"/>
+              </svg>
+            </n-icon>
+            <span>旋转/翻转</span>
+          </n-space>
+        </template>
         <template #header-extra>
           <n-switch v-model:value="transform.enabled" size="small" />
         </template>
@@ -187,7 +236,8 @@ import {
   NSelect,
   NButton,
   NRadioGroup,
-  NRadioButton
+  NRadioButton,
+  NIcon
 } from 'naive-ui';
 import type { Filters } from '../../types/preset';
 

@@ -1,0 +1,518 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-26",
+  "examples": [
+    {
+      "id": "scale",
+      "name": "视频缩放",
+      "description": "调整视频分辨率到指定尺寸",
+      "icon": "📐",
+      "category": "transform",
+      "filterComplex": "[0:v]scale=1280:720[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入视频",
+            "streamType": "v",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-scale",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "缩放",
+            "filterId": "scale",
+            "label": "scale",
+            "icon": "📐",
+            "enabled": true,
+            "params": {
+              "width": 1280,
+              "height": 720,
+              "flags": "bicubic"
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-scale",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-scale",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "crop",
+      "name": "视频裁剪",
+      "description": "从视频中裁剪指定区域",
+      "icon": "✂️",
+      "category": "basic",
+      "filterComplex": "[0:v]crop=1920:1080:0:0[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入视频",
+            "streamType": "v",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-crop",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "裁剪",
+            "filterId": "crop",
+            "label": "crop",
+            "icon": "✂️",
+            "enabled": true,
+            "params": {
+              "w": 1920,
+              "h": 1080,
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-crop",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-crop",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "fps",
+      "name": "帧率调整",
+      "description": "设置输出视频帧率",
+      "icon": "🔄",
+      "category": "basic",
+      "filterComplex": "[0:v]fps=30[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入视频",
+            "streamType": "v",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-fps",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "帧率",
+            "filterId": "fps",
+            "label": "fps",
+            "icon": "🔄",
+            "enabled": true,
+            "params": {
+              "fps": 30,
+              "round": "near"
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-fps",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-fps",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "yadif",
+      "name": "去隔行",
+      "description": "YADIF 去隔行滤波器",
+      "icon": "📺",
+      "category": "basic",
+      "filterComplex": "[0:v]yadif=1[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入视频",
+            "streamType": "v",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-yadif",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "去隔行",
+            "filterId": "yadif",
+            "label": "yadif",
+            "icon": "📺",
+            "enabled": true,
+            "params": {
+              "mode": 1
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-yadif",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-yadif",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "drawtext",
+      "name": "叠加文字",
+      "description": "在视频上叠加文字水印",
+      "icon": "📝",
+      "category": "overlay",
+      "filterComplex": "[0:v]drawtext=text='Hello World':x=10:y=10:fontsize=24:fontcolor=white[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入视频",
+            "streamType": "v",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-drawtext",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "叠加文字",
+            "filterId": "drawtext",
+            "label": "drawtext",
+            "icon": "📝",
+            "enabled": true,
+            "params": {
+              "text": "Hello World",
+              "x": 10,
+              "y": 10,
+              "fontsize": 24,
+              "fontcolor": "white"
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-drawtext",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-drawtext",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "overlay",
+      "name": "画中画",
+      "description": "将一个视频叠加到另一个视频上",
+      "icon": "📑",
+      "category": "overlay",
+      "filterComplex": "[0:v][1:v]overlay=10:10[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "主视频",
+            "streamType": "v",
+            "label": "主视频"
+          }
+        },
+        {
+          "id": "input-2",
+          "type": "input",
+          "position": { "x": 0, "y": 100 },
+          "data": {
+            "name": "叠加视频",
+            "streamType": "v",
+            "label": "叠加"
+          }
+        },
+        {
+          "id": "filter-overlay",
+          "type": "filter",
+          "position": { "x": 200, "y": 50 },
+          "data": {
+            "name": "叠加",
+            "filterId": "overlay",
+            "label": "overlay",
+            "icon": "📑",
+            "enabled": true,
+            "params": {
+              "x": 10,
+              "y": 10
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 50 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-overlay",
+          "sourceHandle": "v",
+          "targetHandle": "v:0"
+        },
+        {
+          "id": "edge-2",
+          "source": "input-2",
+          "target": "filter-overlay",
+          "sourceHandle": "v",
+          "targetHandle": "v:1"
+        },
+        {
+          "id": "edge-3",
+          "source": "filter-overlay",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "colorbalance",
+      "name": "颜色调整",
+      "description": "调整视频的阴影、中间调和高光颜色",
+      "icon": "🎨",
+      "category": "color",
+      "filterComplex": "[0:v]colorbalance=rs=0.1:gs=0.1:bs=0.1[v]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入视频",
+            "streamType": "v",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-colorbalance",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "颜色调整",
+            "filterId": "colorbalance",
+            "label": "colorbalance",
+            "icon": "🎨",
+            "enabled": true,
+            "params": {
+              "rs": 0.1,
+              "gs": 0.1,
+              "bs": 0.1
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出视频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-colorbalance",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-colorbalance",
+          "target": "output-1",
+          "sourceHandle": "v",
+          "targetHandle": "v"
+        }
+      ]
+    },
+    {
+      "id": "loudnorm",
+      "name": "音频标准化",
+      "description": "将音频音量标准化到目标响度",
+      "icon": "🔊",
+      "category": "audio",
+      "filterComplex": "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[a]",
+      "nodes": [
+        {
+          "id": "input-1",
+          "type": "input",
+          "position": { "x": 0, "y": 0 },
+          "data": {
+            "name": "输入音频",
+            "streamType": "a",
+            "label": "输入"
+          }
+        },
+        {
+          "id": "filter-loudnorm",
+          "type": "filter",
+          "position": { "x": 200, "y": 0 },
+          "data": {
+            "name": "音频标准化",
+            "filterId": "loudnorm",
+            "label": "loudnorm",
+            "icon": "🔊",
+            "enabled": true,
+            "params": {
+              "I": -16,
+              "TP": -1.5,
+              "LRA": 11
+            }
+          }
+        },
+        {
+          "id": "output-1",
+          "type": "output",
+          "position": { "x": 400, "y": 0 },
+          "data": {
+            "name": "输出音频",
+            "label": "输出"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "input-1",
+          "target": "filter-loudnorm",
+          "sourceHandle": "a",
+          "targetHandle": "a"
+        },
+        {
+          "id": "edge-2",
+          "source": "filter-loudnorm",
+          "target": "output-1",
+          "sourceHandle": "a",
+          "targetHandle": "a"
+        }
+      ]
+    }
+  ]
+}

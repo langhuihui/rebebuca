@@ -2,25 +2,29 @@
   <div class="command-preview">
     <div class="section-header">
       <h3>命令行预览</h3>
-      <n-space>
-        <n-button size="small" @click="handleCopy">
-          <template #icon>
-            <n-icon><CopyIcon /></n-icon>
+      <n-space :size="8">
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button size="small" circle @click="handleCopy">
+              <n-icon><CopyIcon /></n-icon>
+            </n-button>
           </template>
-          复制
-        </n-button>
-        <n-button size="small" @click="handleRefresh">
-          <template #icon>
-            <n-icon><RefreshIcon /></n-icon>
+          复制命令
+        </n-tooltip>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button size="small" circle @click="handleRefresh">
+              <n-icon><RefreshIcon /></n-icon>
+            </n-button>
           </template>
           刷新
-        </n-button>
+        </n-tooltip>
       </n-space>
     </div>
 
     <!-- 命令行显示 -->
     <div class="command-display">
-      <n-scrollbar style="max-height: 200px">
+      <n-scrollbar style="max-height: 120px">
         <n-code
           v-if="store.commandPreview"
           :code="store.commandPreview"
@@ -37,15 +41,15 @@
 
     <!-- 验证状态 -->
     <div class="validation-status" v-if="showValidationStatus">
-      <n-space align="center">
+      <n-space align="center" :size="4">
         <n-icon
-          :size="20"
+          :size="16"
           :color="isValid ? '#18a058' : '#d03050'"
         >
           <CheckIcon v-if="isValid" />
           <WarningIcon v-else />
         </n-icon>
-        <span :class="{ 'valid': isValid, 'invalid': !isValid }">
+        <span :class="{ 'valid': isValid, 'invalid': !isValid }" style="font-size: 12px;">
           {{ isValid ? '配置有效' : '配置无效' }}
         </span>
       </n-space>
@@ -56,9 +60,10 @@
       v-if="hasWarnings"
       type="warning"
       title="警告"
-      style="margin-top: 12px"
+      size="small"
+      style="margin-top: 8px"
     >
-      <ul>
+      <ul style="font-size: 12px; margin: 0; padding-left: 16px;">
         <li v-for="(warning, index) in store.validationResult.warnings" :key="index">
           {{ warning.message }}
         </li>
@@ -77,6 +82,7 @@ import {
   NCode,
   NEmpty,
   NAlert,
+  NTooltip,
   useMessage
 } from 'naive-ui';
 import {
@@ -125,36 +131,36 @@ const handleRefresh = () => {
 
 <style scoped>
 .command-preview {
-  padding: 16px;
+  padding: 12px;
   background-color: var(--n-color-embedded);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .section-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
 }
 
 .command-display {
   background-color: #1e1e1e;
-  border-radius: 6px;
-  padding: 12px;
-  min-height: 80px;
+  border-radius: 4px;
+  padding: 8px;
+  min-height: 60px;
 }
 
 .validation-status {
-  margin-top: 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
 }
@@ -171,6 +177,6 @@ const handleRefresh = () => {
 
 ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 16px;
 }
 </style>

@@ -2,48 +2,57 @@
   <div class="audio-params-panel">
     <div class="section-header">
       <h3>音频编码</h3>
-      <n-switch v-model:value="store.currentPreset.audio.enabled" />
+      <n-switch v-model:value="store.currentPreset.audio.enabled" size="small" />
     </div>
 
     <n-form
       v-if="store.currentPreset.audio.enabled"
-      :label-width="100"
+      :label-width="70"
+      size="small"
       :model="store.currentPreset.audio"
     >
       <!-- 音频编码器 -->
-      <n-form-item label="编码器">
+      <n-form-item label="编码器" :show-feedback="false">
         <n-select
           v-model:value="store.currentPreset.audio.encoder"
           :options="audioEncoderOptions"
+          size="small"
           @update:value="handleEncoderChange"
           :disabled="isCopyMode"
         />
       </n-form-item>
 
       <template v-if="!isCopyMode">
-        <!-- 比特率 -->
-        <n-form-item label="比特率">
-          <n-select
-            v-model:value="store.currentPreset.audio.bitrate"
-            :options="bitrateOptions"
-          />
-        </n-form-item>
-
-        <!-- 声道数 -->
-        <n-form-item label="声道">
-          <n-select
-            v-model:value="store.currentPreset.audio.channels"
-            :options="channelOptions"
-          />
-        </n-form-item>
-
-        <!-- 采样率 -->
-        <n-form-item label="采样率">
-          <n-select
-            v-model:value="store.currentPreset.audio.sampleRate"
-            :options="sampleRateOptions"
-          />
-        </n-form-item>
+        <!-- 比特率、声道、采样率 - 使用网格布局 -->
+        <n-grid :cols="3" :x-gap="8">
+          <n-gi>
+            <n-form-item label="比特率" :show-feedback="false">
+              <n-select
+                v-model:value="store.currentPreset.audio.bitrate"
+                :options="bitrateOptions"
+                size="small"
+              />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item label="声道" :show-feedback="false">
+              <n-select
+                v-model:value="store.currentPreset.audio.channels"
+                :options="channelOptions"
+                size="small"
+              />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item label="采样率" :show-feedback="false">
+              <n-select
+                v-model:value="store.currentPreset.audio.sampleRate"
+                :options="sampleRateOptions"
+                size="small"
+              />
+            </n-form-item>
+          </n-gi>
+        </n-grid>
       </template>
     </n-form>
 
@@ -52,9 +61,10 @@
       v-if="audioErrors.length > 0"
       type="error"
       title="配置错误"
-      style="margin-top: 16px"
+      size="small"
+      style="margin-top: 12px"
     >
-      <ul>
+      <ul style="font-size: 12px; margin: 0; padding-left: 16px;">
         <li v-for="(error, index) in audioErrors" :key="index">
           {{ error.message }}
         </li>
@@ -71,6 +81,8 @@ import {
   NSelect,
   NSwitch,
   NAlert,
+  NGrid,
+  NGi,
   useMessage
 } from 'naive-ui';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
@@ -175,27 +187,27 @@ const handleEncoderChange = (encoderId: string) => {
 
 <style scoped>
 .audio-params-panel {
-  padding: 16px;
+  padding: 12px;
   background-color: var(--n-color-embedded);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .section-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
 }
 
 ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 16px;
 }
 </style>
