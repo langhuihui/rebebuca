@@ -17,22 +17,18 @@
  -->
 
 <template>
-  <n-tooltip
-    trigger="hover"
-    placement="right"
-    :delay="500"
-  >
+  <n-tooltip trigger="hover" placement="right" :delay="500">
     <template #trigger>
       <div
         class="tree-node task-node"
         :class="[
           nodeClass,
-          { 
+          {
             'task-running': isRunning,
             'is-dragging': isDragging,
             'drag-over-top': dragPosition === 'top',
             'drag-over-bottom': dragPosition === 'bottom',
-          }
+          },
         ]"
         :draggable="draggable"
         @click="$emit('click', task)"
@@ -98,7 +94,9 @@
           >
             <template #icon>
               <n-icon size="12">
-                <component :is="isFavorite ? svgIcons.starFilled : svgIcons.star" />
+                <component
+                  :is="isFavorite ? svgIcons.starFilled : svgIcons.star"
+                />
               </n-icon>
             </template>
           </n-button>
@@ -134,13 +132,23 @@
     <div class="task-tooltip">
       <div v-if="task.type === TaskType.MACRO" class="tooltip-macro-info">
         <div class="tooltip-label">
-          {{ task.executionMode === 'parallel' ? 'Parallel Macro Task' : 'Serial Macro Task' }}
+          {{
+            task.executionMode === "parallel"
+              ? "Parallel Macro Task"
+              : "Serial Macro Task"
+          }}
         </div>
-        <div v-if="task.subTasks && task.subTasks.length > 0" class="tooltip-subtasks">
-          Sub-tasks: {{ task.subTasks.join(', ') }}
+        <div
+          v-if="task.subTasks && task.subTasks.length > 0"
+          class="tooltip-subtasks"
+        >
+          Sub-tasks: {{ task.subTasks.join(", ") }}
         </div>
-        <div v-else-if="task.dependsOn && task.dependsOn.length > 0" class="tooltip-subtasks">
-          Dependencies: {{ task.dependsOn.join(', ') }}
+        <div
+          v-else-if="task.dependsOn && task.dependsOn.length > 0"
+          class="tooltip-subtasks"
+        >
+          Dependencies: {{ task.dependsOn.join(", ") }}
         </div>
       </div>
       <div v-else>
@@ -152,12 +160,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { NTooltip, NIcon, NButton } from 'naive-ui';
-import { svgIcons, getCommandIconName } from '../../utils/icons';
-import { useSettingsStore } from '../../stores/settings';
-import type { Task } from '../../providers/types';
-import { TaskType } from '../../providers/types';
+import { computed } from "vue";
+import { NTooltip, NIcon, NButton } from "naive-ui";
+import { svgIcons, getCommandIconName } from "../../utils/icons";
+import { useSettingsStore } from "../../stores/settings";
+import type { Task } from "../../providers/types";
+import { TaskType } from "../../providers/types";
 
 const props = defineProps<{
   task: Task;
@@ -169,7 +177,7 @@ const props = defineProps<{
   showFavorite?: boolean;
   draggable?: boolean;
   isDragging?: boolean;
-  dragPosition?: 'top' | 'bottom' | null;
+  dragPosition?: "top" | "bottom" | null;
   nodeClass?: string;
   folderHint?: string | null;
 }>();
@@ -187,23 +195,23 @@ const showFavorite = computed(() => {
 });
 
 defineEmits<{
-  (e: 'click', task: Task): void;
-  (e: 'run', task: Task): void;
-  (e: 'stop', task: Task): void;
-  (e: 'edit', task: Task): void;
-  (e: 'delete', task: Task): void;
-  (e: 'toggle-favorite', task: Task): void;
-  (e: 'dragstart', event: DragEvent, task: Task): void;
-  (e: 'dragend'): void;
-  (e: 'mousedown', event: MouseEvent, task: Task): void;
+  (e: "click", task: Task): void;
+  (e: "run", task: Task): void;
+  (e: "stop", task: Task): void;
+  (e: "edit", task: Task): void;
+  (e: "delete", task: Task): void;
+  (e: "toggle-favorite", task: Task): void;
+  (e: "dragstart", event: DragEvent, task: Task): void;
+  (e: "dragend"): void;
+  (e: "mousedown", event: MouseEvent, task: Task): void;
 }>();
 
 const settingsStore = useSettingsStore();
 
 const fullCommand = computed(() => {
-  let cmd = props.task.command || '';
+  let cmd = props.task.command || "";
   if (props.task.args && props.task.args.length > 0) {
-    cmd += ' ' + props.task.args.join(' ');
+    cmd += " " + props.task.args.join(" ");
   }
   return cmd;
 });
@@ -211,28 +219,23 @@ const fullCommand = computed(() => {
 const taskIcon = computed(() => {
   // Show a special icon for macro tasks
   if (props.task.type === TaskType.MACRO) {
-    return props.task.executionMode === 'parallel' 
-      ? svgIcons.grid  // use grid for parallel
+    return props.task.executionMode === "parallel"
+      ? svgIcons.grid // use grid for parallel
       : svgIcons.task; // use task icon for serial
   }
-  
-  // Show AI icon for ai-collab tasks
-  if (props.task.type === TaskType.AI_COLLAB) {
-    return svgIcons.robot || svgIcons.ai || svgIcons.task;
-  }
-  
+
   const customIcons = settingsStore.settings.commandIcons || {};
-  const iconName = getCommandIconName(props.task.command || '', customIcons);
-  if (iconName !== 'task' && svgIcons[iconName as keyof typeof svgIcons]) {
+  const iconName = getCommandIconName(props.task.command || "", customIcons);
+  if (iconName !== "task" && svgIcons[iconName as keyof typeof svgIcons]) {
     return svgIcons[iconName as keyof typeof svgIcons];
   }
-  
+
   switch (props.task.group) {
-    case 'build':
+    case "build":
       return svgIcons.build || svgIcons.task;
-    case 'test':
+    case "test":
       return svgIcons.test || svgIcons.task;
-    case 'clean':
+    case "clean":
       return svgIcons.clean || svgIcons.task;
     default:
       return svgIcons.task;
@@ -247,7 +250,7 @@ const canEdit = computed(() => {
     return props.showEdit;
   }
   // Otherwise, only user-created tasks are editable
-  return props.task.source === 'user';
+  return props.task.source === "user";
 });
 </script>
 
@@ -365,7 +368,8 @@ const canEdit = computed(() => {
 }
 
 @keyframes glow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     filter: drop-shadow(0 0 2px #18a058);
   }

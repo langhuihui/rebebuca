@@ -654,19 +654,6 @@
     :duplicate-task-names="duplicateTaskNames"
     @confirm="handleConfirmImport"
   />
-
-  <AICollabTaskEditDialog
-    v-model:show="showAICollabEditDialog"
-    :task="editingAITask"
-    @save="handleSaveAITask"
-  />
-
-  <ResumeSessionDialog
-    v-model:show="showResumeDialog"
-    :boulder-state="pendingBoulderState"
-    @resume="handleResumeSession"
-    @start-new="handleStartNewSession"
-  />
 </template>
 
 <script setup lang="ts">
@@ -701,10 +688,7 @@ import {
   AddFolderDialog,
   TaskSelectionDialog,
   RenameGroupDialog,
-  AICollabTaskEditDialog,
 } from "./sidebar/dialogs";
-import ResumeSessionDialog from "./sidebar/dialogs/ResumeSessionDialog.vue";
-import type { BoulderStateInfo } from "../adapters/types";
 import type { AddFolderFormData } from "./sidebar/dialogs";
 
 const { t } = useI18n();
@@ -729,14 +713,16 @@ const clampSidebarWidth = (width: number) =>
 const syncMiniModeWindowWidth = async (width?: number) => {
   if (!uiStore.miniMode || !isDesktopMode) return;
   try {
-    const { getCurrentWindow, LogicalSize } = await import(
-      "@tauri-apps/api/window"
-    );
+    const { getCurrentWindow, LogicalSize } =
+      await import("@tauri-apps/api/window");
     const appWindow = getCurrentWindow();
     const targetWidth = clampSidebarWidth(width ?? uiStore.sidebarWidth);
     const scaleFactor = await appWindow.scaleFactor();
     const currentSize = await appWindow.innerSize();
-    const logicalHeight = Math.max(400, currentSize.height / scaleFactor || 600);
+    const logicalHeight = Math.max(
+      400,
+      currentSize.height / scaleFactor || 600,
+    );
     await appWindow.setMinSize(new LogicalSize(targetWidth, 400));
     await appWindow.setSize(new LogicalSize(targetWidth, logicalHeight));
   } catch (error) {
@@ -838,13 +824,9 @@ const addFolderFormData = ref<AddFolderFormData | null>(null);
 // Rename group dialog state
 const showRenameGroupDialog = ref(false);
 const renameGroupData = reactive({
-groupId: "",
-newName: "",
+  groupId: "",
+  newName: "",
 });
-
-// AI Collab dialog state
-const showAICollabEditDialog = ref(false);
-const editingAITask = ref<Task | null>(null);
 
 // Drag and drop state
 const draggedTask = ref<Task | null>(null);
@@ -1224,13 +1206,6 @@ const handleFFmpegEncoder = () => {
 
 // Handle task visual edit
 const handleTaskEditVisual = (task: Task) => {
-  // If it is an AI Collab task, open the dedicated AI Collab edit dialog
-  if (task.type === TaskType.AI_COLLAB) {
-    editingAITask.value = task;
-    showAICollabEditDialog.value = true;
-    return;
-  }
-
   isEditMode.value = true;
   isUserTask.value = task.source === "user";
   const group = taskManager.userGroups.find((g) =>
@@ -1369,24 +1344,6 @@ const handleSaveTask = async (
   }
 };
 
-// Handle saving AI Task
-const handleSaveAITask = async (taskData: any) => {
-  if (!editingAITask.value || !editingAITask.value.id) return;
-
-  try {
-    await taskManager.updateTaskInGroup(editingAITask.value.id, taskData);
-    showAICollabEditDialog.value = false;
-    editingAITask.value = null;
-  } catch (error) {
-    console.error("[TaskSidebar] Failed to save AI task:", error);
-    notificationStore.addError(
-      t("common.saveFailed") || "Failed to save",
-      String(error),
-      "frontend",
-    );
-  }
-};
-
 // Handle task click
 const handleTaskClick = (task: Task) => {
   console.log("[TaskSidebar] Task clicked:", task.name);
@@ -1395,80 +1352,14 @@ const handleTaskClick = (task: Task) => {
   // No special tab handling needed
 };
 
-// Resume session dialog state
-const showResumeDialog = ref(false);
-const pendingBoulderState = ref<BoulderStateInfo | null>(null);
-const pendingTask = ref<Task | null>(null);
-
 // Handle task run
 const handleTaskRun = async (task: Task) => {
   try {
     console.log("[TaskSidebar] handleTaskRun called:", task.name, task.type);
-    // Note: Dual agent functionality has been removed - AI collab tasks now use MCP-based execution
-
-    // For AI collab tasks, check for boulder state before creating new session
-    if (task.type === TaskType.AI_COLLAB && isDesktopMode) {
-      const projectPath = task.cwd || "";
-      if (projectPath) {
-        try {
-          const adapter = await getAdapter();
-          const boulderState =
-            await adapter.orchestration.checkBoulderState(projectPath);
-          if (boulderState?.exists) {
-            // Show resume dialog
-            pendingBoulderState.value = boulderState;
-            pendingTask.value = task;
-            showResumeDialog.value = true;
-            return;
-          }
-        } catch (error) {
-          console.warn("[TaskSidebar] Failed to check boulder state:", error);
-        }
-      }
-    }
-
     console.log("[TaskSidebar] Calling executeTask for:", task.name);
     await taskManager.executeTask(task);
   } catch (error) {
     console.error("[TaskSidebar] Failed to run task:", error);
-  }
-};
-
-// Handle resume session
-const handleResumeSession = async () => {
-  if (!pendingTask.value || !pendingBoulderState.value) return;
-
-  try {
-    // Note: Dual agent functionality has been removed
-    // AI collab tasks now use MCP-based execution
-    // Session management and conversation history are no longer supported
-    console.log("[TaskSidebar] AI collab session functionality has been removed");
-    console.log("[TaskSidebar] Please use executeTask instead");
-
-    // Clear pending state
-    pendingTask.value = null;
-    pendingBoulderState.value = null;
-  } catch (error) {
-    console.error("[TaskSidebar] Failed to resume session:", error);
-    throw error;
-  }
-};
-// Handle start new session
-const handleStartNewSession = async () => {
-  if (!pendingTask.value) return;
-
-  try {
-    const task = pendingTask.value;
-    // Clear pending state
-    pendingTask.value = null;
-    pendingBoulderState.value = null;
-
-    // Execute task normally (will create new session)
-    console.log("[TaskSidebar] Starting new session for task:", task.name);
-    await taskManager.executeTask(task);
-  } catch (error) {
-    console.error("[TaskSidebar] Failed to start new session:", error);
-    throw error;
   }
 };
 

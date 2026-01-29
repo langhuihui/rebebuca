@@ -136,19 +136,19 @@ import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
 import { useNotificationStore } from "./stores/notification";
 import { setErrorCallback } from "./utils/devLogger";
-import { 
-  registerDirectoryPicker, 
-  unregisterDirectoryPicker, 
+import {
+  registerDirectoryPicker,
+  unregisterDirectoryPicker,
   onDirectorySelected,
   getDirectoryPickerFsAdapter,
-  type DirectoryPickerOptions 
+  type DirectoryPickerOptions,
 } from "./services/directoryPickerService";
 import {
   registerFilePicker,
   unregisterFilePicker,
   onFileSelected,
   getFilePickerFsAdapter,
-  type FilePickerOptions
+  type FilePickerOptions,
 } from "./services/filePickerService";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
@@ -185,12 +185,16 @@ const currentVersion = ref("");
 // Directory picker state (for server mode)
 const isDirectoryPickerVisible = ref(false);
 const directoryPickerOptions = ref<DirectoryPickerOptions>({});
-const directoryPickerFsAdapter = ref<{ readDir: (path: string) => Promise<any[]> } | null>(null);
+const directoryPickerFsAdapter = ref<{
+  readDir: (path: string) => Promise<any[]>;
+} | null>(null);
 
 // File picker state (for server mode)
 const isFilePickerVisible = ref(false);
 const filePickerOptions = ref<FilePickerOptions>({});
-const filePickerFsAdapter = ref<{ readDir: (path: string) => Promise<any[]> } | null>(null);
+const filePickerFsAdapter = ref<{
+  readDir: (path: string) => Promise<any[]>;
+} | null>(null);
 
 // Handle directory picker selection
 const onDirectoryPickerSelect = (path: string | null) => {
@@ -251,7 +255,7 @@ const findHistoryByProcessId = (processId: string) => {
       id: h.id,
       pid: h.pid,
       internalId: h.internalId,
-    }))
+    })),
   );
 
   // First try to find by pid (system PID)
@@ -260,13 +264,13 @@ const findHistoryByProcessId = (processId: string) => {
   // If not found and processId looks like a UUID, try to find by internalId
   if (!result && processId.includes("-")) {
     result = runConfigStore.history.find(
-      (item) => item.internalId === processId
+      (item) => item.internalId === processId,
     );
   }
 
   console.log(
     `[FRONTEND] findHistoryByProcessId result:`,
-    result ? result.id : "not found"
+    result ? result.id : "not found",
   );
   return result;
 };
@@ -275,14 +279,14 @@ const findHistoryByProcessId = (processId: string) => {
 const appendOutputToHistory = (
   processId: string,
   content: string,
-  outputType: "stdout" | "stderr" | "system"
+  outputType: "stdout" | "stderr" | "system",
 ) => {
   const historyItem = findHistoryByProcessId(processId);
   if (historyItem) {
     console.log(
       `[FRONTEND] Appending ${outputType} to history item ${
         historyItem.id
-      }: ${content.substring(0, 50)}...`
+      }: ${content.substring(0, 50)}...`,
     );
 
     // Only update output for running processes
@@ -304,7 +308,7 @@ const appendOutputToHistory = (
   } else {
     // History item doesn't exist yet - buffer the output
     console.log(
-      `[FRONTEND] History item not found for PID ${processId}, buffering ${outputType} output`
+      `[FRONTEND] History item not found for PID ${processId}, buffering ${outputType} output`,
     );
     if (!outputBuffer.value[processId]) {
       outputBuffer.value[processId] = [];
@@ -316,7 +320,7 @@ const appendOutputToHistory = (
 // Update history item status
 const updateHistoryStatus = (
   processId: string,
-  status: "running" | "success" | "error"
+  status: "running" | "success" | "error",
 ) => {
   const historyItem = findHistoryByProcessId(processId);
   if (historyItem) {
@@ -334,8 +338,8 @@ const updateHistoryStatus = (
       updateData.duration = duration;
       console.log(
         `[FRONTEND] Process ${processId} finished, duration: ${duration}ms (${Math.floor(
-          duration / 1000
-        )}s)`
+          duration / 1000,
+        )}s)`,
       );
     }
 
@@ -375,13 +379,13 @@ const processBufferedOutput = (processId: string) => {
 const updateProcessStats = async () => {
   const runningProcesses = runConfigStore.history.filter(
     (item) =>
-      item.status === "running" && item.pid && !finishedProcesses.has(item.pid)
+      item.status === "running" && item.pid && !finishedProcesses.has(item.pid),
   );
 
   if (runningProcesses.length > 0) {
     console.log(
       `[FRONTEND] Updating stats for ${runningProcesses.length} running processes:`,
-      runningProcesses.map((p) => ({ id: p.id, pid: p.pid, name: p.name }))
+      runningProcesses.map((p) => ({ id: p.id, pid: p.pid, name: p.name })),
     );
   }
 
@@ -392,7 +396,7 @@ const updateProcessStats = async () => {
       if (failureCount >= 5) {
         // Skip processes that have failed too many times
         console.log(
-          `Skipping process ${item.pid} - too many failed stats checks (${failureCount})`
+          `Skipping process ${item.pid} - too many failed stats checks (${failureCount})`,
         );
         continue;
       }
@@ -403,10 +407,10 @@ const updateProcessStats = async () => {
         console.log(
           `[FRONTEND] Attempting to get stats for process ${
             item.pid
-          } (attempt ${failureCount + 1})`
+          } (attempt ${failureCount + 1})`,
         );
         const stats = (await runConfigStore.getProcessStats(
-          item.pid
+          item.pid,
         )) as ProcessStats | null;
 
         console.log(`[FRONTEND] Stats result for process ${item.pid}:`, stats);
@@ -416,7 +420,7 @@ const updateProcessStats = async () => {
           item.memoryUsage = stats.memory_usage_mb;
 
           console.log(
-            `[FRONTEND] Successfully updated stats for process ${item.pid}: CPU=${item.cpuUsage}, Memory=${item.memoryUsage}`
+            `[FRONTEND] Successfully updated stats for process ${item.pid}: CPU=${item.cpuUsage}, Memory=${item.memoryUsage}`,
           );
 
           // Update the history item in store
@@ -431,7 +435,7 @@ const updateProcessStats = async () => {
           // If stats is null, don't immediately mark as finished
           // The process might still be starting up or temporarily unavailable
           console.log(
-            `[FRONTEND] Process ${item.pid} stats returned null, but not marking as finished yet`
+            `[FRONTEND] Process ${item.pid} stats returned null, but not marking as finished yet`,
           );
           // Don't mark as finished immediately - let the process-stopped event handle it
         }
@@ -445,7 +449,7 @@ const updateProcessStats = async () => {
           errorMessage.includes("Process has finished")
         ) {
           console.log(
-            `Process ${item.pid} has finished, marking as finished and updating status`
+            `Process ${item.pid} has finished, marking as finished and updating status`,
           );
           finishedProcesses.add(item.pid);
           failedStatsChecks.delete(item.pid);
@@ -461,7 +465,7 @@ const updateProcessStats = async () => {
           failedStatsChecks.set(item.pid, newFailureCount);
 
           console.log(
-            `Process ${item.pid} stats temporarily unavailable (attempt ${newFailureCount}/5): ${errorMessage}`
+            `Process ${item.pid} stats temporarily unavailable (attempt ${newFailureCount}/5): ${errorMessage}`,
           );
           // Don't mark as finished - the process might still be running
         }
@@ -477,22 +481,22 @@ const updateProcessStats = async () => {
 const cleanupFinishedProcesses = () => {
   // Remove processes that are no longer in the history or have been marked as finished
   const currentPids = new Set(
-    runConfigStore.history.map((h) => h.pid).filter(Boolean)
+    runConfigStore.history.map((h) => h.pid).filter(Boolean),
   );
   const toRemove = Array.from(finishedProcesses).filter(
-    (pid) => !currentPids.has(pid)
+    (pid) => !currentPids.has(pid),
   );
   toRemove.forEach((pid) => finishedProcesses.delete(pid));
 
   // Also clean up checking processes cache
   const toRemoveChecking = Array.from(checkingProcesses).filter(
-    (pid) => !currentPids.has(pid)
+    (pid) => !currentPids.has(pid),
   );
   toRemoveChecking.forEach((pid) => checkingProcesses.delete(pid));
 
   // Clean up failed stats checks cache
   const toRemoveFailed = Array.from(failedStatsChecks.keys()).filter(
-    (pid) => !currentPids.has(pid)
+    (pid) => !currentPids.has(pid),
   );
   toRemoveFailed.forEach((pid) => failedStatsChecks.delete(pid));
 
@@ -502,7 +506,7 @@ const cleanupFinishedProcesses = () => {
     toRemoveFailed.length > 0
   ) {
     console.log(
-      `Cleaned up ${toRemove.length} finished processes, ${toRemoveChecking.length} checking processes, and ${toRemoveFailed.length} failed stats checks from cache`
+      `Cleaned up ${toRemove.length} finished processes, ${toRemoveChecking.length} checking processes, and ${toRemoveFailed.length} failed stats checks from cache`,
     );
   }
 };
@@ -561,37 +565,37 @@ const suppressResizeObserverError = () => {
 
 // Global API for remote task management
 const setupGlobalAPI = () => {
-  if (typeof window === 'undefined') return;
-  
+  if (typeof window === "undefined") return;
+
   (window as any).rebebucaAPI = {
     // Get all tasks from server
     async getTasks(): Promise<any[]> {
       try {
-        const response = await fetch('/api/tasks');
+        const response = await fetch("/api/tasks");
         const data = await response.json();
         return data.tasks || [];
       } catch (error) {
-        console.error('[RebebucaAPI] Failed to get tasks:', error);
+        console.error("[RebebucaAPI] Failed to get tasks:", error);
         return [];
       }
     },
-    
+
     // Save tasks to server
     async saveTasks(tasks: any[]): Promise<boolean> {
       try {
-        const response = await fetch('/api/tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(tasks),
         });
         const data = await response.json();
         return data.success === true;
       } catch (error) {
-        console.error('[RebebucaAPI] Failed to save tasks:', error);
+        console.error("[RebebucaAPI] Failed to save tasks:", error);
         return false;
       }
     },
-    
+
     // Get a specific task
     async getTask(taskId: string): Promise<any | null> {
       try {
@@ -599,47 +603,34 @@ const setupGlobalAPI = () => {
         const data = await response.json();
         return data.task || null;
       } catch (error) {
-        console.error('[RebebucaAPI] Failed to get task:', error);
+        console.error("[RebebucaAPI] Failed to get task:", error);
         return null;
       }
     },
-    
-    // Run a task by ID - returns run info including sessionId
-    async runTask(taskId: string): Promise<{ success: boolean; runId?: string; sessionId?: string; error?: string }> {
+
+    // Run a task by ID - returns run info
+    async runTask(
+      taskId: string,
+    ): Promise<{ success: boolean; runId?: string; error?: string }> {
       try {
         const response = await fetch(`/api/tasks/${taskId}/run`, {
-          method: 'POST',
+          method: "POST",
         });
         const data = await response.json();
-        
+
         if (data.success) {
-          // Generate a session ID for the AI collab task
-          const sessionId = `collab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           return {
             success: true,
             runId: data.runId,
-            sessionId: sessionId,
           };
         }
         return { success: false, error: data.error };
       } catch (error) {
-        console.error('[RebebucaAPI] Failed to run task:', error);
+        console.error("[RebebucaAPI] Failed to run task:", error);
         return { success: false, error: String(error) };
       }
     },
-    
-    // Get conversation for a session
-    async getConversation(sessionId: string): Promise<any[]> {
-      try {
-        const response = await fetch(`/api/ai-collab/conversation/${sessionId}`);
-        const data = await response.json();
-        return data.conversation || [];
-      } catch (error) {
-        console.error('[RebebucaAPI] Failed to get conversation:', error);
-        return [];
-      }
-    },
-    
+
     // Get run history for a task
     async getRunHistory(taskId: string): Promise<any[]> {
       try {
@@ -647,13 +638,13 @@ const setupGlobalAPI = () => {
         const data = await response.json();
         return data.runs || [];
       } catch (error) {
-        console.error('[RebebucaAPI] Failed to get run history:', error);
+        console.error("[RebebucaAPI] Failed to get run history:", error);
         return [];
       }
     },
   };
-  
-  console.log('[Rebebuca] Global API exposed at window.rebebucaAPI');
+
+  console.log("[Rebebuca] Global API exposed at window.rebebucaAPI");
 };
 
 // Setup Tauri event listeners on mount
@@ -695,14 +686,14 @@ onMounted(async () => {
   // Set up error callback for DevLogger to route errors to notification store
   setErrorCallback((level, message, source) => {
     // Filter out known benign errors
-    if (message.includes('ResizeObserver loop')) {
+    if (message.includes("ResizeObserver loop")) {
       return; // This is a known browser issue, not a real error
     }
-    
-    if (level === 'error') {
-      notificationStore.addError('Frontend Error', message, source);
-    } else if (level === 'warn') {
-      notificationStore.addWarning('Frontend Warning', message, source);
+
+    if (level === "error") {
+      notificationStore.addError("Frontend Error", message, source);
+    } else if (level === "warn") {
+      notificationStore.addWarning("Frontend Warning", message, source);
     }
   });
 
@@ -722,8 +713,8 @@ onMounted(async () => {
       console.log(
         `[FRONTEND] Received ${output_type} output - PID: ${process_id}, Content: ${content.substring(
           0,
-          100
-        )}...`
+          100,
+        )}...`,
       );
       appendOutputToHistory(process_id, content, output_type);
 
@@ -741,7 +732,7 @@ onMounted(async () => {
           }
         }
       }
-    }
+    },
   );
 
   // Listen for process started
@@ -750,7 +741,7 @@ onMounted(async () => {
     (event: any) => {
       const { internal_id, system_pid } = event.payload;
       console.log(
-        `[FRONTEND] Process started - Internal UUID: ${internal_id}, System PID: ${system_pid}`
+        `[FRONTEND] Process started - Internal UUID: ${internal_id}, System PID: ${system_pid}`,
       );
 
       // Find history item by the internal_id (UUID)
@@ -761,7 +752,7 @@ onMounted(async () => {
         const processId = system_pid ? system_pid.toString() : internal_id;
 
         console.log(
-          `[FRONTEND] Process started - updating history item ${historyItem.id} with process ID: ${processId} (system_pid: ${system_pid}, internal_id: ${internal_id})`
+          `[FRONTEND] Process started - updating history item ${historyItem.id} with process ID: ${processId} (system_pid: ${system_pid}, internal_id: ${internal_id})`,
         );
         console.log(`[FRONTEND] History item before update:`, {
           id: historyItem.id,
@@ -788,7 +779,7 @@ onMounted(async () => {
         processBufferedOutput(processId);
       } else {
         console.warn(
-          `[FRONTEND] History item not found for internal UUID ${internal_id}`
+          `[FRONTEND] History item not found for internal UUID ${internal_id}`,
         );
         console.warn(
           `[FRONTEND] Available history items:`,
@@ -797,10 +788,10 @@ onMounted(async () => {
             pid: h.pid,
             internalId: h.internalId,
             status: h.status,
-          }))
+          })),
         );
       }
-    }
+    },
   );
 
   // Listen for process stopped
@@ -809,7 +800,7 @@ onMounted(async () => {
     async (event: any) => {
       const { internal_id, system_pid, status } = event.payload;
       console.log(
-        `[FRONTEND] Process stopped - Internal UUID: ${internal_id}, System PID: ${system_pid}, Status: ${status}`
+        `[FRONTEND] Process stopped - Internal UUID: ${internal_id}, System PID: ${system_pid}, Status: ${status}`,
       );
 
       // For kill_process, internal_id is actually the system PID
@@ -855,7 +846,7 @@ onMounted(async () => {
       updateHistoryStatus(processId, historyStatus);
 
       console.log(`Process ${processId} status updated to: ${historyStatus}`);
-    }
+    },
   );
 
   // Listen for PTY exit events (for terminal-based task execution)
@@ -864,12 +855,12 @@ onMounted(async () => {
     async (event: any) => {
       const { pty_id, exit_code } = event.payload;
       console.log(
-        `[FRONTEND] PTY exit event - PTY ID: ${pty_id}, Exit Code: ${exit_code}`
+        `[FRONTEND] PTY exit event - PTY ID: ${pty_id}, Exit Code: ${exit_code}`,
       );
 
       // Find history item by ptyId
       const historyItem = runConfigStore.history.find(
-        (item) => item.ptyId === pty_id
+        (item) => item.ptyId === pty_id,
       );
 
       if (historyItem) {
@@ -884,7 +875,7 @@ onMounted(async () => {
           : 0;
 
         console.log(
-          `[FRONTEND] PTY ${pty_id} finished, duration: ${duration}ms, status: ${historyStatus}`
+          `[FRONTEND] PTY ${pty_id} finished, duration: ${duration}ms, status: ${historyStatus}`,
         );
 
         // Update history
@@ -892,15 +883,16 @@ onMounted(async () => {
           status: historyStatus,
           duration: duration,
         });
-        
+
         // Notify taskManager that task has exited (for SSH tasks)
         if (historyItem.configId) {
           try {
-            const { useTaskManagerStore } = await import('./stores/taskManager');
+            const { useTaskManagerStore } =
+              await import("./stores/taskManager");
             const taskManager = useTaskManagerStore();
             taskManager.onTaskExit(historyItem.ptyId || historyItem.configId);
           } catch (error) {
-            console.error('[App] Failed to notify taskManager:', error);
+            console.error("[App] Failed to notify taskManager:", error);
           }
         }
 
@@ -912,7 +904,7 @@ onMounted(async () => {
       } else {
         console.log(`[FRONTEND] No history item found for PTY ${pty_id}`);
       }
-    }
+    },
   );
 
   // Listen for SSH output events
@@ -921,15 +913,20 @@ onMounted(async () => {
     async (event: any) => {
       const { taskId, type, content } = event.payload;
       console.log(`[FRONTEND] SSH output - Task ID: ${taskId}, Type: ${type}`);
-      
+
       // Find history item by task ID (ptyId is the exec_id for SSH tasks)
       const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId
+        (item) => item.configId === taskId || item.ptyId === taskId,
       );
 
       if (historyItem) {
         // Map SSH output type to history output type
-        const outputType = type === 'stdout' ? 'stdout' : type === 'stderr' ? 'stderr' : 'system';
+        const outputType =
+          type === "stdout"
+            ? "stdout"
+            : type === "stderr"
+              ? "stderr"
+              : "system";
         appendOutputToHistory(historyItem.ptyId || taskId, content, outputType);
       } else {
         // Buffer output if history item doesn't exist yet
@@ -938,17 +935,19 @@ onMounted(async () => {
         }
         outputBuffer.value[taskId].push({ content, outputType: type });
       }
-    }
+    },
   );
 
   unlistenSshProcessStarted = await appStore.safeListen(
     "ssh-process-started",
     async (event: any) => {
       const { taskId, pid } = event.payload;
-      console.log(`[FRONTEND] SSH process started - Task ID: ${taskId}, PID: ${pid}`);
-      
+      console.log(
+        `[FRONTEND] SSH process started - Task ID: ${taskId}, PID: ${pid}`,
+      );
+
       const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId
+        (item) => item.configId === taskId || item.ptyId === taskId,
       );
 
       if (historyItem) {
@@ -957,17 +956,19 @@ onMounted(async () => {
           ptyId: taskId, // Use taskId as ptyId for SSH tasks
         });
       }
-    }
+    },
   );
 
   unlistenSshProcessFinished = await appStore.safeListen(
     "ssh-process-finished",
     async (event: any) => {
       const { taskId, exitCode } = event.payload;
-      console.log(`[FRONTEND] SSH process finished - Task ID: ${taskId}, Exit Code: ${exitCode}`);
-      
+      console.log(
+        `[FRONTEND] SSH process finished - Task ID: ${taskId}, Exit Code: ${exitCode}`,
+      );
+
       const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId
+        (item) => item.configId === taskId || item.ptyId === taskId,
       );
 
       if (historyItem) {
@@ -993,25 +994,28 @@ onMounted(async () => {
         // Notify taskManager that task has exited
         if (historyItem.configId) {
           try {
-            const { useTaskManagerStore } = await import('./stores/taskManager');
+            const { useTaskManagerStore } =
+              await import("./stores/taskManager");
             const taskManager = useTaskManagerStore();
             taskManager.onTaskExit(taskId);
           } catch (error) {
-            console.error('[App] Failed to notify taskManager:', error);
+            console.error("[App] Failed to notify taskManager:", error);
           }
         }
       }
-    }
+    },
   );
 
   unlistenSshError = await appStore.safeListen(
     "ssh-error",
     async (event: any) => {
       const { taskId, message } = event.payload;
-      console.error(`[FRONTEND] SSH error - Task ID: ${taskId}, Message: ${message}`);
-      
+      console.error(
+        `[FRONTEND] SSH error - Task ID: ${taskId}, Message: ${message}`,
+      );
+
       const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId
+        (item) => item.configId === taskId || item.ptyId === taskId,
       );
 
       if (historyItem) {
@@ -1020,7 +1024,7 @@ onMounted(async () => {
           output: (historyItem.output || "") + `[SSH ERROR] ${message}\n`,
         });
       }
-    }
+    },
   );
 
   // Start process monitoring
@@ -1042,7 +1046,7 @@ onUnmounted(() => {
 
   // Unregister directory picker
   unregisterDirectoryPicker();
-  
+
   // Unregister file picker
   unregisterFilePicker();
 
