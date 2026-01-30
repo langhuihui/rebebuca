@@ -80,7 +80,7 @@ pub async fn get_port_processes() -> Result<Vec<PortProcess>, String> {
                         if let Ok(port) = port_str.parse::<u16>() {
                             // Try to get process name and command using PowerShell (more reliable than tasklist/wmic)
                             let ps_output = Command::new("powershell")
-                                .args(["-NoProfile", "-NonInteractive", "-Command",
+                                .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
                                        &format!("(Get-Process -Id {}).ProcessName, (Get-Process -Id {}).Path", pid, pid)])
                                 .creation_flags(0x08000000) // CREATE_NO_WINDOW
                                 .output()
@@ -283,6 +283,7 @@ pub async fn kill_process_by_port(port: u16) -> Result<(), String> {
                 if let Some(pid) = parts.last() {
                     let _ = Command::new("taskkill")
                         .args(["/F", "/PID", pid])
+                        .creation_flags(0x08000000) // CREATE_NO_WINDOW
                         .output();
                 }
             }

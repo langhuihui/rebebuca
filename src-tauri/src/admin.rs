@@ -78,9 +78,10 @@ pub async fn execute_with_admin(command: String, args: Option<Vec<String>>) -> R
         let stderr_file = temp_dir.join(format!("rebebuca_admin_stderr_{}.txt", std::process::id()));
         
         // PowerShell script to run as admin and capture output
+        // Use -WindowStyle Hidden so the outer PowerShell and the elevated cmd window stay hidden
         let ps_script = format!(
             r#"
-            $process = Start-Process -FilePath "cmd.exe" -ArgumentList '/c {} > "{}" 2> "{}"' -Verb RunAs -Wait -PassThru
+            $process = Start-Process -FilePath "cmd.exe" -ArgumentList '/c {} > "{}" 2> "{}"' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
             exit $process.ExitCode
             "#,
             escaped_command,
@@ -90,8 +91,12 @@ pub async fn execute_with_admin(command: String, args: Option<Vec<String>>) -> R
         
         println!("[Admin] Executing with admin privileges: {}", full_command);
         
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        
         let output = Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_script])
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &ps_script])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("Failed to execute PowerShell: {}", e))?;
         

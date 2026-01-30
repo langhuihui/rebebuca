@@ -212,8 +212,10 @@ pub fn run() {
                         }
                         #[cfg(target_os = "windows")]
                         {
+                            use std::os::windows::process::CommandExt;
                             let _ = std::process::Command::new("cmd")
                                 .args(["/c", "start", "https://rebebuca.com"])
+                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
                                 .spawn();
                         }
                         #[cfg(target_os = "linux")]

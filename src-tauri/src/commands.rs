@@ -53,8 +53,10 @@ pub async fn open_file_with_default_app(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         Command::new("cmd")
             .args(["/c", "start", "", &path])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW - hide cmd when opening file
             .spawn()
             .map_err(|e| format!("Failed to open file: {}", e))?;
     }
@@ -83,8 +85,10 @@ pub async fn open_url_in_browser(url: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         Command::new("cmd")
             .args(["/c", "start", "", &url])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW - hide cmd when opening URL
             .spawn()
             .map_err(|e| format!("Failed to open URL: {}", e))?;
     }
@@ -532,6 +536,9 @@ pub async fn get_available_terminals() -> Result<Vec<TerminalInfo>, String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
         // Check for cmd.exe (always available)
         if let Ok(comspec) = std::env::var("COMSPEC") {
             terminals.push(TerminalInfo {
@@ -581,9 +588,10 @@ pub async fn get_available_terminals() -> Result<Vec<TerminalInfo>, String> {
 
         // Check for Windows Terminal
         // Windows Terminal is installed via Microsoft Store or Winget
-        // Check if wt.exe is in PATH
+        // Check if wt.exe is in PATH (hidden window for settings/query)
         if Command::new("where")
             .args(["wt.exe"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false)
@@ -991,6 +999,9 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
         // Windows shells
         // Check for cmd.exe
         if let Ok(comspec) = std::env::var("COMSPEC") {
@@ -1068,8 +1079,12 @@ pub async fn get_available_shells() -> Result<Vec<ShellInfo>, String> {
             });
         }
 
-        // Check for Nushell
-        if let Ok(output) = Command::new("where").arg("nu.exe").output() {
+        // Check for Nushell (hidden window for settings/query)
+        if let Ok(output) = Command::new("where")
+            .arg("nu.exe")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout)
                     .lines()

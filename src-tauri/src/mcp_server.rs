@@ -195,8 +195,15 @@ async fn which_node() -> Option<String> {
             }
         }
         
-        // Try to find in PATH
-        if let Ok(output) = Command::new("where").arg("node").output().await {
+        // Try to find in PATH (hidden window)
+        let mut cmd = Command::new("where");
+        cmd.arg("node");
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.as_std_mut().creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        if let Ok(output) = cmd.output().await {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !path.is_empty() {
