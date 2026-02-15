@@ -156,7 +156,6 @@ import {
   NSlider,
   NRadioGroup,
   NRadio,
-  NCard,
   NGrid,
   NGi,
   NCollapse,

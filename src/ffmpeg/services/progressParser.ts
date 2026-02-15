@@ -24,7 +24,6 @@ export class ProgressParser {
   private readonly DURATION_REGEX = /Duration:\s+(\d{2}):(\d{2}):(\d{2})\.(\d{2})/i;
   private readonly PROGRESS_REGEX = /frame=\s*(\d+)\s+fps=\s*([\d.]+)\s+q=\s*([\d.-]+)\s+size=\s*(\d+)\s*([KMG]iB)\s+time=\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})\s+bitrate=\s*([\d.]+)(?:kbits\/s)?\s+speed=\s*([\d.]+)x/i;
   private readonly SIMPLE_PROGRESS_REGEX = /frame=\s*(\d+)\s+fps=\s*([\d.]+)\s+q=\s*([\d.-]+)\s+size=\s*(\d+)\s*([KMG]iB)\s+time=\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})/i;
-  private readonly BITRATE_SPEED_REGEX = /bitrate=\s*([\d.]+)kbits\/s\s+speed=\s*([\d.]+)x/i;
 
   // 错误模式
   private readonly ERROR_PATTERNS = [

@@ -345,7 +345,7 @@ async function handleConfirmImport() {
         const blob = new Blob([JSON.stringify(item.data)], { type: 'application/json' });
         const file = new File([blob], item.name);
 
-        const ids = await presetsStore.importFrom3FUI(file);
+        await presetsStore.importFrom3FUI(file);
         successCount++;
       } else if (item.type === 'JSON') {
         // JSON 格式直接保存

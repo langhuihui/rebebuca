@@ -4,16 +4,11 @@
  */
 
 import { defineStore } from 'pinia';
-import type { FFmpegPreset, PresetMetadata } from '../types/preset';
+import type { FFmpegPreset, PresetMetadata, PackedPreset } from '../types/preset';
 import { presetConverter } from '../services/presetConverter';
 import presetsData from '../data/presets.json';
 
-/**
- * 完整的预设对象（包含元数据和预设内容）
- */
-export interface PackedPreset extends PresetMetadata {
-  preset: FFmpegPreset;
-}
+export type { PackedPreset };
 
 /**
  * 预设分类类型
@@ -89,7 +84,7 @@ export const usePresetsStore = defineStore('presets', {
           break;
         case 'all':
         default:
-          presets = state.allPresets;
+          presets = [...state.builtinPresets, ...state.customPresets, ...state.importedPresets];
           break;
       }
 
@@ -116,7 +111,7 @@ export const usePresetsStore = defineStore('presets', {
      * 获取当前选中的预设
      */
     selectedPreset(state): PackedPreset | undefined {
-      return state.allPresets.find(p => p.id === state.selectedPresetId);
+      return [...state.builtinPresets, ...state.customPresets, ...state.importedPresets].find((p: PackedPreset) => p.id === state.selectedPresetId);
     },
 
     /**
@@ -124,9 +119,10 @@ export const usePresetsStore = defineStore('presets', {
      */
     availableTags(state): string[] {
       const tagSet = new Set<string>();
-      state.allPresets.forEach(preset => {
+      const all = [...state.builtinPresets, ...state.customPresets, ...state.importedPresets];
+      all.forEach((preset: PackedPreset) => {
         if (preset.tags) {
-          preset.tags.forEach(tag => tagSet.add(tag));
+          preset.tags.forEach((tag: string) => tagSet.add(tag));
         }
       });
       return Array.from(tagSet).sort();
@@ -140,7 +136,7 @@ export const usePresetsStore = defineStore('presets', {
         builtin: state.builtinPresets.length,
         custom: state.customPresets.length,
         imported: state.importedPresets.length,
-        total: state.allPresets.length
+        total: state.builtinPresets.length + state.customPresets.length + state.importedPresets.length
       };
     }
   },
@@ -154,13 +150,13 @@ export const usePresetsStore = defineStore('presets', {
       this.error = null;
 
       try {
-        // 加载内置预设
+        // 加载内置预设（断言为 PackedPreset，JSON 中 quality.controlMode 为 string）
         this.builtinPresets = presetsData.builtin.map(p => ({
           ...p,
           version: '1.0.0',
           createdAt: Date.now(),
           updatedAt: Date.now()
-        }));
+        })) as PackedPreset[];
 
         // 从本地存储加载自定义预设
         await this.loadCustomPresets();
@@ -405,7 +401,7 @@ export const usePresetsStore = defineStore('presets', {
      */
     filterByTags(tags: string[]): PackedPreset[] {
       return this.allPresets.filter(p =>
-        p.tags && tags.every(tag => p.tags.includes(tag))
+        p.tags && tags.every((tag: string) => p.tags!.includes(tag))
       );
     },
 

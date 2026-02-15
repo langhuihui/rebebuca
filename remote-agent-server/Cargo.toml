@@ -1,6 +1,6 @@
 [package]
 name = "rebebuca-remote-server"
-version = "0.5.3"
+version = "0.5.5"
 edition = "2021"
 description = "Remote server for Rebebuca - provides WebSocket API for web frontend"
 license = "MIT"
@@ -33,8 +33,8 @@ nix = { version = "0.29", features = ["term", "process", "signal", "fs"] }
 libc = "0.2"
 sysinfo = "0.32"
 
-# SSH support
-ssh2 = "0.9"
+# SSH support (vendored OpenSSL for cross-compilation to musl in CI)
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }
 
 # Authentication
 uuid = { version = "1", features = ["v4", "serde"] }

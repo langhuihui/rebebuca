@@ -68,10 +68,6 @@ export class FilterSearchService {
   private readonly SEARCH_CACHE_TTL = 30000; // 30秒缓存
   private readonly MAX_SEARCH_CACHE_SIZE = 50;
 
-  // 节流控制
-  private searchTimeout: number | null = null;
-  private readonly SEARCH_DEBOUNCE_MS = 150; // 150ms 节流
-
   constructor() {
     this.fuzzy = new UFX({
       // 模糊搜索配置
@@ -81,8 +77,6 @@ export class FilterSearchService {
       intraDel: 1,       // 允许删除字符
       interLft: 1,       // 允许间隙
       interIns: 1,       // 间隙插入
-      interDel: 1,       // 间隙删除
-      interTrn: 1,       // 间隙转置
     });
 
     this.loadSearchHistory();
@@ -128,7 +122,7 @@ export class FilterSearchService {
     }
 
     const {
-      fuzzy = true,
+      fuzzy: _fuzzy = true,
       maxResults = 50,
       includeDescription = true,
       caseSensitive = false
@@ -151,14 +145,15 @@ export class FilterSearchService {
       }
     });
 
-    // 执行模糊搜索
-    const idxs = fuzzy.search(haystack, query) || [];
+    // 执行模糊搜索（使用实例方法，返回值可能是数组或其它类型）
+    const raw = this.fuzzy.search(haystack, query);
+    const idxs: number[] = Array.isArray(raw) ? (raw as unknown as number[]) : [];
 
     // 提取唯一的结果（使用 Set 优化查找）
     const seenFilters = new Set<string>();
     const rankedResults: { filter: FilterDefinition; score: number }[] = [];
 
-    idxs.forEach((idx, i) => {
+    idxs.forEach((idx: number, i: number) => {
       const filter = filterMap[idx];
       if (filter && !seenFilters.has(filter.id)) {
         seenFilters.add(filter.id);

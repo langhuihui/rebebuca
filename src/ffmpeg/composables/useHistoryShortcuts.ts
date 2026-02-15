@@ -22,7 +22,7 @@ function isInputFocused(): boolean {
     tagName === 'input' ||
     tagName === 'textarea' ||
     tagName === 'select' ||
-    activeElement.isContentEditable;
+    (activeElement as HTMLElement).isContentEditable;
 
   return isInput;
 }

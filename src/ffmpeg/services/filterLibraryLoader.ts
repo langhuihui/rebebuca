@@ -81,7 +81,7 @@ export class FilterLibraryLoader {
 
       // 应用筛选
       if (options?.filterType) {
-        filters = filters.filter(f => f.type.includes(options.filterType!));
+        filters = filters.filter(f => (f as FilterDefinition & { type?: string }).type?.includes(options.filterType!) ?? false);
       }
 
       // 应用数量限制
@@ -114,13 +114,16 @@ export class FilterLibraryLoader {
     // 如果数据是对象，尝试提取所有滤镜定义
     if (typeof data === 'object' && data !== null) {
       return Object.entries(data).map(([name, def]: [string, any]) => ({
-        id: def.id || 0,
-        meta: def.meta || '',
+        id: def.id ?? '',
         name: name,
-        type: def.type || 'V->V',
-        description: def.description || '',
-        params: def.params || []
-      }));
+        category: (def.category as FilterDefinition['category']) ?? 'basic',
+        description: def.description ?? '',
+        icon: def.icon ?? 'filter',
+        filterType: (def.filterType ?? def.type ?? 'video') as FilterDefinition['filterType'],
+        inputPorts: def.inputPorts ?? ['v'],
+        outputPorts: def.outputPorts ?? ['v'],
+        params: def.params ?? []
+      })) as FilterDefinition[];
     }
 
     throw new Error('Invalid filters data format');

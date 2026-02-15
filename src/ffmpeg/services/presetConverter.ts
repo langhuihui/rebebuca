@@ -193,7 +193,7 @@ export class PresetConverter {
   /**
    * 将 3FUI 预设映射为 Rebebuca 预设
    */
-  private map3FUIToRebebuca(preset3fui: FFPreset3FUI, warnings: string[]): FFmpegPreset {
+  private map3FUIToRebebuca(preset3fui: FFPreset3FUI, _warnings: string[]): FFmpegPreset {
     const preset: FFmpegPreset = {
       // 输出配置
       output: {
@@ -456,7 +456,7 @@ export class PresetConverter {
   /**
    * 解析 XML 格式的 3FUI 预设
    */
-  private parseXMLTo3FUI(content: string): FFPresetFile3FUI {
+  private parseXMLTo3FUI(_content: string): FFPresetFile3FUI {
     // 简化的 XML 解析逻辑
     // 实际实现需要根据 3FUI 的 XML 格式进行调整
     throw new Error('XML format not yet implemented');

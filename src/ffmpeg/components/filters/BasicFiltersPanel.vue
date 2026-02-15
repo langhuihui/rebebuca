@@ -220,9 +220,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import {
-  NCard,
   NSpace,
   NCollapse,
   NCollapseItem,
@@ -290,28 +289,10 @@ const emitCrop = (key: string, value: string) => {
   });
 };
 
-const emitScale = (key: string, value: any) => {
-  emit('update:filters', {
-    scale: {
-      ...scale.value,
-      [key]: value
-    }
-  });
-};
-
 const emitFramerate = (key: string, value: any) => {
   emit('update:filters', {
     framerate: {
       ...framerate.value,
-      [key]: value
-    }
-  });
-};
-
-const emitTransform = (key: string, value: any) => {
-  emit('update:filters', {
-    transform: {
-      ...transform.value,
       [key]: value
     }
   });
@@ -394,7 +375,7 @@ const setFps = (fps: number) => {
 };
 
 // 监听属性变化
-watch([crop, scale, framerate, transform], (newValues) => {
+watch([crop, scale, framerate, transform], (_newValues: unknown) => {
   // 当 computed 返回的值变化时，触发更新
 }, { deep: true });
 </script>

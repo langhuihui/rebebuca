@@ -362,8 +362,9 @@ const onQuickTime = (time: string) => {
 };
 
 // 更新坐标点
-const onUpdatePoint = (axis: 'x' | 'y', value: number) => {
-  const newValue = { ...pointValue.value, [axis]: value };
+const onUpdatePoint = (axis: 'x' | 'y', value: number | null) => {
+  const v = value ?? 0;
+  const newValue = { ...pointValue.value, [axis]: v };
   emit('update:value', `${newValue.x}:${newValue.y}`);
 };
 </script>

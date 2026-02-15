@@ -199,7 +199,6 @@ import {
   NSwitch,
   NDivider,
   NInput,
-  NSelect,
   NDropdown,
   NAlert
 } from 'naive-ui';
@@ -273,7 +272,7 @@ const presetOptions = computed(() => {
       key: 'default'
     },
     { type: 'divider', key: 'd1' },
-    ...presets.map(preset => ({
+    ...presets.map((preset: { id: string; name: string }) => ({
       label: preset.name,
       key: preset.id
     }))

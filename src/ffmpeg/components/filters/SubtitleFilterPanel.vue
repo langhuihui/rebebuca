@@ -285,7 +285,8 @@ const updateSource = (val: 'embedded' | 'external') => {
   } as SubtitleFilter);
 };
 
-const updateStreamIndex = (val: number) => {
+const updateStreamIndex = (val: number | null) => {
+  if (val == null) return;
   emit('update:subtitle', {
     ...props.subtitle,
     enabled: true,

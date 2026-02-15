@@ -186,8 +186,7 @@ import {
   Document as FileIcon,
   Time as TimeIcon,
   TimerOutline as TimerIcon,
-  Close as CloseIcon,
-  RemoveCircleOutline as RemoveIcon
+  Close as CloseIcon
 } from '@vicons/ionicons5';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
 

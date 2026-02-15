@@ -172,7 +172,6 @@ import {
   NSlider,
   NInputNumber,
   NInputGroup,
-  NInput,
   NAlert,
   NSpace,
   NGrid,
@@ -322,8 +321,8 @@ const handleEncoderChange = (encoderId: string) => {
     CBR: 'qp'
   };
   store.updateQualityConfig({
-    controlMode: qualityModes[0] as any,
-    paramName: paramMap[qualityModes[0]] || 'crf'
+    controlMode: qualityModes[0] as 'CRF' | 'VBR' | 'VBR_HQ' | 'CQP' | 'CBR',
+    paramName: (paramMap[qualityModes[0]] || 'crf') as 'crf' | 'cq' | 'qp' | 'global_quality'
   });
 
   message.info(`已切换到 ${encoder.name}`);
@@ -340,8 +339,8 @@ const handleQualityModeChange = (mode: string) => {
   };
 
   store.updateQualityConfig({
-    controlMode: mode as any,
-    paramName: paramMap[mode] || 'crf'
+    controlMode: mode as 'CRF' | 'VBR' | 'VBR_HQ' | 'CQP' | 'CBR',
+    paramName: (paramMap[mode] || 'crf') as 'crf' | 'cq' | 'qp' | 'global_quality'
   });
 };
 </script>

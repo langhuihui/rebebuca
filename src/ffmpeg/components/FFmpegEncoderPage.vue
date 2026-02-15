@@ -71,7 +71,6 @@ import { FFmpegConfigPanel } from './index';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
 import { useTaskManagerStore } from '../../stores/taskManager';
 import TaskEditDialog from '../../components/sidebar/dialogs/TaskEditDialog.vue';
-import type { TaskGroup } from '../../providers/types';
 import { TaskType } from '../../providers/types';
 import '../theme.css';
 
@@ -178,7 +177,7 @@ const handleSaveTask = async (task: any, groupId: string, newGroupName: string) 
     // 处理新建任务组的情况
     let finalGroupId = groupId;
     if (groupId === '__new__' && newGroupName) {
-      finalGroupId = await taskManager.createGroup(newGroupName);
+      finalGroupId = await (taskManager as { createGroup?: (name: string) => Promise<string> }).createGroup?.(newGroupName) ?? groupId;
     }
 
     // 查找任务组

@@ -3,7 +3,7 @@
  * 实现节点图编辑的撤销/重做功能
  */
 
-import type { FilterGraphData, FilterNode, FilterEdge } from '../types/preset';
+import type { FilterGraphData } from '../types/preset';
 
 /**
  * 历史操作类型
@@ -82,7 +82,7 @@ export class HistoryService {
   /**
    * 开始一个新操作（保存当前状态为前置状态）
    */
-  beginAction(type: HistoryActionType, description: string): string {
+  beginAction(_type: HistoryActionType, _description: string): string {
     const actionId = `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     return actionId;
   }
@@ -194,7 +194,7 @@ export class HistoryService {
     previousGraphData: FilterGraphData,
     currentGraphData: FilterGraphData,
     edgeId: string,
-    sourceNodeId: string,
+    _sourceNodeId: string,
     targetNodeId: string
   ): void {
     const actionId = this.beginAction('connect_nodes', `连接节点`);
@@ -220,7 +220,7 @@ export class HistoryService {
     previousGraphData: FilterGraphData,
     currentGraphData: FilterGraphData,
     edgeId: string,
-    sourceNodeId: string,
+    _sourceNodeId: string,
     targetNodeId: string
   ): void {
     const actionId = this.beginAction('disconnect_nodes', `断开连接`);

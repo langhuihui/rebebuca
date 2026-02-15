@@ -2,8 +2,12 @@
 
 # Rebebuca Republish Script
 # Republish the current version by deleting and recreating the tag
-# Usage: ./scripts/republish.sh [commit message]
-# Example: ./scripts/republish.sh "fix: some bug fix"
+# Usage: ./scripts/republish.sh [version] [commit message]
+# Examples:
+#   ./scripts/republish.sh
+#   ./scripts/republish.sh "fix: some bug fix"
+#   ./scripts/republish.sh 1.2.3
+#   ./scripts/republish.sh 1.2.3 "fix: some bug fix"
 
 set -e
 
@@ -19,8 +23,14 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT"
 
-# Get current version from package.json
-VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+# Parse args: first arg may be version (x.y.z) or commit message
+if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    VERSION="$1"
+    COMMIT_MSG="${2:-chore: republish v$VERSION}"
+else
+    VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+    COMMIT_MSG="${1:-chore: republish v$VERSION}"
+fi
 
 if [ -z "$VERSION" ]; then
     echo -e "${RED}Error: Could not read version from package.json${NC}"
@@ -28,7 +38,6 @@ if [ -z "$VERSION" ]; then
 fi
 
 TAG="v$VERSION"
-COMMIT_MSG="${1:-chore: republish $TAG}"
 
 echo -e "${YELLOW}Republishing version ${VERSION}...${NC}"
 

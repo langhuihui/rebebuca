@@ -151,12 +151,12 @@
         type="error"
         title="CRF 模式不适合二遍编码"
       >
-        CRF 是恒定质量模式，二遍编码不会带来质量提升。建议切换到 VBR 模式。
-        <template #action>
+        <n-space vertical :size="8">
+          <span>CRF 是恒定质量模式，二遍编码不会带来质量提升。建议切换到 VBR 模式。</span>
           <n-button size="small" type="primary" @click="switchToVBR">
             切换到 VBR
           </n-button>
-        </template>
+        </n-space>
       </n-alert>
 
       <n-alert
@@ -188,8 +188,7 @@ import {
   NText
 } from 'naive-ui';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
-import type { Quality } from '../types/preset';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { save } from '@tauri-apps/plugin-dialog';
 
 const ffmpegParams = useFFmpegParamsStore();
 

@@ -19,14 +19,14 @@ export class EncoderDatabase {
    * 加载编码器数据
    */
   private loadEncoders(): void {
-    // 加载视频编码器
-    encodersData.video.forEach(encoder => {
-      this.videoEncoders.set(encoder.id, encoder);
+    // 加载视频编码器（JSON 中 category 为 string，断言为 EncoderInfo）
+    (encodersData.video as Array<EncoderInfo & { category?: string }>).forEach((encoder) => {
+      this.videoEncoders.set(encoder.id, encoder as EncoderInfo);
     });
 
     // 加载音频编码器
-    encodersData.audio.forEach(encoder => {
-      this.audioEncoders.set(encoder.id, encoder);
+    (encodersData.audio as Array<AudioEncoderInfo & { category?: string }>).forEach((encoder) => {
+      this.audioEncoders.set(encoder.id, encoder as AudioEncoderInfo);
     });
 
     // 加载容器信息
@@ -104,8 +104,8 @@ export class EncoderDatabase {
       return [];
     }
 
-    return containerInfo.videoEncoders
-      .map(id => this.getVideoEncoder(id))
+    return (containerInfo.videoEncoders as string[])
+      .map((id: string) => this.getVideoEncoder(id))
       .filter((encoder): encoder is EncoderInfo => encoder !== undefined);
   }
 
@@ -118,8 +118,8 @@ export class EncoderDatabase {
       return [];
     }
 
-    return containerInfo.audioEncoders
-      .map(id => this.getAudioEncoder(id))
+    return (containerInfo.audioEncoders as string[])
+      .map((id: string) => this.getAudioEncoder(id))
       .filter((encoder): encoder is AudioEncoderInfo => encoder !== undefined);
   }
 

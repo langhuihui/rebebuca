@@ -61,8 +61,8 @@ export class CommandCache {
 
     // 如果缓存已满,删除最旧的条目
     if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      const oldestKey = this.cache.keys().next().value as string | undefined;
+      if (oldestKey !== undefined) this.cache.delete(oldestKey);
     }
 
     this.cache.set(key, entry);
@@ -116,7 +116,7 @@ export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
 
   return function executedFunction(...args: Parameters<T>) {
     const later = () => {

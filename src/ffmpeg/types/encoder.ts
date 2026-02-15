@@ -92,4 +92,7 @@ export interface AudioEncoderInfo {
 
   // 是否支持 VBR
   supportsVBR?: boolean;
+
+  // 推荐预设配置
+  recommendedSettings?: Partial<FFmpegPreset>;
 }

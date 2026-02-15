@@ -22,7 +22,7 @@
           <n-input
             v-model:value="store.currentPreset.output.naming.prefix"
             placeholder="例如: converted"
-            @update:value="store.updateOutputConfig"
+            @update:value="(v: string) => store.updateOutputConfig({ naming: { ...store.currentPreset.output.naming, prefix: v } })"
           />
         </n-form-item>
 
@@ -30,7 +30,7 @@
           <n-input
             v-model:value="store.currentPreset.output.naming.suffix"
             placeholder="例如: encoded"
-            @update:value="store.updateOutputConfig"
+            @update:value="(v: string) => store.updateOutputConfig({ naming: { ...store.currentPreset.output.naming, suffix: v } })"
           />
         </n-form-item>
       </template>
@@ -40,7 +40,7 @@
           <n-input
             v-model:value="store.currentPreset.output.location"
             placeholder="留空则使用输入文件所在目录"
-            @update:value="store.updateOutputConfig"
+            @update:value="(v: string) => store.updateOutputConfig({ location: v })"
           />
           <n-button text @click="handleBrowseOutputDir">
             <template #icon>

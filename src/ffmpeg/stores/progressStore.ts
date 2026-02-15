@@ -304,3 +304,6 @@ export const useFFmpegProgressStore = defineStore('ffmpegProgress', () => {
     formatTime,
   };
 });
+
+/** @deprecated Use useFFmpegProgressStore */
+export const useProgressStore = useFFmpegProgressStore;

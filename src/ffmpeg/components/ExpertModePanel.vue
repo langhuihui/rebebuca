@@ -72,7 +72,6 @@ import {
   NAlert,
   NTabs,
   NTabPane,
-  NCard,
   NSpace,
   NCollapse,
   NCollapseItem

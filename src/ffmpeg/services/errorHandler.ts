@@ -23,12 +23,12 @@ export class FFmpegErrorHandler {
   /**
    * 初始化错误模式
    */
-  private initializeErrorPatterns() {
+  private initializeErrorPatterns(): Array<{ pattern: RegExp; handler: (match: RegExpMatchArray) => ErrorInfo }> {
     return [
       // 文件不存在
       {
         pattern: /No such file or directory/,
-        handler: () => ({
+        handler: (): ErrorInfo => ({
           code: 'FILE_NOT_FOUND',
           message: '输入文件不存在或无法访问',
           suggestion: '请检查文件路径是否正确,确保文件存在且可读',
@@ -39,7 +39,7 @@ export class FFmpegErrorHandler {
       // 权限不足
       {
         pattern: /Permission denied/,
-        handler: () => ({
+        handler: (): ErrorInfo => ({
           code: 'PERMISSION_DENIED',
           message: '文件权限不足',
           suggestion: '请检查文件和目录的访问权限',
@@ -50,7 +50,7 @@ export class FFmpegErrorHandler {
       // 磁盘空间不足
       {
         pattern: /No space left on device/,
-        handler: () => ({
+        handler: (): ErrorInfo => ({
           code: 'NO_SPACE',
           message: '磁盘空间不足',
           suggestion: '请清理磁盘空间后重试',
@@ -61,7 +61,7 @@ export class FFmpegErrorHandler {
       // 编码器不支持
       {
         pattern: /Unknown encoder '(\w+)'/,
-        handler: (match) => ({
+        handler: (match: RegExpMatchArray): ErrorInfo => ({
           code: 'UNKNOWN_ENCODER',
           message: `不支持的编码器: ${match[1]}`,
           suggestion: '请检查 FFmpeg 是否支持该编码器,或选择其他编码器',
@@ -72,7 +72,7 @@ export class FFmpegErrorHandler {
       // 解码器不支持
       {
         pattern: /Unknown decoder '(\w+)'/,
-        handler: (match) => ({
+        handler: (match: RegExpMatchArray): ErrorInfo => ({
           code: 'UNKNOWN_DECODER',
           message: `不支持的解码器: ${match[1]}`,
           suggestion: '请检查 FFmpeg 是否支持该解码器,或尝试其他解码器',
@@ -83,7 +83,7 @@ export class FFmpegErrorHandler {
       // 像素格式不支持
       {
         pattern: /Specified pixel format (.*) is invalid or unsupported/,
-        handler: (match) => ({
+        handler: (match: RegExpMatchArray): ErrorInfo => ({
           code: 'INVALID_PIXEL_FORMAT',
           message: `不支持的像素格式: ${match[1]}`,
           suggestion: '请选择其他像素格式,例如 yuv420p',

@@ -84,16 +84,16 @@
             store.graphEditorState.viewport.x,
             store.graphEditorState.viewport.y
           ]"
-          :node-types="nodeTypes"
+          :node-types="(nodeTypes as any)"
           :edge-types="edgeTypes"
           :fit-view-on-init="false"
           :snap-to-grid="store.graphEditorState.snapToGrid"
           :snap-grid="[20, 20]"
           @connect="onConnect"
-          @node-click="onNodeClick"
-          @edge-click="onEdgeClick"
+          @node-click="onNodeClick as any"
+          @edge-click="onEdgeClick as any"
           @pane-click="onPaneClick"
-          @node-drag-stop="onNodeDragStop"
+          @node-drag-stop="onNodeDragStop as any"
           @move-end="onViewportChange"
           @zoom="onViewportChange"
           @delete="onDelete"
@@ -177,7 +177,7 @@ const message = useMessage();
 const store = useFFmpegParamsStore();
 
 // 使用撤销/重做快捷键
-const { undo, redo } = useHistoryShortcuts();
+useHistoryShortcuts();
 
 // 节点类型注册 (使用 shallowRef 和 markRaw 避免深度响应式)
 const nodeTypes = shallowRef(markRaw({
@@ -259,8 +259,8 @@ const onConnect = (connection: Connection) => {
   store.connectNodes(
     connection.source!,
     connection.target!,
-    connection.sourceHandle,
-    connection.targetHandle
+    connection.sourceHandle ?? undefined,
+    connection.targetHandle ?? undefined
   );
 };
 
@@ -340,7 +340,7 @@ const onUpdateNodeParams = (nodeId: string, params: Record<string, any>) => {
 /**
  * 切换节点启用状态
  */
-const onToggleNodeEnabled = (nodeId: string, enabled: boolean) => {
+const onToggleNodeEnabled = (nodeId: string, _enabled: boolean) => {
   store.toggleFilterNodeEnabled(nodeId);
 };
 

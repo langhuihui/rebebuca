@@ -1262,7 +1262,7 @@ export class GraphConverter {
    */
   private layoutCircular(
     graphData: FilterGraphData,
-    config: Required<LayoutConfig>
+    _config: Required<LayoutConfig>
   ): FilterGraphData {
     const { nodes } = graphData;
     const centerX = 800 / 2;
@@ -1295,8 +1295,16 @@ export class GraphConverter {
   ): FilterGraphData {
     const { nodes, edges } = graphData;
 
-    // 创建节点位置的副本
-    const positions = new Map<string, { x: number; y: number; vx: number; vy: number }>();
+    // 创建节点位置的副本（含力导向用的 fx, fy）
+    interface LayoutNode {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      fx: number;
+      fy: number;
+    }
+    const positions = new Map<string, LayoutNode>();
 
     // 初始化位置（如果节点位置为 0, 则随机放置）
     nodes.forEach(node => {
@@ -1304,7 +1312,9 @@ export class GraphConverter {
         x: node.position.x || Math.random() * 800,
         y: node.position.y || Math.random() * 600,
         vx: 0,
-        vy: 0
+        vy: 0,
+        fx: 0,
+        fy: 0
       });
     });
 
@@ -1598,7 +1608,7 @@ export class GraphConverter {
     nodes: FilterNode[],
     levels: Map<string, number>,
     edges: FilterEdge[],
-    config: Required<LayoutConfig>
+    _config: Required<LayoutConfig>
   ): FilterNode[] {
     // 将节点按层级分组
     const levelGroups = new Map<number, FilterNode[]>();

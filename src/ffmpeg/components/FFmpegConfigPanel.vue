@@ -92,7 +92,7 @@
                   <VideoIcon />
                 </n-icon>
               </template>
-              <n-ellipsis :tooltip="{ content: file.path }" style="font-size: 13px;">
+              <n-ellipsis tooltip style="font-size: 13px;">
                 {{ file.name }}
               </n-ellipsis>
               <template #suffix>
@@ -232,9 +232,6 @@ import {
   Settings as SettingsIcon
 } from '@vicons/ionicons5';
 import { useFFmpegParamsStore, type InputFile } from '../stores/ffmpegParams';
-import OutputParamsPanel from './OutputParamsPanel.vue';
-import VideoParamsPanel from './VideoParamsPanel.vue';
-import AudioParamsPanel from './AudioParamsPanel.vue';
 import CommandPreview from './CommandPreview.vue';
 import SimpleModePanel from './SimpleModePanel.vue';
 import ExpertModePanel from './ExpertModePanel.vue';
@@ -321,7 +318,7 @@ const handleFileInputChange = (event: Event) => {
   const files = target.files;
 
   if (files && files.length > 0) {
-    const inputFiles: InputFile[] = Array.from(files).map(file => ({
+    const inputFiles: InputFile[] = Array.from(files).map((file: File & { path?: string }) => ({
       name: file.name,
       path: file.path || URL.createObjectURL(file),
       size: file.size,
@@ -344,7 +341,7 @@ const handleDrop = (event: DragEvent) => {
 
   const files = event.dataTransfer?.files;
   if (files && files.length > 0) {
-    const inputFiles: InputFile[] = Array.from(files).map(file => ({
+    const inputFiles: InputFile[] = Array.from(files).map((file: File & { path?: string }) => ({
       name: file.name,
       path: file.path || URL.createObjectURL(file),
       size: file.size,
@@ -384,9 +381,9 @@ const handlePresetChange = (presetId: string) => {
   message.info('已应用预设');
 };
 
-// 处理保存预设
+// 处理保存预设（useDialog 的 input 方法需类型断言）
 const handleSavePreset = () => {
-  dialog.input({
+  (dialog as { input?: (opts: { title: string; placeholder: string; positiveText: string; negativeText: string; onPositiveClick: (value: string) => void }) => void }).input?.({
     title: '保存预设',
     placeholder: '请输入预设名称',
     positiveText: '保存',

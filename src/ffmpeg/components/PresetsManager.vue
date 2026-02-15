@@ -203,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h } from 'vue';
+import { ref, computed, h } from 'vue';
 import {
   NCard,
   NSpace,
@@ -234,6 +234,7 @@ import {
   Trash as TrashIcon
 } from '@vicons/ionicons5';
 import { usePresetsStore } from '../stores/presetsStore';
+import { useFFmpegParamsStore } from '../stores/ffmpegParams';
 import type { ExportFormat } from '../stores/presetsStore';
 import { downloadFile } from '../../utils/download';
 
@@ -295,7 +296,7 @@ const filteredPresets = computed(() => {
   // 按标签过滤
   if (selectedTags.value.length > 0) {
     presets = presets.filter(p =>
-      p.tags && p.tags.some(tag => selectedTags.value.includes(tag))
+      p.tags && p.tags.some((tag: string) => selectedTags.value.includes(tag))
     );
   }
 
@@ -353,7 +354,7 @@ function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString('zh-CN');
 }
 
-function getPresetMenuOptions(preset: any) {
+function getPresetMenuOptions(_preset: any) {
   return [
     {
       label: '复制',
@@ -408,10 +409,10 @@ async function handleSavePreset() {
   }
 
   try {
-    const { ffmpegParams } = await import('../stores/ffmpegParams');
-    const presetId = await presetsStore.saveCustomPreset(
+    const ffmpegParamsStore = useFFmpegParamsStore();
+    await presetsStore.saveCustomPreset(
       saveForm.value.name,
-      ffmpegParams.currentPreset,
+      ffmpegParamsStore.currentPreset,
       saveForm.value.description,
       saveForm.value.tags
     );

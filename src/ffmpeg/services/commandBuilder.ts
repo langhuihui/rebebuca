@@ -85,7 +85,7 @@ export class CommandBuilder {
   async buildBatch(
     preset: FFmpegPreset,
     inputFiles: string[],
-    outputDir?: string
+    _outputDir?: string
   ): Promise<string[]> {
     const commands: string[] = [];
 
@@ -128,7 +128,6 @@ export class CommandBuilder {
    */
   private addVideoArgs(commandParts: string[], preset: FFmpegPreset): void {
     const video = preset.video;
-    const quality = preset.quality;
 
     if (!video.enabled) {
       // 如果不处理视频，使用 copy 模式

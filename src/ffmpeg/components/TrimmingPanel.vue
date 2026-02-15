@@ -164,7 +164,6 @@ import {
   NInputNumber,
   NInput
 } from 'naive-ui';
-import type { Trimming } from '../types/preset';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
 
 const ffmpegParams = useFFmpegParamsStore();
@@ -255,23 +254,25 @@ const toggleEnabled = (enabled: boolean) => {
 };
 
 // 更新时间
-const updateStartTime = (value: string) => {
-  if (value) {
+const updateStartTime = (value: number | null, formattedValue: string | null) => {
+  const str = formattedValue ?? (value != null ? String(value) : '');
+  if (str) {
     ffmpegParams.updateTrimmingConfig({
       enabled: true,
-      startTime: value,
+      startTime: str,
       endTime: trimming.value.endTime
     });
     validateTimeRange();
   }
 };
 
-const updateEndTime = (value: string) => {
-  if (value) {
+const updateEndTime = (value: number | null, formattedValue: string | null) => {
+  const str = formattedValue ?? (value != null ? String(value) : '');
+  if (str) {
     ffmpegParams.updateTrimmingConfig({
       enabled: true,
       startTime: trimming.value.startTime,
-      endTime: value
+      endTime: str
     });
     validateTimeRange();
   }

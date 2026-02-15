@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue';
+import { ref, computed } from 'vue';
 import {
   NCard,
   NTabs,
@@ -69,8 +69,7 @@ import {
   Videocam as VideoIcon,
   PhonePortrait as MobileIcon,
   Sparkles as HdIcon,
-  Flash as FastIcon,
-  Settings as SettingsIcon
+  Flash as FastIcon
 } from '@vicons/ionicons5';
 import { usePresetsStore } from '../stores/presetsStore';
 

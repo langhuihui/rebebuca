@@ -2,8 +2,6 @@
  * 示例库类型定义
  */
 
-import type { FilterNode, FilterEdge } from './preset';
-
 /**
  * 示例数据
  */

@@ -323,7 +323,7 @@ const hwaccelLabel = computed(() => {
 
 const decoderLabel = computed(() => {
   if (hwaccel.value === 'auto' || hwaccel.value === 'none') {
-    return video.value.decoder || 'auto';
+    return ffmpegParams.currentPreset.decoder.decoder || 'auto';
   }
   return `${hwaccel.value} (硬件解码)`;
 });

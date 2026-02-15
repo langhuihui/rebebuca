@@ -4,7 +4,6 @@
  */
 
 import type { FFmpegPreset } from '../types/preset';
-import { parseTime } from './time';
 
 /**
  * 获取文件扩展名

@@ -77,6 +77,12 @@ export type Filters = {
     flipH?: boolean;        // 水平翻转
     flipV?: boolean;        // 垂直翻转
   };
+
+  // 帧插值/补帧
+  interframe?: {
+    enabled: boolean;
+    mode?: string;
+  };
 };
 
 /**
@@ -142,7 +148,7 @@ export interface FFmpegPreset {
   // ==================== 质量控制 ====================
   quality: {
     controlMode: 'CRF' | 'VBR' | 'VBR_HQ' | 'CQP' | 'CBR';
-    paramName: 'crf' | 'cq' | 'qp' | 'global_quality';
+    paramName: 'crf' | 'cq' | 'qp' | 'global_quality' | 'b';
     value: string;
     bitrate: {
       base: string;            // 目标比特率 (例如: 5M)
@@ -297,6 +303,9 @@ export interface PresetMetadata {
   author?: string;
   tags?: string[];
 }
+
+/** 完整预设（元数据 + 预设内容） */
+export type PackedPreset = PresetMetadata & { preset: FFmpegPreset };
 
 // ==================== 节点图编辑器类型定义 ====================
 
@@ -511,3 +520,9 @@ export type EditorMode = 'list' | 'graph';
  * 布局模式
  */
 export type LayoutMode = 'auto' | 'manual' | 'hierarchical' | 'force' | 'grid' | 'tree' | 'circular';
+
+/** 剪辑区间（从 FFmpegPreset 提取） */
+export type Trimming = FFmpegPreset['trimming'];
+
+/** 质量控制（从 FFmpegPreset 提取） */
+export type Quality = FFmpegPreset['quality'];

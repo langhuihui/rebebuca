@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useFFmpegProgressStore } from '../stores/progressStore';
 import FFmpegProgress from './FFmpegProgress.vue';
 import PerformanceInfo from './PerformanceInfo.vue';

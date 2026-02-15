@@ -203,7 +203,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useTerminalStore, type TerminalTab } from '../stores/terminal';
-import { getAdapter, isTauri, type BackendAdapter } from '../adapters';
+import { getAdapter, isTauri } from '../adapters';
 
 interface Props {
   tab: TerminalTab;
@@ -591,12 +591,12 @@ const formatMessageContent = (message: JsonMessage): string => {
 
 const formatTimestamp = (timestamp: number): string => {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString('en-US', { 
+  return date.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    fractionalSecondDigits: 3
+    ...({ fractionalSecondDigits: 3 } as Intl.DateTimeFormatOptions)
   });
 };
 </script>

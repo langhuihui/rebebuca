@@ -126,8 +126,8 @@ export const useFFmpegParamsStore = defineStore('ffmpegParams', {
     /**
      * 获取当前选中的预设
      */
-    selectedPreset(state): Array<PresetMetadata & { preset: FFmpegPreset }> | undefined {
-      return state.allPresets.find(p => p.id === state.selectedPresetId);
+    selectedPreset(state): (PresetMetadata & { preset: FFmpegPreset }) | undefined {
+      return [...state.builtinPresets, ...state.customPresets].find((p: PresetMetadata & { preset: FFmpegPreset }) => p.id === state.selectedPresetId);
     },
 
     /**
@@ -156,7 +156,7 @@ export const useFFmpegParamsStore = defineStore('ffmpegParams', {
      */
     canStartEncoding(state): boolean {
       return (
-        state.isValidPreset &&
+        state.validationResult.valid &&
         state.inputFiles.length > 0 &&
         !state.loading
       );
@@ -259,8 +259,13 @@ export const useFFmpegParamsStore = defineStore('ffmpegParams', {
     async initialize() {
       this.loading = true;
       try {
-        // 加载内置预设
-        this.builtinPresets = presetsData.builtin;
+        // 加载内置预设（补充元数据以符合 PresetMetadata）
+        this.builtinPresets = (presetsData.builtin as Array<PresetMetadata & { preset: FFmpegPreset }>).map((p) => ({
+          ...p,
+          version: p.version ?? '1.0.0',
+          createdAt: p.createdAt ?? Date.now(),
+          updatedAt: p.updatedAt ?? Date.now()
+        }));
 
         // 加载本地存储的自定义预设
         await this.loadCustomPresetsFromStorage();
@@ -845,8 +850,8 @@ export const useFFmpegParamsStore = defineStore('ffmpegParams', {
         };
       }
 
-      const { commandBuilder } = await import('../services/commandBuilder');
-      return commandBuilder.buildFilterChainFromGraph(this.filterGraphData, this.filterLibrary);
+      const { graphConverter } = await import('../services/graphConverter');
+      return graphConverter.graphToFilterChain(this.filterGraphData, this.filterLibrary);
     },
 
     /**

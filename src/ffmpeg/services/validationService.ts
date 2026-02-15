@@ -79,7 +79,7 @@ export class ValidationService {
   private validateOutputConfig(
     preset: FFmpegPreset,
     errors: ValidationError[],
-    warnings: ValidationWarning[]
+    _warnings: ValidationWarning[]
   ): void {
     // 验证容器
     const containers = encoderDatabase.getContainers();
@@ -105,9 +105,9 @@ export class ValidationService {
    * 验证解码器配置
    */
   private validateDecoderConfig(
-    preset: FFmpegPreset,
-    errors: ValidationError[],
-    warnings: ValidationWarning[]
+    _preset: FFmpegPreset,
+    _errors: ValidationError[],
+    _warnings: ValidationWarning[]
   ): void {
     // 解码器配置通常是可选的，一般不验证
   }
@@ -193,7 +193,7 @@ export class ValidationService {
   private validateQualityConfig(
     preset: FFmpegPreset,
     errors: ValidationError[],
-    warnings: ValidationWarning[]
+    _warnings: ValidationWarning[]
   ): void {
     if (!preset.video.enabled) {
       return;
@@ -317,7 +317,7 @@ export class ValidationService {
   private validateTrimmingConfig(
     preset: FFmpegPreset,
     errors: ValidationError[],
-    warnings: ValidationWarning[]
+    _warnings: ValidationWarning[]
   ): void {
     if (!preset.trimming.enabled) {
       return;
@@ -348,7 +348,7 @@ export class ValidationService {
   private validateFiltersConfig(
     preset: FFmpegPreset,
     errors: ValidationError[],
-    warnings: ValidationWarning[]
+    _warnings: ValidationWarning[]
   ): void {
     const filters = preset.filters;
 
@@ -404,7 +404,7 @@ export class ValidationService {
    */
   private validateCustomConfig(
     preset: FFmpegPreset,
-    errors: ValidationError[],
+    _errors: ValidationError[],
     warnings: ValidationWarning[]
   ): void {
     // 完全自定义模式下，不做验证

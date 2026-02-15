@@ -360,7 +360,7 @@ const onDragStart = (event: DragEvent, index: number) => {
   }
 };
 
-const onDrop = (event: DragEvent, dropIndex: number) => {
+const onDrop = (_event: DragEvent, dropIndex: number) => {
   if (draggedIndex.value === null || draggedIndex.value === dropIndex) {
     return;
   }
