@@ -591,35 +591,43 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     const folderErrors: string[] = [];
     let hasPermissionError = false;
 
-    for (const provider of providers.value) {
-      try {
-        console.log(`[TaskManager] Running provider: ${provider.id}`);
-        const results = await provider.scan(folderPath, scanRecursively.value);
-        console.log(`[TaskManager] Provider ${provider.id} returned ${results.length} results`);
-
-        for (const result of results) {
-          console.log(`[TaskManager] Result from ${result.path}: ${result.tasks.length} tasks`);
-          if (result.errors) {
-            console.warn(`[TaskManager] Errors:`, result.errors);
-            folderErrors.push(...result.errors);
-          }
-
-          if (result.tasks.length > 0) {
-            const existing = tasksBySource.get(provider.source) || [];
-            tasksBySource.set(provider.source, [...existing, ...result.tasks]);
-          }
+    const providerResults = await Promise.all(
+      providers.value.map(async provider => {
+        try {
+          console.log(`[TaskManager] Running provider: ${provider.id}`);
+          const results = await provider.scan(folderPath, scanRecursively.value);
+          console.log(`[TaskManager] Provider ${provider.id} returned ${results.length} results`);
+          return { provider, results, error: null };
+        } catch (error) {
+          console.error(`[TaskManager] Provider ${provider.id} failed:`, error);
+          return { provider, results: [], error: String(error) };
         }
-      } catch (error) {
-        console.error(`[TaskManager] Provider ${provider.id} failed:`, error);
-        const errorMessage = String(error);
-        folderErrors.push(`${provider.name}: ${errorMessage}`);
+      })
+    );
 
+    for (const { provider, results, error } of providerResults) {
+      if (error) {
+        folderErrors.push(`${provider.name}: ${error}`);
         if (
-          errorMessage.toLowerCase().includes('permission') ||
-          errorMessage.toLowerCase().includes('access is denied') ||
-          errorMessage.toLowerCase().includes('eacces')
+          error.toLowerCase().includes('permission') ||
+          error.toLowerCase().includes('access is denied') ||
+          error.toLowerCase().includes('eacces')
         ) {
           hasPermissionError = true;
+        }
+        continue;
+      }
+
+      for (const result of results) {
+        console.log(`[TaskManager] Result from ${result.path}: ${result.tasks.length} tasks`);
+        if (result.errors) {
+          console.warn(`[TaskManager] Errors:`, result.errors);
+          folderErrors.push(...result.errors);
+        }
+
+        if (result.tasks.length > 0) {
+          const existing = tasksBySource.get(provider.source) || [];
+          tasksBySource.set(provider.source, [...existing, ...result.tasks]);
         }
       }
     }
@@ -1162,17 +1170,13 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
     initialized.value = true;
 
-    // Load favorites first
-    await loadFavorites();
-
-    // Load task run statistics
-    await loadTaskRunStats();
-
-    // Load user groups
-    await loadUserGroups();
-
-    // Then load and scan folders
-    const paths = await loadFolderPaths();
+    // Load favorites, stats, groups, and folder paths in parallel
+    const [paths] = await Promise.all([
+      loadFolderPaths(),
+      loadFavorites(),
+      loadTaskRunStats(),
+      loadUserGroups(),
+    ]);
 
     if (paths.length > 0) {
       console.log('[TaskManager] Restoring folders:', paths);
@@ -1201,13 +1205,10 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     errors.value = [];
 
     try {
-      const scannedFolders: TaskFolder[] = [];
+      const scannedFolders = await Promise.all(folderPaths.map(path => scanFolder(path)));
       const scannedTasks: Task[] = [];
 
-      for (const path of folderPaths) {
-        const folder = await scanFolder(path);
-        scannedFolders.push(folder);
-
+      for (const folder of scannedFolders) {
         // Collect all tasks
         for (const tasks of folder.tasksBySource.values()) {
           scannedTasks.push(...tasks);

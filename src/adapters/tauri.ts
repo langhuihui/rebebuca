@@ -63,19 +63,31 @@ let loadingPromise: Promise<void> | null = null;
 
 async function loadTauriModules() {
   if (!loadingPromise) {
-    loadingPromise = (async () => {
-      tauriCore = await import('@tauri-apps/api/core');
-      tauriEvent = await import('@tauri-apps/api/event');
-      tauriFs = await import('@tauri-apps/plugin-fs');
-      tauriDialog = await import('@tauri-apps/plugin-dialog');
-      tauriStore = await import('@tauri-apps/plugin-store');
-      tauriOs = await import('@tauri-apps/plugin-os');
-      tauriShell = await import('@tauri-apps/plugin-shell');
-      tauriOpener = await import('@tauri-apps/plugin-opener');
-      tauriProcess = await import('@tauri-apps/plugin-process');
-      tauriNotification = await import('@tauri-apps/plugin-notification');
-      tauriUpdater = await import('@tauri-apps/plugin-updater');
-    })();
+    loadingPromise = Promise.all([
+      import('@tauri-apps/api/core'),
+      import('@tauri-apps/api/event'),
+      import('@tauri-apps/plugin-fs'),
+      import('@tauri-apps/plugin-dialog'),
+      import('@tauri-apps/plugin-store'),
+      import('@tauri-apps/plugin-os'),
+      import('@tauri-apps/plugin-shell'),
+      import('@tauri-apps/plugin-opener'),
+      import('@tauri-apps/plugin-process'),
+      import('@tauri-apps/plugin-notification'),
+      import('@tauri-apps/plugin-updater'),
+    ]).then(([core, event, fs, dialog, store, os, shell, opener, process, notification, updater]) => {
+      tauriCore = core;
+      tauriEvent = event;
+      tauriFs = fs;
+      tauriDialog = dialog;
+      tauriStore = store;
+      tauriOs = os;
+      tauriShell = shell;
+      tauriOpener = opener;
+      tauriProcess = process;
+      tauriNotification = notification;
+      tauriUpdater = updater;
+    });
   }
   await loadingPromise;
 }
