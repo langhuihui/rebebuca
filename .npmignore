@@ -1,0 +1,58 @@
+# Rust / Tauri build artifacts
+src-tauri/
+common/
+orchestration/
+remote-agent/
+remote-agent-server/
+Cargo.toml
+Cargo.lock
+target/
+
+# Development config files
+.tauri/
+.env*
+!.env.production
+
+# Build artifacts not needed for npm
+dist/
+!dist/server
+
+# Source files (compiled assets are in dist/server)
+src/
+
+# Test / dev files
+*.sh
+test-stderr.sh
+scripts/
+
+# IDE / editor files
+.vscode/
+.cursor/
+.windsurf/
+.kiro/
+.factory/
+.agent/
+.claude/
+.codebuddy/
+.vibe/
+
+# Docs not needed at runtime
+docs/
+public-website/
+*.md
+!README.md
+
+# Config / build tools (not needed at runtime)
+vite.config.ts
+vite.website.config.ts
+tsconfig*.json
+auto-imports.d.ts
+components.d.ts
+index.html
+website.html
+
+# Other
+pnpm-lock.yaml
+.github/
+shared/
+server/

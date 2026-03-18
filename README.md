@@ -3,17 +3,39 @@
 <div align="center">
   <img src="public/logo-dark.svg" alt="Rebebuca Logo" width="120" height="120">
   
-  <h3>Powerful Run Configuration Management Tool</h3>
+  <h3>Run Configuration Management Tool</h3>
   
-  <p>A modern desktop application that helps developers quickly manage and execute various commands and scripts</p>
+  <p>Launch instantly with a single command — no installation required, just Node.js 18+</p>
 
-  [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
+  [![npm](https://img.shields.io/npm/v/rebebuca?style=flat-square&logo=npm)](https://www.npmjs.com/package/rebebuca)
+  [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
   [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
   **[Official Website](https://rebebuca.com)** | [中文文档](README_CN.md) | English
 </div>
+
+---
+
+## 🚀 Quick Start
+
+```bash
+npx rebebuca
+```
+
+That's it! Rebebuca starts a local web server and opens your browser automatically.
+
+### Options
+
+```bash
+npx rebebuca --port 8080          # Custom port (default: 3000)
+npx rebebuca --host 0.0.0.0       # Expose on all network interfaces
+npx rebebuca --no-open            # Don't open browser automatically
+npx rebebuca --help               # Show all options
+```
+
+> **Requirements:** Node.js 18 or higher
 
 ---
 
@@ -26,7 +48,7 @@
 - 🎨 **Modern UI** - Beautiful dark theme interface built with Naive UI
 - 💾 **Persistent Storage** - Configurations and history data are automatically saved and persist across restarts
 - 🖥️ **Cross-platform** - Supports Windows, macOS, and Linux
-- 🖥️ **Terminal Selection** - Choose your preferred system terminal for running commands externally
+- 🌐 **Web-based** - Runs entirely in your browser via a local Node.js HTTP server
 
 ## 📸 Preview
 
@@ -45,39 +67,41 @@
 - **Pinia** - Lightweight state management library for Vue
 - **Vite** - Next generation frontend build tool
 
-### Backend
-- **Tauri** - Lightweight desktop application framework based on Rust
-- **Rust** - Systems programming language ensuring performance and safety
+### Backend (Node.js)
+- **Node.js** - HTTP + WebSocket server (replaces Rust/Tauri)
+- **node-pty** - Native PTY terminal emulation
+- **ws** - High-performance WebSocket library
 
-## 📦 Installation
+## 📦 Development Setup
 
 ### Prerequisites
 
 - **Node.js** >= 18.0.0
-- **pnpm** >= 8.0.0
-- **Rust** >= 1.70.0 (for building Tauri applications)
+- **npm** or **pnpm**
 
-### Development Setup
+### Development Server
 
 1. **Install dependencies**
 ```bash
-pnpm install
+npm install
 ```
 
-2. **Start development server**
+2. **Start development server** (mock backend)
 ```bash
-pnpm tauri:dev
+npm run dev:web
 ```
 
-## 🚀 Usage Guide
+3. **Start with Node.js backend** (full server mode)
+```bash
+npm run dev:server
+```
 
-### Creating Run Configurations
+4. **Build the npm-publishable bundle**
+```bash
+npm run build:server-app
+```
 
-1. Click the **"New"** button in the left sidebar
-2. Fill in the configuration details:
-   - **Name**: Display name for the configuration
-   - **Command**: The command to execute
-   - **Working Directory**: Directory where the command will run (optional)
+
    - **Environment Variables**: Additional environment variables (optional)
 3. Click **"Save"** to complete
 

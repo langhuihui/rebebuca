@@ -433,6 +433,28 @@
                       {{ t("website.hero.subtitle") }}
                     </p>
 
+                    <!-- npx quick-start command -->
+                    <div class="npx-quickstart">
+                      <p class="npx-label">{{ t("website.hero.npxTitle") }}</p>
+                      <div class="npx-command-box">
+                        <span class="npx-prompt">$</span>
+                        <code class="npx-command">npx rebebuca</code>
+                        <n-button
+                          size="small"
+                          quaternary
+                          class="npx-copy-btn"
+                          @click="copyNpxCommand"
+                        >
+                          <template #icon>
+                            <n-icon><copy-outline /></n-icon>
+                          </template>
+                        </n-button>
+                      </div>
+                      <p class="npx-hint">
+                        npx rebebuca --port 8080 &thinsp;|&thinsp; npx rebebuca --host 0.0.0.0
+                      </p>
+                    </div>
+
                     <!-- Feature cards -->
                     <div class="welcome-features">
                       <div class="feature-card">
@@ -497,7 +519,7 @@
                     </div>
                   </template>
 
-                  <!-- Download View -->
+                   <!-- Install / Quick-start View -->
                   <template v-else>
                     <div class="download-view-header">
                       <n-button
@@ -511,53 +533,7 @@
                       </n-button>
                     </div>
 
-                    <!-- Download Section -->
-                    <div class="download-section">
-                      <h2 class="download-title">
-                        {{ t("website.download.title") }}
-                      </h2>
-                      <div class="download-buttons">
-                        <a
-                          :href="macosUrl || '#'"
-                          target="_blank"
-                          class="download-btn macos"
-                          @mouseenter="hoverPlatform = 'macos'"
-                          @mouseleave="hoverPlatform = null"
-                        >
-                          <n-icon :size="32"><logo-apple /></n-icon>
-                          <div class="download-info">
-                            <span class="download-platform">macOS</span>
-                            <span class="download-arch"
-                              >Apple Silicon / Intel</span
-                            >
-                          </div>
-                        </a>
-                        <a
-                          :href="windowsUrl || '#'"
-                          target="_blank"
-                          class="download-btn windows"
-                          @mouseenter="hoverPlatform = 'windows'"
-                          @mouseleave="hoverPlatform = null"
-                        >
-                          <n-icon :size="32"><logo-windows /></n-icon>
-                          <div class="download-info">
-                            <span class="download-platform">Windows</span>
-                            <span class="download-arch">x64</span>
-                          </div>
-                        </a>
-                      </div>
-                      <div v-if="hoverPlatform" class="security-warning">
-                        <p>⚠️ {{ t("website.download.securityWarning") }}</p>
-                        <p v-if="hoverPlatform === 'windows'">
-                          {{ t("website.download.windowsWarning") }}
-                        </p>
-                        <p v-if="hoverPlatform === 'macos'">
-                          {{ t("website.download.macosWarning") }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- Remote Server Section -->
+                    <!-- npx Quick Start (primary) -->
                     <div class="remote-server-section">
                       <h2 class="download-title">
                         {{ t("website.remoteServer.title") }}
@@ -566,7 +542,7 @@
                         {{ t("website.remoteServer.desc") }}
                       </p>
                       <div class="install-command-box">
-                        <code class="install-command">curl -fsSL https://download.m7s.live/rb/install-remote-server.sh | bash</code>
+                        <code class="install-command">npx rebebuca</code>
                         <n-button
                           size="small"
                           quaternary
@@ -577,6 +553,14 @@
                             <n-icon><copy-outline /></n-icon>
                           </template>
                         </n-button>
+                      </div>
+                      <div class="npx-variants">
+                        <div class="install-command-box install-command-box--alt">
+                          <code class="install-command">npx rebebuca --port 8080</code>
+                        </div>
+                        <div class="install-command-box install-command-box--alt">
+                          <code class="install-command">npx rebebuca --host 0.0.0.0</code>
+                        </div>
                       </div>
                       <p class="remote-server-hint">
                         {{ t("website.remoteServer.hint") }}
@@ -593,7 +577,7 @@
             <div class="statusbar-left">
               <span class="status-item">
                 <n-icon><code-slash-outline /></n-icon>
-                Vue 3 + TypeScript + Tauri
+                Vue 3 + TypeScript + Node.js
               </span>
             </div>
             <div class="statusbar-center">
@@ -1219,12 +1203,22 @@ const handleClear = () => {
 };
 
 const copyInstallCommand = async () => {
-  const command = "curl -fsSL https://download.m7s.live/rb/install-remote-server.sh | bash";
+  const command = "npx rebebuca";
   try {
     await navigator.clipboard.writeText(command);
     message.success(t("website.remoteServer.copied"));
   } catch {
     message.error(t("website.remoteServer.copyFailed"));
+  }
+};
+
+const copyNpxCommand = async () => {
+  const command = "npx rebebuca";
+  try {
+    await navigator.clipboard.writeText(command);
+    message.success(t("website.hero.npxCopied"));
+  } catch {
+    message.error(t("website.hero.npxCopyFailed"));
   }
 };
 
@@ -1372,5 +1366,148 @@ onMounted(() => {
   width: 100px;
   height: auto;
   border-radius: 6px;
+}
+
+/* ── npx quick-start box (hero section) ─────────────────────────────── */
+.npx-quickstart {
+  margin: 16px 0;
+  text-align: left;
+}
+
+.npx-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-color-secondary, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.npx-command-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.theme-light .npx-command-box {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.npx-prompt {
+  color: #6ee7b7;
+  font-weight: 700;
+  user-select: none;
+}
+
+.npx-command {
+  flex: 1;
+  font-size: 0.92rem;
+  color: #e2e8f0;
+  background: none;
+  padding: 0;
+}
+
+.theme-light .npx-command {
+  color: #1e293b;
+}
+
+.npx-copy-btn {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.npx-copy-btn:hover {
+  opacity: 1;
+}
+
+.npx-hint {
+  margin-top: 6px;
+  font-size: 0.73rem;
+  color: var(--text-color-secondary, #888);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  opacity: 0.75;
+}
+
+/* ── Install / download view ─────────────────────────────────────────── */
+.download-view-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.remote-server-section {
+  margin-top: 8px;
+}
+
+.remote-server-desc {
+  font-size: 0.85rem;
+  color: var(--text-color-secondary, #888);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.remote-server-hint {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary, #888);
+  margin-top: 10px;
+  opacity: 0.8;
+}
+
+.install-command-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.install-command-box--alt {
+  opacity: 0.7;
+  font-size: 0.85rem;
+}
+
+.theme-light .install-command-box {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.install-command {
+  flex: 1;
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  background: none;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-light .install-command {
+  color: #1e293b;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.copy-btn:hover {
+  opacity: 1;
+}
+
+.npx-variants {
+  margin-top: 4px;
 }
 </style>
