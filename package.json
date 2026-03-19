@@ -1,9 +1,20 @@
 {
   "name": "rebebuca",
-  "private": true,
   "version": "0.5.5",
+  "description": "Run Configuration Management Tool — launch via npx rebebuca",
   "license": "GPL-3.0",
   "type": "module",
+  "bin": {
+    "rebebuca": "./bin/rebebuca.js"
+  },
+  "files": [
+    "bin",
+    "node-server",
+    "dist/server"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "dev:web": "VITE_BACKEND=mock vite --port 5173",
@@ -12,8 +23,10 @@
     "build": "vue-tsc --noEmit && vite build",
     "build:web": "VITE_BUILD_TARGET=web VITE_BACKEND=mock vue-tsc --noEmit && vite build",
     "build:server": "export VITE_BACKEND=server VITE_DEV_MODE=true && vue-tsc --noEmit && vite build",
+    "build:server-app": "VITE_BACKEND=server VITE_BUILD_TARGET=server vue-tsc --noEmit && vite build",
     "build:website": "VITE_BACKEND=mock vue-tsc --noEmit && vite build --config vite.website.config.ts && mv dist/website/website.html dist/website/index.html",
     "preview": "vite preview",
+    "start": "node bin/rebebuca.js",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "release": "./scripts/release.sh",
@@ -53,15 +66,20 @@
     "@xterm/xterm": "^6.0.0",
     "ai": "^6.0.28",
     "ansi-to-html": "^0.7.2",
+    "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "highlight.js": "^11.11.1",
     "json5": "^2.2.3",
     "marked": "^17.0.1",
+    "mime-types": "^2.1.35",
     "naive-ui": "^2.43.2",
+    "node-pty": "^1.1.0",
+    "open": "^11.0.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.13",
     "vue-i18n": "9",
     "vue-router": "^4.5.1",
+    "ws": "^8.19.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {

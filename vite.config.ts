@@ -10,6 +10,8 @@ const host = process.env.TAURI_DEV_HOST;
 
 // Check if building for web demo
 const isWebBuild = process.env.VITE_BUILD_TARGET === 'web';
+// Check if building the server-mode app (for npx rebebuca)
+const isServerAppBuild = process.env.VITE_BUILD_TARGET === 'server';
 
 // Get backend type from environment
 const backendType = process.env.VITE_BACKEND || '';
@@ -67,6 +69,9 @@ export default defineConfig(async () => ({
   build: isWebBuild ? {
     // Web app build: outputs to dist/web  
     outDir: 'dist/web',
+  } : isServerAppBuild ? {
+    // Server-mode build: outputs to dist/server (for npx rebebuca)
+    outDir: 'dist/server',
   } : {
     // Tauri app build: outputs to dist
     outDir: 'dist',
