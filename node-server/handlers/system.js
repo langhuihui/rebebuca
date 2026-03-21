@@ -203,6 +203,17 @@ export async function killProcess(pid) {
   }
 }
 
+/**
+ * Kill a process by PID (SIGKILL).
+ */
+export async function killProcessForce(pid) {
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch (err) {
+    throw new Error(`Failed to force-kill process ${pid}: ${err.message}`);
+  }
+}
+
 // ============================================================================
 // Port listing
 // ============================================================================

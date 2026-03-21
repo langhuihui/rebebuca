@@ -30,10 +30,37 @@ That's it! Rebebuca starts a local web server and opens your browser automatical
 
 ```bash
 npx rebebuca --port 8080          # Custom port (default: 3000)
+npx rebebuca 8080                 # Shorthand for --port 8080
 npx rebebuca --host 0.0.0.0       # Expose on all network interfaces
 npx rebebuca --no-open            # Don't open browser automatically
+npx rebebuca --no-mcp             # Disable MCP routes on the same port
 npx rebebuca --help               # Show all options
 ```
+
+### Headless CLI (no web server)
+
+Useful for scripts, terminals, and AI agents that prefer a plain CLI over MCP.
+
+```bash
+# List CLI flags / subcommands, saved user tasks, or both (--json for machine-readable)
+npx rebebuca list options
+npx rebebuca list tasks
+npx rebebuca list all --json
+
+# Run a saved user task by exact id or fuzzy match on name (see note below)
+npx rebebuca run <id-or-name>
+
+# Run an arbitrary shell command (login shell), without starting Rebebuca
+npx rebebuca -- pnpm test
+
+# Install tab completion (fuzzy task suggestions for: rebebuca run <tab>)
+eval "$(npx rebebuca complete zsh)"
+source <(npx rebebuca complete bash)
+```
+
+**Task source for `list` / `run`:** tasks are read from `userGroups` in `~/.rebebuca/store.json` (user-defined groups in the app). Folder-scanned tasks (VS Code / npm scripts, etc.) are not included until they exist in that store.
+
+**Restrictions:** `run` does not execute SSH-only tasks, “system terminal” tasks, or other modes that require the full UI.
 
 > **Requirements:** Node.js 18 or higher
 
@@ -49,6 +76,7 @@ npx rebebuca --help               # Show all options
 - 💾 **Persistent Storage** - Configurations and history data are automatically saved and persist across restarts
 - 🖥️ **Cross-platform** - Supports Windows, macOS, and Linux
 - 🌐 **Web-based** - Runs entirely in your browser via a local Node.js HTTP server
+- ⌨️ **CLI** - `list`, `run`, `-- <cmd>`, and shell completion for automation and AI workflows
 
 ## 📸 Preview
 
@@ -101,29 +129,27 @@ npm run dev:server
 npm run build:server-app
 ```
 
+## ⌨️ Web UI
 
-   - **Environment Variables**: Additional environment variables (optional)
-3. Click **"Save"** to complete
-
-### Running Configurations
+### Running configurations
 
 - Click the **play button** ▶️ next to a configuration in the left sidebar
-- The command will execute in a new tab, showing real-time output
-- Multiple configurations can run simultaneously
+- The command runs in a new tab with live output
+- Multiple configurations can run at once
 
-### Managing Tabs
+### Managing tabs
 
-- **Restart**: Re-execute the current configuration
-- **Stop**: Terminate the running command
-- **Clear**: Clear console output
-- **Scroll to Bottom**: Jump to the latest output
-- **Edit**: Modify the configuration associated with the current tab
+- **Restart** — run the same configuration again
+- **Stop** — terminate the process
+- **Clear** — clear console output
+- **Scroll to Bottom** — jump to the latest output
+- **Edit** — change the configuration for the current tab
 
-### Run History
+### Run history
 
-- The right panel displays recent run history
-- Click the **rerun button** to quickly execute historical commands
-- Support for clearing history
+- The side panel shows recent runs
+- Use **rerun** to execute a past command again
+- History can be cleared
 
 ## 📁 Project Structure
 
@@ -136,6 +162,7 @@ rebebuca/
 │   └── stores/              # Pinia state management
 ├── node-server/              # Node.js HTTP + WebSocket server
 │   ├── server.js
+│   ├── cli-subcommands.js    # Headless CLI (list / run / completion)
 │   └── handlers/
 ├── bin/rebebuca.js          # CLI entry (npx rebebuca)
 ├── dist/server/             # Built static UI (from Nuxt generate)

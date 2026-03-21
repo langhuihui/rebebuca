@@ -12,8 +12,58 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
 
+  [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
+
   **[官方网站](https://rebebuca.com)** | 中文 | [English](README.md)
 </div>
+
+---
+
+## 🚀 快速开始
+
+```bash
+npx rebebuca
+```
+
+启动本地 Web 服务并自动打开浏览器。
+
+### 常用参数
+
+```bash
+npx rebebuca --port 8080          # 指定端口（默认 3000）
+npx rebebuca 8080                 # 同上，端口简写
+npx rebebuca --host 0.0.0.0       # 监听所有网卡
+npx rebebuca --no-open            # 不自动打开浏览器
+npx rebebuca --no-mcp             # 关闭同端口上的 MCP 路由
+npx rebebuca --help               # 查看帮助
+```
+
+### 无界面 CLI（不启动网页）
+
+适合脚本、终端工作流和偏好 CLI 的 AI 工具链。
+
+```bash
+# 列出 CLI 说明、已保存的用户任务，或两者（--json 便于程序解析）
+npx rebebuca list options
+npx rebebuca list tasks
+npx rebebuca list all --json
+
+# 按任务 id 精确匹配，或对名称等进行模糊匹配后运行
+npx rebebuca run <id-或-名称片段>
+
+# 在登录 shell 中执行任意命令，不启动 Rebebuca 服务
+npx rebebuca -- pnpm test
+
+# Tab 补全（rebebuca run <tab> 会按模糊匹配提示任务 id）
+eval "$(npx rebebuca complete zsh)"
+source <(npx rebebuca complete bash)
+```
+
+**`list` / `run` 的数据来源：** 读取 `~/.rebebuca/store.json` 中 **`userGroups`（应用内用户分组任务）**。从文件夹扫描的 VS Code / npm 等任务若未进入该存储，则不会出现在 CLI 列表中。
+
+**限制：** `run` 不支持仅 SSH、仅「系统终端」等依赖完整 UI 的任务类型。
+
+> **环境要求：** Node.js 18 及以上
 
 ---
 
@@ -27,6 +77,7 @@
 - 💾 **持久化存储** - 配置和历史数据自动保存，重启不丢失
 - 🖥️ **跨平台** - 支持 Windows、macOS 和 Linux
 - 🖥️ **终端选择** - 可选择首选的系统终端来执行外部命令
+- ⌨️ **CLI** - 支持 `list`、`run`、`-- <命令>` 与 Shell 补全，便于自动化与 AI 调用
 
 ## 📸 预览
 
@@ -111,6 +162,7 @@ rebebuca/
 │   └── stores/              # Pinia 状态管理
 ├── node-server/              # Node.js HTTP + WebSocket 服务
 │   ├── server.js
+│   ├── cli-subcommands.js    # 无界面 CLI（list / run / 补全）
 │   └── handlers/
 ├── bin/rebebuca.js           # CLI 入口（npx rebebuca）
 ├── dist/server/              # 构建后的静态 UI（Nuxt 生成）

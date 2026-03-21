@@ -227,6 +227,9 @@
                     <n-button size="small" quaternary @click="overviewModalVisible = true">
                       {{ t("task.overview") }}
                     </n-button>
+                    <n-button size="small" quaternary @click="terminalStore.createPortManagementTab()">
+                      {{ t("task.portManagement") }}
+                    </n-button>
                     <div class="global-search-wrap">
                       <n-input
                         v-model:value="globalSearch"

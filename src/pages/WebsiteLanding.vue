@@ -105,6 +105,35 @@
           decoding="async"
         />
       </figure>
+
+      <section class="cli-docs" aria-labelledby="cli-heading">
+        <h2 id="cli-heading" class="cli-title">{{ t.cliTitle }}</h2>
+        <p class="cli-intro">{{ t.cliIntro }}</p>
+        <p class="cli-env">{{ t.cliEnvNote }}</p>
+        <h3 class="cli-subheading">{{ t.cliOptionsHeading }}</h3>
+        <ul class="cli-list">
+          <li
+            v-for="(row, idx) in t.cliOptions"
+            :key="'cli-opt-' + idx"
+            class="cli-item"
+          >
+            <code class="cli-flag">{{ row[0] }}</code>
+            <span class="cli-desc">{{ row[1] }}</span>
+          </li>
+        </ul>
+        <h3 class="cli-subheading">{{ t.cliCommandsHeading }}</h3>
+        <ul class="cli-list">
+          <li
+            v-for="(row, idx) in t.cliCommands"
+            :key="'cli-cmd-' + idx"
+            class="cli-item"
+          >
+            <code class="cli-flag cli-flag--wide">{{ row[0] }}</code>
+            <span class="cli-desc">{{ row[1] }}</span>
+          </li>
+        </ul>
+        <p class="cli-help">{{ t.cliHelpHint }}</p>
+      </section>
     </main>
 
     <div v-if="lang === 'zh'" class="qq-card">
@@ -120,9 +149,62 @@
     </div>
 
     <footer class="foot">
-      <span>GPL-3.0</span>
-      <span class="dot">·</span>
-      <a href="https://rebebuca.com/">rebebuca.com</a>
+      <div class="foot-row foot-row--friends">
+        <span class="foot-friends-label">{{ t.bukaFriends }}</span>
+        <a
+          class="foot-friend-link"
+          href="https://monibuca.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            class="friend-logo"
+            :src="monibucaLogoSrc"
+            alt=""
+            width="18"
+            height="18"
+            decoding="async"
+          />
+          <span>monibuca.com</span>
+        </a>
+        <span class="dot">·</span>
+        <a
+          class="foot-friend-link"
+          href="https://jessibuca.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            class="friend-logo"
+            :src="jessibucaLogoSrc"
+            alt=""
+            width="18"
+            height="18"
+            decoding="async"
+          />
+          <span>jessibuca.com</span>
+        </a>
+      </div>
+      <div class="foot-row">
+        <span>GPL-3.0</span>
+        <span class="dot">·</span>
+        <a href="https://rebebuca.com/">rebebuca.com</a>
+      </div>
+      <div v-if="lang === 'zh'" class="foot-row foot-row--beian">
+        <span class="foot-beian-copy">{{ t.beianCopyright }}</span>
+        <span class="dot">·</span>
+        <a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >苏ICP备20230258075号-1</a>
+        <span class="dot">·</span>
+        <a
+          href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=32011302321580"
+          target="_blank"
+          rel="noopener noreferrer"
+        >苏公网安备 32011302321580号</a>
+      </div>
     </footer>
   </div>
 </template>
@@ -171,6 +253,49 @@ const strings = {
     themeToggle: "Switch to light theme",
     themeToggleLight: "Switch to dark theme",
     snapAlt: "Rebebuca interface screenshot",
+    bukaFriends: "Buka series",
+    beianCopyright: "",
+    cliTitle: "Command-line options",
+    cliIntro:
+      "These flags apply when you start the web UI and backend. Subcommands run without starting the server.",
+    cliEnvNote:
+      "Environment: REBEBUCA_NO_MCP=1 or true also disables MCP (same as --no-mcp).",
+    cliOptionsHeading: "Startup flags",
+    cliCommandsHeading: "Subcommands",
+    cliOptions: [
+      [
+        "--port <n>, -p",
+        "HTTP port for the UI and MCP (default 3000). A bare positive number is shorthand for --port.",
+      ],
+      ["--host <addr>", "Bind address (default 127.0.0.1)."],
+      ["--no-open", "Do not open the browser automatically."],
+      [
+        "--no-mcp",
+        "Do not expose MCP routes (/health, /mcp/*) on the same port.",
+      ],
+      ["-h, --help", "Print help."],
+      ["-v, --version", "Print version."],
+    ],
+    cliCommands: [
+      [
+        "list [tasks|options|all] [--json]",
+        "Print tasks or options from the local store (~/.rebebuca/store.json).",
+      ],
+      [
+        "run <id-or-name>",
+        "Run a saved user task from the terminal (fuzzy match on name).",
+      ],
+      [
+        "kill-port [--force|-f] <port>…",
+        "SIGTERM processes listening on the ports; --force uses SIGKILL.",
+      ],
+      ["-- <command> [args…]", "Run a shell command without starting Rebebuca."],
+      [
+        "complete bash|zsh",
+        "Print a tab-completion script (e.g. eval \"$(npx rebebuca complete zsh)\").",
+      ],
+    ],
+    cliHelpHint: "Tip: run npx rebebuca --help in your terminal for the full, up-to-date usage text.",
   },
   zh: {
     eyebrow: "运行配置管理",
@@ -185,6 +310,44 @@ const strings = {
     themeToggle: "切换到浅色主题",
     themeToggleLight: "切换到深色主题",
     snapAlt: "Rebebuca 界面截图",
+    bukaFriends: "不卡系列",
+    beianCopyright:
+      "©2025 Rebebuca All Rights Reserved 南京莫妮不卡科技有限公司",
+    cliTitle: "命令行参数",
+    cliIntro:
+      "下列选项在启动 Web 界面与本地后端时生效；子命令不会启动 HTTP 服务。",
+    cliEnvNote:
+      "环境变量 REBEBUCA_NO_MCP=1（或 true）与 --no-mcp 效果相同。",
+    cliOptionsHeading: "启动选项",
+    cliCommandsHeading: "子命令",
+    cliOptions: [
+      [
+        "--port <n>、-p",
+        "Web 与 MCP 使用的 HTTP 端口（默认 3000）。单独写一个正整数等价于 --port。",
+      ],
+      ["--host <addr>", "监听地址（默认 127.0.0.1）。"],
+      ["--no-open", "启动后不自动打开浏览器。"],
+      ["--no-mcp", "不在同一端口提供 MCP 相关路由（/health、/mcp/*）。"],
+      ["-h、--help", "显示帮助。"],
+      ["-v、--version", "显示版本号。"],
+    ],
+    cliCommands: [
+      [
+        "list [tasks|options|all] [--json]",
+        "列出本地存储中的任务或选项（~/.rebebuca/store.json）。",
+      ],
+      ["run <id-or-name>", "在终端运行已保存的用户任务（支持名称模糊匹配）。"],
+      [
+        "kill-port [--force|-f] <port>…",
+        "向占用端口的进程发 SIGTERM；--force 使用 SIGKILL。",
+      ],
+      ["-- <command> [args…]", "直接执行一条 shell 命令，不启动 Rebebuca 服务。"],
+      [
+        "complete bash|zsh",
+        "输出补全脚本（例如 eval \"$(npx rebebuca complete zsh)\"）。",
+      ],
+    ],
+    cliHelpHint: "提示：在终端执行 npx rebebuca --help 可查看与当前版本一致的完整说明。",
   },
 } as const;
 
@@ -211,6 +374,15 @@ const snapSrc = computed(() => {
 
 const logoSrc = computed(() =>
   isDark.value ? "/logo-dark.svg" : "/logo.svg"
+);
+
+/** Icon marks: colored on light UI, white + accent on dark UI (from product LOGO set). */
+const monibucaLogoSrc = computed(() =>
+  isDark.value ? "/buka/monibuca-dark.svg" : "/buka/monibuca.svg"
+);
+
+const jessibucaLogoSrc = computed(() =>
+  isDark.value ? "/buka/jessibuca-dark.svg" : "/buka/jessibuca.svg"
 );
 
 const copied = ref(false);
@@ -470,6 +642,104 @@ async function copyCmd() {
   max-width: 32rem;
 }
 
+.cli-docs {
+  margin: 2.25rem 0 0;
+  max-width: 38rem;
+  width: 100%;
+}
+
+.cli-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f1f5f9;
+  margin: 0 0 0.5rem;
+}
+
+.cli-intro,
+.cli-env,
+.cli-help {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: #8b93a5;
+  margin: 0 0 0.65rem;
+}
+
+.cli-env {
+  margin-bottom: 1.25rem;
+  color: #6f7a8f;
+}
+
+.cli-subheading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #818cf8;
+  margin: 1.35rem 0 0.65rem;
+}
+
+.cli-subheading:first-of-type {
+  margin-top: 0;
+}
+
+.cli-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.cli-item {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+}
+
+.cli-flag {
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.22);
+  color: #c7d2fe;
+  white-space: nowrap;
+}
+
+.cli-flag--wide {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.cli-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.cli-help {
+  margin-top: 1.35rem;
+  margin-bottom: 0;
+}
+
+@media (max-width: 520px) {
+  .cli-item {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .cli-flag {
+    white-space: normal;
+    word-break: break-word;
+    width: fit-content;
+    max-width: 100%;
+  }
+}
+
 .snap {
   margin: 2.25rem 0 0;
   padding: 0;
@@ -527,9 +797,47 @@ async function copyCmd() {
   font-size: 0.75rem;
   color: #525a6b;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+}
+
+.foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.foot-friends-label {
+  color: #6b7288;
+  margin-right: 0.125rem;
+}
+
+.foot-friend-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.friend-logo {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.foot-row--beian {
+  max-width: 36rem;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.foot-beian-copy {
+  color: #6b7288;
 }
 
 .foot a {
@@ -606,6 +914,34 @@ async function copyCmd() {
   color: #64748b;
 }
 
+.landing--light .cli-title {
+  color: #0f172a;
+}
+
+.landing--light .cli-intro,
+.landing--light .cli-env,
+.landing--light .cli-help {
+  color: #64748b;
+}
+
+.landing--light .cli-env {
+  color: #64748b;
+}
+
+.landing--light .cli-subheading {
+  color: #4f46e5;
+}
+
+.landing--light .cli-flag {
+  background: rgba(79, 70, 229, 0.08);
+  border-color: rgba(79, 70, 229, 0.2);
+  color: #4338ca;
+}
+
+.landing--light .cli-desc {
+  color: #475569;
+}
+
 .landing--light .meta {
   color: #64748b;
   border-top-color: rgba(148, 163, 184, 0.25);
@@ -620,6 +956,14 @@ async function copyCmd() {
 
 .landing--light .foot {
   color: #94a3b8;
+}
+
+.landing--light .foot-friends-label {
+  color: #64748b;
+}
+
+.landing--light .foot-beian-copy {
+  color: #64748b;
 }
 
 .landing--light .foot a {
