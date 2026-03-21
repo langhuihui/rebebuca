@@ -3,9 +3,13 @@
   "version": "1.0.1",
   "description": "Run Configuration Management Tool — launch via npx rebebuca",
   "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/langhuihui/rebebuca.git"
+  },
   "type": "module",
   "bin": {
-    "rebebuca": "./bin/rebebuca.js"
+    "rebebuca": "bin/rebebuca.js"
   },
   "files": [
     "bin",
