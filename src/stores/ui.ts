@@ -38,28 +38,7 @@ export const useUIStore = defineStore("ui", () => {
     ];
   });
 
-  const isTauri = () => {
-    try {
-      if (typeof window !== "undefined") {
-        if (
-          (window as any).__TAURI__ ||
-          (window as any).__TAURI_INTERNALS__ ||
-          (window as any).__TAURI_METADATA__
-        ) {
-          return true;
-        }
-      }
-      if (
-        typeof navigator !== "undefined" &&
-        navigator.userAgent.includes("Tauri")
-      ) {
-        return true;
-      }
-      return false;
-    } catch (error) {
-      return false;
-    }
-  };
+  const isTauri = () => false;
 
   const clampSidebarWidth = (width: number) =>
     Math.min(420, Math.max(200, Math.round(width)));
@@ -73,104 +52,11 @@ export const useUIStore = defineStore("ui", () => {
     sidebarWidth.value = clampSidebarWidth(width);
   };
 
-  const syncMiniModeWindowWidth = async (width?: number) => {
-    if (!miniMode.value || !isTauri()) return;
-    try {
-      const { getCurrentWindow, LogicalSize } = await import(
-        "@tauri-apps/api/window"
-      );
-      const appWindow = getCurrentWindow();
-      const targetWidth = clampSidebarWidth(width ?? sidebarWidth.value);
-      const scaleFactor = await appWindow.scaleFactor();
-      const currentSize = await appWindow.innerSize();
-      const logicalHeight = Math.max(
-        400,
-        currentSize.height / scaleFactor || 600,
-      );
-      await appWindow.setMinSize(new LogicalSize(targetWidth, 400));
-      await appWindow.setSize(new LogicalSize(targetWidth, logicalHeight));
-    } catch (error) {
-      console.error("[MiniMode] Failed to sync mini width:", error);
-    }
+  const syncMiniModeWindowWidth = async (_width?: number) => {
+    if (!miniMode.value) return;
   };
 
   const toggleMiniMode = async () => {
-    if (isTauri()) {
-      try {
-        const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
-        const appWindow = getCurrentWindow();
-        
-        console.log("[MiniMode] Toggling mini mode, current state:", miniMode.value);
-        
-        // Check if window is maximized, if so, unmaximize first
-        const isMaximized = await appWindow.isMaximized();
-        console.log("[MiniMode] Window maximized:", isMaximized);
-        if (isMaximized) {
-          await appWindow.unmaximize();
-          // Wait a bit for unmaximize to complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        if (!miniMode.value) {
-          // Entering mini mode - save current size and resize to sidebar size
-          const currentSize = await appWindow.innerSize();
-          const scaleFactor = await appWindow.scaleFactor();
-          const logicalWidth = currentSize.width / scaleFactor;
-          const logicalHeight = currentSize.height / scaleFactor;
-          
-          console.log("[MiniMode] Current size:", { 
-            physical: { width: currentSize.width, height: currentSize.height },
-            logical: { width: logicalWidth, height: logicalHeight },
-            scaleFactor 
-          });
-          
-          originalWindowSize.value = {
-            width: logicalWidth,
-            height: logicalHeight
-          };
-          
-          // Resize to sidebar width
-          // Use a reasonable height for the mini window
-          const miniWidth = clampSidebarWidth(sidebarWidth.value);
-          const miniHeight = 600; // Default height for mini mode
-          console.log("[MiniMode] Resizing to:", { width: miniWidth, height: miniHeight });
-          
-          // Set minimum size to allow smaller window
-          await appWindow.setMinSize(new LogicalSize(miniWidth, 400));
-          
-          const newSize = new LogicalSize(miniWidth, miniHeight);
-          await appWindow.setSize(newSize);
-          
-          // Verify the size was set
-          await new Promise(resolve => setTimeout(resolve, 100));
-          const newSizeCheck = await appWindow.innerSize();
-          const newLogicalWidth = newSizeCheck.width / scaleFactor;
-          const newLogicalHeight = newSizeCheck.height / scaleFactor;
-          console.log("[MiniMode] New size after resize:", { 
-            physical: { width: newSizeCheck.width, height: newSizeCheck.height },
-            logical: { width: newLogicalWidth, height: newLogicalHeight }
-          });
-        } else {
-          // Exiting mini mode - restore original size
-          if (originalWindowSize.value) {
-            console.log("[MiniMode] Restoring size to:", originalWindowSize.value);
-            
-            // Restore minimum size to original (1000x600 from config)
-            await appWindow.setMinSize(new LogicalSize(1000, 600));
-            
-            const restoreSize = new LogicalSize(
-              originalWindowSize.value.width,
-              originalWindowSize.value.height
-            );
-            await appWindow.setSize(restoreSize);
-            originalWindowSize.value = null;
-          }
-        }
-      } catch (error) {
-        console.error("[MiniMode] Failed to resize window:", error);
-      }
-    }
-    
     miniMode.value = !miniMode.value;
     // When entering mini mode, ensure sidebar is visible
     if (miniMode.value) {

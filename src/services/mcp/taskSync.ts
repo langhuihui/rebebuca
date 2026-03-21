@@ -22,8 +22,9 @@
  * Synchronizes task list to MCP server and handles task execution events from MCP.
  */
 
-import { isTauri } from '../../adapters';
 import type { Task } from '../../providers/types';
+import { detectBackendType } from '../../adapters';
+import { getMcpHttpBase } from '../../utils/mcpHttpBase';
 
 let initialized = false;
 let unlisten: (() => void) | null = null;
@@ -55,18 +56,18 @@ function serializeTask(task: Task): Record<string, unknown> {
  * Sync task list to MCP server
  */
 export async function syncTasksToMCP(tasks: Task[]): Promise<void> {
-  if (!isTauri()) {
-    return;
-  }
-  
+  if (detectBackendType() !== 'server') return;
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const serializedTasks = tasks.map(serializeTask);
-    await invoke('mcp_update_task_list', { tasks: serializedTasks });
-    console.log('[MCP TaskSync] Synced', tasks.length, 'tasks to MCP server');
-  } catch (error) {
-    // MCP server might not be running, which is fine
-    console.log('[MCP TaskSync] Could not sync tasks:', error);
+    const res = await fetch(`${getMcpHttpBase()}/api/mcp/sync-tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks: tasks.map(serializeTask) }),
+    });
+    if (!res.ok) {
+      console.warn('[MCP TaskSync] sync-tasks failed:', res.status, await res.text().catch(() => ''));
+    }
+  } catch (e) {
+    console.warn('[MCP TaskSync] sync-tasks error:', e);
   }
 }
 
@@ -74,32 +75,10 @@ export async function syncTasksToMCP(tasks: Task[]): Promise<void> {
  * Initialize MCP task execution event listener
  */
 export async function initMCPTaskListener(
-  executeTaskCallback: (taskId: string, cwd?: string) => Promise<void>
+  _executeTaskCallback: (taskId: string, cwd?: string) => Promise<void>
 ): Promise<void> {
-  if (!isTauri() || initialized) {
-    return;
-  }
-  
-  try {
-    const { listen } = await import('@tauri-apps/api/event');
-    
-    unlisten = await listen<{ taskId: string; cwd?: string }>('mcp-execute-task', async (event) => {
-      const { taskId, cwd } = event.payload;
-      console.log('[MCP TaskSync] Received execute-task event:', taskId, cwd);
-      
-      try {
-        await executeTaskCallback(taskId, cwd ?? undefined);
-        console.log('[MCP TaskSync] Task execution triggered successfully:', taskId);
-      } catch (error) {
-        console.error('[MCP TaskSync] Failed to execute task:', taskId, error);
-      }
-    });
-    
-    initialized = true;
-    console.log('[MCP TaskSync] Task execution listener initialized');
-  } catch (error) {
-    console.error('[MCP TaskSync] Failed to initialize task listener:', error);
-  }
+  if (initialized) return;
+  initialized = true;
 }
 
 /**

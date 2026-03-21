@@ -56,6 +56,116 @@
           </div>
         </n-modal>
 
+        <!-- Settings (modal — keeps workspace visible) -->
+        <n-modal
+          v-model:show="settingsModalVisible"
+          preset="card"
+          :title="settingsModalTitle"
+          :style="{ width: 'min(960px, 94vw)' }"
+          class="settings-app-modal"
+          :mask-closable="true"
+          :auto-focus="false"
+          to="body"
+        >
+          <div class="settings-modal-body">
+            <SettingsPanel v-model:active-tab="settingsActiveTab" />
+          </div>
+        </n-modal>
+
+        <n-modal
+          v-model:show="historyModalVisible"
+          preset="card"
+          :title="t('task.runHistory')"
+          :style="{ width: 'min(720px, 94vw)' }"
+          display-directive="show"
+          to="body"
+        >
+          <div class="management-panel management-panel--modal">
+            <div class="history-toolbar">
+              <n-input
+                v-model:value="historySearch"
+                clearable
+                size="small"
+                :placeholder="t('task.historySearchPlaceholder')"
+                class="history-search"
+              />
+              <n-select
+                v-model:value="historyStatusFilter"
+                :options="historyStatusOptions"
+                size="small"
+                class="history-status-filter"
+              />
+            </div>
+            <div v-if="filteredHistory.length === 0" class="empty-hint">
+              {{
+                runConfigStore.history.length === 0
+                  ? t("history.empty")
+                  : t("task.historyNoMatches")
+              }}
+            </div>
+            <div v-else class="history-list">
+              <div v-for="item in filteredHistory" :key="item.id" class="history-item">
+                <div class="history-main">
+                  <div class="history-name">{{ item.name }}</div>
+                  <div class="history-command">{{ item.command }}</div>
+                </div>
+                <div class="history-meta">
+                  <span class="status-tag" :class="`status-${item.status}`">{{ item.status }}</span>
+                  <span>{{ formatTimestamp(item.timestamp) }}</span>
+                  <span v-if="item.duration">{{
+                    t("task.durationSec", { sec: Math.floor(item.duration / 1000) })
+                  }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </n-modal>
+
+        <n-modal
+          v-model:show="overviewModalVisible"
+          preset="card"
+          :title="t('task.overview')"
+          :style="{ width: 'min(640px, 94vw)' }"
+          display-directive="show"
+          to="body"
+        >
+          <div class="management-panel management-panel--modal">
+            <div class="overview-cards">
+              <div class="overview-card">
+                <div class="overview-label">{{ t("task.totalTasks") }}</div>
+                <div class="overview-value">{{ taskStats.total }}</div>
+              </div>
+              <div class="overview-card">
+                <div class="overview-label">{{ t("task.statusRunning") }}</div>
+                <div class="overview-value">{{ taskStats.running }}</div>
+              </div>
+              <div class="overview-card">
+                <div class="overview-label">{{ t("task.statusSuccess") }}</div>
+                <div class="overview-value">{{ taskStats.success }}</div>
+              </div>
+              <div class="overview-card">
+                <div class="overview-label">{{ t("task.statusError") }}</div>
+                <div class="overview-value">{{ taskStats.error }}</div>
+              </div>
+            </div>
+            <div class="recent-failed-block">
+              <div class="recent-failed-header">
+                <div class="panel-title-sm">{{ t("task.recentFailedTasks") }}</div>
+                <n-button size="small" quaternary @click="jumpToHistoryWithFailed">
+                  {{ t("task.viewFailedInHistory") }}
+                </n-button>
+              </div>
+              <div v-if="recentFailedTasks.length === 0" class="empty-hint">{{ t("task.noFailedTasks") }}</div>
+              <div v-else class="failed-list">
+                <div v-for="item in recentFailedTasks" :key="`failed-${item.id}`" class="failed-item">
+                  <span class="failed-name">{{ item.name }}</span>
+                  <span class="failed-time">{{ formatTimestamp(item.timestamp) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </n-modal>
+
         <!-- Server Directory Picker (for server mode) -->
         <ServerDirectoryPicker
           v-if="directoryPickerFsAdapter"
@@ -77,22 +187,261 @@
           @select="onFilePickerSelect"
         />
 
+        <!-- Notifications: right drawer so workspace stays visible -->
+        <n-drawer
+          v-if="!props.embedded"
+          v-model:show="notificationsDrawerVisible"
+          :width="notificationsDrawerWidth"
+          placement="right"
+          display-directive="show"
+          :trap-focus="false"
+        >
+          <n-drawer-content
+            :title="t('notifications.title')"
+            closable
+            :native-scrollbar="false"
+            class="app-notifications-drawer"
+          >
+            <div class="notifications-drawer-panel-wrap">
+              <NotificationsPanel v-if="notificationsDrawerVisible" />
+            </div>
+          </n-drawer-content>
+        </n-drawer>
+
         <n-layout
           class="h-screen app-window"
           :class="{ 'embedded-mode': props.embedded }"
         >
-          <!-- Custom Title Bar (hidden in embedded mode) -->
-          <TitleBar v-if="!props.embedded" :effective-theme="effectiveTheme" />
+          <n-layout class="main-layout">
+            <n-layout class="workspace-layout">
+              <div v-if="!props.embedded" class="app-header">
+                <div class="app-header-left">
+                  <div class="app-header-brand">
+                    <img src="/logo.svg" alt="" class="app-header-logo" width="26" height="26" />
+                    <span class="app-title">Rebebuca</span>
+                  </div>
+                  <n-space :size="6" align="center" class="task-subnav" :wrap="false">
+                    <n-button size="small" quaternary @click="historyModalVisible = true">
+                      {{ t("task.runHistory") }}
+                    </n-button>
+                    <n-button size="small" quaternary @click="overviewModalVisible = true">
+                      {{ t("task.overview") }}
+                    </n-button>
+                    <div class="global-search-wrap">
+                      <n-input
+                        v-model:value="globalSearch"
+                        clearable
+                        size="small"
+                        :placeholder="t('task.searchPlaceholder') || 'Search tasks...'"
+                        class="global-search"
+                        @focus="taskSearchFocused = true"
+                        @blur="onTaskSearchBlur"
+                        @keydown="onTaskSearchKeydown"
+                      >
+                        <template #prefix>
+                          <n-icon><component :is="svgIcons.search" /></n-icon>
+                        </template>
+                      </n-input>
+                      <div v-show="taskSearchPanelVisible" class="task-search-dropdown">
+                        <div v-if="taskSearchResults.length === 0" class="task-search-empty">
+                          {{ t("task.noResults") || "No tasks found" }}
+                        </div>
+                        <div
+                          v-for="(task, index) in taskSearchResults"
+                          :key="task.id"
+                          class="task-search-item"
+                          :class="{
+                            'task-search-item--active': index === taskSearchHighlight,
+                          }"
+                          @mousedown.prevent="runTaskFromSearch(task)"
+                        >
+                          <span class="task-search-item-name">{{ task.name }}</span>
+                          <span v-if="task.command" class="task-search-item-cmd">{{
+                            task.command
+                          }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </n-space>
+                  <n-space
+                    v-if="showSettingsTabsInHeader"
+                    :size="4"
+                    class="settings-header-tabs"
+                  >
+                    <n-button
+                      v-for="tab in settingsHeaderTabs"
+                      :key="tab.name"
+                      size="small"
+                      quaternary
+                      :type="
+                        settingsModalVisible && settingsActiveTab === tab.name
+                          ? 'primary'
+                          : 'default'
+                      "
+                      @click="onSettingsHeaderTabClick(tab.name)"
+                    >
+                      {{ tab.label }}
+                    </n-button>
+                  </n-space>
+                </div>
+                <div class="app-header-right">
+                  <n-popover
+                    v-if="!props.embedded"
+                    trigger="click"
+                    placement="bottom-end"
+                    :show-arrow="false"
+                    class="version-update-popover"
+                  >
+                    <template #trigger>
+                      <button
+                        type="button"
+                        class="version-chip version-chip-trigger"
+                        :class="{ 'version-chip--update': updaterStore.updateAvailable }"
+                      >
+                        v{{ headerDisplayVersion }}
+                      </button>
+                    </template>
+                    <div class="version-popover-inner">
+                      <n-space vertical :size="12" style="width: 100%">
+                        <div class="version-popover-line">
+                          <span class="version-popover-muted">{{ t("settings.currentVersion") }}</span>
+                          <span class="version-popover-strong">v{{ headerDisplayVersion }}</span>
+                        </div>
+                        <n-button
+                          block
+                          size="small"
+                          :loading="updaterStore.checking"
+                          @click="onHeaderCheckForUpdates"
+                        >
+                          {{ t("settings.checkUpdate") }}
+                        </n-button>
+                        <n-alert
+                          v-if="updaterStore.updateAvailable && updaterStore.updateInfo"
+                          type="success"
+                        >
+                          <template #header>
+                            {{ t("settings.updateAvailable") }}: v{{
+                              updaterStore.updateInfo.version
+                            }}
+                          </template>
+                          <div v-if="updaterStore.updateInfo.body" class="version-popover-notes">
+                            {{ updaterStore.updateInfo.body }}
+                          </div>
+                          <div class="version-popover-cmd">
+                            <span class="version-popover-muted">{{ t("settings.npmUpdateHint") }}</span>
+                            <code class="version-popover-code">{{ npmUpdateHintCommand }}</code>
+                          </div>
+                          <n-button
+                            type="primary"
+                            size="small"
+                            block
+                            style="margin-top: 10px"
+                            :loading="updaterStore.downloading"
+                            @click="onHeaderDownloadUpdate"
+                          >
+                            {{
+                              updaterStore.downloading
+                                ? t("settings.updatingInTerminal")
+                                : t("settings.updateViaNpm")
+                            }}
+                          </n-button>
+                        </n-alert>
+                        <n-alert
+                          v-else-if="headerUpdateChecked && !updaterStore.updateAvailable"
+                          type="info"
+                        >
+                          {{ t("settings.noUpdate") }}
+                        </n-alert>
+                        <n-alert v-if="updaterStore.error" type="error">
+                          {{ updaterStore.error }}
+                          <div class="version-popover-cmd" style="margin-top: 8px">
+                            <span class="version-popover-muted">{{ t("settings.npmUpdateHint") }}</span>
+                            <code class="version-popover-code">{{ npmUpdateHintCommand }}</code>
+                          </div>
+                        </n-alert>
+                      </n-space>
+                    </div>
+                  </n-popover>
+                  <span v-else class="version-chip">v{{ headerDisplayVersion }}</span>
+                  <n-dropdown
+                    v-if="!props.embedded"
+                    trigger="click"
+                    :options="languageMenuOptions"
+                    @select="onLanguageMenuSelect"
+                  >
+                    <n-button quaternary circle :title="t('settings.language')">
+                      <template #icon>
+                        <n-icon><component :is="svgIcons.language" /></n-icon>
+                      </template>
+                    </n-button>
+                  </n-dropdown>
+                  <n-dropdown
+                    v-if="!props.embedded && showWorkspaceLayoutMenu"
+                    trigger="click"
+                    :options="workspaceLayoutMenuOptions"
+                    @select="onWorkspaceLayoutSelect"
+                  >
+                    <n-button
+                      quaternary
+                      circle
+                      :type="terminalStore.isSplitMode ? 'primary' : 'default'"
+                      :title="t('titlebar.layout')"
+                    >
+                      <template #icon>
+                        <n-icon><component :is="svgIcons.grid" /></n-icon>
+                      </template>
+                    </n-button>
+                  </n-dropdown>
+                  <n-button
+                    v-if="!props.embedded"
+                    quaternary
+                    circle
+                    :type="notificationsDrawerVisible ? 'primary' : 'default'"
+                    :title="t('notifications.title')"
+                    class="app-header-notifications-btn"
+                    @click="openNotifications"
+                  >
+                    <template #icon>
+                      <span class="notif-icon-wrap">
+                        <n-icon><component :is="svgIcons.notifications" /></n-icon>
+                        <span v-if="notificationUnreadCount > 0" class="notif-unread-dot" aria-hidden="true" />
+                      </span>
+                    </template>
+                  </n-button>
+                  <n-button quaternary circle @click="toggleTheme" :title="t('titlebar.toggleTheme')">
+                    <template #icon>
+                      <n-icon>
+                        <component :is="effectiveTheme === 'light' ? svgIcons.sun : svgIcons.moon" />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                  <n-button
+                    v-if="!props.embedded"
+                    quaternary
+                    circle
+                    tag="a"
+                    href="https://github.com/langhuihui/rebebuca"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="GitHub"
+                    @mousedown.stop
+                  >
+                    <template #icon>
+                      <n-icon :size="18"><LogoGithub /></n-icon>
+                    </template>
+                  </n-button>
+                  <UserMenu />
+                </div>
+              </div>
 
-          <n-layout has-sider class="main-layout">
-            <!-- Left sidebar - Task Explorer -->
-            <TaskSidebar />
+              <n-layout has-sider class="content-layout">
+                <TaskSidebar />
 
-            <!-- Main content (hidden in mini mode) -->
-            <n-layout-content v-if="!uiStore.miniMode" class="main-content">
-              <!-- Console output area -->
-              <ConsoleArea />
-            </n-layout-content>
+                <n-layout-content v-if="!uiStore.miniMode" class="main-content">
+                  <ConsoleArea />
+                </n-layout-content>
+              </n-layout>
+            </n-layout>
           </n-layout>
 
           <!-- Status Bar (hidden in embedded mode or mini mode) -->
@@ -107,7 +456,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, inject } from "vue";
+import { ref, onMounted, onUnmounted, inject, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   NMessageProvider,
@@ -116,26 +465,39 @@ import {
   NLayout,
   NLayoutContent,
   NModal,
+  NDrawer,
+  NDrawerContent,
   NButton,
+  NInput,
+  NSelect,
+  NSpace,
+  NIcon,
+  NDropdown,
+  NPopover,
+  NAlert,
 } from "naive-ui";
 import { useRunConfigStore } from "./stores/runConfig";
+import { useTaskManagerStore } from "./stores/taskManager";
+import { useTerminalStore } from "./stores/terminal";
 import { useUIStore } from "./stores/ui";
 import { useAppStore } from "./stores/app";
 import { useUpdaterStore } from "./stores/updater";
 import { useFeatureFlagsStore } from "./stores/featureFlags";
-import TitleBar from "./components/TitleBar.vue";
+import { useNotificationStore } from "./stores/notification";
+import { useSettingsHeaderTabs } from "./composables/useSettingsHeaderTabs";
+import { useLocale } from "./composables/useLocale";
 import TaskSidebar from "./components/TaskSidebar.vue";
 import ConsoleArea from "./components/ConsoleArea.vue";
 import StatusBar from "./components/StatusBar.vue";
+import SettingsPanel from "./components/settings/SettingsPanel.vue";
+import NotificationsPanel from "./components/NotificationsPanel.vue";
 import ServerDirectoryPicker from "./components/ServerDirectoryPicker.vue";
 import ServerFilePicker from "./components/ServerFilePicker.vue";
 import RemoteNotificationModal from "./components/RemoteNotificationModal.vue";
 import { useTheme } from "./composables/useTheme";
-import { type UnlistenFn } from "@tauri-apps/api/event";
+type UnlistenFn = () => void;
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
-import { useNotificationStore } from "./stores/notification";
-import { setErrorCallback } from "./utils/devLogger";
 import {
   registerDirectoryPicker,
   unregisterDirectoryPicker,
@@ -150,6 +512,10 @@ import {
   getFilePickerFsAdapter,
   type FilePickerOptions,
 } from "./services/filePickerService";
+import { svgIcons } from "./utils/icons";
+import type { Task } from "./providers/types";
+import { LogoGithub } from "@vicons/ionicons5";
+import UserMenu from "../shared/components/UserMenu.vue";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
@@ -168,19 +534,246 @@ const hljs = inject<any>("hljs");
 const { t } = useI18n();
 
 // Theme
-const { currentTheme, effectiveTheme } = useTheme();
+const { currentTheme, effectiveTheme, toggleTheme } = useTheme();
 
 // Store management
 const runConfigStore = useRunConfigStore();
+const taskManager = useTaskManagerStore();
+const terminalStore = useTerminalStore();
 const uiStore = useUIStore();
 const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
 const featureFlagsStore = useFeatureFlagsStore();
 const notificationStore = useNotificationStore();
+const notificationUnreadCount = computed(() => notificationStore.unreadCount);
+const { settingsHeaderTabs } = useSettingsHeaderTabs();
+const { getLocalizedOptions, setLocale } = useLocale();
+
+const settingsModalTitle = computed(() => {
+  const tab = settingsHeaderTabs.value.find((x) => x.name === settingsActiveTab.value);
+  return tab?.label ?? t("settings.title");
+});
+
+const languageMenuOptions = computed(() =>
+  getLocalizedOptions().map((o) => ({ label: o.label, key: o.value })),
+);
+
+const onLanguageMenuSelect = (key: string) => {
+  setLocale(key);
+};
 
 // About dialog state
 const showAboutDialog = ref(false);
 const currentVersion = ref("");
+
+const headerUpdateChecked = ref(false);
+const headerDisplayVersion = computed(
+  () => updaterStore.currentVersion || currentVersion.value,
+);
+const npmUpdateHintCommand = computed(() => {
+  const latest = updaterStore.updateInfo?.version;
+  return `npm i -g rebebuca@${latest || "latest"}`;
+});
+
+const onHeaderCheckForUpdates = async () => {
+  headerUpdateChecked.value = true;
+  await updaterStore.checkForUpdates();
+};
+
+const onHeaderDownloadUpdate = async () => {
+  try {
+    await updaterStore.downloadAndInstall();
+  } catch (e) {
+    console.error("[App] Update failed:", e);
+  }
+};
+
+const globalSearch = ref("");
+const settingsModalVisible = ref(false);
+const settingsActiveTab = ref("general");
+const historyModalVisible = ref(false);
+const overviewModalVisible = ref(false);
+const historySearch = ref("");
+const historyStatusFilter = ref<"all" | "running" | "success" | "error">("all");
+const taskSearchFocused = ref(false);
+const taskSearchHighlight = ref(0);
+let taskSearchBlurTimer: ReturnType<typeof setTimeout> | null = null;
+
+const notificationsDrawerVisible = ref(false);
+const notificationsWinW = ref(
+  typeof window !== "undefined" ? window.innerWidth : 1024,
+);
+const notificationsDrawerWidth = computed(() =>
+  Math.min(480, Math.max(320, notificationsWinW.value - 48)),
+);
+
+function syncNotificationsDrawerWinW() {
+  if (typeof window !== "undefined") {
+    notificationsWinW.value = window.innerWidth;
+  }
+}
+
+const showSettingsTabsInHeader = computed(() => !props.embedded);
+
+const showWorkspaceLayoutMenu = computed(() => !props.embedded);
+
+const taskSearchPanelVisible = computed(
+  () => taskSearchFocused.value && globalSearch.value.trim().length > 0,
+);
+
+const taskSearchResults = computed(() => {
+  const q = globalSearch.value.trim().toLowerCase();
+  if (!q) return [];
+  return taskManager.combinedTasks.filter(
+    (task) =>
+      task.name.toLowerCase().includes(q) ||
+      (task.command && task.command.toLowerCase().includes(q)),
+  );
+});
+
+const onTaskSearchBlur = () => {
+  if (taskSearchBlurTimer) clearTimeout(taskSearchBlurTimer);
+  taskSearchBlurTimer = setTimeout(() => {
+    taskSearchFocused.value = false;
+    taskSearchBlurTimer = null;
+  }, 150);
+};
+
+const runTaskFromSearch = async (task: Task) => {
+  try {
+    await taskManager.executeTask(task);
+  } catch (err) {
+    console.error("[App] runTaskFromSearch:", err);
+  }
+  globalSearch.value = "";
+  taskSearchFocused.value = false;
+  taskSearchHighlight.value = 0;
+};
+
+const onTaskSearchKeydown = (e: KeyboardEvent) => {
+  if (!taskSearchPanelVisible.value) {
+    if (e.key === "Escape") {
+      globalSearch.value = "";
+    }
+    return;
+  }
+  const list = taskSearchResults.value;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (list.length === 0) return;
+    taskSearchHighlight.value = (taskSearchHighlight.value + 1) % list.length;
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (list.length === 0) return;
+    taskSearchHighlight.value =
+      (taskSearchHighlight.value - 1 + list.length) % list.length;
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const selected = list[taskSearchHighlight.value];
+    if (selected) void runTaskFromSearch(selected);
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    globalSearch.value = "";
+    taskSearchFocused.value = false;
+  }
+};
+
+watch(globalSearch, () => {
+  taskSearchHighlight.value = 0;
+});
+
+watch(taskSearchResults, (list) => {
+  if (taskSearchHighlight.value >= list.length) {
+    taskSearchHighlight.value = Math.max(0, list.length - 1);
+  }
+});
+
+const workspaceLayoutMenuOptions = computed(() => [
+  { label: t("titlebar.layoutSingle"), key: "single" },
+  { label: t("titlebar.layoutDual"), key: "dual" },
+  { label: t("titlebar.layoutQuad"), key: "quad" },
+]);
+
+const onWorkspaceLayoutSelect = (key: string | number) => {
+  const k = String(key);
+  if (k === "single" || k === "dual" || k === "quad") {
+    terminalStore.setSplitLayout(k);
+  }
+};
+
+const onSettingsHeaderTabClick = (name: string) => {
+  settingsActiveTab.value = name;
+  settingsModalVisible.value = true;
+};
+
+const historyTimestamp = (item: (typeof runConfigStore.history)[number]) => {
+  const n = new Date(item.timestamp).getTime();
+  return Number.isFinite(n) ? n : 0;
+};
+
+const sortedHistory = computed(() =>
+  [...runConfigStore.history].sort(
+    (a, b) => historyTimestamp(b) - historyTimestamp(a),
+  ),
+);
+
+const historyStatusOptions = computed(() => [
+  { label: t("task.statusAll"), value: "all" },
+  { label: t("task.statusRunning"), value: "running" },
+  { label: t("task.statusSuccess"), value: "success" },
+  { label: t("task.statusError"), value: "error" },
+]);
+
+const filteredHistory = computed(() => {
+  const q = historySearch.value.trim().toLowerCase();
+  return sortedHistory.value.filter((item) => {
+    const statusMatched =
+      historyStatusFilter.value === "all" || item.status === historyStatusFilter.value;
+    const cmd = (item.command ?? "").toLowerCase();
+    const queryMatched =
+      !q || item.name.toLowerCase().includes(q) || cmd.includes(q);
+    return statusMatched && queryMatched;
+  });
+});
+
+const taskStats = computed(() => {
+  const total = runConfigStore.history.length;
+  const running = runConfigStore.history.filter((h) => h.status === "running").length;
+  const success = runConfigStore.history.filter((h) => h.status === "success").length;
+  const error = runConfigStore.history.filter((h) => h.status === "error").length;
+  return { total, running, success, error };
+});
+
+const recentFailedTasks = computed(() =>
+  sortedHistory.value.filter((h) => h.status === "error").slice(0, 5),
+);
+
+const openNotifications = () => {
+  syncNotificationsDrawerWinW();
+  notificationsDrawerVisible.value = true;
+};
+
+const formatTimestamp = (timestamp: Date | string) => {
+  const d = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  return d.toLocaleString();
+};
+
+const jumpToHistoryWithFailed = () => {
+  historyStatusFilter.value = "error";
+  overviewModalVisible.value = false;
+  historyModalVisible.value = true;
+};
+
+watch(
+  [settingsHeaderTabs, settingsActiveTab],
+  () => {
+    const names = settingsHeaderTabs.value.map((tab) => tab.name);
+    if (!names.includes(settingsActiveTab.value)) {
+      settingsActiveTab.value = "general";
+    }
+  },
+  { immediate: true },
+);
 
 // Directory picker state (for server mode)
 const isDirectoryPickerVisible = ref(false);
@@ -661,6 +1254,9 @@ onMounted(async () => {
   // Add global error handler for ResizeObserver
   window.addEventListener("error", resizeObserverErrorHandler);
 
+  syncNotificationsDrawerWinW();
+  window.addEventListener("resize", syncNotificationsDrawerWinW);
+
   // Register directory picker for server mode
   registerDirectoryPicker((options: DirectoryPickerOptions) => {
     // Get the latest fsAdapter
@@ -683,19 +1279,13 @@ onMounted(async () => {
   // Initialize feature flags
   await featureFlagsStore.initialize();
 
-  // Set up error callback for DevLogger to route errors to notification store
-  setErrorCallback((level, message, source) => {
-    // Filter out known benign errors
-    if (message.includes("ResizeObserver loop")) {
-      return; // This is a known browser issue, not a real error
-    }
-
-    if (level === "error") {
-      notificationStore.addError("Frontend Error", message, source);
-    } else if (level === "warn") {
-      notificationStore.addWarning("Frontend Warning", message, source);
-    }
-  });
+  // WebSocket terminal listeners + PTY restore after refresh (runs even when ConsoleArea is unmounted, e.g. settings modal open)
+  try {
+    const { useTerminalStore } = await import("./stores/terminal");
+    await useTerminalStore().initListeners();
+  } catch (e) {
+    console.warn("[App] Terminal listeners / PTY restore:", e);
+  }
 
   // Listen for show-about-dialog event from Rust menu
   await appStore.safeListen("show-about-dialog", () => {
@@ -1043,6 +1633,8 @@ onMounted(async () => {
 onUnmounted(() => {
   // Remove ResizeObserver error handler
   window.removeEventListener("error", resizeObserverErrorHandler);
+  window.removeEventListener("resize", syncNotificationsDrawerWinW);
+  if (taskSearchBlurTimer) clearTimeout(taskSearchBlurTimer);
 
   // Unregister directory picker
   unregisterDirectoryPicker();
@@ -1068,6 +1660,482 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.app-window {
+  height: 100vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Naive NLayout: fill viewport height through nested scroll containers */
+.app-window :deep(.n-layout-scroll-container) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-layout {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-layout :deep(.n-layout-scroll-container) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-layout {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-layout :deep(.n-layout-scroll-container) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-layout :deep(.n-layout-scroll-container > .app-header) {
+  flex-shrink: 0;
+}
+
+.workspace-layout :deep(.n-layout-scroll-container > .content-layout) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-layout :deep(.n-layout-scroll-container) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  overflow: hidden !important;
+  align-items: stretch;
+}
+
+.content-layout :deep(.n-layout-sider) {
+  flex-shrink: 0;
+}
+
+.content-layout :deep(.n-layout-content) {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-content {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* LayoutContent: scroll slot must fill remaining row width after sidebar */
+.main-content :deep(.n-layout-scroll-container) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.management-panel {
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+}
+
+.management-panel--modal {
+  height: auto;
+  max-height: min(70vh, 640px);
+  padding: 0;
+}
+
+.task-subnav {
+  margin-left: 4px;
+}
+
+.settings-header-tabs {
+  margin-left: 4px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.empty-hint {
+  color: var(--n-text-color-3);
+  padding: 16px 0;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.history-search {
+  width: 280px;
+}
+
+.history-status-filter {
+  width: 160px;
+}
+
+.history-item {
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-main {
+  min-width: 0;
+}
+
+.history-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.history-command {
+  color: var(--n-text-color-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 560px;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--n-text-color-3);
+  font-size: 12px;
+}
+
+.status-tag {
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--n-border-color);
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.status-running {
+  color: #2080f0;
+}
+
+.status-success {
+  color: #18a058;
+}
+
+.status-error {
+  color: #d03050;
+}
+
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.overview-card {
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.overview-label {
+  color: var(--n-text-color-3);
+  font-size: 12px;
+}
+
+.overview-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.recent-failed-block {
+  margin-top: 16px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.recent-failed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.panel-title-sm {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.failed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.failed-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--n-border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.failed-name {
+  font-weight: 500;
+}
+
+.failed-time {
+  color: var(--n-text-color-3);
+  font-size: 12px;
+}
+
+.app-header {
+  height: 52px;
+  border-bottom: 1px solid var(--n-border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  gap: 12px;
+}
+
+.app-header-left,
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-header-left {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.app-header-logo {
+  display: block;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.global-search-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.global-search {
+  width: 280px;
+}
+
+.task-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 100%;
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  z-index: 3000;
+  background: var(--n-color);
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.task-search-empty {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--n-text-color-3);
+}
+
+.task-search-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.task-search-item:last-child {
+  border-bottom: none;
+}
+
+.task-search-item:hover,
+.task-search-item--active {
+  background: color-mix(in srgb, var(--n-primary-color) 14%, transparent);
+}
+
+.task-search-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-search-item-cmd {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--n-text-color-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.version-chip {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 8px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 12px;
+}
+
+.version-chip-trigger {
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+.version-chip-trigger:hover {
+  color: var(--n-text-color-2);
+  border-color: var(--n-text-color-3);
+}
+
+.version-chip--update {
+  color: var(--n-success-color);
+  border-color: color-mix(in srgb, var(--n-success-color) 45%, var(--n-border-color));
+}
+
+.version-popover-inner {
+  max-width: 320px;
+}
+
+.version-popover-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.version-popover-muted {
+  color: var(--n-text-color-3);
+  flex-shrink: 0;
+}
+
+.version-popover-strong {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.version-popover-notes {
+  margin-top: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--n-text-color-2);
+  line-height: 1.45;
+}
+
+.version-popover-cmd {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.version-popover-code {
+  display: block;
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--n-color-embedded);
+  border: 1px solid var(--n-border-color);
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--n-color-primary);
+}
+
+@media (max-width: 1100px) {
+  .global-search {
+    width: 200px;
+  }
+  .history-search {
+    width: 200px;
+  }
+  .overview-cards {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
 /* About Dialog */
 .about-modal :deep(.n-card-header) {
   padding: 12px 20px;
@@ -1119,5 +2187,47 @@ onUnmounted(() => {
 .about-copyright {
   font-size: 11px;
   color: var(--n-text-color-3);
+}
+
+/* Settings modal */
+.settings-app-modal :deep(.n-card__content) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-modal-body {
+  height: min(76vh, 800px);
+  min-height: 280px;
+}
+
+.app-notifications-drawer :deep(.n-drawer-body-content-wrapper) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.notifications-drawer-panel-wrap {
+  flex: 1;
+  min-height: 0;
+  height: calc(100dvh - 140px);
+}
+
+.app-header-notifications-btn .notif-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-header-notifications-btn .notif-unread-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--n-color-error);
+  box-shadow: 0 0 0 1px var(--n-color);
 }
 </style>

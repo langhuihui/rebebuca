@@ -188,7 +188,7 @@ import {
   NText
 } from 'naive-ui';
 import { useFFmpegParamsStore } from '../stores/ffmpegParams';
-import { save } from '@tauri-apps/plugin-dialog';
+import { getAdapter } from '../../adapters';
 
 const ffmpegParams = useFFmpegParamsStore();
 
@@ -238,7 +238,8 @@ const updatePreset = (preset: string) => {
 // 浏览日志文件
 const browseLogFile = async () => {
   try {
-    const selected = await save({
+    const adapter = await getAdapter();
+    const selected = await adapter.dialog.saveFile({
       filters: [
         {
           name: '日志文件',

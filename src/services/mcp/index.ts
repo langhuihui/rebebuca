@@ -4,5 +4,4 @@
  * Provides MCP server implementations for various capabilities
  */
 
-export * from './debugServer';
 export * from './taskSync';

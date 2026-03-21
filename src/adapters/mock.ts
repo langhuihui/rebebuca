@@ -22,6 +22,7 @@ import type {
   RecentTaskInfo,
   CreateTerminalParams,
   TerminalInfo,
+  PtySessionInfo,
   TerminalDataEvent,
   TerminalExitEvent,
   DirEntry,
@@ -289,6 +290,14 @@ class MockTerminalAdapter implements TerminalAdapter {
       memoryUsage: Math.random() * 100 * 1024 * 1024,
       memoryUsageMb: `${(Math.random() * 100).toFixed(1)}MB`,
     };
+  }
+
+  async listPtySessions(): Promise<PtySessionInfo[]> {
+    return [];
+  }
+
+  async getPtyScrollback(_ptyId: string): Promise<string> {
+    return '';
   }
 
   onData(callback: (event: TerminalDataEvent) => void): () => void {

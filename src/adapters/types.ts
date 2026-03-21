@@ -6,6 +6,22 @@
  */
 
 // Terminal types
+/** Optional metadata stored server-side for PTY session restore after refresh */
+export interface PtySessionMeta {
+  label?: string;
+  taskId?: string;
+  tabType?: 'task' | 'shell';
+  historyId?: string;
+  commandDisplay?: string;
+}
+
+export interface PtySessionInfo {
+  ptyId: string;
+  pid: number;
+  running: boolean;
+  meta: PtySessionMeta;
+}
+
 export interface CreateTerminalParams {
   /** Optional client-specified PTY ID. If not provided, server generates one. */
   ptyId?: string;
@@ -17,6 +33,8 @@ export interface CreateTerminalParams {
   shellPath?: string | null;
   rows?: number;
   cols?: number;
+  /** Passed to node-server for list/restore (optional) */
+  meta?: PtySessionMeta;
 }
 
 export interface TerminalInfo {
@@ -116,6 +134,9 @@ export interface TerminalAdapter {
   forceKill(ptyId: string): Promise<void>;
   isRunning(ptyId: string): Promise<boolean>;
   getProcessStats(ptyId: string): Promise<PtyProcessStats | null>;
+  /** Server mode: running PTYs for refresh recovery */
+  listPtySessions?(): Promise<PtySessionInfo[]>;
+  getPtyScrollback?(ptyId: string): Promise<string>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
 }
@@ -448,7 +469,7 @@ export interface OrchestrationAdapter {
  * This is the main interface that combines all sub-adapters
  */
 export interface BackendAdapter {
-  readonly type: 'tauri' | 'server' | 'mock';
+  readonly type: 'server' | 'mock';
   
   terminal: TerminalAdapter;
   fs: FileSystemAdapter;
@@ -471,4 +492,4 @@ export interface BackendAdapter {
 /**
  * Backend type for environment detection
  */
-export type BackendType = 'tauri' | 'server' | 'mock';
+export type BackendType = 'server' | 'mock';

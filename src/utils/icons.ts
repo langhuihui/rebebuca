@@ -756,6 +756,15 @@ export const svgIcons = {
     h('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' })
   ]),
 
+  // 语言 / 国际化
+  language: createSvgIcon([
+    h('circle', { cx: '12', cy: '12', r: '10' }),
+    h('line', { x1: '2', y1: '12', x2: '22', y2: '12' }),
+    h('path', {
+      d: 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z',
+    }),
+  ]),
+
   // 网格图标（命令广场）
   grid: createSvgIcon([
     h('rect', { x: '3', y: '3', width: '7', height: '7' }),

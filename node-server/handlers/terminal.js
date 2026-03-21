@@ -8,21 +8,71 @@
 import os from 'os';
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { chmodSync, existsSync, readdirSync, statSync } from 'fs';
+import { createRequire } from 'module';
+import path from 'path';
+import { spawn as spawnProcess } from 'child_process';
+
+/**
+ * npm's node-pty macOS tarballs sometimes ship spawn-helper as 644 (non-executable),
+ * which breaks pty.spawn with "posix_spawnp failed". Fix once at load time.
+ * @see https://github.com/microsoft/node-pty/issues/850
+ */
+function ensureNodePtySpawnHelperExecutable() {
+  if (os.platform() !== 'darwin') return;
+  try {
+    const require = createRequire(import.meta.url);
+    const pkgJson = require.resolve('node-pty/package.json');
+    const root = path.dirname(pkgJson);
+    const prebuilds = path.join(root, 'prebuilds');
+    if (!existsSync(prebuilds)) return;
+    for (const name of readdirSync(prebuilds)) {
+      if (!name.startsWith('darwin-')) continue;
+      const helper = path.join(prebuilds, name, 'spawn-helper');
+      if (!existsSync(helper)) continue;
+      const mode = statSync(helper).mode;
+      if ((mode & 0o100) === 0) {
+        chmodSync(helper, 0o755);
+        console.warn(`[Terminal] Restored execute bit on node-pty spawn-helper (${helper})`);
+      }
+    }
+  } catch (e) {
+    console.warn('[Terminal] Could not verify node-pty spawn-helper permissions:', e.message);
+  }
+}
 
 // Dynamically import node-pty to allow graceful fallback if native build fails
 let pty;
 try {
   const nodePty = await import('node-pty');
   pty = nodePty.default ?? nodePty;
+  ensureNodePtySpawnHelperExecutable();
 } catch (err) {
   console.warn('[Terminal] node-pty not available, PTY terminals will be disabled:', err.message);
 }
 
-/** Map from ptyId -> { ptyProcess, pid, running } */
+/** Map from ptyId -> { ptyProcess|childProcess, pid, running, mode, meta } */
 const ptys = new Map();
+
+/** Captured PTY output for page refresh / reattach (per session) */
+const ptyScrollback = new Map();
+const SCROLLBACK_MAX_CHARS = 600000;
+
+function appendScrollback(ptyId, chunk) {
+  if (chunk == null || chunk === '') return;
+  const cur = ptyScrollback.get(ptyId) || '';
+  const next = cur + chunk;
+  if (next.length <= SCROLLBACK_MAX_CHARS) {
+    ptyScrollback.set(ptyId, next);
+  } else {
+    ptyScrollback.set(ptyId, next.slice(next.length - SCROLLBACK_MAX_CHARS));
+  }
+}
 
 /** Global event emitter for terminal data/exit events */
 export const terminalEvents = new EventEmitter();
+
+let childFallbackWarned = false;
 
 /**
  * Generate a random PTY ID
@@ -39,7 +89,58 @@ function getDefaultShell() {
   if (platform === 'win32') {
     return process.env.COMSPEC || 'cmd.exe';
   }
+  if (platform === 'darwin') {
+    return process.env.SHELL || '/bin/zsh';
+  }
   return process.env.SHELL || '/bin/bash';
+}
+
+function quoteShellArg(arg) {
+  // Safe for sh/zsh/bash when building a single -lc string
+  if (arg === '') return "''";
+  return `'${String(arg).replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function buildCommandString(command, args) {
+  return [command, ...(args || [])].map(quoteShellArg).join(' ');
+}
+
+function registerPtyEntry(ptyId, processLike, mode = 'pty', meta = {}) {
+  ptys.set(ptyId, { processLike, pid: processLike.pid, running: true, mode, meta });
+
+  if (mode === 'pty') {
+    processLike.onData((data) => {
+      appendScrollback(ptyId, data);
+      terminalEvents.emit('data', { ptyId, data });
+    });
+    processLike.onExit(({ exitCode, signal }) => {
+      const entry = ptys.get(ptyId);
+      if (entry) entry.running = false;
+      terminalEvents.emit('exit', { ptyId, exitCode: exitCode ?? (signal ? -1 : 0) });
+      ptys.delete(ptyId);
+      ptyScrollback.delete(ptyId);
+    });
+    return;
+  }
+
+  // child_process fallback
+  processLike.stdout?.on('data', (chunk) => {
+    const s = chunk.toString();
+    appendScrollback(ptyId, s);
+    terminalEvents.emit('data', { ptyId, data: s });
+  });
+  processLike.stderr?.on('data', (chunk) => {
+    const s = chunk.toString();
+    appendScrollback(ptyId, s);
+    terminalEvents.emit('data', { ptyId, data: s });
+  });
+  processLike.on('close', (code, signal) => {
+    const entry = ptys.get(ptyId);
+    if (entry) entry.running = false;
+    terminalEvents.emit('exit', { ptyId, exitCode: code ?? (signal ? -1 : 0) });
+    ptys.delete(ptyId);
+    ptyScrollback.delete(ptyId);
+  });
 }
 
 /**
@@ -62,41 +163,150 @@ export async function createTerminal(params) {
     rows = 24,
     cols = 80,
     shellPath,
+    meta: sessionMeta = {},
   } = params;
 
   // Resolve shell / command
-  const shell = shellPath || (command === 'default' ? getDefaultShell() : command);
+  // - command === 'default': open an interactive shell
+  // - task command:
+  //   - explicit shell -c (sh/bash/zsh): execute with that shell directly
+  //   - other command: execute through login shell (-lc) for PATH consistency
+  const defaultShell = shellPath || getDefaultShell();
+  const isTaskCommand = command && command !== 'default';
+  const lowerCmd = String(command || '').toLowerCase();
+  const isExplicitShellCmd = ['sh', 'bash', 'zsh', '/bin/sh', '/bin/bash', '/bin/zsh'].includes(lowerCmd);
+  const isShellScriptRun =
+    isExplicitShellCmd &&
+    Array.isArray(args) &&
+    args[0] === '-c';
+
+  let shell = defaultShell;
+  if (isTaskCommand && isShellScriptRun) {
+    // Prefer concrete absolute shells for stability
+    if (lowerCmd === 'sh') shell = '/bin/sh';
+    else if (lowerCmd === 'bash') shell = '/bin/bash';
+    else if (lowerCmd === 'zsh') shell = '/bin/zsh';
+    else shell = command;
+  }
   const workingDir = cwd || os.homedir();
   const ptyId = requestedId || generatePtyId();
 
   // Merge environment with current process env, preferring caller-supplied vars
-  const mergedEnv = {
+  const mergedEnvRaw = {
     ...process.env,
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
     ...env,
   };
 
-  const ptyProcess = pty.spawn(shell, args, {
+  // node-pty expects env values to be strings; filter/normalize to avoid spawn failures
+  const mergedEnv = {};
+  for (const [k, v] of Object.entries(mergedEnvRaw)) {
+    if (v === undefined || v === null) continue;
+    mergedEnv[k] = typeof v === 'string' ? v : String(v);
+  }
+
+  if (!existsSync(workingDir)) {
+    throw new Error(`[Terminal] cwd does not exist: ${workingDir}`);
+  }
+  if (os.platform() !== 'win32' && !existsSync(shell)) {
+    throw new Error(`[Terminal] shell does not exist: ${shell}`);
+  }
+
+  let finalArgs = args;
+  if (isTaskCommand) {
+    // If task already provides an explicit shell -c command, run it directly.
+    if (!isShellScriptRun) {
+      const cmdString = buildCommandString(command, args);
+      if (os.platform() === 'win32') {
+        // Use cmd.exe /d /s /c "<cmd>"
+        finalArgs = ['/d', '/s', '/c', cmdString];
+      } else {
+        // Use login shell to load PATH and env (zsh/bash)
+        finalArgs = ['-lc', cmdString];
+      }
+    }
+  }
+
+  let ptyProcess;
+  try {
+    ptyProcess = pty.spawn(shell, finalArgs, {
     name: 'xterm-256color',
     cols,
     rows,
     cwd: workingDir,
     env: mergedEnv,
-  });
+    });
+  } catch (err) {
+    // Retry with fallback shells on POSIX
+    if (os.platform() !== 'win32') {
+      const fallbackShells = ['/bin/sh', '/bin/bash', '/bin/zsh'].filter((s) => s !== shell && existsSync(s));
+      for (const fallback of fallbackShells) {
+        try {
+          ptyProcess = pty.spawn(fallback, finalArgs, {
+            name: 'xterm-256color',
+            cols,
+            rows,
+            cwd: workingDir,
+            env: mergedEnv,
+          });
+          shell = fallback;
+          break;
+        } catch (_) {
+          // continue fallback chain
+        }
+      }
+    }
+    if (!ptyProcess) {
+      // Fallback when node-pty.spawn fails (e.g. Node v25 + broken native build).
+      // Do NOT wrap with `script`: stdio is pipes, and script needs a real TTY →
+      // "tcgetattr/ioctl: Operation not supported on socket".
+      if (isTaskCommand) {
+        try {
+          if (!childFallbackWarned) {
+            childFallbackWarned = true;
+            console.warn(
+              '[Terminal] node-pty spawn failed; using child_process (no real PTY). ' +
+                'Some interactive CLIs may show little or no live output. ' +
+                'On macOS, ensure node-pty prebuilds/darwin-*/spawn-helper is executable (644 in npm tarball is a known issue). ' +
+                `Current Node: ${process.version}.`,
+            );
+          }
+          const childEnv = {
+            ...mergedEnv,
+            PYTHONUNBUFFERED: '1',
+          };
+          const child = spawnProcess(shell, finalArgs, {
+            cwd: workingDir,
+            env: childEnv,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: false,
+          });
+          registerPtyEntry(ptyId, child, 'child', sessionMeta);
+          // Immediate user-visible hint in the terminal panel
+          const fallbackHint =
+            '\r\n\x1b[33m[Rebebuca]\x1b[0m Running without PTY (node-pty spawn failed). ' +
+            'Live output may be limited. On macOS try restarting the backend after install; ' +
+            'if it persists, run: chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper\r\n\r\n';
+          appendScrollback(ptyId, fallbackHint);
+          terminalEvents.emit('data', { ptyId, data: fallbackHint });
+          return { ptyId, pid: child.pid || 0 };
+        } catch (_) {
+          // keep original error below
+        }
+      }
+      const details = {
+        ptyId,
+        shell,
+        args: finalArgs,
+        cwd: workingDir,
+        command,
+      };
+      throw new Error(`[Terminal] Failed to spawn PTY: ${err.message}\n${JSON.stringify(details, null, 2)}`);
+    }
+  }
 
-  ptys.set(ptyId, { ptyProcess, pid: ptyProcess.pid, running: true });
-
-  // Forward PTY output to listeners
-  ptyProcess.onData((data) => {
-    terminalEvents.emit('data', { ptyId, data });
-  });
-
-  ptyProcess.onExit(({ exitCode, signal }) => {
-    const entry = ptys.get(ptyId);
-    if (entry) entry.running = false;
-    terminalEvents.emit('exit', { ptyId, exitCode: exitCode ?? (signal ? -1 : 0) });
-  });
+  registerPtyEntry(ptyId, ptyProcess, 'pty', sessionMeta);
 
   return { ptyId, pid: ptyProcess.pid };
 }
@@ -109,7 +319,11 @@ export function writeTerminal(ptyId, data) {
   if (!entry || !entry.running) {
     throw new Error(`PTY not found or not running: ${ptyId}`);
   }
-  entry.ptyProcess.write(data);
+  if (entry.mode === 'pty') {
+    entry.processLike.write(data);
+    return;
+  }
+  entry.processLike.stdin?.write(data);
 }
 
 /**
@@ -118,7 +332,9 @@ export function writeTerminal(ptyId, data) {
 export function resizeTerminal(ptyId, cols, rows) {
   const entry = ptys.get(ptyId);
   if (!entry || !entry.running) return;
-  entry.ptyProcess.resize(cols, rows);
+  if (entry.mode === 'pty') {
+    entry.processLike.resize(cols, rows);
+  }
 }
 
 /**
@@ -128,7 +344,7 @@ export function killTerminal(ptyId) {
   const entry = ptys.get(ptyId);
   if (!entry) return;
   try {
-    entry.ptyProcess.kill('SIGTERM');
+    entry.processLike.kill('SIGTERM');
   } catch (_) {
     // Ignore if already dead
   }
@@ -142,12 +358,13 @@ export function forceKillTerminal(ptyId) {
   const entry = ptys.get(ptyId);
   if (!entry) return;
   try {
-    entry.ptyProcess.kill('SIGKILL');
+    entry.processLike.kill('SIGKILL');
   } catch (_) {
     // Ignore if already dead
   }
   entry.running = false;
   ptys.delete(ptyId);
+  ptyScrollback.delete(ptyId);
 }
 
 /**
@@ -181,5 +398,30 @@ export function killClientPtys(ptyIds) {
   for (const id of ptyIds) {
     killTerminal(id);
     ptys.delete(id);
+    ptyScrollback.delete(id);
   }
+}
+
+/**
+ * List PTY sessions still running (for UI refresh / reattach).
+ */
+export function listRunningPtySessions() {
+  const out = [];
+  for (const [ptyId, entry] of ptys) {
+    if (!entry.running) continue;
+    out.push({
+      ptyId,
+      pid: entry.pid,
+      running: true,
+      meta: entry.meta && typeof entry.meta === 'object' ? entry.meta : {},
+    });
+  }
+  return out;
+}
+
+/**
+ * Return captured output for a PTY (for replay in xterm after refresh).
+ */
+export function getTerminalScrollback(ptyId) {
+  return ptyScrollback.get(ptyId) || '';
 }

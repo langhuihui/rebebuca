@@ -4,7 +4,7 @@ import { createAnsiConverter } from "../utils/ansiUtils";
 import { useTheme } from "../composables/useTheme";
 import { forceThemeOnFloatingComponents } from "../utils/themeUtils";
 import { nextTick } from "vue";
-import { getAdapter, isTauri, type BackendAdapter } from "../adapters";
+import { getAdapter, type BackendAdapter } from "../adapters";
 
 // Adapter instance
 let adapter: BackendAdapter | null = null;
@@ -35,28 +35,14 @@ export const useAppStore = defineStore("app", () => {
     { immediate: false }
   );
 
-  // Tauri environment detection
   const detectTauriEnvironment = () => {
-    if (isTauriEnvironment.value !== null) {
-      return isTauriEnvironment.value;
-    }
-    isTauriEnvironment.value = isTauri();
-    return isTauriEnvironment.value;
+    if (isTauriEnvironment.value !== null) return isTauriEnvironment.value;
+    isTauriEnvironment.value = false;
+    return false;
   };
 
-  // Safe listen function that handles browser environment
-  const safeListen = async (event: string, handler: (event: any) => void) => {
-    if (!detectTauriEnvironment()) {
-      return () => { };
-    }
-
-    try {
-      const { listen } = await import("@tauri-apps/api/event");
-      return await listen(event, handler);
-    } catch (error) {
-      console.error(`Failed to listen to '${event}':`, error);
-      return () => { };
-    }
+  const safeListen = async (_event: string, _handler: (event: any) => void) => {
+    return () => {};
   };
 
   // Safe sendNotification function that handles browser environment

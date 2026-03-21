@@ -5,9 +5,9 @@
   
   <h3>强大的运行配置管理工具</h3>
   
-  <p>一个现代化的桌面应用，帮助开发者快速管理和执行各种命令与脚本</p>
+  <p>一个现代化的运行配置管理工具，通过 npx 即可启动，无需安装</p>
 
-  [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
+  [![npm](https://img.shields.io/npm/v/rebebuca?style=flat-square&logo=npm)](https://www.npmjs.com/package/rebebuca)
   [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
   [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg?style=flat-square)](LICENSE)
@@ -46,27 +46,26 @@
 - **Vite** - 下一代前端构建工具
 
 ### 后端
-- **Tauri** - 基于 Rust 的轻量级桌面应用框架
-- **Rust** - 系统级编程语言，保证性能和安全
+- **Node.js** - HTTP + WebSocket 服务（node-server）
+- **Nuxt 3** - 前端静态构建
 
-## 📦 安装
+## 📦 安装与开发
 
 ### 前置要求
 
 - **Node.js** >= 18.0.0
 - **pnpm** >= 8.0.0
-- **Rust** >= 1.70.0 (用于构建 Tauri 应用)
 
-### 开发环境安装
+### 开发环境
 
 1. **安装依赖**
 ```bash
 pnpm install
 ```
 
-2. **启动开发服务器**
+2. **启动开发**
 ```bash
-pnpm tauri:dev
+pnpm dev:server
 ```
 
 ## 🚀 使用指南
@@ -105,74 +104,41 @@ pnpm tauri:dev
 
 ```
 rebebuca/
-├── src/                      # Vue 前端代码
-│   ├── App.vue              # 主应用组件
-│   ├── main.ts              # 应用入口
+├── app/                      # Nuxt 3 应用（前端）
+│   └── pages/
+├── src/                      # 共享 Vue/TS 代码
 │   ├── components/          # Vue 组件
-│   │   └── RunConfigDialog.vue
 │   └── stores/              # Pinia 状态管理
-│       └── runConfig.ts
-├── src-tauri/               # Tauri 后端代码
-│   ├── src/
-│   │   ├── main.rs         # Rust 主程序
-│   │   └── lib.rs          # 库代码
-│   ├── tauri.conf.json     # Tauri 配置
-│   └── Cargo.toml          # Rust 依赖配置
-├── public/                  # 静态资源
-├── index.html              # HTML 模板
-├── vite.config.ts          # Vite 配置
-├── tsconfig.json           # TypeScript 配置
-└── package.json            # 项目依赖
+├── node-server/              # Node.js HTTP + WebSocket 服务
+│   ├── server.js
+│   └── handlers/
+├── bin/rebebuca.js           # CLI 入口（npx rebebuca）
+├── dist/server/              # 构建后的静态 UI（Nuxt 生成）
+├── public/                   # 静态资源
+└── package.json              # 项目依赖
 ```
 
 ## 🔨 构建
 
-### 开发模式
+### 开发
 ```bash
-# 启动开发服务器（热重载）
-pnpm tauri:dev
+pnpm dev:server
 ```
 
-### 本地生产构建
+### 生产构建（用于 npm / npx rebebuca）
 ```bash
-# 构建生产版本
-pnpm tauri build
+pnpm run build:server-app
 ```
+将 Nuxt 静态构建输出到 `dist/server`，由 Node 服务提供。
 
-构建产物位于 `src-tauri/target/release/bundle/` 目录下。
+### 发布到 npm
 
-### GitHub Actions 自动构建
-
-项目配置了 GitHub Actions 自动构建工作流，支持以下平台：
-
-- **macOS**: Universal Binary（同时支持 Intel 和 Apple Silicon）
-  - 生成 `.app` 和 `.dmg` 文件
-- **Windows**: x64 可执行文件
-  - 生成 `.exe` (NSIS安装器) 和 `.msi` 安装程序
-
-#### 触发自动构建
-
-1. **推送到 main 分支**: 自动构建所有平台
-2. **创建版本标签**: 创建 `v*` 格式的标签（如 `v0.1.0`）时，会自动构建并创建 GitHub Release
+推出版本 tag 后，由 GitHub Actions 自动构建并发布到 npm：
 
 ```bash
-# 发布新版本
-git tag v0.1.0
-git push origin main
-git push origin v0.1.0
+./scripts/release.sh 0.5.6   # 更新版本、提交、打 tag v0.5.6、推送
 ```
-
-3. **手动触发**: 在 GitHub Actions 页面手动运行构建
-
-构建完成后，可以在 Actions 页面下载构建产物，或在 Releases 页面下载发布的版本。
-
-详细说明请查看 [.github/workflows/README.md](.github/workflows/README.md)。
-
-### 平台特定构建
-
-- **macOS**: 生成 `.app` 和 `.dmg` 文件
-- **Windows**: 生成 `.exe` 和 `.msi` 安装程序
-- **Linux**: 生成 `.AppImage` 和 `.deb` 包（需本地构建）
+CI 会执行 `build:server-app` 后执行 `pnpm publish`。需在仓库 secrets 中配置 `NPM_TOKEN`。
 
 ## 🤝 贡献
 
@@ -191,8 +157,6 @@ git push origin v0.1.0
 - [VS Code](https://code.visualstudio.com/) 
 - 扩展插件:
   - [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
-  - [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-  - [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
   - [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin)
 
 ### 代码规范
@@ -208,8 +172,8 @@ git push origin v0.1.0
 
 ## 🙏 致谢
 
-- [Tauri](https://tauri.app/) - 优秀的桌面应用框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
+- [Nuxt](https://nuxt.com/) - 基于 Vue 的静态/构建方案
 - [Naive UI](https://www.naiveui.com/) - 精美的 Vue 3 组件库
 - [Vite](https://vitejs.dev/) - 快速的前端构建工具
 

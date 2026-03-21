@@ -203,7 +203,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useTerminalStore, type TerminalTab } from '../stores/terminal';
-import { getAdapter, isTauri } from '../adapters';
+import { getAdapter } from '../adapters';
 
 interface Props {
   tab: TerminalTab;
@@ -476,7 +476,7 @@ const processOutputData = (data: string) => {
 
 // Listen to pty-output events to capture JSON output
 onMounted(async () => {
-  console.log('[AgentTaskView] Mounted for ptyId:', props.ptyId, 'tabId:', props.tab.id, 'tab.ptyId:', props.tab.ptyId, 'isTauri:', isTauri());
+  console.log('[AgentTaskView] Mounted for ptyId:', props.ptyId, 'tabId:', props.tab.id, 'tab.ptyId:', props.tab.ptyId);
   
   // Load existing output from tab if available
   if (props.tab.agentOutput) {
@@ -495,27 +495,8 @@ onMounted(async () => {
   }
   
   try {
-    // In Tauri mode, use native event listener for better performance
-    // In Server mode, use adapter's onData
-    if (isTauri()) {
-      const { listen } = await import('@tauri-apps/api/event');
-      
-      unlistenOutput = await listen<{ pty_id: string; data: string }>('pty-output', (e) => {
-        console.log('[AgentTaskView] Received pty-output event:', {
-          received_pty_id: e.payload.pty_id,
-          expected_pty_id: ptyIdToUse,
-          match: e.payload.pty_id === ptyIdToUse,
-          data_preview: e.payload.data.substring(0, 100)
-        });
-        
-        if (e.payload.pty_id === ptyIdToUse) {
-          processOutputData(e.payload.data);
-        }
-      });
-    } else {
-      // In Server mode, use adapter's onData
-      const adapterInstance = await getAdapter();
-      unlistenOutput = adapterInstance.terminal.onData((event) => {
+    const adapterInstance = await getAdapter();
+    unlistenOutput = adapterInstance.terminal.onData((event) => {
         console.log('[AgentTaskView] Received terminal data event:', {
           received_pty_id: event.ptyId,
           expected_pty_id: ptyIdToUse,
@@ -527,8 +508,6 @@ onMounted(async () => {
           processOutputData(event.data);
         }
       });
-    }
-    
     console.log('[AgentTaskView] Event listener setup completed');
   } catch (error) {
     console.error('[AgentTaskView] Failed to setup event listener:', error);

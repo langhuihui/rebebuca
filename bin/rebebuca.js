@@ -9,9 +9,10 @@
  *   npx rebebuca --no-open
  *
  * Options:
- *   --port <number>    Port for the web UI (default: 3000)
+ *   --port <number>    Port for the web UI and MCP (default: 3000)
  *   --host <string>    Host to bind to (default: 127.0.0.1)
  *   --no-open          Do not open browser automatically
+ *   --no-mcp           Do not expose MCP routes (/health, /mcp/*)
  *   -h, --help         Show this help message
  *   -v, --version      Show version number
  */
@@ -26,7 +27,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── Parse arguments ─────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const args = { port: 3000, host: '127.0.0.1', open: true };
+  const args = {
+    port: 3000,
+    host: '127.0.0.1',
+    open: true,
+    enableMcp: true,
+  };
+
+  if (process.env.REBEBUCA_NO_MCP === '1' || process.env.REBEBUCA_NO_MCP === 'true') {
+    args.enableMcp = false;
+  }
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -43,6 +53,11 @@ function parseArgs(argv) {
 
     if (arg === '--no-open') {
       args.open = false;
+      continue;
+    }
+
+    if (arg === '--no-mcp') {
+      args.enableMcp = false;
       continue;
     }
 
@@ -115,9 +130,10 @@ function printHelp() {
     npx rebebuca [options]
 
   Options:
-    --port <number>    Port for the web UI  (default: 3000)
+    --port <number>    Port for web UI and MCP (default: 3000)
     --host <string>    Host to bind to      (default: 127.0.0.1)
     --no-open          Skip auto-open in browser
+    --no-mcp           Do not expose MCP on the same port
     -h, --help         Show this help message
     -v, --version      Show version number
 
@@ -137,7 +153,11 @@ console.log(`\n  Rebebuca v${getVersion()}`);
 console.log(`  Starting on port ${args.port}...\n`);
 
 try {
-  await createServer({ port: args.port, host: args.host });
+  await createServer({
+    port: args.port,
+    host: args.host,
+    enableMcp: args.enableMcp,
+  });
 
   if (args.open) {
     const url = `http://localhost:${args.port}`;

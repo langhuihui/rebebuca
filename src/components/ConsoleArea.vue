@@ -132,7 +132,8 @@
         >
           <SettingsPanel
             v-if="terminalStore.activeTab?.type === 'settings'"
-            :initial-tab="terminalStore.activeTab.initialTab"
+            show-tab-bar
+            v-model:active-tab="consoleSettingsActiveTab"
           />
         </div>
 
@@ -193,7 +194,10 @@
           <!-- IMPORTANT: Always render terminals (even when settings tab is active) to preserve instances -->
           <div
             class="console-output-container terminal-wrapper"
-            :class="{ 'split-grid': terminalStore.isSplitMode }"
+            :class="{
+              'split-grid': terminalStore.isSplitMode,
+              'split-grid--dual': terminalStore.splitLayout === 'dual',
+            }"
           >
             <div
               v-for="tab in terminalStore.tabs.filter(
@@ -246,6 +250,7 @@
                 :cwd="getTabCwd(tab)"
                 :attach-only="tab.type === 'task' || tab.type === 'shell'"
                 :enable-shell-integration="tab.type === 'shell'"
+                :initial-scrollback="tab.restoredScrollback"
                 :ref="(el) => setTerminalRef(tab.id, el)"
                 @ready="() => onTerminalReady(tab.id)"
                 @exit="(code) => onTerminalExit(tab.id, code)"
@@ -256,8 +261,7 @@
             <!-- Split Placeholders -->
             <template v-if="terminalStore.isSplitMode">
               <div
-                v-for="(splitTabId, index) in terminalStore.splitTabs"
-                v-show="!splitTabId"
+                v-for="index in splitEmptyPaneIndices"
                 :key="'split-placeholder-' + index"
                 class="split-placeholder"
                 :style="getSplitStyle(index)"
@@ -373,9 +377,10 @@ import {
   useMessage,
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { listen } from "@tauri-apps/api/event";
+import { useAppStore } from "../stores/app";
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
+import { useSettingsHeaderTabs } from "../composables/useSettingsHeaderTabs";
 import { useRunConfigStore } from "../stores/runConfig";
 import {
   useTerminalStore,
@@ -405,16 +410,58 @@ interface TerminalTaskCreatedEvent {
 
 const { t } = useI18n();
 const message = useMessage();
+const appStore = useAppStore();
 const uiStore = useUIStore();
 const { effectiveTheme } = useTheme();
 const runConfigStore = useRunConfigStore();
 const terminalStore = useTerminalStore();
 const taskManager = useTaskManagerStore();
+const { settingsHeaderTabs } = useSettingsHeaderTabs();
+
+const consoleSettingsActiveTab = computed({
+  get() {
+    const tab = terminalStore.activeTab;
+    if (tab?.type !== "settings") return "general";
+    return tab.initialTab || "general";
+  },
+  set(v: string) {
+    const tab = terminalStore.activeTab;
+    if (tab?.type === "settings") {
+      tab.initialTab = v;
+    }
+  },
+});
+
+watch(
+  [settingsHeaderTabs, consoleSettingsActiveTab],
+  () => {
+    const names = settingsHeaderTabs.value.map((x) => x.name);
+    if (!names.includes(consoleSettingsActiveTab.value)) {
+      consoleSettingsActiveTab.value = "general";
+    }
+  },
+  { immediate: true },
+);
 
 // Split Mode & Drag Drop Logic
+const splitPaneCount = computed(() =>
+  terminalStore.splitLayout === "dual" ? 2 : 4,
+);
+
+const splitEmptyPaneIndices = computed(() => {
+  const n = splitPaneCount.value;
+  const idx: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (!terminalStore.splitTabs[i]) idx.push(i);
+  }
+  return idx;
+});
+
 const shouldShowTab = (tabId: string) => {
   if (terminalStore.isSplitMode) {
-    return terminalStore.splitTabs.includes(tabId);
+    return terminalStore.splitTabs
+      .slice(0, splitPaneCount.value)
+      .includes(tabId);
   }
   return terminalStore.activeTabId === tabId;
 };
@@ -423,7 +470,16 @@ const getTabStyle = (tabId: string) => {
   if (!terminalStore.isSplitMode) return {};
 
   const index = terminalStore.splitTabs.indexOf(tabId);
-  if (index === -1) return { display: "none" };
+  if (index === -1 || index >= splitPaneCount.value) {
+    return { display: "none" };
+  }
+
+  if (terminalStore.splitLayout === "dual") {
+    return {
+      gridRow: 1,
+      gridColumn: index + 1,
+    };
+  }
 
   const row = Math.floor(index / 2) + 1;
   const col = (index % 2) + 1;
@@ -435,6 +491,12 @@ const getTabStyle = (tabId: string) => {
 };
 
 const getSplitStyle = (index: number) => {
+  if (terminalStore.splitLayout === "dual") {
+    return {
+      gridRow: 1,
+      gridColumn: index + 1,
+    };
+  }
   const row = Math.floor(index / 2) + 1;
   const col = (index % 2) + 1;
   return {
@@ -448,9 +510,9 @@ const getAvailableTabsForSplit = (currentTabId: string): TerminalTab[] => {
   const terminalTabs = terminalStore.tabs.filter(
     (t) => t.type === "task" || t.type === "shell",
   );
-  const otherSplitTabs = terminalStore.splitTabs.filter(
-    (id) => id && id !== currentTabId,
-  );
+  const otherSplitTabs = terminalStore.splitTabs
+    .slice(0, splitPaneCount.value)
+    .filter((id) => id && id !== currentTabId);
 
   return terminalTabs.filter(
     (tab) => tab.id === currentTabId || !otherSplitTabs.includes(tab.id),
@@ -653,6 +715,8 @@ const formatHistoryTime = (timestamp?: Date): string => {
 
 // Process stats refresh interval
 let statsInterval: ReturnType<typeof setInterval> | null = null;
+// Cleanup for terminal-task-created listener (set in onMounted)
+let unlistenTaskCreated: (() => void) | null = null;
 
 // Refresh process stats for running tabs
 const refreshProcessStats = async () => {
@@ -665,9 +729,9 @@ const refreshProcessStats = async () => {
 onMounted(async () => {
   await terminalStore.initListeners();
 
-  // Listen for terminal-task-created event from MCP
-  const unlistenTaskCreated = await listen("terminal-task-created", (event) => {
-    const payload = event.payload as TerminalTaskCreatedEvent;
+  // Listen for terminal-task-created event (Tauri/MCP; no-op in server mode)
+  unlistenTaskCreated = await appStore.safeListen("terminal-task-created", (event: { payload: TerminalTaskCreatedEvent }) => {
+    const payload = event.payload;
     const { taskId, command, tabId, ptyId } = payload;
     console.log("[ConsoleArea] terminal-task-created event:", event.payload);
 
@@ -725,14 +789,11 @@ onMounted(async () => {
   statsInterval = setInterval(refreshProcessStats, 2000);
   // Initial refresh
   refreshProcessStats();
-
-  // Store cleanup function for task created listener
-  onUnmounted(() => {
-    unlistenTaskCreated();
-  });
 });
 
 onUnmounted(() => {
+  unlistenTaskCreated?.();
+  unlistenTaskCreated = null;
   terminalStore.cleanupListeners();
 
   // Unregister screenshot handler
@@ -1028,6 +1089,9 @@ const onTerminalReady = async (tabId: string) => {
 
   // Start pending task/shell after terminal UI is ready
   const tab = terminalStore.tabs.find((t) => t.id === tabId);
+  if (tab?.restoredScrollback) {
+    tab.restoredScrollback = undefined;
+  }
   if (tab && tab.type === "task" && tab.status === "pending") {
     try {
       await terminalStore.startTask(tabId);
@@ -1351,15 +1415,26 @@ const onTerminalError = (error: string) => {
 /* Split Mode Grid Styles */
 .terminal-wrapper.split-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  /* minmax(0,1fr) lets rows/cols shrink below xterm content min-size (fixes quad overflow) */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1px;
   background-color: var(--n-border-color);
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  align-content: stretch;
+}
+
+.terminal-wrapper.split-grid.split-grid--dual {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .terminal-view-wrapper {
   height: 100%;
   width: 100%;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
   /* Use theme background to cover grid gap */
   background-color: #1e1e1e;
@@ -1371,6 +1446,14 @@ const onTerminalError = (error: string) => {
     box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
+}
+
+/* TerminalView root: fill pane after split tab bar, allow flex shrink */
+.terminal-view-wrapper :deep(.terminal-wrapper) {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  height: auto;
 }
 
 /* Split mode tab bar */
@@ -1493,7 +1576,10 @@ const onTerminalError = (error: string) => {
   align-items: center;
   justify-content: center;
   border: 1px dashed rgba(128, 128, 128, 0.3);
-  margin: 4px;
+  margin: 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;

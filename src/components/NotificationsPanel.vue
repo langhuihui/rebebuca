@@ -22,13 +22,18 @@
       <div v-if="notifications.length === 0" class="empty-notifications">
         {{ t("notifications.empty") }}
       </div>
-      <div v-else ref="notificationsListRef" class="notifications-list">
+      <div v-else class="notifications-list">
         <div
           v-for="notification in notifications"
           :key="notification.id"
           :data-notification-id="notification.id"
           class="notification-item"
           :class="{ unread: !notification.read }"
+          role="button"
+          tabindex="0"
+          @click="openDetail(notification)"
+          @keydown.enter.prevent="openDetail(notification)"
+          @keydown.space.prevent="openDetail(notification)"
         >
           <div class="notification-header">
             <span class="notification-type">{{
@@ -38,81 +43,115 @@
               formatTime(notification.time)
             }}</span>
           </div>
-          <div class="notification-message selectable-text">
+
+          <div
+            v-if="notification.source"
+            class="notification-source"
+          >
+            {{ notification.source }}
+          </div>
+
+          <div class="notification-preview selectable-text">
             {{ notification.message }}
           </div>
         </div>
       </div>
     </n-scrollbar>
+
+    <n-drawer
+      v-model:show="drawerVisible"
+      :width="drawerWidth"
+      placement="right"
+      display-directive="show"
+      :trap-focus="false"
+      :block-scroll="false"
+      @after-leave="onDrawerAfterLeave"
+    >
+      <n-drawer-content
+        v-if="selected"
+        :title="selected.title || selected.type"
+        :native-scrollbar="false"
+        closable
+      >
+        <div class="drawer-meta">
+          <span class="drawer-time">{{ formatTime(selected.time) }}</span>
+          <n-tag
+            v-if="selected.type"
+            size="small"
+            :bordered="false"
+            :type="tagTypeForNotification(selected.type)"
+          >
+            {{ selected.type }}
+          </n-tag>
+          <n-tag
+            v-if="selected.source"
+            size="small"
+            :bordered="false"
+          >
+            {{ selected.source }}
+          </n-tag>
+        </div>
+        <n-scrollbar class="drawer-message-scroll">
+          <pre class="drawer-message selectable-text">{{ selected.message }}</pre>
+        </n-scrollbar>
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
-import { NScrollbar } from "naive-ui";
+import { ref, computed, onMounted, onUnmounted, nextTick, onBeforeUnmount } from "vue";
+import { NScrollbar, NDrawer, NDrawerContent, NTag } from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { useNotificationStore } from "../stores/notification";
+import { useNotificationStore, type Notification, type NotificationType } from "../stores/notification";
 
 const { t } = useI18n();
 const notificationStore = useNotificationStore();
 
-// Notification list ref for Intersection Observer
-const notificationsListRef = ref<HTMLElement | null>(null);
-let notificationObserver: IntersectionObserver | null = null;
+const drawerVisible = ref(false);
+const selected = ref<Notification | null>(null);
+const winWidth = ref(
+  typeof window !== "undefined" ? window.innerWidth : 1024,
+);
 
-// Computed: notifications list for display - use displayNotifications from store
 const notifications = computed(() => notificationStore.displayNotifications);
 
-// Setup Intersection Observer for auto-marking notifications as read
-const setupNotificationObserver = () => {
-  if (notificationObserver) {
-    notificationObserver.disconnect();
-  }
-
-  notificationObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const notificationId = (entry.target as HTMLElement).dataset
-            .notificationId;
-          if (notificationId) {
-            notificationStore.markAsReadInSnapshot(notificationId);
-          }
-        }
-      });
-    },
-    {
-      threshold: 0.5, // 50% visible to mark as read
-    }
-  );
-
-  // Observe all notification items
-  if (notificationsListRef.value) {
-    const items =
-      notificationsListRef.value.querySelectorAll(".notification-item");
-    items.forEach((item) => {
-      notificationObserver?.observe(item);
-    });
-  }
-};
-
-// Cleanup observer
-const cleanupNotificationObserver = () => {
-  if (notificationObserver) {
-    notificationObserver.disconnect();
-    notificationObserver = null;
-  }
-};
-
-// Watch for notifications list changes to re-observe new items
-watch(
-  notifications,
-  async () => {
-    await nextTick();
-    setupNotificationObserver();
-  },
-  { deep: true }
+const drawerWidth = computed(() =>
+  Math.min(520, Math.max(320, winWidth.value - 48)),
 );
+
+function tagTypeForNotification(
+  type: NotificationType,
+): "default" | "info" | "success" | "warning" | "error" {
+  switch (type) {
+    case "error":
+      return "error";
+    case "warning":
+      return "warning";
+    case "update":
+      return "success";
+    case "info":
+      return "info";
+    default:
+      return "default";
+  }
+}
+
+function openDetail(n: Notification) {
+  selected.value = n;
+  drawerVisible.value = true;
+  notificationStore.markAsReadInSnapshot(n.id);
+}
+
+function onDrawerAfterLeave() {
+  selected.value = null;
+}
+
+function syncWindowWidth() {
+  if (typeof window !== "undefined") {
+    winWidth.value = window.innerWidth;
+  }
+}
 
 // Format time for display
 const formatTime = (date: Date): string => {
@@ -126,19 +165,26 @@ const formatTime = (date: Date): string => {
   if (minutes < 60) return `${minutes} ${t("notifications.minutesAgo")}`;
   if (hours < 24) return `${hours} ${t("notifications.hoursAgo")}`;
   if (days < 7) return `${days} ${t("notifications.daysAgo")}`;
-  return date.toLocaleDateString();
+  return date.toLocaleString();
 };
 
 onMounted(async () => {
   notificationStore.openDialog();
   await nextTick();
-  setupNotificationObserver();
+  syncWindowWidth();
+  window.addEventListener("resize", syncWindowWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", syncWindowWidth);
 });
 
 onUnmounted(() => {
-  cleanupNotificationObserver();
+  drawerVisible.value = false;
+  selected.value = null;
   notificationStore.closeDialog();
 });
+
 </script>
 
 <style scoped>
@@ -147,6 +193,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .notifications-scrollbar {
@@ -169,6 +216,11 @@ onUnmounted(() => {
   background-color: var(--n-color-hover, rgba(255, 255, 255, 0.05));
 }
 
+.notification-item:focus-visible {
+  outline: 2px solid var(--n-primary-color);
+  outline-offset: -2px;
+}
+
 .notification-item.unread {
   background-color: var(--n-primary-color-hover, rgba(0, 208, 132, 0.1));
 }
@@ -178,23 +230,41 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+  gap: 8px;
 }
 
 .notification-type {
   font-size: 13px;
   font-weight: 600;
   color: var(--n-text-color, rgba(255, 255, 255, 0.9));
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notification-time {
+  flex-shrink: 0;
   font-size: 11px;
   color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
 }
 
-.notification-message {
+.notification-source {
+  font-size: 11px;
+  color: var(--n-text-color-3, rgba(255, 255, 255, 0.45));
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.notification-preview {
   font-size: 13px;
   color: var(--n-text-color-2, rgba(255, 255, 255, 0.7));
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Allow text selection in notification messages */
@@ -206,11 +276,42 @@ onUnmounted(() => {
   cursor: text;
 }
 
+.notification-preview.selectable-text {
+  cursor: pointer;
+}
+
 .empty-notifications {
   text-align: center;
   padding: 40px;
   color: var(--n-text-color-3, rgba(255, 255, 255, 0.5));
   font-size: 14px;
 }
-</style>
 
+.drawer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.drawer-time {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.drawer-message-scroll {
+  max-height: calc(100vh - 180px);
+}
+
+.drawer-message {
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--n-text-color);
+}
+</style>

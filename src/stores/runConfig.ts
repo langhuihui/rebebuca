@@ -350,9 +350,13 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   };
 
   const addHistory = async (historyItem: Omit<RunHistory, 'id'>) => {
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     const newHistory: RunHistory = {
       ...historyItem,
-      id: Date.now().toString(),
+      id,
     };
     history.value.unshift(newHistory);
     await saveHistory();

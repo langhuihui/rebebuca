@@ -102,19 +102,12 @@ import { useI18n } from 'vue-i18n';
 import { NButton, NIcon, NSpin, NSpace, useMessage } from 'naive-ui';
 import { ChevronDownOutline, LogoGithub, LogoGoogle, MailOutline } from '@vicons/ionicons5';
 import authService from '@/services/authService';
-import { tauriFetch } from '@/utils/tauriFetch';
+import { proxyFetch } from '@/utils/proxyFetch';
 import { useAuthStore } from '@/stores/auth';
-import { isTauri } from '@/adapters';
 import OAuthLoginDialog from './OAuthLoginDialog.vue';
 
-// Helper to open URL (works in both Tauri and browser modes)
 async function openExternalUrl(url: string): Promise<void> {
-  if (isTauri()) {
-    const { openUrl } = await import('@tauri-apps/plugin-opener');
-    await openUrl(url);
-  } else {
-    window.open(url, '_blank');
-  }
+  window.open(url, '_blank');
 }
 
 const { t } = useI18n();
@@ -138,29 +131,13 @@ type OAuthTokensPayload = {
   provider?: string | null;
 };
 
+// Loopback OAuth is only supported in desktop (Tauri) mode
 async function getLoopbackRedirectUrl(): Promise<string> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  return await invoke<string>('start_oauth_callback_server');
+  throw new Error('GitHub/Google login via loopback is not available in web mode. Use Email login.');
 }
 
-async function waitForOAuthTokens(expectedProvider: 'github' | 'google', timeoutMs: number = 2 * 60 * 1000): Promise<OAuthTokensPayload> {
-  const { listen } = await import('@tauri-apps/api/event');
-
-  return await new Promise(async (resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('OAuth timed out'));
-    }, timeoutMs);
-
-    const unlisten = await listen<OAuthTokensPayload>('oauth-tokens-received', (event) => {
-      const payload = event.payload;
-      if (!payload?.accessToken || !payload?.refreshToken) return;
-      if (payload.provider && payload.provider !== expectedProvider) return;
-
-      clearTimeout(timer);
-      unlisten();
-      resolve(payload);
-    });
-  });
+async function waitForOAuthTokens(_expectedProvider: 'github' | 'google', _timeoutMs: number = 2 * 60 * 1000): Promise<OAuthTokensPayload> {
+  return new Promise((_, reject) => reject(new Error('Not available in web mode')));
 }
 
 // Direct OAuth login (opens system browser, receives tokens via loopback callback)
@@ -174,7 +151,7 @@ async function startOAuthLogin(provider: 'github' | 'google') {
     const tokensPromise = waitForOAuthTokens(provider);
 
     // Get provider OAuth URL from server
-    const response = await tauriFetch(`${AUTH_SERVER_URL}/api/auth/tauri/${provider}?redirect=${encodeURIComponent(redirectUrl)}`, {
+    const response = await proxyFetch(`${AUTH_SERVER_URL}/api/auth/tauri/${provider}?redirect=${encodeURIComponent(redirectUrl)}`, {
       method: 'GET',
     });
 

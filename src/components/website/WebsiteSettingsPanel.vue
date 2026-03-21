@@ -16,29 +16,8 @@
               </n-radio>
             </n-radio-group>
           </n-form-item>
-          <n-form-item :label="t('settings.confirmBeforeClose')">
-            <n-switch v-model:value="settings.confirmBeforeClose" @update:value="handleSettingChange" />
-          </n-form-item>
-          <n-form-item :label="t('settings.closeButtonBehavior')">
-            <n-radio-group v-model:value="settings.closeButtonBehavior" @update:value="handleSettingChange">
-              <n-radio value="exit">{{ t("settings.closeButtonExit") }}</n-radio>
-              <n-radio value="hide">{{ t("settings.closeButtonHide") }}</n-radio>
-            </n-radio-group>
-          </n-form-item>
           <n-form-item :label="t('settings.showTaskIcons')">
             <n-switch v-model:value="settings.showTaskIcons" @update:value="handleSettingChange" />
-          </n-form-item>
-          <n-form-item :label="t('settings.recentTasksCount')">
-            <div style="display: flex; align-items: center; gap: 8px">
-              <n-input-number
-                v-model:value="settings.recentTasksCount"
-                :min="0"
-                :max="20"
-                style="width: 120px"
-                @update:value="handleSettingChange"
-              />
-              <span class="setting-hint">{{ t("settings.recentTasksCountHint") }}</span>
-            </div>
           </n-form-item>
           <n-form-item :label="t('settings.preferredTerminal')">
             <div style="display: flex; flex-direction: column; gap: 4px">
@@ -66,12 +45,8 @@
               <span class="setting-hint">{{ t("settings.preferredShellHint") }}</span>
             </div>
           </n-form-item>
-        </n-form>
-      </n-tab-pane>
 
-      <!-- Logs Tab -->
-      <n-tab-pane name="logs" :tab="t('settings.logs')">
-        <n-form label-placement="left" label-width="auto" class="compact-settings-form">
+          <n-divider title-placement="left">{{ t("settings.logs") }}</n-divider>
           <n-form-item :label="t('settings.saveLogs')">
             <n-switch v-model:value="settings.saveLogs" @update:value="handleSettingChange" />
           </n-form-item>
@@ -83,14 +58,6 @@
               style="width: 120px"
               @update:value="handleSettingChange"
             />
-          </n-form-item>
-          <n-form-item :label="t('history.openLogsFolder')">
-            <n-button size="small" @click="handleOpenLogsFolder">
-              <template #icon>
-                <n-icon><folder-open-outline /></n-icon>
-              </template>
-              {{ t("history.openLogsFolder") }}
-            </n-button>
           </n-form-item>
         </n-form>
       </n-tab-pane>
@@ -274,7 +241,7 @@ import {
   NTag,
   useMessage,
 } from "naive-ui";
-import { FolderOpenOutline, SyncOutline, AddOutline } from "@vicons/ionicons5";
+import { SyncOutline, AddOutline } from "@vicons/ionicons5";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -283,10 +250,7 @@ const message = useMessage();
 // Settings state
 const settings = reactive({
   language: "zh-CN",
-  confirmBeforeClose: true,
-  closeButtonBehavior: "exit" as "exit" | "hide",
   showTaskIcons: true,
-  recentTasksCount: 5,
   preferredTerminal: "Terminal.app",
   preferredShell: "/bin/zsh",
   saveLogs: true,
@@ -384,10 +348,6 @@ const currentConfig = computed(() => toolConfigs[activeToolTab.value]);
 // Handlers
 const handleSettingChange = () => {
   message.info(t("website.demo.settingsSaved"));
-};
-
-const handleOpenLogsFolder = () => {
-  message.info(t("website.demo.folderHint"));
 };
 
 const handleAddIcon = () => {

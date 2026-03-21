@@ -6,9 +6,3 @@ declare module "*.vue" {
   export default component;
 }
 
-declare module "@tauri-apps/plugin-notification" {
-  export function sendNotification(options: {
-    title: string;
-    body: string;
-  }): Promise<void>;
-}

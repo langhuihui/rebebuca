@@ -152,7 +152,7 @@ import {
   NColorPicker
 } from 'naive-ui';
 import type { SubtitleFilter, SubtitleStyling } from '../../types/preset';
-import { open } from '@tauri-apps/plugin-dialog';
+import { getAdapter } from '../../../adapters';
 
 interface Props {
   subtitle?: SubtitleFilter;
@@ -328,8 +328,8 @@ const updateStylingProperty = (key: keyof SubtitleStyling, value: any) => {
 
 const selectSubtitleFile = async () => {
   try {
-    const selected = await open({
-      multiple: false,
+    const adapter = await getAdapter();
+    const selected = await adapter.dialog.selectFile({
       filters: [
         {
           name: '字幕文件',

@@ -493,9 +493,12 @@ input, textarea, [contenteditable="true"], .dev-log-viewer, .dev-log-viewer *, p
 }
 
 .main-content {
+  width: 100%;
+  min-width: 0;
   height: calc(100vh - 40px - 24px); /* Title bar (40px) + Status bar (24px) */
   overflow: hidden;
   padding: 0;
+  box-sizing: border-box;
 }
 
 /* Sidebar layout */
@@ -542,6 +545,8 @@ html, body, #app, .n-layout, .n-layout-content {
 
 /* Console area full height */
 .console-area {
+  width: 100%;
+  min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -549,6 +554,7 @@ html, body, #app, .n-layout, .n-layout-content {
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
 }
 
 /* Console tabs full height */
@@ -872,10 +878,13 @@ html, body, #app, .n-layout, .n-layout-content {
 }
 
 .console-content {
+  width: 100%;
+  min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .console-toolbar {

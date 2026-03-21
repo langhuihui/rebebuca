@@ -3,7 +3,7 @@
  * Handles communication with the auth server
  */
 
-import { tauriFetch } from '@/utils/tauriFetch';
+import { proxyFetch } from '@/utils/proxyFetch';
 
 export interface User {
   id: string;
@@ -111,7 +111,7 @@ class AuthService {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
-    const response = await tauriFetch(url, {
+    const response = await proxyFetch(url, {
       ...options,
       headers,
     });
@@ -287,19 +287,7 @@ class AuthService {
    */
   async openAuthPortal(path: string = '/login') {
     const url = `${AUTH_SERVER_URL}${path}`;
-    try {
-      // Check if running in Tauri
-      if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
-        const { openUrl } = await import('@tauri-apps/plugin-opener');
-        await openUrl(url);
-      } else {
-        window.open(url, '_blank');
-      }
-    } catch (error) {
-      console.error('Failed to open URL:', error);
-      // Fallback to window.open
-      window.open(url, '_blank');
-    }
+    window.open(url, '_blank');
   }
 
   /**

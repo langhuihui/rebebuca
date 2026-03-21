@@ -43,11 +43,10 @@ export function useTrayMenu() {
     try {
       adapter = await getAdapter();
       
-      // Only setup tray on Tauri (desktop app)
-      if (!adapter || adapter.type !== 'tauri') {
-        console.log('[TrayMenu] Not running in Tauri, skipping tray menu setup');
-        return;
-      }
+      // Tray was only supported in Tauri (desktop); in Node/server mode there is no system tray
+      if (!adapter) return;
+      initialized = true;
+      isReady.value = true;
       
       initialized = true;
       isReady.value = true;
@@ -61,7 +60,7 @@ export function useTrayMenu() {
    * Update the running processes shown in the tray menu
    */
   async function updateRunningProcesses(processes: RunningProcessInfo[]) {
-    if (!adapter || adapter.type !== 'tauri') return;
+    if (!adapter) return;
     
     try {
       await adapter.tray.updateRunningProcesses(processes);
@@ -75,7 +74,7 @@ export function useTrayMenu() {
    * Update the favorite tasks shown in the tray menu
    */
   async function updateFavorites(favorites: FavoriteTaskInfo[]) {
-    if (!adapter || adapter.type !== 'tauri') return;
+    if (!adapter) return;
     
     try {
       await adapter.tray.updateFavorites(favorites);
@@ -89,7 +88,7 @@ export function useTrayMenu() {
    * Register a callback for when user clicks "Restart" on a running process
    */
   function onRestartProcess(callback: (processId: string) => void): () => void {
-    if (!adapter || adapter.type !== 'tauri') return () => {};
+    if (!adapter) return () => {};
     
     const cleanup = adapter.tray.onRestartProcess(callback);
     cleanupFunctions.push(cleanup);
@@ -100,7 +99,7 @@ export function useTrayMenu() {
    * Register a callback for when user clicks "Stop" on a running process
    */
   function onStopProcess(callback: (processId: string) => void): () => void {
-    if (!adapter || adapter.type !== 'tauri') return () => {};
+    if (!adapter) return () => {};
     
     const cleanup = adapter.tray.onStopProcess(callback);
     cleanupFunctions.push(cleanup);
@@ -111,7 +110,7 @@ export function useTrayMenu() {
    * Register a callback for when user clicks on a favorite task to run it
    */
   function onRunFavorite(callback: (taskId: string) => void): () => void {
-    if (!adapter || adapter.type !== 'tauri') return () => {};
+    if (!adapter) return () => {};
     
     const cleanup = adapter.tray.onRunFavorite(callback);
     cleanupFunctions.push(cleanup);

@@ -208,96 +208,13 @@ type OAuthTokensPayload = {
   provider?: string | null;
 };
 
-// Check if running in Tauri environment
-function isTauri(): boolean {
-  try {
-    if (typeof window !== 'undefined') {
-      if (
-        (window as any).__TAURI__ ||
-        (window as any).__TAURI_INTERNALS__ ||
-        (window as any).__TAURI_METADATA__
-      ) {
-        return true;
-      }
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-// Start OAuth loopback callback server via Tauri command
-async function getLoopbackRedirectUrl(): Promise<string> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  return await invoke<string>('start_oauth_callback_server');
-}
-
-// Wait for OAuth tokens via Tauri event
-async function waitForOAuthTokens(expectedProvider: 'github' | 'google', timeoutMs: number = 2 * 60 * 1000): Promise<OAuthTokensPayload> {
-  const { listen } = await import('@tauri-apps/api/event');
-
-  return new Promise(async (resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(t('user.oauthTimeout')));
-    }, timeoutMs);
-
-    const unlisten = await listen<OAuthTokensPayload>('oauth-tokens-received', (event) => {
-      const payload = event.payload;
-      if (!payload?.accessToken || !payload?.refreshToken) return;
-      if (payload.provider && payload.provider !== expectedProvider) return;
-
-      clearTimeout(timer);
-      unlisten();
-      resolve(payload);
-    });
-  });
-}
-
-// Handle OAuth login (GitHub/Google)
+// Handle OAuth login (GitHub/Google) — web: redirect to OAuth endpoint
 async function handleOAuthLogin(provider: 'github' | 'google') {
   try {
     oauthLoading.value = provider;
-
-    if (isTauri()) {
-      // Tauri: use loopback OAuth flow
-      // 1) Start loopback callback server
-      const redirectUrl = await getLoopbackRedirectUrl();
-
-      // 2) Subscribe to event before opening browser
-      const tokensPromise = waitForOAuthTokens(provider);
-
-      // 3) Get OAuth URL from server
-      const { tauriFetch } = await import('../../src/utils/tauriFetch');
-      const response = await tauriFetch(`${AUTH_SERVER_URL}/api/auth/tauri/${provider}?redirect=${encodeURIComponent(redirectUrl)}`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get OAuth URL');
-      }
-
-      const data = await response.json() as { url: string };
-
-      // 4) Open system browser
-      const { openUrl } = await import('@tauri-apps/plugin-opener');
-      await openUrl(data.url);
-
-      // 5) Wait for loopback callback
-      const tokens = await tokensPromise;
-
-      // 6) Save session and refresh auth state
-      authService.setSession({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
-      await authStore.initialize(true);
-
-      showLoginModal.value = false;
-      message.success(t('user.loginSuccess'));
-    } else {
-      // Web: redirect to OAuth endpoint directly
-      // After OAuth completes, the server will redirect back and set cookies
-      const currentUrl = window.location.href;
-      const oauthUrl = `${AUTH_SERVER_URL}/api/auth/${provider}?redirect=${encodeURIComponent(currentUrl)}`;
-      window.location.href = oauthUrl;
-    }
+    const currentUrl = window.location.href;
+    const oauthUrl = `${AUTH_SERVER_URL}/api/auth/${provider}?redirect=${encodeURIComponent(currentUrl)}`;
+    window.location.href = oauthUrl;
   } catch (err) {
     console.error('OAuth login error:', err);
     message.error(err instanceof Error ? err.message : t('user.loginFailed'));

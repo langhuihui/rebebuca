@@ -24,6 +24,7 @@ import type {
   RecentTaskInfo,
   CreateTerminalParams,
   TerminalInfo,
+  PtySessionInfo,
   TerminalDataEvent,
   TerminalExitEvent,
   DirEntry,
@@ -86,32 +87,63 @@ class WebSocketClient {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private connected = false;
+  /** In-flight connect; prevents overlapping connect() from orphan sockets. */
+  private connectInFlight: Promise<void> | null = null;
+  /** When true, onclose must not schedule reconnect (e.g. adapter.dispose). */
+  private closingIntentionally = false;
 
   constructor(url: string) {
     this.url = url;
   }
 
   async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    if (this.isConnected()) {
+      return;
+    }
+
+    if (this.connectInFlight) {
+      return this.connectInFlight;
+    }
+
+    this.closingIntentionally = false;
+
+    this.connectInFlight = new Promise((resolve, reject) => {
       try {
+        if (this.ws) {
+          const stale = this.ws;
+          stale.onopen = null;
+          stale.onclose = null;
+          stale.onerror = null;
+          stale.onmessage = null;
+          try {
+            stale.close();
+          } catch {
+            // ignore
+          }
+          this.ws = null;
+        }
+
         this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
           console.log('[WebSocket] Connected to', this.url);
           this.connected = true;
           this.reconnectAttempts = 0;
+          this.connectInFlight = null;
           resolve();
         };
 
         this.ws.onclose = (event) => {
           console.log('[WebSocket] Disconnected:', event.code, event.reason);
           this.connected = false;
+          this.connectInFlight = null;
           this.handleDisconnect();
         };
 
         this.ws.onerror = (error) => {
           console.error('[WebSocket] Error:', error);
           if (!this.connected) {
+            this.connectInFlight = null;
             reject(new Error('WebSocket connection failed'));
           }
         };
@@ -120,9 +152,12 @@ class WebSocketClient {
           this.handleMessage(event.data);
         };
       } catch (error) {
+        this.connectInFlight = null;
         reject(error);
       }
     });
+
+    return this.connectInFlight;
   }
 
   private handleMessage(data: string) {
@@ -161,6 +196,10 @@ class WebSocketClient {
       reject(new Error('WebSocket disconnected'));
     });
     this.pendingRequests.clear();
+
+    if (this.closingIntentionally) {
+      return;
+    }
 
     // Attempt reconnection
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -206,8 +245,19 @@ class WebSocketClient {
   }
 
   close() {
+    this.closingIntentionally = true;
+    this.reconnectAttempts = this.maxReconnectAttempts;
+    this.connectInFlight = null;
     if (this.ws) {
-      this.ws.close();
+      try {
+        this.ws.onopen = null;
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.onmessage = null;
+        this.ws.close();
+      } catch {
+        // ignore
+      }
       this.ws = null;
     }
     this.connected = false;
@@ -270,6 +320,14 @@ class ServerTerminalAdapter implements TerminalAdapter {
 
   async getProcessStats(ptyId: string): Promise<PtyProcessStats | null> {
     return this.client.request<PtyProcessStats | null>('terminal.getProcessStats', { ptyId });
+  }
+
+  async listPtySessions(): Promise<PtySessionInfo[]> {
+    return this.client.request<PtySessionInfo[]>('terminal.list', {});
+  }
+
+  async getPtyScrollback(ptyId: string): Promise<string> {
+    return this.client.request<string>('terminal.getScrollback', { ptyId });
   }
 
   onData(callback: (event: TerminalDataEvent) => void): () => void {
@@ -681,7 +739,7 @@ class ServerOrchestrationAdapter implements OrchestrationAdapter {
 // ============================================================================
 
 export class ServerAdapter implements BackendAdapter {
-  readonly type: 'tauri' | 'server' | 'mock' = 'server';
+  readonly type: 'server' | 'mock' = 'server';
 
   private client: WebSocketClient;
   private serverTerminalAdapter: ServerTerminalAdapter | null = null;

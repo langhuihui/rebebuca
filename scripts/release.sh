@@ -1,34 +1,31 @@
 #!/bin/bash
 
-# Rebebuca Release Script
+# Rebebuca Release Script (npm-only)
 # Usage: ./scripts/release.sh <version>
-# Example: ./scripts/release.sh 0.1.5
+# Example: ./scripts/release.sh 0.5.6
+# Pushing tag v* triggers GitHub Actions to build and publish to npm.
 
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Check if version argument is provided
 if [ -z "$1" ]; then
     echo -e "${RED}Error: Version number is required${NC}"
     echo "Usage: $0 <version>"
-    echo "Example: $0 0.1.5"
+    echo "Example: $0 0.5.6"
     exit 1
 fi
 
 VERSION=$1
 
-# Validate version format (x.y.z)
 if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo -e "${RED}Error: Invalid version format. Use x.y.z (e.g., 0.1.5)${NC}"
+    echo -e "${RED}Error: Invalid version format. Use x.y.z (e.g., 0.5.6)${NC}"
     exit 1
 fi
 
-# Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
@@ -36,43 +33,28 @@ cd "$PROJECT_ROOT"
 
 echo -e "${YELLOW}Releasing version ${VERSION}...${NC}"
 
-# Check for uncommitted changes
 if ! git diff --quiet || ! git diff --staged --quiet; then
     echo -e "${RED}Error: You have uncommitted changes. Please commit or stash them first.${NC}"
     exit 1
 fi
 
-# Check if tag already exists
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
     echo -e "${RED}Error: Tag v${VERSION} already exists${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}[1/6]${NC} Updating version in package.json..."
-sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
+echo -e "${GREEN}[1/3]${NC} Updating version in package.json..."
+npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-echo -e "${GREEN}[2/6]${NC} Updating version in src-tauri/tauri.conf.json..."
-sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
-
-echo -e "${GREEN}[3/6]${NC} Updating version in src-tauri/Cargo.toml..."
-sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
-
-echo -e "${GREEN}[4/6]${NC} Updating version in remote-agent-server/Cargo.toml..."
-sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" remote-agent-server/Cargo.toml
-
-echo -e "${GREEN}[5/6]${NC} Committing changes..."
-# Update Cargo.lock by running cargo check
-cd src-tauri && cargo check --quiet 2>/dev/null || true && cd ..
-cd remote-agent-server && cargo check --quiet 2>/dev/null || true && cd ..
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock remote-agent-server/Cargo.toml remote-agent-server/Cargo.lock
+echo -e "${GREEN}[2/3]${NC} Committing changes..."
+git add package.json package-lock.json 2>/dev/null || true
 git commit -m "chore: bump version to ${VERSION}"
 
-echo -e "${GREEN}[6/6]${NC} Creating and pushing tag..."
+echo -e "${GREEN}[3/3]${NC} Creating and pushing tag..."
 git tag -a "v$VERSION" -m "Release v$VERSION"
 git push origin main
 git push origin "v$VERSION"
 
 echo ""
 echo -e "${GREEN}✓ Successfully released version ${VERSION}${NC}"
-echo ""
-echo "Build and release will be created manually."
+echo "GitHub Actions will build and publish to npm on tag v${VERSION}."

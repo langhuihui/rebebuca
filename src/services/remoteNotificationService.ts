@@ -17,7 +17,7 @@
  */
 
 import { getAdapter, type BackendAdapter } from '../adapters';
-import { tauriFetch } from '../utils/tauriFetch';
+import { proxyFetch } from '../utils/proxyFetch';
 
 // R2 notification file URL
 const NOTIFICATION_URL = 'https://download.m7s.live/rb/notification.json';
@@ -72,7 +72,7 @@ const initAdapter = async (): Promise<BackendAdapter | null> => {
  */
 export async function fetchRemoteNotifications(): Promise<RemoteNotification[]> {
   try {
-    const response = await tauriFetch(NOTIFICATION_URL, {
+    const response = await proxyFetch(NOTIFICATION_URL, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',

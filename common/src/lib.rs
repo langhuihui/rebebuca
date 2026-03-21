@@ -1,9 +1,7 @@
 //! Common types and utilities for Rebebuca projects
 //!
 //! This crate provides shared functionality between:
-//! - `remote-agent`: Lightweight agent running on remote machines via SSH
-//! - `remote-agent-server`: WebSocket server for web frontend
-//! - `src-tauri`: Desktop application backend
+//! - `remote-agent`: Lightweight agent running on remote machines via SSH (stdin/stdout executor)
 
 pub mod types;
 

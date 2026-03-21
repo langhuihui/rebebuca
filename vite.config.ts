@@ -18,9 +18,6 @@ const backendType = process.env.VITE_BACKEND || '';
 
 console.log('[Vite Config] VITE_BACKEND:', backendType);
 
-// Check if we should exclude Tauri dependencies (server or mock mode)
-const excludeTauri = backendType === 'server' || backendType === 'mock';
-
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [
@@ -52,14 +49,6 @@ export default defineConfig(async () => ({
     alias: {
       '@': resolve(__dirname, 'src'),
       '@shared': resolve(__dirname, 'shared'),
-      // In server/mock mode, replace Tauri API with stubs to prevent runtime errors
-      ...(excludeTauri ? {
-        '@tauri-apps/api/event': resolve(__dirname, 'src/adapters/tauri-stubs/event.ts'),
-        '@tauri-apps/api/core': resolve(__dirname, 'src/adapters/tauri-stubs/core.ts'),
-        '@tauri-apps/api/window': resolve(__dirname, 'src/adapters/tauri-stubs/window.ts'),
-        '@tauri-apps/api/path': resolve(__dirname, 'src/adapters/tauri-stubs/path.ts'),
-        '@tauri-apps/plugin-shell': resolve(__dirname, 'src/adapters/tauri-stubs/shell.ts'),
-      } : {}),
     },
   },
   
@@ -97,15 +86,16 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
-    // Proxy API requests to backend server in server mode
-    proxy: backendType === 'server' ? {
+    // Proxy API/WS to node-server in dev so /api/proxy and /ws work (backend must be on 3000)
+    proxy: (backendType === 'server' || process.env.NODE_ENV !== 'production') ? {
       '/api': {
-        target: 'http://localhost:8765',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8765',
+        target: 'ws://127.0.0.1:3000',
         ws: true,
+        changeOrigin: true,
       },
     } : undefined,
   },

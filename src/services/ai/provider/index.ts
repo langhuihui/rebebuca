@@ -9,7 +9,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText, streamText, type LanguageModel } from 'ai';
 import type { ProviderConfig, ProviderType, TokenUsage } from '../types';
 import { PROVIDER_CONFIG } from './models';
-import { tauriFetch } from '@/utils/tauriFetch';
+import { proxyFetch } from '@/utils/proxyFetch';
 
 // Message format for chat
 interface ChatMessage {
@@ -184,7 +184,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
           'anthropic-beta': 'interleaved-thinking-2025-05-14,output-128k-2025-02-19',
         } : undefined,
         // Use Tauri HTTP plugin to bypass CORS in Tauri environment
-        fetch: tauriFetch,
+        fetch: proxyFetch,
       });
       return anthropic(model);
     }
@@ -194,7 +194,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
         apiKey,
         baseURL: baseUrl,
         // Use Tauri HTTP plugin to bypass CORS in Tauri environment
-        fetch: tauriFetch,
+        fetch: proxyFetch,
       });
       return openai(model);
     }
@@ -212,7 +212,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
         apiKey: effectiveApiKey,
         baseURL: baseUrl || providerConfig.baseUrl,
         // Use Tauri HTTP plugin to bypass CORS in Tauri environment
-        fetch: tauriFetch,
+        fetch: proxyFetch,
       });
       return openai(model);
     }
@@ -222,7 +222,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
         apiKey,
         baseURL: baseUrl,
         // Use Tauri HTTP plugin to bypass CORS in Tauri environment
-        fetch: tauriFetch,
+        fetch: proxyFetch,
       });
       return google(model);
     }
@@ -272,7 +272,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
         const google = createGoogleGenerativeAI({
           apiKey: apiKey || 'public',
           baseURL: `${normalizedBaseUrl}/models/${model}`,
-          fetch: tauriFetch,
+          fetch: proxyFetch,
         });
         return google(model);
       }
@@ -282,7 +282,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
         const anthropic = createAnthropic({
           apiKey: effectiveApiKey,
           baseURL: normalizedBaseUrl,
-          fetch: tauriFetch,
+          fetch: proxyFetch,
         });
         return anthropic(model);
       }
@@ -291,7 +291,7 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const openai = createOpenAI({
         apiKey: effectiveApiKey,
         baseURL: normalizedBaseUrl,
-        fetch: tauriFetch,
+        fetch: proxyFetch,
       });
 
       // 对于 GPT 模型使用 responses 方法（会自动使用 /responses endpoint）

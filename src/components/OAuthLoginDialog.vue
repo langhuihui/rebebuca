@@ -122,8 +122,7 @@
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import authService from '@/services/authService';
-import { tauriFetch } from '@/utils/tauriFetch';
-import { isTauri } from '@/adapters';
+import { proxyFetch } from '@/utils/proxyFetch';
 import {
   NModal,
   NButton,
@@ -142,14 +141,8 @@ import {
   LogoGoogle,
 } from '@vicons/ionicons5';
 
-// Helper to open URL (works in both Tauri and browser modes)
-async function openUrl(url: string): Promise<void> {
-  if (isTauri()) {
-    const { openUrl: tauriOpenUrl } = await import('@tauri-apps/plugin-opener');
-    await tauriOpenUrl(url);
-  } else {
-    window.open(url, '_blank');
-  }
+function openUrl(url: string): void {
+  window.open(url, '_blank');
 }
 
 const { t } = useI18n();
@@ -192,43 +185,14 @@ type OAuthTokensPayload = {
   provider?: string | null;
 };
 
-async function getLoopbackRedirectUrl(): Promise<string> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  return await invoke<string>('start_oauth_callback_server');
-}
-
-async function waitForOAuthTokens(expectedProvider: 'github' | 'google', timeoutMs: number = 2 * 60 * 1000): Promise<OAuthTokensPayload> {
-  const { listen } = await import('@tauri-apps/api/event');
-
-  return await new Promise(async (resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(t('auth.oauth.timeout')));
-    }, timeoutMs);
-
-    const unlisten = await listen<OAuthTokensPayload>('oauth-tokens-received', (event) => {
-      const payload = event.payload;
-      if (!payload?.accessToken || !payload?.refreshToken) return;
-      if (payload.provider && payload.provider !== expectedProvider) return;
-
-      clearTimeout(timer);
-      unlisten();
-      resolve(payload);
-    });
-  });
-}
-
-// OAuth Login Flow (opens system browser, receives tokens via loopback callback)
+// OAuth Login Flow (opens browser; server/web uses redirect or popup callback)
 async function startOAuthLogin(provider: 'github' | 'google') {
   try {
     loadingProvider.value = provider;
     error.value = null;
 
-    const redirectUrl = await getLoopbackRedirectUrl();
-
-    // Subscribe before opening browser to avoid race
-    const tokensPromise = waitForOAuthTokens(provider);
-
-    const response = await tauriFetch(`${AUTH_SERVER_URL}/api/auth/tauri/${provider}?redirect=${encodeURIComponent(redirectUrl)}`, {
+    const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/` : '';
+    const response = await proxyFetch(`${AUTH_SERVER_URL}/api/auth/web/${provider}?redirect=${encodeURIComponent(redirectUri)}`, {
       method: 'GET',
     });
 
@@ -237,16 +201,9 @@ async function startOAuthLogin(provider: 'github' | 'google') {
     }
 
     const data = await response.json() as { url: string };
-
-    await openUrl(data.url);
-
-    const tokens = await tokensPromise;
-
-    authService.setSession({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
-    emit('login-success');
+    openUrl(data.url);
+    message.info(t('auth.oauth.completeInBrowser'));
     show.value = false;
-
-    message.success(t('auth.oauth.loginSuccess'));
   } catch (err) {
     console.error('OAuth flow error:', err);
     error.value = err instanceof Error ? err.message : t('auth.oauth.failed');

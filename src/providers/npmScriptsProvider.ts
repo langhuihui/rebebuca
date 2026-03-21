@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { getAdapter, isTauri, type FileSystemAdapter } from '../adapters';
+import { getAdapter, type FileSystemAdapter } from '../adapters';
 import { 
   TaskProvider, 
   Task, 
@@ -26,23 +26,12 @@ import {
   PackageJson,
 } from './types';
 
-// Path utilities that work in both Tauri and server modes
-async function pathJoin(...parts: string[]): Promise<string> {
-  if (isTauri()) {
-    const { join } = await import('@tauri-apps/api/path');
-    return join(...parts);
-  }
-  // Simple join for server mode
+function pathJoin(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
 }
 
-async function pathBasename(path: string): Promise<string> {
-  if (isTauri()) {
-    const { basename } = await import('@tauri-apps/api/path');
-    return basename(path);
-  }
-  // Simple basename for server mode
-  const parts = path.replace(/\\/g, '/').split('/');
+function pathBasename(p: string): string {
+  const parts = p.replace(/\\/g, '/').split('/');
   return parts[parts.length - 1] || '';
 }
 
@@ -96,7 +85,7 @@ export class NpmScriptsProvider implements TaskProvider {
   private async scanFolder(folderPath: string): Promise<ScanResult | null> {
     try {
       const fs = await this.getFs();
-      const packageJsonPath = await pathJoin(folderPath, 'package.json');
+      const packageJsonPath = pathJoin(folderPath, 'package.json');
       console.log(`[NpmScriptsProvider] Checking: ${packageJsonPath}`);
       
       const exists = await fs.exists(packageJsonPath);
@@ -166,7 +155,7 @@ export class NpmScriptsProvider implements TaskProvider {
       
       for (const entry of entries) {
         if (entry.isDirectory && entry.name && !skipDirs.has(entry.name) && !entry.name.startsWith('.')) {
-          const subPath = await pathJoin(folderPath, entry.name);
+          const subPath = pathJoin(folderPath, entry.name);
           await this.scanRecursive(subPath, results, depth + 1, maxDepth);
         }
       }
@@ -192,7 +181,7 @@ export class NpmScriptsProvider implements TaskProvider {
       }
       
       const tasks: Task[] = [];
-      const folderName = await pathBasename(folderPath);
+      const folderName = pathBasename(folderPath);
       const packageName = packageJson.name || folderName;
       
       for (const [scriptName, scriptCommand] of Object.entries(packageJson.scripts)) {

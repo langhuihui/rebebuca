@@ -78,20 +78,12 @@ export class TaskProgressDocument {
   private createDefaultFsAdapter(): FileSystemAdapter {
     return {
       async readTextFile(path: string): Promise<string> {
-        if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-          const fs = await import('@tauri-apps/plugin-fs');
-          return fs.readTextFile(path);
-        }
         const response = await fetch(`file://${path}`);
         if (!response.ok) throw new Error(`Failed to read ${path}`);
         return response.text();
       },
-      async writeTextFile(path: string, content: string): Promise<void> {
-        if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-          const fs = await import('@tauri-apps/plugin-fs');
-          return fs.writeTextFile(path, content);
-        }
-        throw new Error('writeTextFile requires Tauri environment');
+      async writeTextFile(_path: string, _content: string): Promise<void> {
+        throw new Error('writeTextFile not available in web mode');
       },
       async readDir(): Promise<DirEntry[]> { return []; },
       async exists(): Promise<boolean> { return false; },

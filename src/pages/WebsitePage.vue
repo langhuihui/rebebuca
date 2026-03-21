@@ -593,7 +593,7 @@
           <!-- Fixed QR Code (Chinese only) -->
           <div v-if="currentLang === 'zh-CN'" class="fixed-qrcode">
             <p class="qrcode-title">{{ t('website.community.qqGroup') }}</p>
-            <img src="/qrcode_qq.jpg" alt="QQ Group" class="qrcode-image" />
+            <img src="/qrcode.jpg" alt="QQ Group" class="qrcode-image" />
           </div>
         </div>
 

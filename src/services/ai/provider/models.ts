@@ -22,9 +22,8 @@ export const kiloLatestVersion = ref('4.151.0');
 export async function updateKiloVersion(): Promise<string> {
   const url = 'https://marketplace.visualstudio.com/items/kilocode.Kilo-Code/changelog';
   try {
-    // 强制使用 tauriFetch，因为它处理 HTML 响应更可靠
-    const { tauriFetch } = await import('@/utils/tauriFetch');
-    const resp = await tauriFetch(url);
+    const { proxyFetch } = await import('@/utils/proxyFetch');
+    const resp = await proxyFetch(url);
     const text = await resp.text();
     
     // 匹配 <h2>4.151.0</h2> 这种格式
@@ -401,19 +400,11 @@ export async function fetchAndRegisterKiloModels(): Promise<ModelInfo[]> {
     // 移除末尾的 /v1 或 /，以获取正确的 models 接口地址
     const url = `${config.baseUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '')}/models`;
     
-    console.log('[Models] Fetching Kilo AI models via Rust:', url);
+    console.log('[Models] Fetching Kilo AI models:', url);
     
-    let data: any;
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      // 使用 Rust 后端请求，彻底解决 CORS 问题
-      data = await invoke('fetch_models', { url });
-    } else {
-      console.log('[Models] Falling back to browser fetch');
-      const response = await fetch(url, { method: 'GET' });
-      if (!response.ok) throw new Error(`Status: ${response.status}`);
-      data = await response.json();
-    }
+    const response = await fetch(url, { method: 'GET' });
+    if (!response.ok) throw new Error(`Status: ${response.status}`);
+    const data = await response.json();
     
     const remoteModels = data.data || [];
 
@@ -506,24 +497,15 @@ export async function fetchModelsFromEndpoint(
   try {
     let data: any;
     
-    // Check if we're in Tauri environment
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      console.log('[fetchModelsFromEndpoint] Fetching models via Rust:', modelsUrl);
-      data = await invoke('fetch_models', { url: modelsUrl, headers });
-    } else {
-      const response = await fetch(modelsUrl, {
-        method: 'GET',
-        headers,
-      });
-      
-      if (!response.ok) {
-        console.warn(`[fetchModelsFromEndpoint] Failed to fetch models: ${response.status} ${response.statusText}`);
-        return [];
-      }
-      
-      data = await response.json();
+    const response = await fetch(modelsUrl, {
+      method: 'GET',
+      headers,
+    });
+    if (!response.ok) {
+      console.warn(`[fetchModelsFromEndpoint] Failed to fetch models: ${response.status} ${response.statusText}`);
+      return [];
     }
+    data = await response.json();
     
     // Handle both Anthropic and OpenAI response formats
     // OpenAI format: { data: [{ id, created, owned_by }] }

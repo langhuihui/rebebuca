@@ -409,6 +409,24 @@
             <component :is="uiStore.miniMode ? svgIcons.layoutOutline : svgIcons.layout" />
           </template>
         </n-button>
+        <n-button
+          v-if="!uiStore.miniMode"
+          text
+          size="small"
+          tag="a"
+          href="https://github.com/langhuihui/rebebuca"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="titlebar-button"
+          title="GitHub"
+          @mousedown.stop
+        >
+          <template #icon>
+            <n-icon size="18">
+              <LogoGithub />
+            </n-icon>
+          </template>
+        </n-button>
       </div>
 
       <!-- Window controls - Windows style on the right (only in desktop mode) -->
@@ -489,11 +507,10 @@ import {
   NModal,
   NScrollbar,
   NTooltip,
-  useDialog,
   NIcon,
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { NotificationsOutline } from "@vicons/ionicons5";
+import { NotificationsOutline, LogoGithub } from "@vicons/ionicons5";
 import { useUIStore } from "../stores/ui";
 import { useTerminalStore } from "../stores/terminal";
 import { useTheme } from "../composables/useTheme";
@@ -510,7 +527,6 @@ import {
   closeWindow,
   startDrag,
 } from "../utils/windowControls";
-import { isTauri } from "../adapters";
 
 // Handle titlebar mousedown for window dragging
 const handleTitlebarMousedown = (event: MouseEvent) => {
@@ -579,11 +595,10 @@ const updaterStore = useUpdaterStore();
 const notificationStore = useNotificationStore();
 void useFeatureFlagsStore();
 void useAuthStore();
-const dialog = useDialog();
 const { setThemeMode } = useTheme();
 
-// Check if running in Tauri (desktop) mode
-const isDesktopMode = isTauri();
+// Desktop (Tauri) mode no longer used; always false
+const isDesktopMode = false;
 
 // Notification dialog state
 const showNotifications = ref(false);
@@ -732,9 +747,9 @@ const openSettingsTab = (tab?: string) => {
   terminalStore.createSettingsTab(tab || "general");
 };
 
-// Open settings to update tab
+// Open settings (update flow merged into General)
 const openSettingsUpdate = () => {
-  terminalStore.createSettingsTab("update");
+  terminalStore.createSettingsTab("general");
 };
 
 // Handle direct update from titlebar
@@ -745,8 +760,7 @@ const handleDirectUpdate = async () => {
     await updaterStore.downloadAndInstall();
   } catch (error) {
     console.error("Update failed:", error);
-    // If update fails, open settings tab to show error
-    terminalStore.createSettingsTab("update");
+    terminalStore.createSettingsTab("general");
   }
 };
 
@@ -790,47 +804,9 @@ const handleThemeSelect = (key: string) => {
   setThemeMode(key as "light" | "dark" | "system");
 };
 
-// Handle close window with setting check
+// Handle close window
 const handleCloseWindow = async () => {
-  const behavior = settingsStore.settings.closeButtonBehavior || "exit";
-  const confirmBeforeClose = settingsStore.settings.confirmBeforeClose;
-
-  // Check if there are running tasks and confirmBeforeClose is enabled
-  if (confirmBeforeClose && terminalStore.runningTabs.length > 0) {
-    dialog.warning({
-      title: t("settings.confirmCloseTitle"),
-      content: t("settings.confirmCloseContent", {
-        count: terminalStore.runningTabs.length,
-      }),
-      positiveText: t("common.confirm"),
-      negativeText: t("common.cancel"),
-      onPositiveClick: async () => {
-        await performClose(behavior);
-      },
-    });
-    return;
-  }
-
-  await performClose(behavior);
-};
-
-// Perform the actual close action
-const performClose = async (behavior: "hide" | "exit") => {
-  if (behavior === "hide") {
-    // Hide window (minimize to tray)
-    try {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      const appWindow = getCurrentWindow();
-      await appWindow.hide();
-    } catch (error) {
-      console.error("Failed to hide window:", error);
-      // Fallback to close
-      await closeWindow();
-    }
-  } else {
-    // Default: exit (close window)
-    await closeWindow();
-  }
+  await closeWindow();
 };
 </script>
 

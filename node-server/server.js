@@ -13,7 +13,8 @@
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createReadStream, existsSync, statSync } from 'fs';
+import { createReadStream, existsSync, statSync, readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { WebSocketServer } from 'ws';
 import { lookup as mimeLookup } from 'mime-types';
 import { randomUUID } from 'crypto';
@@ -27,7 +28,8 @@ import {
   forceKillTerminal,
   isTerminalRunning,
   getTerminalProcessStats,
-  killClientPtys,
+  listRunningPtySessions,
+  getTerminalScrollback,
   terminalEvents,
 } from './handlers/terminal.js';
 
@@ -62,7 +64,18 @@ import {
 
 import { get as storageGet, set as storageSet, del as storageDel, save as storageSave } from './handlers/storage.js';
 
+import {
+  installBackendLogCapture,
+  getServerLogsTail,
+  clearServerLogs,
+  SERVER_LOG_BUFFER_LIMIT,
+} from './internal-log-buffer.js';
+import { createMcpRequestHandler } from './mcp/mcp-http.js';
+import * as mcpTaskStore from './mcp/task-store.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+installBackendLogCapture();
 
 // ============================================================================
 // Static file serving
@@ -163,6 +176,12 @@ async function handleRequest(clientId, request, clientPtyIds) {
         break;
       case 'terminal.getProcessStats':
         result = await getTerminalProcessStats(params.ptyId);
+        break;
+      case 'terminal.list':
+        result = listRunningPtySessions();
+        break;
+      case 'terminal.getScrollback':
+        result = getTerminalScrollback(params.ptyId);
         break;
 
       // ── File System ───────────────────────────────────────────────────────
@@ -282,11 +301,67 @@ async function handleRequest(clientId, request, clientPtyIds) {
         result = null;
         break;
 
-      // ── Updater (no-op) ───────────────────────────────────────────────────
-      case 'updater.checkForUpdates':
-      case 'updater.update':
-        result = null;
+      // ── Updater (npm-based) ───────────────────────────────────────────────
+      case 'updater.checkForUpdates': {
+        const pkgPath = path.resolve(__dirname, '..', 'package.json');
+        let currentVersion = '0.0.0';
+        try {
+          const pkgRaw = await readFile(pkgPath, 'utf-8');
+          const pkg = JSON.parse(pkgRaw);
+          if (pkg && typeof pkg.version === 'string') currentVersion = pkg.version;
+        } catch {
+          // ignore
+        }
+
+        // Query npm registry for latest version
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        let latestVersion = currentVersion;
+        try {
+          const resp = await fetch('https://registry.npmjs.org/rebebuca/latest', {
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && typeof data.version === 'string') latestVersion = data.version;
+          }
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        const available = latestVersion && latestVersion !== currentVersion;
+        result = {
+          available,
+          currentVersion,
+          latestVersion,
+          notes: available
+            ? `Update via npm: npm i -g rebebuca@${latestVersion} (or run npx rebebuca@${latestVersion})`
+            : '',
+        };
         break;
+      }
+      case 'updater.downloadAndInstall': {
+        // We can't self-update like desktop apps; guide users to update via npm in a system terminal.
+        const targetVersion = params?.version;
+        const versionPart = typeof targetVersion === 'string' && targetVersion.trim()
+          ? `@${targetVersion.trim()}`
+          : '@latest';
+        const command = `npm i -g rebebuca${versionPart}`;
+        try {
+          await openInSystemTerminal(command, params?.cwd || process.cwd());
+          result = {
+            success: true,
+            message: 'Opened system terminal to run npm update.',
+          };
+        } catch (e) {
+          result = {
+            success: false,
+            message: e?.message || 'Failed to open system terminal for npm update.',
+          };
+        }
+        break;
+      }
 
       // ── Tray (no-op) ──────────────────────────────────────────────────────
       case 'tray.setIcon':
@@ -316,9 +391,15 @@ async function handleRequest(clientId, request, clientPtyIds) {
  * @param {number}  [options.port=3000]        - Port to listen on
  * @param {string}  [options.host='127.0.0.1'] - Host to bind to
  * @param {string}  [options.staticDir]        - Path to built frontend files
+ * @param {boolean} [options.enableMcp=true]   - Expose MCP routes on this server (/health, /mcp/*)
  * @returns {Promise<http.Server>}
  */
-export async function createServer({ port = 3000, host = '127.0.0.1', staticDir } = {}) {
+export async function createServer({
+  port = 3000,
+  host = '127.0.0.1',
+  staticDir,
+  enableMcp = true,
+} = {}) {
   // Determine where the pre-built frontend lives
   const resolvedStaticDir =
     staticDir || path.resolve(__dirname, '..', 'dist', 'server');
@@ -332,12 +413,142 @@ export async function createServer({ port = 3000, host = '127.0.0.1', staticDir 
 
   const staticHandler = serveStatic(resolvedStaticDir);
 
+  function readPackageVersion() {
+    try {
+      const pkgPath = path.resolve(__dirname, '..', 'package.json');
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+    } catch {
+      return '0.0.0';
+    }
+  }
+
+  const appVersion = readPackageVersion();
+  const tryMcp = enableMcp ? createMcpRequestHandler(appVersion) : null;
+
+  // Proxy GET /api/proxy?url=... to avoid CORS when fetching external JSON (e.g. notification.json)
+  const NOTIFICATION_JSON_HOST = 'download.m7s.live';
+  async function handleBackendLogsApi(req, res) {
+    const parsed = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    if (parsed.pathname !== '/api/logs/backend') return false;
+
+    if (req.method === 'GET') {
+      const limitParam = Number(parsed.searchParams.get('limit') || '500');
+      const limit = Number.isFinite(limitParam) && limitParam > 0
+        ? Math.min(limitParam, SERVER_LOG_BUFFER_LIMIT)
+        : 500;
+      const logs = getServerLogsTail(limit);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ logs }));
+      return true;
+    }
+
+    if (req.method === 'DELETE') {
+      clearServerLogs();
+      res.writeHead(204);
+      res.end();
+      return true;
+    }
+
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
+    return true;
+  }
+
+  /** @type {{ port: number | null }} */
+  const mcpRuntime = { port: null };
+
+  async function handleMcpInfo(req, res) {
+    const parsed = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    if (parsed.pathname !== '/api/mcp/info') return false;
+    if (req.method !== 'GET') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return true;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        mcpPort: mcpRuntime.port,
+        mcpRunning: mcpRuntime.port != null,
+      }),
+    );
+    return true;
+  }
+
+  async function handleMcpSyncTasks(req, res) {
+    const parsed = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    if (parsed.pathname !== '/api/mcp/sync-tasks') return false;
+
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return true;
+    }
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const raw = Buffer.concat(chunks).toString('utf8');
+      const data = JSON.parse(raw || '{}');
+      mcpTaskStore.setSyncedTasks(data.tasks);
+      res.writeHead(204);
+      res.end();
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
+    return true;
+  }
+
+  async function handleProxy(req, res) {
+    if (req.method !== 'GET') return false;
+    const parsed = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    if (parsed.pathname !== '/api/proxy') return false;
+    const targetUrl = parsed.searchParams.get('url');
+    if (!targetUrl) {
+      res.writeHead(400);
+      res.end('Missing url parameter');
+      return true;
+    }
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const proxyRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      // If notification.json is missing on CDN, return empty list so client does not warn
+      const isNotificationUrl =
+        proxyRes.status === 404 &&
+        targetUrl.includes(NOTIFICATION_JSON_HOST) &&
+        targetUrl.includes('notification.json');
+      if (isNotificationUrl) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ notifications: [] }));
+        return true;
+      }
+      res.writeHead(proxyRes.status, {
+        'Content-Type': proxyRes.headers.get('Content-Type') || 'application/json',
+      });
+      const body = await proxyRes.arrayBuffer();
+      res.end(Buffer.from(body));
+    } catch (err) {
+      res.writeHead(502);
+      res.end(JSON.stringify({ error: err.message || 'Proxy failed' }));
+    }
+    return true;
+  }
+
   // Create HTTP server
-  const httpServer = http.createServer((req, res) => {
-    // Allow CORS for local development
+  const httpServer = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Accept, mcp-session-id, mcp-protocol-version',
+    );
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -345,7 +556,15 @@ export async function createServer({ port = 3000, host = '127.0.0.1', staticDir 
       return;
     }
 
-    staticHandler(req, res);
+    let handled =
+      (await handleMcpInfo(req, res)) ||
+      (await handleMcpSyncTasks(req, res)) ||
+      (await handleBackendLogsApi(req, res)) ||
+      (await handleProxy(req, res));
+    if (!handled && tryMcp) {
+      handled = await tryMcp(req, res);
+    }
+    if (!handled) staticHandler(req, res);
   });
 
   // Create WebSocket server (path: /ws)
@@ -391,8 +610,7 @@ export async function createServer({ port = 3000, host = '127.0.0.1', staticDir 
       console.log(`[WS] Client disconnected: ${clientId}`);
       terminalEvents.off('data', onData);
       terminalEvents.off('exit', onExit);
-      // Kill all PTYs owned by this client
-      killClientPtys([...clientPtyIds]);
+      // Keep PTYs running so a browser refresh can reattach via terminal.list + scrollback replay
     });
 
     ws.on('error', (err) => {
@@ -407,6 +625,16 @@ export async function createServer({ port = 3000, host = '127.0.0.1', staticDir 
       else resolve();
     });
   });
+
+  const addr = httpServer.address();
+  const listenPort =
+    typeof addr === 'object' && addr && 'port' in addr ? addr.port : port;
+  if (enableMcp && tryMcp) {
+    mcpRuntime.port = listenPort;
+    console.log(`[MCP] same port as web → /health, /mcp/ai, /mcp/debug/sse`);
+  } else {
+    mcpRuntime.port = null;
+  }
 
   console.log(`\n🚀 Rebebuca is running!`);
   console.log(`   → Local:   http://${host === '127.0.0.1' ? 'localhost' : host}:${port}`);

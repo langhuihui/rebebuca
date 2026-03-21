@@ -1,15 +1,11 @@
-# Rust / Tauri build artifacts
-src-tauri/
+# Rust build artifacts (remote-agent is optional; not shipped in npm)
 common/
-orchestration/
 remote-agent/
-remote-agent-server/
 Cargo.toml
 Cargo.lock
 target/
 
 # Development config files
-.tauri/
 .env*
 !.env.production
 

@@ -18,7 +18,11 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed, shallowRef } from 'vue';
-import { getAdapter, isTauri, type BackendAdapter, type TerminalExitEvent } from '../adapters';
+
+/** Terminal workspace split: single pane, 1×2, or 2×2 grid */
+export type SplitLayoutKind = 'single' | 'dual' | 'quad';
+import { getAdapter, type BackendAdapter, type TerminalExitEvent } from '../adapters';
+import { defaultShellForPlatform } from '../utils/defaultShell';
 
 export type TerminalStatus = 'pending' | 'running' | 'success' | 'error' | 'closed';
 export type TerminalType = 'task' | 'shell' | 'settings' | 'notifications' | 'port-management' | 'room-info' | 'ffmpeg-encoder' | 'mcp-task' | 'agent-task';
@@ -89,6 +93,8 @@ export interface TerminalTab {
   isAgentTask?: boolean; // 是否为 Agent 任务
   agentOutput?: string; // Agent 任务的 JSON 输出（用于可视化）
   agentResult?: any; // Agent 任务的最后结果（从 JSON 中提取）
+  /** Server PTY scrollback replay after page refresh */
+  restoredScrollback?: string;
 }
 
 export const useTerminalStore = defineStore('terminal', () => {
@@ -99,12 +105,16 @@ export const useTerminalStore = defineStore('terminal', () => {
   const activeTabId = ref<string | null>(null);
 
   // Split screen state
-  const isSplitMode = ref(false);
+  const splitLayout = ref<SplitLayoutKind>('single');
+  const isSplitMode = computed(() => splitLayout.value !== 'single');
   const splitTabs = ref<(string | null)[]>([null, null, null, null]);
 
   // Event listeners cleanup function
   let unlistenExit: (() => void) | null = null;
   let unlistenData: (() => void) | null = null;
+
+  /** Serialize initListeners — App + ConsoleArea + stores can mount in parallel. */
+  let listenersInitPromise: Promise<void> | null = null;
 
   // FFmpeg 进度处理
   const ffmpegProgressCache = new Map<string, string[]>(); // ptyId -> 输出行缓存
@@ -189,11 +199,79 @@ export const useTerminalStore = defineStore('terminal', () => {
   ));
   const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value));
 
+  const tryRestorePtySessions = async (adapterInstance: BackendAdapter) => {
+    try {
+      const listFn = adapterInstance.terminal.listPtySessions;
+      const scrollFn = adapterInstance.terminal.getPtyScrollback;
+      if (typeof listFn !== 'function' || typeof scrollFn !== 'function') {
+        return;
+      }
+
+      const sessions = await listFn.call(adapterInstance.terminal);
+      if (!sessions?.length) return;
+
+      const { useTaskManagerStore } = await import('./taskManager');
+      const taskManager = useTaskManagerStore();
+
+      let restoredCount = 0;
+      let lastRestoredTabId: string | null = null;
+      for (const s of sessions) {
+        if (!s.running) continue;
+        if (tabs.value.some(t => t.ptyId === s.ptyId)) continue;
+
+        const meta = s.meta || {};
+        const scrollback = await scrollFn.call(adapterInstance.terminal, s.ptyId);
+        const id = generateId();
+        const tabType = meta.tabType === 'shell' ? 'shell' : 'task';
+
+        const tab: TerminalTab = {
+          id,
+          type: tabType,
+          label: meta.label || s.ptyId,
+          ptyId: s.ptyId,
+          taskId: meta.taskId,
+          historyId: meta.historyId,
+          status: 'running',
+          startTime: Date.now(),
+          command: meta.commandDisplay,
+          pid: s.pid,
+          restoredScrollback: scrollback || undefined,
+        };
+
+        tabs.value.push(tab);
+        restoredCount += 1;
+        lastRestoredTabId = id;
+
+        if (tab.taskId) {
+          taskManager.onTaskStart(tab.taskId, tab.id);
+        }
+      }
+
+      if (restoredCount > 0) {
+        console.log('[Terminal Store] Restored PTY session(s) after reconnect:', restoredCount);
+        if (lastRestoredTabId && !activeTabId.value) {
+          setActiveTab(lastRestoredTabId);
+        }
+      }
+    } catch (e) {
+      console.warn('[Terminal Store] PTY session restore skipped:', e);
+    }
+  };
+
   // Initialize event listeners
   const initListeners = async () => {
     if (unlistenExit) return; // Already initialized
 
-    try {
+    if (listenersInitPromise) {
+      try {
+        await listenersInitPromise;
+      } catch {
+        // Primary initListeners caller already logged / cleaned up
+      }
+      return;
+    }
+
+    listenersInitPromise = (async () => {
       const adapterInstance = await getAdapterInstance();
 
       // Listen for PTY data events to handle auto-input (e.g., SSH password prompts)
@@ -303,13 +381,23 @@ export const useTerminalStore = defineStore('terminal', () => {
           }
         }
       });
+
+      await tryRestorePtySessions(adapterInstance);
+    })();
+
+    try {
+      await listenersInitPromise;
     } catch (error) {
       console.error('[Terminal Store] Failed to init listeners:', error);
+      cleanupListeners();
+    } finally {
+      listenersInitPromise = null;
     }
   };
 
   // Cleanup listeners
   const cleanupListeners = () => {
+    listenersInitPromise = null;
     if (unlistenData) {
       unlistenData();
       unlistenData = null;
@@ -392,39 +480,27 @@ export const useTerminalStore = defineStore('terminal', () => {
     try {
       tab.status = 'running';
 
-      if (isTauri()) {
-        // Create shell PTY in Tauri backend with the client-specified ptyId
-        const { invoke } = await import('@tauri-apps/api/core');
-        const { useSettingsStore } = await import('./settings');
-        const settingsStore = useSettingsStore();
-
-        await invoke('create_pty', {
-          ptyId: tab.ptyId,
-          options: {
-            rows: 24,
-            cols: 80,
-            cwd: undefined,
-            env: undefined,
-            shell: settingsStore.settings.preferredShell || null,
-          },
-        });
-      } else {
-        // Server mode: create a PTY by running an interactive shell command
-        const adapterInstance = await getAdapterInstance();
+      const adapterInstance = await getAdapterInstance();
         const { useSettingsStore } = await import('./settings');
         const settingsStore = useSettingsStore();
         const platform = await adapterInstance.system.getPlatform();
-        const defaultShell = platform === 'windows' ? 'cmd.exe' : '/bin/bash';
-        const shell = settingsStore.settings.preferredShell || defaultShell;
+        const shell = settingsStore.settings.preferredShell || defaultShellForPlatform(platform);
 
+        // Use command "default" so node-server spawns an interactive shell (no -lc one-shot).
+        // Passing the shell path as command made the backend wrap it with -lc and exit immediately.
         const result = await adapterInstance.terminal.create({
           ptyId: tab.ptyId,
-          command: shell,
+          command: 'default',
           args: [],
+          shellPath: shell,
           cwd: undefined,
           env: {},
           rows: 24,
           cols: 80,
+          meta: {
+            label: tab.label,
+            tabType: 'shell',
+          },
         });
 
         // If backend generated a different ptyId, update the tab so listeners match
@@ -435,7 +511,6 @@ export const useTerminalStore = defineStore('terminal', () => {
         if (result?.pid) {
           tab.pid = result.pid;
         }
-      }
 
       console.log('[Terminal Store] Shell started:', tab.ptyId);
     } catch (error) {
@@ -555,12 +630,20 @@ export const useTerminalStore = defineStore('terminal', () => {
 
       const adapterInstance = await getAdapterInstance();
       const result = await adapterInstance.terminal.create({
+        ptyId: tab.ptyId,
         command,
         args,
         cwd,
         env,
         logPath,
         shellPath,
+        meta: {
+          label: tab.label,
+          taskId: tab.taskId,
+          tabType: 'task',
+          historyId: tab.historyId,
+          commandDisplay: tab.command,
+        },
       });
 
       // Update tab with actual ptyId from adapter
@@ -800,10 +883,12 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
 
     if (isSplitMode.value) {
+      const maxSlots = splitLayout.value === 'dual' ? 2 : 4;
+
       // Check if target tab is already visible in a split
       const existingSplitIndex = splitTabs.value.indexOf(tabId);
 
-      if (existingSplitIndex !== -1) {
+      if (existingSplitIndex !== -1 && existingSplitIndex < maxSlots) {
         // Case 1: Tab is already visible in a split
         // Just focus it (set as active)
         activeTabId.value = tabId;
@@ -815,25 +900,33 @@ export const useTerminalStore = defineStore('terminal', () => {
 
         let targetSplitIndex = -1;
 
-        // Priority 1: Check for empty slots
-        const emptySlotIndex = splitTabs.value.indexOf(null);
+        // Priority 1: Check for empty slots (only within current layout)
+        let emptySlotIndex = -1;
+        for (let i = 0; i < maxSlots; i++) {
+          if (splitTabs.value[i] === null) {
+            emptySlotIndex = i;
+            break;
+          }
+        }
         if (emptySlotIndex !== -1) {
           targetSplitIndex = emptySlotIndex;
         } else {
-          // Priority 2: Replace active tab's slot
+          // Priority 2: Replace active tab's slot (within layout slots only)
           const currentActiveTabId = activeTabId.value;
           if (currentActiveTabId) {
-            targetSplitIndex = splitTabs.value.indexOf(currentActiveTabId);
+            const idx = splitTabs.value.indexOf(currentActiveTabId);
+            if (idx !== -1 && idx < maxSlots) {
+              targetSplitIndex = idx;
+            }
           }
 
-          // Priority 3: Fallback to first slot
-          if (targetSplitIndex === -1) {
+          if (targetSplitIndex === -1 || targetSplitIndex >= maxSlots) {
             targetSplitIndex = 0;
           }
         }
 
-        // Replace the tab in the target split
-        const newSplits = [...splitTabs.value];
+        // Place tab in target pane; remove duplicates from other slots first
+        const newSplits = splitTabs.value.map((id) => (id === tabId ? null : id));
         newSplits[targetSplitIndex] = tabId;
         splitTabs.value = newSplits;
 
@@ -1033,39 +1126,84 @@ export const useTerminalStore = defineStore('terminal', () => {
     return tab;
   };
 
-  // Toggle split mode
-  const toggleSplitMode = () => {
-    isSplitMode.value = !isSplitMode.value;
+  const initSplitSlots = (paneCount: 2 | 4) => {
+    const validTabs = tabs.value.filter(t => t.type === 'task' || t.type === 'shell');
+    const newSplits: (string | null)[] = [null, null, null, null];
+    let availableTabs = [...validTabs];
 
-    if (isSplitMode.value) {
-      // Initialize split tabs with valid tabs (task or shell)
+    if (activeTabId.value) {
+      const activeIdx = availableTabs.findIndex(t => t.id === activeTabId.value);
+      if (activeIdx !== -1) {
+        newSplits[0] = activeTabId.value;
+        availableTabs.splice(activeIdx, 1);
+      }
+    }
+
+    for (let i = 0; i < paneCount; i++) {
+      if (newSplits[i] === null && availableTabs.length > 0) {
+        newSplits[i] = availableTabs.shift()!.id;
+      }
+    }
+
+    splitTabs.value = newSplits;
+  };
+
+  const setSplitLayout = (kind: SplitLayoutKind) => {
+    if (kind === 'single') {
+      splitLayout.value = 'single';
+      splitTabs.value = [null, null, null, null];
+      return;
+    }
+
+    if (kind === 'dual') {
+      if (splitLayout.value === 'single') {
+        splitLayout.value = 'dual';
+        initSplitSlots(2);
+      } else if (splitLayout.value === 'quad') {
+        splitLayout.value = 'dual';
+        const ns = [...splitTabs.value];
+        ns[2] = null;
+        ns[3] = null;
+        splitTabs.value = ns;
+      }
+      return;
+    }
+
+    // quad
+    if (splitLayout.value === 'single') {
+      splitLayout.value = 'quad';
+      initSplitSlots(4);
+    } else if (splitLayout.value === 'dual') {
+      splitLayout.value = 'quad';
       const validTabs = tabs.value.filter(t => t.type === 'task' || t.type === 'shell');
-      const newSplits: (string | null)[] = [null, null, null, null];
-      let availableTabs = [...validTabs];
-
-      // If active tab is valid, put it in first slot
-      if (activeTabId.value) {
-        const activeIdx = availableTabs.findIndex(t => t.id === activeTabId.value);
-        if (activeIdx !== -1) {
-          newSplits[0] = activeTabId.value;
-          availableTabs.splice(activeIdx, 1);
+      const used = new Set(
+        [splitTabs.value[0], splitTabs.value[1]].filter(Boolean) as string[],
+      );
+      const available = validTabs.filter(t => !used.has(t.id));
+      const ns = [...splitTabs.value];
+      let alloc = [...available];
+      for (let i = 2; i < 4; i++) {
+        if (ns[i] === null && alloc.length > 0) {
+          ns[i] = alloc.shift()!.id;
         }
       }
+      splitTabs.value = ns;
+    }
+  };
 
-      // Fill remaining slots
-      for (let i = 0; i < 4; i++) {
-        if (newSplits[i] === null && availableTabs.length > 0) {
-          newSplits[i] = availableTabs.shift()!.id;
-        }
-      }
-
-      splitTabs.value = newSplits;
+  // Toggle split mode (single <-> quad; same shortcut / title bar behavior as before)
+  const toggleSplitMode = () => {
+    if (splitLayout.value === 'single') {
+      setSplitLayout('quad');
+    } else {
+      setSplitLayout('single');
     }
   };
 
   // Set a tab to a specific split index
   const setSplitTab = (index: number, tabId: string | null) => {
-    if (index >= 0 && index < 4) {
+    const maxSlots = splitLayout.value === 'dual' ? 2 : 4;
+    if (index >= 0 && index < maxSlots) {
       const newSplits = [...splitTabs.value];
 
       // If tab is already in another split, remove it from there (or swap?)
@@ -1087,6 +1225,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     // State
     tabs,
     activeTabId,
+    splitLayout,
     isSplitMode,
     splitTabs,
 
@@ -1118,6 +1257,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     createPortManagementTab,
     createFFmpegEncoderTab,
     toggleSplitMode,
+    setSplitLayout,
     setSplitTab,
     createRoomInfoTab,
     // Screenshot related

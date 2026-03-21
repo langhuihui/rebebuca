@@ -30,50 +30,28 @@
       @mousedown="handleResizeMouseDown"
     ></div>
     <div class="sidebar-container">
-      <div class="sidebar-search">
-        <n-input
-          v-model:value="searchQuery"
-          size="small"
-          :placeholder="t('task.searchPlaceholder') || 'Search tasks...'"
-          clearable
-        >
-          <template #prefix>
-            <n-icon :component="svgIcons.search" />
-          </template>
-        </n-input>
-      </div>
-
-      <!-- Search Results -->
-      <div v-if="searchQuery" class="task-tree-container">
-        <n-scrollbar>
-          <div class="task-tree">
-            <div v-if="filteredTasks.length === 0" class="empty-state">
-              <p class="empty-text">
-                {{ t("task.noResults") || "No tasks found" }}
-              </p>
-            </div>
-            <template v-else>
-              <TaskNode
-                v-for="task in filteredTasks"
-                :key="`search-${task.id}`"
-                :task="task"
-                :is-running="taskManager.isTaskRunning(task.id)"
-                :is-favorite="taskManager.isFavorite(task.id)"
-                :show-icon="settingsStore.settings.showTaskIcons"
-                :show-edit="true"
-                @click="handleTaskClick"
-                @run="handleTaskRun"
-                @stop="handleTaskStop"
-                @edit="handleTaskEditVisual"
-                @toggle-favorite="handleToggleFavorite"
-              />
+      <div class="sidebar-toolbar">
+        <n-space :size="6" :wrap="true">
+          <n-button size="small" quaternary @click="handleAddFolder">
+            <template #icon>
+              <n-icon size="16">
+                <component :is="svgIcons.folderPlus" />
+              </n-icon>
             </template>
-          </div>
-        </n-scrollbar>
+            {{ t("task.addFolder") }}
+          </n-button>
+          <n-button size="small" quaternary @click="handleAddTask">
+            <template #icon>
+              <n-icon size="16">
+                <component :is="svgIcons.plus" />
+              </n-icon>
+            </template>
+            {{ t("task.addTask") }}
+          </n-button>
+        </n-space>
       </div>
 
-      <!-- Task tree -->
-      <div v-else class="task-tree-container">
+      <div class="task-tree-container">
         <n-scrollbar>
           <!-- Loading state -->
           <div
@@ -93,15 +71,30 @@
               <component :is="svgIcons.task" />
             </n-icon>
             <p class="empty-text">{{ t("task.noTasks") }}</p>
-            <n-button size="small" @click="handleAddFolder">
-              {{ t("task.addFolder") }}
-            </n-button>
+            <n-space :size="8" justify="center">
+              <n-button size="small" @click="handleAddFolder">
+                <template #icon>
+                  <n-icon size="16">
+                    <component :is="svgIcons.folderPlus" />
+                  </n-icon>
+                </template>
+                {{ t("task.addFolder") }}
+              </n-button>
+              <n-button size="small" @click="handleAddTask">
+                <template #icon>
+                  <n-icon size="16">
+                    <component :is="svgIcons.plus" />
+                  </n-icon>
+                </template>
+                {{ t("task.addTask") }}
+              </n-button>
+            </n-space>
           </div>
 
           <!-- Task tree -->
           <div v-else class="task-tree">
             <!-- Recent tasks section -->
-            <template v-if="taskManager.recentTasks.length > 0">
+            <template v-if="showRecentSection">
               <div class="tree-node section-node" @click="toggleNode('recent')">
                 <n-icon size="14" class="tree-icon expand-icon">
                   <component
@@ -149,6 +142,23 @@
                       ? t("task.switchToFrequency")
                       : t("task.switchToTime")
                   }}
+                </n-tooltip>
+                <n-tooltip trigger="hover" placement="top">
+                  <template #trigger>
+                    <n-button
+                      size="tiny"
+                      quaternary
+                      class="sort-toggle-btn recent-count-edit-btn"
+                      @click.stop="openRecentCountModal"
+                    >
+                      <template #icon>
+                        <n-icon size="12">
+                          <component :is="svgIcons.edit" />
+                        </n-icon>
+                      </template>
+                    </n-button>
+                  </template>
+                  {{ t("task.editRecentMaxCount") }}
                 </n-tooltip>
               </div>
 
@@ -619,6 +629,23 @@
           </div>
         </n-scrollbar>
       </div>
+
+      <div class="sidebar-footer">
+        <n-space justify="center" :size="8" :wrap="true" class="sidebar-footer-actions">
+          <n-button size="small" quaternary @click="handleImportTaskGroups">
+            <template #icon>
+              <n-icon size="16"><component :is="svgIcons.import" /></n-icon>
+            </template>
+            {{ t("task.importTasks") }}
+          </n-button>
+          <n-button size="small" quaternary @click="handleExportTaskGroups">
+            <template #icon>
+              <n-icon size="16"><component :is="svgIcons.export" /></n-icon>
+            </template>
+            {{ t("task.exportTasks") }}
+          </n-button>
+        </n-space>
+      </div>
     </div>
   </n-layout-sider>
 
@@ -654,6 +681,37 @@
     :duplicate-task-names="duplicateTaskNames"
     @confirm="handleConfirmImport"
   />
+
+  <n-modal
+    v-model:show="showRecentCountModal"
+    preset="card"
+    :title="t('task.recentMaxCountTitle')"
+    :style="{ width: 'min(400px, 92vw)' }"
+    :mask-closable="false"
+    @after-leave="onRecentCountModalAfterLeave"
+  >
+    <n-form label-placement="top" class="recent-count-form">
+      <n-form-item :label="t('settings.recentTasksCount')">
+        <n-input-number
+          v-model:value="recentCountDraft"
+          :min="0"
+          :max="20"
+          style="width: 140px;"
+        />
+      </n-form-item>
+      <p class="recent-count-hint">{{ t("settings.recentTasksCountHint") }}</p>
+    </n-form>
+    <template #footer>
+      <n-space justify="end">
+        <n-button @click="showRecentCountModal = false">{{
+          t("common.cancel")
+        }}</n-button>
+        <n-button type="primary" @click="applyRecentTasksCount">{{
+          t("common.confirm")
+        }}</n-button>
+      </n-space>
+    </template>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
@@ -665,10 +723,16 @@ import {
   NTooltip,
   NIcon,
   NSpin,
-  NInput,
+  NSpace,
+  NModal,
+  NForm,
+  NFormItem,
+  NInputNumber,
+  useMessage,
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { getAdapter, isTauri } from "../adapters";
+import { saveAs } from "file-saver";
+import { getAdapter } from "../adapters";
 import { useUIStore } from "../stores/ui";
 import { useTaskManagerStore } from "../stores/taskManager";
 import { useSettingsStore } from "../stores/settings";
@@ -692,6 +756,7 @@ import {
 import type { AddFolderFormData } from "./sidebar/dialogs";
 
 const { t } = useI18n();
+const message = useMessage();
 const uiStore = useUIStore();
 const taskManager = useTaskManagerStore();
 const settingsStore = useSettingsStore();
@@ -700,8 +765,36 @@ const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
 const { effectiveTheme } = useTheme();
 
-// Check if running in Tauri (desktop) mode
-const isDesktopMode = isTauri();
+/** Tauri/desktop integrations disabled in web build */
+const isDesktopMode = false;
+
+/** 最近运行：显示数 > 0 时始终显示分组（可预调数量）；为 0 时仅在有运行统计时显示以便恢复 */
+const showRecentSection = computed(() => {
+  const cnt = settingsStore.settings.recentTasksCount ?? 5;
+  if (cnt > 0) return true;
+  return taskManager.recentRunStatsCount > 0;
+});
+
+const showRecentCountModal = ref(false);
+const recentCountDraft = ref(5);
+
+const openRecentCountModal = () => {
+  recentCountDraft.value = settingsStore.settings.recentTasksCount ?? 5;
+  showRecentCountModal.value = true;
+};
+
+const applyRecentTasksCount = async () => {
+  const v = recentCountDraft.value;
+  const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 5;
+  settingsStore.settings.recentTasksCount = Math.max(0, Math.min(20, n));
+  await settingsStore.saveSettings();
+  showRecentCountModal.value = false;
+  message.success(t("common.saveSuccess"));
+};
+
+const onRecentCountModalAfterLeave = () => {
+  recentCountDraft.value = settingsStore.settings.recentTasksCount ?? 5;
+};
 
 const isResizing = ref(false);
 const resizeStartX = ref(0);
@@ -710,24 +803,8 @@ const resizeStartWidth = ref(0);
 const clampSidebarWidth = (width: number) =>
   Math.min(420, Math.max(200, Math.round(width)));
 
-const syncMiniModeWindowWidth = async (width?: number) => {
-  if (!uiStore.miniMode || !isDesktopMode) return;
-  try {
-    const { getCurrentWindow, LogicalSize } =
-      await import("@tauri-apps/api/window");
-    const appWindow = getCurrentWindow();
-    const targetWidth = clampSidebarWidth(width ?? uiStore.sidebarWidth);
-    const scaleFactor = await appWindow.scaleFactor();
-    const currentSize = await appWindow.innerSize();
-    const logicalHeight = Math.max(
-      400,
-      currentSize.height / scaleFactor || 600,
-    );
-    await appWindow.setMinSize(new LogicalSize(targetWidth, 400));
-    await appWindow.setSize(new LogicalSize(targetWidth, logicalHeight));
-  } catch (error) {
-    console.error("[MiniMode] Failed to sync mini width:", error);
-  }
+const syncMiniModeWindowWidth = async (_width?: number) => {
+  if (!uiStore.miniMode) return;
 };
 
 const handleResizeMouseMove = (event: MouseEvent) => {
@@ -756,19 +833,6 @@ const handleResizeMouseDown = (event: MouseEvent) => {
   document.body.style.cursor = "col-resize";
   document.body.style.userSelect = "none";
 };
-
-// Search state
-const searchQuery = ref("");
-const filteredTasks = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase();
-  if (!query) return [];
-
-  return taskManager.combinedTasks.filter(
-    (task) =>
-      task.name.toLowerCase().includes(query) ||
-      (task.command && task.command.toLowerCase().includes(query)),
-  );
-});
 
 // Expanded nodes state
 const expandedNodes = ref<Set<string>>(new Set());
@@ -934,6 +998,76 @@ const getSourceFolderPath = (sourceId: string): string => {
     return parts.slice(1, -1).join(":");
   }
   return "";
+};
+
+const handleExportTaskGroups = async () => {
+  try {
+    const json = await taskManager.exportUserGroups();
+    const adapter = await getAdapter();
+
+    if (adapter.dialog.saveFile) {
+      const filePath = await adapter.dialog.saveFile({
+        title: t("export.title"),
+        defaultPath: t("export.filename"),
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+
+      if (filePath) {
+        await adapter.fs.writeTextFile(filePath, json);
+        message.success(t("export.success"));
+      }
+    } else {
+      const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+      saveAs(blob, t("export.filename"));
+      message.success(t("export.success"));
+    }
+  } catch (error) {
+    console.error("[TaskSidebar] Export failed:", error);
+    message.error(t("export.failed"));
+  }
+};
+
+const handleImportTaskGroups = async () => {
+  try {
+    const adapter = await getAdapter();
+    try {
+      const selected = await adapter.dialog.selectFile({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+
+      if (selected) {
+        const content = await adapter.fs.readTextFile(selected);
+        await taskManager.importUserGroups(content, "merge");
+        message.success(t("import.success"));
+      }
+    } catch {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = async (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const content = ev.target?.result as string;
+          try {
+            await taskManager.importUserGroups(content, "merge");
+            message.success(t("import.success"));
+          } catch (err) {
+            console.error("[TaskSidebar] Import failed:", err);
+            message.error(t("import.failed"));
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+  } catch (error) {
+    console.error("[TaskSidebar] Import failed:", error);
+    message.error(t("import.failed"));
+  }
 };
 
 // Handle add folder
@@ -1417,30 +1551,53 @@ onUnmounted(() => {
 
 <style scoped>
 .sidebar-layout {
-  background-color: #1e1e1e;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-  height: 100vh;
+  background-color: var(--n-color);
+  border-right: 1px solid var(--n-border-color);
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   display: flex !important;
   flex-direction: column !important;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   transition: none !important;
+}
+
+/* Aside slot lives in this container; native mode uses overflow:auto which scrolls the footer away */
+.sidebar-layout :deep(.n-layout-sider-scroll-container) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 :deep(.n-layout-sider) {
   transition: none !important;
 }
 
-.light-theme.sidebar-layout {
-  background-color: #f5f5f5;
-  border-right: 1px solid rgba(0, 0, 0, 0.1);
-}
-
 .sidebar-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
+}
+
+.sidebar-toolbar {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--n-border-color);
+  background: var(--n-color);
 }
 
 .sidebar-resizer {
@@ -1457,20 +1614,7 @@ onUnmounted(() => {
 }
 
 .sidebar-resizer.active {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.light-theme .sidebar-resizer.active {
-  background: rgba(0, 0, 0, 0.15);
-}
-
-.sidebar-search {
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.light-theme .sidebar-search {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--n-primary-color) 18%, transparent);
 }
 
 .task-tree-container {
@@ -1511,7 +1655,7 @@ onUnmounted(() => {
 }
 
 .loading-text {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--n-text-color-3);
   font-size: 13px;
 }
 
@@ -1526,7 +1670,7 @@ onUnmounted(() => {
 }
 
 .empty-text {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--n-text-color-3);
   margin: 0;
 }
 
@@ -1548,7 +1692,7 @@ onUnmounted(() => {
 }
 
 .tree-node:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: color-mix(in srgb, var(--n-text-color-base) 6%, transparent);
 }
 
 .folder-node {
@@ -1600,10 +1744,10 @@ onUnmounted(() => {
 
 .tree-badge {
   font-size: 11px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--n-color-embedded);
   padding: 1px 6px;
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--n-text-color-3);
 }
 
 .section-node {
@@ -1612,7 +1756,7 @@ onUnmounted(() => {
 
 .section-label {
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--n-text-color-1);
 }
 
 .star-icon {
@@ -1635,7 +1779,7 @@ onUnmounted(() => {
 
 .section-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--n-border-color);
   margin: 8px 12px;
 }
 
@@ -1670,35 +1814,15 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-/* Light theme */
-:global(.n-config-provider--light) .tree-node:hover,
-.sidebar-layout.light-theme .tree-node:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+.recent-count-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  line-height: 1.5;
 }
 
-:global(.n-config-provider--light) .loading-text,
-.sidebar-layout.light-theme .loading-text {
-  color: rgba(0, 0, 0, 0.5);
+.recent-count-form :deep(.n-form-item) {
+  margin-bottom: 8px;
 }
 
-:global(.n-config-provider--light) .empty-text,
-.sidebar-layout.light-theme .empty-text {
-  color: rgba(0, 0, 0, 0.5);
-}
-
-:global(.n-config-provider--light) .tree-badge,
-.sidebar-layout.light-theme .tree-badge {
-  background: rgba(0, 0, 0, 0.08);
-  color: rgba(0, 0, 0, 0.6);
-}
-
-:global(.n-config-provider--light) .section-label,
-.sidebar-layout.light-theme .section-label {
-  color: rgba(0, 0, 0, 0.85);
-}
-
-:global(.n-config-provider--light) .section-divider,
-.sidebar-layout.light-theme .section-divider {
-  background: rgba(0, 0, 0, 0.08);
-}
 </style>

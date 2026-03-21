@@ -41,10 +41,6 @@ export interface AppSettings {
   saveLogs: boolean;
   maxLogFiles: number;
   
-  // Behavior settings
-  confirmBeforeClose: boolean;
-  closeButtonBehavior: 'hide' | 'exit';  // 'hide' = minimize to tray, 'exit' = quit app
-  
   // UI settings
   showTaskIcons: boolean;
   recentTasksCount: number;  // Number of recent tasks to show (0 to disable)
@@ -60,16 +56,11 @@ export interface AppSettings {
   // Command icon customization
   // Maps command patterns to icon names, e.g., { "npm": "npm", "go build": "go" }
   commandIcons: Record<string, string>;
-  
-  // MCP settings
-  mcpPort: number;  // MCP server port (default: 3001)
 }
 
 const defaultSettings: AppSettings = {
   saveLogs: true,
   maxLogFiles: 100,
-  confirmBeforeClose: true,
-  closeButtonBehavior: 'exit',
   showTaskIcons: true,
   recentTasksCount: 5,
   preferredTerminal: null,
@@ -77,7 +68,6 @@ const defaultSettings: AppSettings = {
   terminalRenderer: 'webgl',
   sudoPassword: null,
   commandIcons: {},
-  mcpPort: 3001,
 };
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -112,7 +102,10 @@ export const useSettingsStore = defineStore('settings', () => {
       if (adapterInstance) {
         const savedSettings = await adapterInstance.storage.get<AppSettings>('appSettings');
         if (savedSettings) {
-          settings.value = { ...defaultSettings, ...savedSettings };
+          const { mcpPort: _legacyMcpPort, ...rest } = savedSettings as AppSettings & {
+            mcpPort?: number;
+          };
+          settings.value = { ...defaultSettings, ...rest };
           console.log('[Settings] Loaded settings:', settings.value);
         }
       }

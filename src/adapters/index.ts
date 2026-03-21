@@ -23,26 +23,17 @@ declare const __VITE_BACKEND__: string;
 export function detectBackendType(): BackendType {
   // Check compile-time constant first (set via vite.config.ts define)
   const envBackend = typeof __VITE_BACKEND__ !== 'undefined' ? __VITE_BACKEND__ : '';
-  if (envBackend && ['tauri', 'server', 'mock'].includes(envBackend)) {
+  if (envBackend && ['server', 'mock'].includes(envBackend)) {
     return envBackend as BackendType;
   }
-  
-  // Auto-detect based on environment
+
   if (typeof window !== 'undefined') {
-    // Check if running in Tauri
-    if ('__TAURI__' in window || '__TAURI_INTERNALS__' in window) {
-      return 'tauri';
-    }
-    
-    // Check if served from remote-agent-server (has /ws endpoint on same origin)
-    // This is detected by checking if we're not in Tauri and not on a typical dev server port
-    // or if VITE_SERVER_URL is set
     if (import.meta.env?.VITE_SERVER_URL) {
       return 'server';
     }
     
     // Check if the page was served with /ws path available (server mode indicator)
-    // The remote-agent-server serves static files and has /ws endpoint
+    // The node-server (local or remote) serves static files and has /ws endpoint
     const isServerMode = window.location.port === '8765' || 
                          window.location.pathname.startsWith('/app');
     if (isServerMode) {
@@ -65,11 +56,6 @@ export async function createAdapter(type?: BackendType): Promise<BackendAdapter>
   let adapter: BackendAdapter;
   
   switch (backendType) {
-    case 'tauri': {
-      const { createTauriAdapter } = await import('./tauri');
-      adapter = createTauriAdapter();
-      break;
-    }
     case 'server': {
       const { createServerAdapter } = await import('./server');
       adapter = createServerAdapter();
@@ -132,13 +118,6 @@ export async function resetAdapter(): Promise<void> {
     await adapterInstance.dispose();
     adapterInstance = null;
   }
-}
-
-/**
- * Check if running in Tauri environment
- */
-export function isTauri(): boolean {
-  return detectBackendType() === 'tauri';
 }
 
 /**

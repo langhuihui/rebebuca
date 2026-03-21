@@ -851,6 +851,12 @@ watch(() => editingTask.value.executionMode, (newMode, oldMode) => {
 </script>
 
 <style scoped>
+.form-hint {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  line-height: 1.4;
+}
+
 .command-textarea :deep(textarea) {
   font-family: monospace;
   font-size: 13px;

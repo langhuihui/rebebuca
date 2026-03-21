@@ -103,9 +103,10 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { CanvasAddon } from "@xterm/addon-canvas";
 import { SearchAddon } from "@xterm/addon-search";
-import { getAdapter, isTauri, type BackendAdapter } from "../adapters";
+import { getAdapter, type BackendAdapter } from "../adapters";
 import { ShellIntegration, type CommandInfo } from "../utils/shellIntegration";
 import { useSettingsStore } from "../stores/settings";
+import { defaultShellForPlatform } from "../utils/defaultShell";
 import "@xterm/xterm/css/xterm.css";
 
 // Adapter instance
@@ -127,12 +128,15 @@ interface Props {
   attachOnly?: boolean;
   /** Enable shell integration parsing (prompt/cwd/command detection) */
   enableShellIntegration?: boolean;
+  /** Replay server-side scrollback (page refresh recovery) */
+  initialScrollback?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   theme: "dark",
   attachOnly: false,
   enableShellIntegration: false,
+  initialScrollback: undefined,
 });
 
 const emit = defineEmits<{
@@ -382,29 +386,12 @@ const initTerminal = async () => {
     // Only create PTY if not in attach-only mode
     if (!props.attachOnly) {
       // For shell PTY, we need to create a PTY with a shell command
-      if (isTauri()) {
-        // In Tauri mode, use invoke directly
-        const { invoke } = await import("@tauri-apps/api/core");
-        const settingsStore = useSettingsStore();
-        await invoke("create_pty", {
-          ptyId: props.ptyId,
-          options: {
-            rows,
-            cols,
-            cwd: props.cwd,
-            env: props.env,
-            shell: settingsStore.settings.preferredShell || null, // Use preferred shell if set
-          },
-        });
-      } else {
-        // In Server mode, use adapter.terminal.create with a shell command
-        const settingsStore = useSettingsStore();
+      const settingsStore = useSettingsStore();
         const platform = await adapterInstance.system.getPlatform();
-        const defaultShell = platform === "windows" ? "cmd.exe" : "/bin/bash";
-        const shell = settingsStore.settings.preferredShell || defaultShell;
+        const shell = settingsStore.settings.preferredShell || defaultShellForPlatform(platform);
 
         await adapterInstance.terminal.create({
-          ptyId: props.ptyId, // Pass the client-specified ptyId
+          ptyId: props.ptyId,
           command: shell,
           args: [],
           cwd: props.cwd || undefined,
@@ -412,7 +399,6 @@ const initTerminal = async () => {
           rows,
           cols,
         });
-      }
     } else {
       // In attach mode, just resize to fit
       try {
@@ -560,6 +546,10 @@ const initTerminal = async () => {
       pendingOutputBuffer = [];
     }
 
+    if (props.initialScrollback?.length) {
+      terminal.write(props.initialScrollback);
+    }
+
     console.log(
       "[TerminalView] Terminal initialized successfully, buffer length:",
       terminal.buffer.active.length,
@@ -571,8 +561,8 @@ const initTerminal = async () => {
   }
 };
 
-const dispose = async () => {
-  // Reset buffering state
+/** Sync DOM teardown; run before Vue HMR patches this subtree (xterm mutates the container). */
+const disposeSyncResources = (): { shouldKillPty: boolean; ptyId: string } => {
   isTerminalReady = false;
   pendingOutputBuffer = [];
 
@@ -620,40 +610,50 @@ const dispose = async () => {
     shellIntegration = null;
   }
 
+  const shouldKillPty = isInitialized && !props.attachOnly;
+  const ptyId = props.ptyId;
+
   if (terminal) {
     terminal.dispose();
     terminal = null;
   }
 
-  // Only close PTY if we created it (not in attach mode)
-  // Use fire-and-forget pattern to avoid callback issues when component is unmounted
-  if (isInitialized && !props.attachOnly) {
-    const ptyIdToClose = props.ptyId;
-    // Fire and forget - don't await to avoid callback id errors when component is already unmounted
-    (async () => {
-      try {
-        if (isTauri()) {
-          const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("close_pty", { ptyId: ptyIdToClose });
-        } else {
-          // In Server mode, use adapter to kill the PTY
-          const adapterInstance = await getAdapterInstance();
-          await adapterInstance.terminal.kill(ptyIdToClose);
-        }
-      } catch (error) {
-        // Ignore "PTY not found" errors - PTY was already closed
-        const errorMsg = String(error);
-        if (
-          !errorMsg.includes("PTY not found") &&
-          !errorMsg.includes("not found")
-        ) {
-          console.error("Failed to close PTY:", error);
-        }
-      }
-    })();
-  }
   isInitialized = false;
+  return { shouldKillPty, ptyId };
 };
+
+const killPtyFireAndForget = (ptyIdToClose: string) => {
+  (async () => {
+    try {
+      const adapterInstance = await getAdapterInstance();
+      await adapterInstance.terminal.kill(ptyIdToClose);
+    } catch (error) {
+      const errorMsg = String(error);
+      if (
+        !errorMsg.includes("PTY not found") &&
+        !errorMsg.includes("not found")
+      ) {
+        console.error("Failed to close PTY:", error);
+      }
+    }
+  })();
+};
+
+const dispose = async () => {
+  const { shouldKillPty, ptyId } = disposeSyncResources();
+  if (shouldKillPty) {
+    killPtyFireAndForget(ptyId);
+  }
+};
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    const { shouldKillPty, ptyId } = disposeSyncResources();
+    if (shouldKillPty) {
+      killPtyFireAndForget(ptyId);
+    }
+  });
+}
 
 // Watch for theme changes
 watch(
@@ -1100,71 +1100,8 @@ const writePathsToPty = async (paths: string[]) => {
   }
 };
 
-// Setup Tauri drag-drop event listener
 const setupDragDropListener = async () => {
-  if (!isTauri()) {
-    // In non-Tauri environment, skip drag-drop setup
-    return;
-  }
-
-  try {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    const { TauriEvent } = await import("@tauri-apps/api/event");
-    const appWindow = getCurrentWindow();
-
-    // Listen for drag enter
-    const unlistenEnter = await appWindow.listen<{
-      paths: string[];
-      position: { x: number; y: number };
-    }>(TauriEvent.DRAG_ENTER, (event) => {
-      if (
-        terminalContainer.value &&
-        isDropOverElement(event.payload.position)
-      ) {
-        isDragOver.value = true;
-      }
-    });
-
-    // Listen for drag over (to update position)
-    const unlistenOver = await appWindow.listen<{
-      paths: string[];
-      position: { x: number; y: number };
-    }>(TauriEvent.DRAG_OVER, (event) => {
-      if (terminalContainer.value) {
-        isDragOver.value = isDropOverElement(event.payload.position);
-      }
-    });
-
-    // Listen for drag leave
-    const unlistenLeave = await appWindow.listen(TauriEvent.DRAG_LEAVE, () => {
-      isDragOver.value = false;
-    });
-
-    // Listen for actual drop
-    const unlistenDrop = await appWindow.listen<{
-      paths: string[];
-      position: { x: number; y: number };
-    }>(TauriEvent.DRAG_DROP, async (event) => {
-      isDragOver.value = false;
-
-      if (
-        terminalContainer.value &&
-        isDropOverElement(event.payload.position)
-      ) {
-        await writePathsToPty(event.payload.paths);
-      }
-    });
-
-    // Store cleanup function
-    unlistenDragDrop = () => {
-      unlistenEnter();
-      unlistenOver();
-      unlistenLeave();
-      unlistenDrop();
-    };
-  } catch (error) {
-    console.warn("Failed to setup drag-drop listener:", error);
-  }
+  // Drag-drop was Tauri-only
 };
 
 // Check if the drop position is over this terminal element
@@ -1332,31 +1269,7 @@ defineExpose({
 // Setup early listener in onBeforeMount to catch output before terminal is ready
 onBeforeMount(async () => {
   try {
-    // In Tauri mode, use native event listener for better performance
-    // In Server mode, use adapter's onData which is set up in initTerminal
-    if (isTauri()) {
-      const { listen } = await import("@tauri-apps/api/event");
-      const unlisten = await listen<{ pty_id: string; data: string }>(
-        "pty-output",
-        (e) => {
-          if (e.payload.pty_id === props.ptyId) {
-            if (isTerminalReady && terminal) {
-              let data = e.payload.data;
-              if (shellIntegration) {
-                data = shellIntegration.processData(data);
-              }
-              terminal.write(data);
-            } else {
-              // Buffer output until terminal is ready
-              pendingOutputBuffer.push(e.payload.data);
-            }
-          }
-        },
-      );
-      unlistenOutput = unlisten;
-    } else {
-      // In Server mode, set up early listener via adapter
-      const adapterInstance = await getAdapterInstance();
+    const adapterInstance = await getAdapterInstance();
       const unlisten = adapterInstance.terminal.onData((event) => {
         if (event.ptyId === props.ptyId) {
           if (isTerminalReady && terminal) {
@@ -1371,8 +1284,7 @@ onBeforeMount(async () => {
           }
         }
       });
-      unlistenOutput = unlisten;
-    }
+    unlistenOutput = unlisten;
   } catch (err) {
     console.error("[TerminalView] Failed to setup early listener:", err);
   }
@@ -1426,16 +1338,9 @@ watch(
         terminal?.buffer.active.length,
       );
 
-      // Force close old PTY (even in attach mode)
       try {
-        if (isTauri()) {
-          const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("close_pty", { ptyId: oldPtyId });
-        } else {
-          // In Server mode, use adapter to kill the PTY
-          const adapterInstance = await getAdapterInstance();
-          await adapterInstance.terminal.kill(oldPtyId);
-        }
+        const adapterInstance = await getAdapterInstance();
+        await adapterInstance.terminal.kill(oldPtyId);
         console.log("[TerminalView] Closed old PTY:", oldPtyId);
       } catch (error) {
         // Ignore "PTY not found" errors - PTY was already closed

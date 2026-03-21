@@ -10,7 +10,6 @@ import { editTool } from './edit';
 import { bashTool } from './bash';
 import { globTool } from './glob';
 import { grepTool } from './grep';
-import { debugTool } from './debug';
 
 // Re-export types
 export * from './types';
@@ -23,7 +22,6 @@ const ALL_TOOLS: Tool[] = [
   bashTool,
   globTool,
   grepTool,
-  debugTool,
 ];
 
 // Tool ID to Tool mapping
@@ -105,4 +103,3 @@ export { editTool } from './edit';
 export { bashTool } from './bash';
 export { globTool } from './glob';
 export { grepTool } from './grep';
-export { debugTool } from './debug';

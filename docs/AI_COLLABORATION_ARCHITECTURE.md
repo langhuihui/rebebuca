@@ -8,7 +8,7 @@ Rebebuca 的 AI 协作功能采用**多层架构**设计，实现了直接与 LL
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     前端 UI (Vue 3 + Pinia)                 │
+│                     前端 UI (Vue 3 + Pinia / Nuxt)           │
 │  AICollabPanelNative.vue / DualAgentPanel.vue              │
 └────────────────────────────┬────────────────────────────────┘
                              │
@@ -18,8 +18,8 @@ Rebebuca 的 AI 协作功能采用**多层架构**设计，实现了直接与 LL
 └────────────────────────────┬────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────┐
-│               Tauri 后端 (Rust) + MCP 服务器                 │
-│  mcp_http_server.rs - 提供调试工具和资源订阅                 │
+│               Node 后端 (node-server) + WebSocket API        │
+│  静态资源 + /ws，本地或远程部署同一套 node-server            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -60,24 +60,20 @@ Rebebuca 的 AI 协作功能采用**多层架构**设计，实现了直接与 LL
 │       ├── AIToolsPanel.vue      # AI 工具设置面板
 │       └── MCPPanel.vue          # MCP 配置面板
 │
-├── src-tauri/src/                # Rust 后端 (Tauri)
-│   ├── mcp_http_server.rs        # MCP HTTP/SSE 服务器实现
-│   └── mcp_server.rs             # MCP 服务管理 (已废弃)
+├── app/                          # Nuxt 3 应用 (静态构建输出到 dist/server)
+│   └── pages/                    # 页面路由
 │
-├── remote-agent/                 # 远程 Agent (Rust 独立可执行文件)
+├── node-server/                  # Node 后端 (本地/远程通用)
+│   ├── server.js                 # HTTP + WebSocket API
+│   └── handlers/                 # 终端/文件系统/存储等
+│
+├── remote-agent/                 # 轻量级远程执行器 (Rust，可选)
 │   └── src/main.rs               # 通过 stdin/stdout 执行命令
 │
-├── remote-agent-server/          # 远程 Agent 服务器 (Rust)
-│   └── src/
-│       ├── main.rs               # WebSocket API 服务器
-│       ├── adapters/             # 终端/文件系统/存储适配器
-│       ├── handlers/             # HTTP/WebSocket 处理器
-│       └── auth/                 # 认证中间件
-│
-├── common/                       # 共享 Rust 库
+├── common/                       # 共享 Rust 库 (供 remote-agent 使用)
 │   └── src/types.rs              # AgentMessage 等共享类型
 │
-└── server/                       # Web 服务端 (Next.js)
+└── server/                       # Web 服务端 (Next.js，独立项目)
     └── app/api/                  # API 路由
 ```
 
@@ -145,56 +141,19 @@ Rebebuca 的 AI 协作功能采用**多层架构**设计，实现了直接与 LL
 
 ## MCP (Model Context Protocol) 实现
 
-### MCP HTTP 服务器 (`src-tauri/src/mcp_http_server.rs`)
+MCP 相关配置与工具仍通过 `mcp-server-config.json` 等配置，与前端/Node 后端协作。
 
-**功能**: 在 Tauri 应用内运行的 MCP 服务器，支持 HTTP + SSE
+## 远程与本地运行
 
-**提供的工具**:
-- `get_frontend_logs`: 获取前端控制台日志
-- `get_dom_tree`: 获取 DOM 树结构
-- `get_task_list`: 获取任务列表
-- `execute_task`: 执行指定任务
+- **本地**: `npx rebebuca` 启动 node-server，提供静态 UI 与 WebSocket API。
+- **远程**: 将同一套 node-server + `dist/server` 部署到远程机器即可，前端连接该地址的 `/ws`，无需单独的 Rust 服务端。
+- **Remote Agent** (`remote-agent/`): 可选轻量级 Rust 可执行文件，通过 SSH 部署到远程执行命令，用作轻量代理执行器。
 
-**资源订阅**:
-- `log://rebebuca/frontend`: 前端日志资源
-- `debug://rebebuca/dom`: DOM 树资源
-
-### MCP 配置 (`mcp-server-config.json`)
-
-```json
-{
-  "mcpServers": {
-    "rebebuca-debug": {
-      "url": "http://127.0.0.1:3001/mcp/sse",
-      "description": "Rebebuca Debug MCP Server"
-    }
-  }
-}
-```
-
-## Remote Agent 系统
-
-### Remote Agent (`remote-agent/`)
-
-**用途**: 轻量级 Rust 可执行文件，通过 SSH 部署到远程服务器执行命令
-
-**通信协议** (`AgentMessage`):
+**Remote Agent 通信协议** (`AgentMessage`):
 - `Execute`: 执行命令请求
 - `Output`: 命令输出 (stdout/stderr)
-- `ProcessStarted`: 进程启动通知
-- `ProcessFinished`: 进程结束通知
-- `Ping/Pong`: 心跳检测
-- `GetVersion/Version`: 版本查询
-
-### Remote Agent Server (`remote-agent-server/`)
-
-**用途**: WebSocket API 服务器，为 Web 前端提供远程终端和文件管理功能
-
-**适配器**:
-- `TerminalAdapter`: 终端管理
-- `FileSystemAdapter`: 文件系统操作
-- `SystemAdapter`: 系统信息
-- `StorageAdapter`: 数据存储
+- `ProcessStarted` / `ProcessFinished`: 进程生命周期
+- `Ping/Pong`, `GetVersion/Version`: 心跳与版本查询
 
 ## 前端 UI 组件
 
@@ -219,4 +178,3 @@ Rebebuca 的 AI 协作功能采用**多层架构**设计，实现了直接与 LL
 |------|------|
 | `mcp-server-config.json` | MCP 服务器配置 |
 | `mcp-config-example.json` | MCP 配置示例 |
-| `remote-agent-server/config.example.toml` | Remote Server 配置示例 |

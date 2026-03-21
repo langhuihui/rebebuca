@@ -11,7 +11,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-OUTPUT_DIR="../src-tauri"
+# Output binaries under remote-agent/output (no longer copied to src-tauri)
+OUTPUT_DIR="./output"
+mkdir -p "$OUTPUT_DIR"
 
 echo "Building remote agent for multiple architectures..."
 

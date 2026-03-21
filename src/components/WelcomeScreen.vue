@@ -32,53 +32,12 @@
       <p class="welcome-description">
         {{ t("welcome.description") }}
       </p>
-      <div class="welcome-features">
-        <div class="feature-card">
-          <h3 class="feature-title">
-            {{ t("welcome.quickStart.title") }}
-          </h3>
-          <p class="feature-description">
-            {{ t("welcome.quickStart.description") }}
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3 class="feature-title">
-            {{ t("welcome.efficientExecution.title") }}
-          </h3>
-          <p class="feature-description">
-            {{ t("welcome.efficientExecution.description") }}
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3 class="feature-title">
-            {{ t("welcome.configManagement.title") }}
-          </h3>
-          <p class="feature-description">
-            {{ t("welcome.configManagement.description") }}
-          </p>
-        </div>
-        <div class="feature-card">
-          <h3 class="feature-title">
-            {{ t("welcome.history.title") }}
-          </h3>
-          <p class="feature-description">
-            {{ t("welcome.history.description") }}
-          </p>
-        </div>
-      </div>
 
-      <!-- Community Links -->
-      <div class="community-links">
-        <template v-if="currentLocale === 'zh-CN'">
-          <a href="https://qm.qq.com/q/sSa1VAMzqa" target="_blank" class="community-link qq-link">
-            {{ t('welcome.community.qqGroup') }}
-          </a>
-        </template>
-        <template v-else>
-          <a href="https://discord.gg/wnEwmNBD" target="_blank" class="community-link discord-link">
-            {{ t('welcome.community.discord') }}
-          </a>
-        </template>
+      <!-- Discord; zh-CN shows QQ QR in bottom-right corner -->
+      <div v-if="currentLocale !== 'zh-CN'" class="community-links">
+        <a href="https://discord.gg/wnEwmNBD" target="_blank" class="community-link discord-link">
+          {{ t('welcome.community.discord') }}
+        </a>
       </div>
       
       <!-- Actions slot for additional buttons -->
@@ -148,6 +107,21 @@
         </n-collapse>
       </div>
     </div>
+
+    <div
+      v-if="currentLocale === 'zh-CN'"
+      class="welcome-qrcode-corner"
+      aria-label="QQ group"
+    >
+      <p class="welcome-qrcode-corner-title">{{ t('welcome.community.qqGroup') }}</p>
+      <img
+        src="/qrcode.jpg"
+        alt=""
+        class="welcome-qrcode-corner-img"
+        width="200"
+        height="200"
+      />
+    </div>
   </div>
 </template>
 
@@ -200,6 +174,7 @@ const formatReleaseBody = (body: string): string => {
 
 <style scoped>
 .welcome-screen-container {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -207,6 +182,7 @@ const formatReleaseBody = (body: string): string => {
   width: 100%;
   overflow-y: auto;
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .welcome-screen {
@@ -234,42 +210,7 @@ const formatReleaseBody = (body: string): string => {
 .welcome-description {
   font-size: 16px;
   color: var(--n-text-color-3);
-  margin-bottom: 40px;
-}
-
-.welcome-features {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 40px;
-  text-align: left;
-}
-
-.feature-card {
-  padding: 20px;
-  background: var(--n-card-color);
-  border-radius: 8px;
-  border: 1px solid var(--n-border-color);
-  transition: all 0.3s ease;
-}
-
-.feature-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: var(--n-primary-color);
-}
-
-.feature-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--n-text-color-1);
-}
-
-.feature-description {
-  font-size: 14px;
-  color: var(--n-text-color-3);
-  line-height: 1.5;
+  margin-bottom: 32px;
 }
 
 .welcome-actions {
@@ -279,12 +220,39 @@ const formatReleaseBody = (body: string): string => {
   margin-bottom: 30px;
 }
 
-/* Community Links */
+/* Community */
 .community-links {
   display: flex;
   justify-content: center;
   gap: 16px;
   margin-bottom: 30px;
+}
+
+.welcome-qrcode-corner {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.welcome-qrcode-corner-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--n-text-color-2);
+  line-height: 1.3;
+}
+
+.welcome-qrcode-corner-img {
+  display: block;
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--n-border-color);
+  background: var(--n-color-embedded);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .community-link {
@@ -297,16 +265,6 @@ const formatReleaseBody = (body: string): string => {
   font-weight: 500;
   text-decoration: none;
   transition: all 0.3s ease;
-}
-
-.qq-link {
-  background: linear-gradient(135deg, #12b7f5 0%, #0099ff 100%);
-  color: white;
-}
-
-.qq-link:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(18, 183, 245, 0.4);
 }
 
 .discord-link {

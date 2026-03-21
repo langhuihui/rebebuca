@@ -129,74 +129,42 @@ npm run build:server-app
 
 ```
 rebebuca/
-├── src/                      # Vue frontend code
-│   ├── App.vue              # Main application component
-│   ├── main.ts              # Application entry point
+├── app/                      # Nuxt 3 app (UI)
+│   └── pages/
+├── src/                      # Shared Vue/TS (used by app)
 │   ├── components/          # Vue components
-│   │   └── RunConfigDialog.vue
 │   └── stores/              # Pinia state management
-│       └── runConfig.ts
-├── src-tauri/               # Tauri backend code
-│   ├── src/
-│   │   ├── main.rs         # Rust main program
-│   │   └── lib.rs          # Library code
-│   ├── tauri.conf.json     # Tauri configuration
-│   └── Cargo.toml          # Rust dependency configuration
+├── node-server/              # Node.js HTTP + WebSocket server
+│   ├── server.js
+│   └── handlers/
+├── bin/rebebuca.js          # CLI entry (npx rebebuca)
+├── dist/server/             # Built static UI (from Nuxt generate)
 ├── public/                  # Static assets
-├── index.html              # HTML template
-├── vite.config.ts          # Vite configuration
-├── tsconfig.json           # TypeScript configuration
-└── package.json            # Project dependencies
+└── package.json             # Project dependencies
 ```
 
 ## 🔨 Building
 
-### Development Mode
+### Development
 ```bash
-# Start development server (with hot reload)
-pnpm tauri:dev
+# Frontend dev (Vite) + backend runs separately
+pnpm dev:server
 ```
 
-### Local Production Build
+### Production build (for npm / npx rebebuca)
 ```bash
-# Build production version
-pnpm tauri build
+pnpm run build:server-app
 ```
+This runs Nuxt static build and outputs to `dist/server`. The Node server serves from that directory.
 
-Build artifacts are located in the `src-tauri/target/release/bundle/` directory.
+### Release & publish to npm
 
-### GitHub Actions Automated Builds
-
-The project is configured with GitHub Actions workflows that automatically build for the following platforms:
-
-- **macOS**: Universal Binary (supports both Intel and Apple Silicon)
-  - Generates `.app` and `.dmg` files
-- **Windows**: x64 executables
-  - Generates `.exe` (NSIS installer) and `.msi` installer
-
-#### Triggering Builds
-
-1. **Push to main branch**: Automatically builds all platforms
-2. **Create version tag**: Creating a tag in `v*` format (e.g., `v0.1.0`) will automatically build and create a GitHub Release
+Push a version tag to trigger GitHub Actions to build and publish:
 
 ```bash
-# Release a new version
-git tag v0.1.0
-git push origin main
-git push origin v0.1.0
+./scripts/release.sh 0.5.6   # bumps version, commits, creates v0.5.6, pushes
 ```
-
-3. **Manual trigger**: Run builds manually from the GitHub Actions page
-
-After the build completes, you can download artifacts from the Actions page or from the Releases page for published versions.
-
-For detailed information, see [.github/workflows/README.md](.github/workflows/README.md).
-
-### Platform-specific Builds
-
-- **macOS**: Generates `.app` and `.dmg` files
-- **Windows**: Generates `.exe` and `.msi` installer
-- **Linux**: Generates `.AppImage` and `.deb` packages (requires local build)
+CI runs `build:server-app` then `pnpm publish`. Ensure `NPM_TOKEN` is set in repo secrets.
 
 ## 🤝 Contributing
 
@@ -215,8 +183,6 @@ Contributions are welcome! Please follow these steps:
 - [VS Code](https://code.visualstudio.com/) 
 - Extensions:
   - [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
-  - [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-  - [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
   - [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin)
 
 ### Code Standards
@@ -232,8 +198,8 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## 🙏 Acknowledgments
 
-- [Tauri](https://tauri.app/) - Excellent desktop application framework
 - [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
+- [Nuxt](https://nuxt.com/) - Vue-based static/build setup
 - [Naive UI](https://www.naiveui.com/) - Beautiful Vue 3 component library
 - [Vite](https://vitejs.dev/) - Fast frontend build tool
 

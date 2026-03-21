@@ -285,6 +285,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   // Recent tasks sort mode: 'time' (most recent first) or 'frequency' (most frequent first)
   const recentSortMode = ref<'time' | 'frequency'>('time');
 
+  /** Exposed for UI (e.g. sidebar) when recent list is empty but stats exist */
+  const recentRunStatsCount = computed(() => taskRunStats.value.size);
+
   // ============================================
   // Computed
   // ============================================
@@ -2086,7 +2089,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     }
 
     // Build the full command string
-    const fullCommand = task.args && task.args.length > 0
+    let fullCommand = task.args && task.args.length > 0
       ? `${task.command} ${task.args.join(' ')}`
       : task.command;
 
@@ -2226,6 +2229,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     favoriteTaskIds,
     runningTasks,
     recentSortMode,
+    recentRunStatsCount,
 
     // Computed
     tasksBySource,
