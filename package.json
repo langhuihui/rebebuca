@@ -1,6 +1,6 @@
 {
   "name": "rebebuca",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Run Configuration Management Tool — launch via npx rebebuca",
   "license": "GPL-3.0",
   "repository": {
@@ -20,6 +20,7 @@
     "node": ">=18.11.0"
   },
   "scripts": {
+    "prepublishOnly": "node scripts/verify-npm-dist.mjs",
     "dev": "concurrently -n backend,server -c blue,green \"pnpm run dev:backend\" \"pnpm run dev:server\"",
     "dev:web": "VITE_BACKEND=mock vite --port 6173",
     "dev:backend": "node --watch bin/rebebuca.js --port 3000 --no-open",

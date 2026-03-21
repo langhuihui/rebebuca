@@ -2,9 +2,11 @@
 .env*
 !.env.production
 
-# Build artifacts not needed for npm
-dist/
-!dist/server
+# Build artifacts not needed for npm.
+# Do not use "dist/" alone: once the parent is ignored, "!dist/server" cannot re-include it.
+dist/*
+!dist/server/
+!dist/server/**
 
 # Source files (compiled assets are in dist/server)
 src/
