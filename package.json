@@ -1,6 +1,6 @@
 {
   "name": "rebebuca",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Run Configuration Management Tool — launch via npx rebebuca",
   "license": "GPL-3.0",
   "type": "module",
@@ -27,7 +27,7 @@
     "build:server-app": "pnpm run build:nuxt && node scripts/copy-server-static.mjs",
     "build:vite-server": "VITE_BACKEND=server VITE_BUILD_TARGET=server vue-tsc --noEmit && vite build",
     "build:nuxt": "nuxi generate",
-    "build:website": "VITE_BACKEND=mock vue-tsc --noEmit && vite build --config vite.website.config.ts && mv dist/website/website.html dist/website/index.html",
+    "build:website": "VITE_BACKEND=mock vue-tsc --noEmit -p tsconfig.website.json && vite build --config vite.website.config.ts && mv dist/website/website.html dist/website/index.html",
     "preview": "vite preview",
     "start": "node bin/rebebuca.js",
     "release": "./scripts/release.sh",

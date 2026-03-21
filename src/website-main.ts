@@ -1,27 +1,10 @@
 /**
- * Rebebuca Website Entry Point
- * 
- * This is the entry point for the website. It uses the mock backend adapter
- * and renders the WebsitePage component which embeds the app demo.
+ * Rebebuca marketing site entry — lightweight landing (no app demo bundle).
  */
 
 import { createApp } from 'vue';
-import { createPinia } from 'pinia';
-import WebsitePage from './pages/WebsitePage.vue';
-import i18n from './locales';
+import WebsiteLanding from './pages/WebsiteLanding.vue';
 
-// Force mock backend for website
 (window as any).__VITE_BACKEND__ = 'mock';
 
-const app = createApp(WebsitePage);
-const pinia = createPinia();
-
-app.use(pinia);
-app.use(i18n);
-
-// Initialize auth store
-import { useAuthStore } from './stores/auth';
-const authStore = useAuthStore(pinia);
-authStore.initialize();
-
-app.mount('#app');
+createApp(WebsiteLanding).mount('#app');
