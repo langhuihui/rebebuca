@@ -448,14 +448,21 @@ export async function createServer({
   staticDir,
   enableMcp = true,
 } = {}) {
-  // Determine where the pre-built frontend lives
+  // Pre-built Nuxt UI for npx lives in web-public/ (npm "files"). Legacy: dist/server (Vite server build).
   const resolvedStaticDir =
-    staticDir || path.resolve(__dirname, '..', 'dist', 'server');
+    staticDir ||
+    (() => {
+      const webPublic = path.resolve(__dirname, '..', 'web-public');
+      const legacy = path.resolve(__dirname, '..', 'dist', 'server');
+      if (existsSync(path.join(webPublic, 'index.html'))) return webPublic;
+      if (existsSync(path.join(legacy, 'index.html'))) return legacy;
+      return webPublic;
+    })();
 
   if (!existsSync(resolvedStaticDir)) {
     console.warn(
       `[Server] Static directory not found: ${resolvedStaticDir}\n` +
-        '         Run "npm run build:server-app" first to build the frontend.',
+        '         Run "pnpm run build:server-app" first to build the frontend (outputs web-public/).',
     );
   }
 

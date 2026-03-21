@@ -14,13 +14,14 @@
   "files": [
     "bin",
     "node-server",
-    "dist/server"
+    "web-public"
   ],
   "engines": {
     "node": ">=18.11.0"
   },
   "scripts": {
     "prepublishOnly": "node scripts/verify-npm-dist.mjs",
+    "prepack": "node scripts/verify-npm-dist.mjs",
     "dev": "concurrently -n backend,server -c blue,green \"pnpm run dev:backend\" \"pnpm run dev:server\"",
     "dev:web": "VITE_BACKEND=mock vite --port 6173",
     "dev:backend": "node --watch bin/rebebuca.js --port 3000 --no-open",

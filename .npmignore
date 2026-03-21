@@ -2,13 +2,9 @@
 .env*
 !.env.production
 
-# Build artifacts not needed for npm.
-# Do not use "dist/" alone: once the parent is ignored, "!dist/server" cannot re-include it.
-dist/*
-!dist/server/
-!dist/server/**
+# Build artifacts: only paths listed in package.json "files" are packed; dist/ is not shipped.
 
-# Source files (compiled assets are in dist/server)
+# Source files (built UI is in web-public/)
 src/
 
 # Test / dev files

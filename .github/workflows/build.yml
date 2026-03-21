@@ -49,6 +49,17 @@ jobs:
       - name: Build for server (Nuxt static)
         run: pnpm run build:server-app
 
+      - name: Verify npm tarball includes static UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f web-public/index.html
+          timeout 180 npm pack --dry-run 2>&1 | tee /tmp/npm-pack.txt
+          grep -q 'web-public/index.html' /tmp/npm-pack.txt || {
+            echo 'npm pack output is missing web-public; refusing to publish.'
+            exit 1
+          }
+
       # pnpm publish delegates to npm CLI; ensure npm meets OIDC trusted publishing minimum.
       - name: Upgrade npm for OIDC publish
         run: timeout 120 npm install -g npm@latest

@@ -59,7 +59,7 @@ export default defineConfig(async () => ({
     // Web app build: outputs to dist/web  
     outDir: 'dist/web',
   } : isServerAppBuild ? {
-    // Server-mode build: outputs to dist/server (for npx rebebuca)
+    // Server-mode Vite build (legacy); npx UI is Nuxt → web-public via build:server-app.
     outDir: 'dist/server',
   } : {
     // Tauri app build: outputs to dist
