@@ -1,10 +1,3 @@
-# Rust build artifacts (remote-agent is optional; not shipped in npm)
-common/
-remote-agent/
-Cargo.toml
-Cargo.lock
-target/
-
 # Development config files
 .env*
 !.env.production

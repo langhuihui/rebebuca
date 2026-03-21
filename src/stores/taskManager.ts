@@ -37,7 +37,6 @@ import { useSettingsStore } from './settings';
 import { useNotificationStore } from './notification';
 import { checkNeedsAdmin, executeWithAdmin, stripSudoPrefix, buildFullCommand } from '../utils/admin';
 import { useSshStore } from './ssh';
-import { safeInvoke } from '../utils/programUtils';
 import { syncTasksToMCP, initMCPTaskListener } from '../services/mcp/taskSync';
 
 /**
@@ -1981,9 +1980,12 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       // Execute via SSH using config ID
       console.log(`[TaskManager] SSH task.sshConfigId: ${task.sshConfigId}, task:`, task);
       console.log(`[TaskManager] SSH command: "${command}", args:`, args, 'cwd:', cwd, 'env:', env);
-      const execId = await safeInvoke<string>('execute_ssh_command_by_id', {
+      const adapterInstance = await getAdapter();
+      if (!adapterInstance.ssh) {
+        throw new Error('SSH is not available. Start Rebebuca with the Node server (e.g. npx rebebuca).');
+      }
+      const execId = await adapterInstance.ssh.executeByConfigId({
         configId: task.sshConfigId,
-        taskId: task.id,
         command,
         args: args.length > 0 ? args : undefined,
         cwd,

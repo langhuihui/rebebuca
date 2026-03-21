@@ -10,6 +10,7 @@ export function useSettingsHeaderTabs() {
     const tabs: { name: string; label: string }[] = [
       { name: "general", label: t("settings.general") },
       { name: "icons", label: t("settings.commandIcons") },
+      { name: "backendlog", label: t("settings.backendLogs") },
       { name: "aitools", label: t("settings.aiTools") },
     ];
     if (featureFlagsStore.flags.ssh) {

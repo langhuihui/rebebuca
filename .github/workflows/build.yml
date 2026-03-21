@@ -1,3 +1,5 @@
+# Publishes via npm Trusted Publishing (OIDC). Configure on npmjs.com with workflow file: build.yml
+# Requires Node >= 22.14 and npm CLI >= 11.5.1 (see https://docs.npmjs.com/trusted-publishers).
 name: Build and Publish to npm
 
 on:
@@ -20,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install pnpm
@@ -47,7 +49,9 @@ jobs:
       - name: Build for server (Nuxt static)
         run: pnpm run build:server-app
 
-      - name: Publish to npm
-        run: pnpm publish --no-git-checks --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # pnpm publish delegates to npm CLI; ensure npm meets OIDC trusted publishing minimum.
+      - name: Upgrade npm for OIDC publish
+        run: timeout 120 npm install -g npm@latest
+
+      - name: Publish to npm (Trusted Publisher / OIDC)
+        run: npm publish --access public

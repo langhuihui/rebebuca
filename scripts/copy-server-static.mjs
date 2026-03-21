@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const src = path.join(root, '.output', 'public');
+const publicDir = path.join(root, 'public');
 const dest = path.join(root, 'dist', 'server');
 
 if (!fs.existsSync(src)) {
@@ -24,6 +25,11 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rebebuca-server-'));
 const staging = path.join(tmpDir, 'out');
 try {
   fs.cpSync(src, staging, { recursive: true, dereference: true });
+  // Nuxt static output omits root-level public/ files referenced as /logo.svg, /qrcode.jpg, etc.
+  // Without them, the Node static handler falls through to index.html and images break.
+  if (fs.existsSync(publicDir)) {
+    fs.cpSync(publicDir, staging, { recursive: true, dereference: true });
+  }
   fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
   fs.rmSync(dest, { recursive: true, force: true });
   fs.cpSync(staging, dest, { recursive: true, dereference: true });

@@ -1,19 +1,20 @@
 # Terminal Selection Architecture
 
+> **Scope:** Describes “open this task in an external system terminal” preferences. The main in-app terminal is **node-pty** on the machine running **node-server** (WebSocket `terminal.*`). This document is not about SSH remote tasks (`node-server/handlers/ssh.js`).
+
 ## System Architecture
 
 The terminal selection feature consists of several layers:
 
 ### 1. Frontend Layer (Vue/TypeScript)
 - **Settings Dialog**: UI for terminal selection
-- **Settings Store**: Persists user preference
+- **Settings Store**: Persists user preference (via backend **storage** adapter)
 - **Task Manager**: Uses preference when opening terminals
-- **Adapter Layer**: Abstracts platform differences
+- **Adapter Layer**: Abstracts platform differences (`server` / `mock`)
 
-### 2. Backend Layer (Rust/Tauri)
-- **Terminal Detection**: Scans system for installed terminals
-- **Terminal Launcher**: Opens commands in selected terminal
-- **Platform Handlers**: macOS, Windows, Linux specific logic
+### 2. Backend Layer (Node server over WebSocket)
+- **Terminal detection**: `system.getAvailableTerminals` → `node-server/handlers/system.js` (scans the **host where node-server runs**)
+- **Launch external terminal**: `system.openInSpecificTerminal` / `openInSystemTerminal` — implemented on that host; from a **browser-only** client, the server adapter may no-op or only work when the browser user is on the same machine as the server
 
 ### 3. Operating System Layer
 - Actual terminal applications (Terminal.app, PowerShell, etc.)
@@ -23,16 +24,16 @@ The terminal selection feature consists of several layers:
 
 ### Backend Components
 
-#### get_available_terminals() Command
+#### get_available_terminals (WebSocket `system.getAvailableTerminals`)
 Detects installed terminals on the system:
 - **macOS**: Checks /Applications and /System for common terminals
 - **Windows**: Checks Program Files and PATH for terminals
 - **Linux**: Uses 'which' to find terminals in PATH
 
-Returns a list of TerminalInfo structs with:
+Returns a list of terminal records with:
 - id, name, path, available status, default flag
 
-#### open_in_specific_terminal() Command
+#### open_in_specific_terminal (WebSocket `system.openInSpecificTerminal`)
 Launches a command in a specific terminal:
 - Takes terminal ID, command, and optional working directory
 - Uses platform-specific methods to launch
@@ -42,7 +43,7 @@ Launches a command in a specific terminal:
 
 #### Settings Store
 - Stores preferredTerminal setting
-- Persists to disk using tauri-plugin-store
+- Persists via the active backend **storage** adapter (e.g. server `~/.rebebuca/store.json`)
 - Accessed by task execution logic
 
 #### Settings Dialog

@@ -528,11 +528,17 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       // Check if SSH execution is enabled
       if (config.useSsh && config.sshConfig) {
         console.log('[FRONTEND] Executing command via SSH');
-        
-        // Execute via SSH
-        const execId = await safeInvoke<string>('execute_ssh_command', {
-          config: config.sshConfig,
-          taskId: config.id,
+
+        const adapterForSsh = await getAdapterInstance();
+        if (!adapterForSsh.ssh) {
+          throw new Error('SSH is not available. Use the Rebebuca Node server (npx rebebuca).');
+        }
+
+        const execId = await adapterForSsh.ssh.executeInline({
+          config: {
+            ...config.sshConfig,
+            keepConnection: false,
+          } as Record<string, unknown>,
           command: config.command,
           args: config.arguments,
           cwd: config.workingDirectory,
@@ -578,13 +584,11 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       if (settingsStore.settings.saveLogs) {
         try {
           // Generate log path with config id, pid will be 0 initially
-          const logInfo = await safeInvoke<{ log_filename: string; log_path: string }>('generate_log_path', {
-            taskId: config.id,
-            pid: null,
-          });
+          const adapterForLog = await getAdapterInstance();
+          const logInfo = await adapterForLog.system.generateLogPath(config.id, 0);
           if (logInfo) {
-            logPath = logInfo.log_path;
-            logFilename = logInfo.log_filename;
+            logPath = logInfo.logPath;
+            logFilename = logInfo.logFilename;
             console.log('[FRONTEND] Generated log path:', logPath);
           }
           
@@ -696,7 +700,8 @@ export const useRunConfigStore = defineStore('runConfig', () => {
       // PTY-based task - close the PTY
       try {
         console.log(`[STORE] Closing PTY: ${historyItem.ptyId}`);
-        await safeInvoke('close_pty', { ptyId: historyItem.ptyId });
+        const adapterForClose = await getAdapterInstance();
+        await adapterForClose.terminal.kill(historyItem.ptyId);
         
         // Also close the terminal tab
         if (historyItem.terminalTabId) {

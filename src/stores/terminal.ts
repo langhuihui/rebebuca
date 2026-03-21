@@ -746,7 +746,11 @@ export const useTerminalStore = defineStore('terminal', () => {
     if (tab.status === 'running' && (tab.type === 'task' || tab.type === 'shell')) {
       try {
         const adapterInstance = await getAdapterInstance();
-        await adapterInstance.terminal.kill(tab.ptyId);
+        if (tab.sshExecId && adapterInstance.ssh) {
+          await adapterInstance.ssh.killExecution(tab.sshExecId);
+        } else {
+          await adapterInstance.terminal.kill(tab.ptyId);
+        }
       } catch (error) {
         // Ignore "PTY not found" errors - PTY was already closed
         const errorMsg = String(error);
@@ -795,10 +799,18 @@ export const useTerminalStore = defineStore('terminal', () => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab || (tab.type !== 'task' && tab.type !== 'shell') || tab.status !== 'running') return;
 
-    // SSH tasks don't have a local PTY to kill
-    if (tab.sshConfigId) {
-      console.log('[Terminal Store] SSH task stopped (no PTY to kill):', tab.sshExecId);
-      tab.status = 'success'; // SSH tasks that are stopped are considered successful
+    // SSH remote exec: stop stream on the server
+    if (tab.sshConfigId && tab.sshExecId) {
+      console.log('[Terminal Store] Stopping SSH exec:', tab.sshExecId);
+      try {
+        const adapterInstance = await getAdapterInstance();
+        if (adapterInstance.ssh) {
+          await adapterInstance.ssh.killExecution(tab.sshExecId);
+        }
+      } catch (e) {
+        console.warn('[Terminal Store] SSH killExecution failed:', e);
+      }
+      tab.status = 'success';
       return;
     }
 

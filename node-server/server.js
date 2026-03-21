@@ -65,8 +65,21 @@ import {
 import { get as storageGet, set as storageSet, del as storageDel, save as storageSave } from './handlers/storage.js';
 
 import {
+  poolConnect as sshPoolConnect,
+  poolDisconnect as sshPoolDisconnect,
+  executeByConfigId as sshExecuteByConfigId,
+  executeInline as sshExecuteInline,
+  killExecution as sshKillExecution,
+  testWithConfig as sshTestWithConfig,
+  probeConfigId as sshProbeConfigId,
+  listDirectory as sshListDirectory,
+  getHomeDirectory as sshGetHomeDirectory,
+  getRemoteShells as sshGetRemoteShells,
+} from './handlers/ssh.js';
+
+import {
   installBackendLogCapture,
-  getServerLogsTail,
+  getServerLogsTailAsTextLines,
   clearServerLogs,
   SERVER_LOG_BUFFER_LIMIT,
 } from './internal-log-buffer.js';
@@ -282,6 +295,41 @@ async function handleRequest(clientId, request, clientPtyIds) {
         result = null;
         break;
 
+      // ── SSH (remote exec on the machine running this server) ─────────────
+      case 'ssh.poolConnect':
+        await sshPoolConnect(params.configId);
+        result = null;
+        break;
+      case 'ssh.poolDisconnect':
+        sshPoolDisconnect(params.configId);
+        result = null;
+        break;
+      case 'ssh.executeByConfigId':
+        result = sshExecuteByConfigId(params);
+        break;
+      case 'ssh.executeInline':
+        result = sshExecuteInline(params);
+        break;
+      case 'ssh.killExecution':
+        sshKillExecution(params.execId);
+        result = null;
+        break;
+      case 'ssh.testWithConfig':
+        result = await sshTestWithConfig(params.config);
+        break;
+      case 'ssh.probeConfigId':
+        result = await sshProbeConfigId(params.configId);
+        break;
+      case 'ssh.listDirectory':
+        result = await sshListDirectory(params.configId, params.path);
+        break;
+      case 'ssh.getHomeDirectory':
+        result = await sshGetHomeDirectory(params.configId);
+        break;
+      case 'ssh.getRemoteShells':
+        result = await sshGetRemoteShells(params.configId);
+        break;
+
       // ── Window (no-ops in web mode) ───────────────────────────────────────
       case 'window.minimize':
       case 'window.maximize':
@@ -437,7 +485,7 @@ export async function createServer({
       const limit = Number.isFinite(limitParam) && limitParam > 0
         ? Math.min(limitParam, SERVER_LOG_BUFFER_LIMIT)
         : 500;
-      const logs = getServerLogsTail(limit);
+      const logs = getServerLogsTailAsTextLines(limit);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ logs }));
       return true;

@@ -14,6 +14,7 @@ declare module 'vue' {
     AddFolderDialog: typeof import('./src/components/sidebar/dialogs/AddFolderDialog.vue')['default']
     AgentTaskView: typeof import('./src/components/AgentTaskView.vue')['default']
     AIToolsPanel: typeof import('./src/components/settings/AIToolsPanel.vue')['default']
+    BackendLogViewer: typeof import('./src/components/BackendLogViewer.vue')['default']
     CommandIconSettings: typeof import('./src/components/CommandIconSettings.vue')['default']
     CommandPlazaDialog: typeof import('./src/components/sidebar/dialogs/CommandPlazaDialog.vue')['default']
     ConsoleArea: typeof import('./src/components/ConsoleArea.vue')['default']

@@ -458,6 +458,7 @@ export default {
     clearSudoPassword: 'Clear Password',
     refresh: 'Refresh',
     commandIcons: 'Command Icons',
+    backendLogs: 'Backend logs',
     searchIcons: 'Search icons...',
     commandPlaceholder: 'Enter command (e.g., npm, cargo)',
     commandIconHelp: 'Customize icons for commands. Commands are matched by prefix.',
@@ -512,6 +513,19 @@ export default {
     mcpCopySuccess: 'Configuration copied to clipboard',
     mcpCopyFailed: 'Failed to copy configuration',
     mcpSamePortNote: 'MCP uses the same host and port as this web UI. Launch with --no-mcp to disable.',
+  },
+  backendLog: {
+    refresh: 'Refresh',
+    export: 'Export',
+    clear: 'Clear',
+    autoScrollOn: 'Auto Scroll: On',
+    autoScrollOff: 'Auto Scroll: Off',
+    unavailable:
+      'Backend logs are only available when connected to the Rebebuca Node server (e.g. built-in server or VITE_SERVER_URL).',
+    empty: 'No backend logs yet (output appears after the server runs).',
+    fetchFailed: 'Failed to fetch backend logs',
+    cleared: 'Backend logs cleared',
+    clearFailed: 'Failed to clear backend logs',
   },
   notifications: {
     title: 'Notifications',

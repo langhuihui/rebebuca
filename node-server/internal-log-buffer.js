@@ -46,6 +46,17 @@ export function getServerLogsTail(limit = 500) {
   return serverLogs.slice(-n);
 }
 
+/**
+ * One human-readable line per buffered entry (for HTTP UI and plain-text consumers).
+ */
+export function getServerLogsTailAsTextLines(limit = 500) {
+  return getServerLogsTail(limit).map((e) => {
+    const lvl = String(e.level ?? 'info').toUpperCase();
+    const src = e.source ?? 'backend';
+    return `[${e.timestamp}] [${lvl}] [${src}] ${e.message}`;
+  });
+}
+
 export function clearServerLogs() {
   serverLogs.length = 0;
 }

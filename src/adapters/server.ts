@@ -47,6 +47,9 @@ import type {
   OrchestrationErrorEvent,
   OrchestrationUsageEvent,
   BoulderStateInfo,
+  SshAdapter,
+  SshExecuteByConfigIdParams,
+  SshExecuteInlineParams,
 } from './types';
 
 // ============================================================================
@@ -429,8 +432,7 @@ class ServerSystemAdapter implements SystemAdapter {
   }
 
   async getAvailableTerminals(): Promise<SystemTerminalInfo[]> {
-    // Not applicable for server mode
-    return [];
+    return this.client.request<SystemTerminalInfo[]>('system.getAvailableTerminals');
   }
 
   async getAvailableShells(): Promise<ShellInfo[]> {
@@ -735,6 +737,59 @@ class ServerOrchestrationAdapter implements OrchestrationAdapter {
 }
 
 // ============================================================================
+// Server SSH Adapter
+// ============================================================================
+
+class ServerSshAdapter implements SshAdapter {
+  constructor(private client: WebSocketClient) {}
+
+  async poolConnect(configId: string): Promise<void> {
+    await this.client.request('ssh.poolConnect', { configId });
+  }
+
+  async poolDisconnect(configId: string): Promise<void> {
+    await this.client.request('ssh.poolDisconnect', { configId });
+  }
+
+  async executeByConfigId(params: SshExecuteByConfigIdParams): Promise<string> {
+    return this.client.request<string>('ssh.executeByConfigId', params);
+  }
+
+  async executeInline(params: SshExecuteInlineParams): Promise<string> {
+    return this.client.request<string>('ssh.executeInline', params);
+  }
+
+  async killExecution(execId: string): Promise<void> {
+    await this.client.request('ssh.killExecution', { execId });
+  }
+
+  async testWithConfig(config: Record<string, unknown>): Promise<string> {
+    return this.client.request<string>('ssh.testWithConfig', { config });
+  }
+
+  async probeConfigId(configId: string): Promise<boolean> {
+    return this.client.request<boolean>('ssh.probeConfigId', { configId });
+  }
+
+  async listDirectory(
+    configId: string,
+    remotePath: string,
+  ): Promise<Array<{ name: string; path: string; is_dir: boolean; size?: number }>> {
+    return this.client.request('ssh.listDirectory', { configId, path: remotePath });
+  }
+
+  async getHomeDirectory(configId: string): Promise<string> {
+    return this.client.request<string>('ssh.getHomeDirectory', { configId });
+  }
+
+  async getRemoteShells(
+    configId: string,
+  ): Promise<Array<{ id: string; name: string; path: string; is_default: boolean }>> {
+    return this.client.request('ssh.getRemoteShells', { configId });
+  }
+}
+
+// ============================================================================
 // Server Backend Adapter
 // ============================================================================
 
@@ -754,6 +809,7 @@ export class ServerAdapter implements BackendAdapter {
   notification!: NotificationAdapter;
   tray!: TrayAdapter;
   orchestration!: OrchestrationAdapter;
+  ssh!: SshAdapter;
 
   constructor(serverUrl: string = 'ws://localhost:8765/ws') {
     this.client = new WebSocketClient(serverUrl);
@@ -775,6 +831,7 @@ export class ServerAdapter implements BackendAdapter {
     this.notification = new ServerNotificationAdapter();
     this.tray = new ServerTrayAdapter();
     this.orchestration = new ServerOrchestrationAdapter(this.client);
+    this.ssh = new ServerSshAdapter(this.client);
 
     // Set fs adapter for directory picker service
     setDirectoryPickerFsAdapter(this.fs);

@@ -65,13 +65,8 @@ Rebebuca 的 AI 协作功能采用**多层架构**设计，实现了直接与 LL
 │
 ├── node-server/                  # Node 后端 (本地/远程通用)
 │   ├── server.js                 # HTTP + WebSocket API
-│   └── handlers/                 # 终端/文件系统/存储等
-│
-├── remote-agent/                 # 轻量级远程执行器 (Rust，可选)
-│   └── src/main.rs               # 通过 stdin/stdout 执行命令
-│
-├── common/                       # 共享 Rust 库 (供 remote-agent 使用)
-│   └── src/types.rs              # AgentMessage 等共享类型
+│   └── handlers/                 # 终端 (node-pty)、文件系统、存储、SSH (ssh2) 等
+│       └── ssh.js                # WebSocket `ssh.*`：远程执行命令，流式输出走 terminal 事件
 │
 └── server/                       # Web 服务端 (Next.js，独立项目)
     └── app/api/                  # API 路由
@@ -146,14 +141,8 @@ MCP 相关配置与工具仍通过 `mcp-server-config.json` 等配置，与前�
 ## 远程与本地运行
 
 - **本地**: `npx rebebuca` 启动 node-server，提供静态 UI 与 WebSocket API。
-- **远程**: 将同一套 node-server + `dist/server` 部署到远程机器即可，前端连接该地址的 `/ws`，无需单独的 Rust 服务端。
-- **Remote Agent** (`remote-agent/`): 可选轻量级 Rust 可执行文件，通过 SSH 部署到远程执行命令，用作轻量代理执行器。
-
-**Remote Agent 通信协议** (`AgentMessage`):
-- `Execute`: 执行命令请求
-- `Output`: 命令输出 (stdout/stderr)
-- `ProcessStarted` / `ProcessFinished`: 进程生命周期
-- `Ping/Pong`, `GetVersion/Version`: 心跳与版本查询
+- **远程 UI + 后端**: 将同一套 node-server + `dist/server` 部署到机器 A；浏览器可连该地址的 `/ws`。本地任务、终端 PTY 在 **运行 node-server 的那台机器** 上执行。
+- **SSH 远程任务**: 在设置里配置 SSH 后，由 **node-server 进程** 使用 `ssh2` 连接目标主机并在远端执行 shell 命令；输出经 `terminal.data` / `terminal.exit` 推到前端终端。私钥路径、密码、主机指纹等均以 **服务器进程所在环境** 为准（不是浏览器所在机器）。
 
 ## 前端 UI 组件
 

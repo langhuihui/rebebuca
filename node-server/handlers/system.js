@@ -126,14 +126,29 @@ export async function getAvailableTerminals() {
   const terminals = [];
 
   if (platform === 'darwin') {
-    const candidates = [
-      { id: 'terminal', name: 'Terminal', path: '/Applications/Utilities/Terminal.app' },
-      { id: 'iterm2', name: 'iTerm2', path: '/Applications/iTerm.app' },
-    ];
-    for (const t of candidates) {
-      if (fs.existsSync(t.path)) {
-        terminals.push({ ...t, available: true, is_default: t.id === 'terminal' });
-      }
+    // Terminal.app moved to /System/Applications on modern macOS; keep legacy path for older releases
+    const terminalPath = [
+      '/System/Applications/Utilities/Terminal.app',
+      '/Applications/Utilities/Terminal.app',
+    ].find((p) => fs.existsSync(p));
+    if (terminalPath) {
+      terminals.push({
+        id: 'terminal',
+        name: 'Terminal',
+        path: terminalPath,
+        available: true,
+        is_default: true,
+      });
+    }
+    const itermPath = '/Applications/iTerm.app';
+    if (fs.existsSync(itermPath)) {
+      terminals.push({
+        id: 'iterm2',
+        name: 'iTerm2',
+        path: itermPath,
+        available: true,
+        is_default: false,
+      });
     }
   } else if (platform === 'win32') {
     terminals.push({ id: 'cmd', name: 'Command Prompt', path: 'cmd.exe', available: true, is_default: true });

@@ -13,12 +13,12 @@
     "dist/server"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.11.0"
   },
   "scripts": {
     "dev": "concurrently -n backend,server -c blue,green \"pnpm run dev:backend\" \"pnpm run dev:server\"",
     "dev:web": "VITE_BACKEND=mock vite --port 6173",
-    "dev:backend": "node bin/rebebuca.js --port 3000 --no-open",
+    "dev:backend": "node --watch bin/rebebuca.js --port 3000 --no-open",
     "dev:server": "VITE_BACKEND=server VITE_SERVER_URL=ws://127.0.0.1:3000/ws vite --port 6173",
     "dev:website": "VITE_BACKEND=mock vite --config vite.website.config.ts",
     "build": "vue-tsc --noEmit && vite build",
@@ -64,6 +64,7 @@
     "node-pty": "^1.1.0",
     "open": "^11.0.0",
     "pinia": "^3.0.3",
+    "ssh2": "^1.16.0",
     "vue": "^3.5.30",
     "vue-i18n": "9",
     "vue-router": "^4.5.1",

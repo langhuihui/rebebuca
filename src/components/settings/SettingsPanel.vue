@@ -130,6 +130,10 @@
         <CommandIconSettings v-model="settingsStore.settings.commandIcons" />
       </div>
 
+      <div v-show="activeTab === 'backendlog'" class="settings-tab-pane settings-tab-pane--backendlog">
+        <BackendLogViewer />
+      </div>
+
       <div v-show="activeTab === 'aitools'" class="settings-tab-pane">
         <AIToolsPanel />
       </div>
@@ -175,6 +179,7 @@ import { getAdapter, detectBackendType } from '../../adapters';
 import { useFeatureFlagsStore } from '../../stores/featureFlags';
 import type { SystemTerminalInfo, ShellInfo } from '../../adapters/types';
 import CommandIconSettings from '../CommandIconSettings.vue';
+import BackendLogViewer from '../BackendLogViewer.vue';
 import AIToolsPanel from './AIToolsPanel.vue';
 import SshPanel from './SshPanel.vue';
 import MCPPanel from './MCPPanel.vue';
@@ -240,8 +245,7 @@ const loadAvailableTerminals = async () => {
     const adapter = await getAdapter();
     const terminals = await adapter.system.getAvailableTerminals();
     availableTerminals.value = terminals;
-    // In server mode backend returns [] by design; do not warn
-    if (terminals.length === 0 && detectBackendType() !== 'server') {
+    if (terminals.length === 0) {
       message.warning(t('settings.noTerminalsFound'));
     }
   } catch (error) {
@@ -399,6 +403,12 @@ onUnmounted(() => {
   max-width: 100%;
   box-sizing: border-box;
   height: 100%;
+}
+
+.settings-tab-pane--backendlog {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
 }
 
 .compact-settings-form {

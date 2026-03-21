@@ -861,6 +861,11 @@ const findHistoryByProcessId = (processId: string) => {
     );
   }
 
+  // SSH / PTY id stored on history (server mode)
+  if (!result) {
+    result = runConfigStore.history.find((item) => item.ptyId === processId);
+  }
+
   console.log(
     `[FRONTEND] findHistoryByProcessId result:`,
     result ? result.id : "not found",

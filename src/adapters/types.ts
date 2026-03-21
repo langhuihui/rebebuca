@@ -463,6 +463,42 @@ export interface OrchestrationAdapter {
   onUsage(callback: (event: OrchestrationUsageEvent) => void): () => void;
 }
 
+/** SSH remote execution (Node server + ssh2 only) */
+export interface SshExecuteByConfigIdParams {
+  configId: string;
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+export interface SshExecuteInlineParams {
+  /** Saved-config shape or run-config inline shape (host, port, username, auth, …) */
+  config: Record<string, unknown>;
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+export interface SshAdapter {
+  poolConnect(configId: string): Promise<void>;
+  poolDisconnect(configId: string): Promise<void>;
+  executeByConfigId(params: SshExecuteByConfigIdParams): Promise<string>;
+  executeInline(params: SshExecuteInlineParams): Promise<string>;
+  killExecution(execId: string): Promise<void>;
+  testWithConfig(config: Record<string, unknown>): Promise<string>;
+  probeConfigId(configId: string): Promise<boolean>;
+  listDirectory(
+    configId: string,
+    remotePath: string,
+  ): Promise<Array<{ name: string; path: string; is_dir: boolean; size?: number }>>;
+  getHomeDirectory(configId: string): Promise<string>;
+  getRemoteShells(
+    configId: string,
+  ): Promise<Array<{ id: string; name: string; path: string; is_default: boolean }>>;
+}
+
 /**
  * Main Backend Adapter Interface
  * 
@@ -481,6 +517,8 @@ export interface BackendAdapter {
   notification: NotificationAdapter;
   tray: TrayAdapter;
   orchestration: OrchestrationAdapter;
+  /** Present when `type === 'server'` (WebSocket backend implements ssh.*) */
+  ssh?: SshAdapter;
   
   // Initialization
   init(): Promise<void>;

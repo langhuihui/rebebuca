@@ -22,6 +22,7 @@ import { createPinia } from 'pinia';
 import hljs from 'highlight.js';
 // import 'highlight.js/styles/github-dark.css'; // Temporarily disabled to check background
 import i18n from './locales';
+import { useAuthStore } from './stores/auth';
 import './assets/styles/app.scss';
 // Naive UI
 import {
@@ -112,8 +113,6 @@ app.use(naive);
 app.use(pinia);
 app.use(i18n);
 
-// Initialize auth store
-import { useAuthStore } from './stores/auth';
 const authStore = useAuthStore(pinia);
 authStore.initialize();
 

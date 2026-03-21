@@ -18,22 +18,16 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { getAdapter, type BackendAdapter } from '../adapters';
-
-// Adapter instance for persistence
-let adapter: BackendAdapter | null = null;
+import { getAdapter } from '../adapters';
 
 // Initialize adapter
 const initAdapter = async () => {
-  if (!adapter) {
-    try {
-      adapter = await getAdapter();
-    } catch (error) {
-      console.warn('[SSH] Failed to initialize adapter:', error);
-      return null;
-    }
+  try {
+    return await getAdapter();
+  } catch (error) {
+    console.warn('[SSH] Failed to initialize adapter:', error);
+    return null;
   }
-  return adapter;
 };
 
 export interface SshAuthMethod {
@@ -74,6 +68,19 @@ export const useSshStore = defineStore('ssh', () => {
   
   // Connection statuses (keyed by config ID) - use object instead of Map for better Vue reactivity
   const connectionStatuses = ref<Record<string, SshConnectionInfo>>({});
+
+  function setConnectionStatus(id: string, status: SshConnectionStatus) {
+    const prev = connectionStatuses.value[id];
+    connectionStatuses.value = {
+      ...connectionStatuses.value,
+      [id]: {
+        id,
+        status,
+        task_count: prev?.task_count ?? 0,
+        last_ping: prev?.last_ping,
+      },
+    };
+  }
   
   // Initialization flag
   const initialized = ref(false);
@@ -231,31 +238,64 @@ export const useSshStore = defineStore('ssh', () => {
   }
   
   /**
-   * Connect to SSH server
+   * Connect to SSH server (pools connection on the Node backend)
    */
-  async function connect(_id: string): Promise<void> {
-    throw new Error('SSH connect is only available in desktop mode');
+  async function connect(id: string): Promise<void> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      throw new Error('SSH requires the Rebebuca server backend (e.g. npx rebebuca).');
+    }
+    setConnectionStatus(id, 'connecting');
+    try {
+      await a.ssh.poolConnect(id);
+      setConnectionStatus(id, 'connected');
+    } catch (e) {
+      setConnectionStatus(id, 'disconnected');
+      throw e;
+    }
   }
   
   /**
    * Disconnect from SSH server
    */
-  async function disconnect(_id: string): Promise<void> {
-    throw new Error('SSH disconnect is only available in desktop mode');
+  async function disconnect(id: string): Promise<void> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      throw new Error('SSH requires the Rebebuca server backend (e.g. npx rebebuca).');
+    }
+    await a.ssh.poolDisconnect(id);
+    setConnectionStatus(id, 'disconnected');
   }
   
   /**
-   * Test SSH connection
+   * Test SSH connection (inline config; does not require save)
    */
-  async function testConnection(_config: SshConfig): Promise<string> {
-    throw new Error('SSH connection test is only available in desktop mode');
+  async function testConnection(config: SshConfig): Promise<string> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      throw new Error('SSH requires the Rebebuca server backend (e.g. npx rebebuca).');
+    }
+    const plain = JSON.parse(JSON.stringify(config)) as Record<string, unknown>;
+    return a.ssh.testWithConfig(plain);
   }
   
   /**
-   * Test SSH agent (ping/pong)
+   * Test remote shell (runs `true` over SSH)
    */
-  async function testAgent(_id: string): Promise<boolean> {
-    return false;
+  async function testAgent(id: string): Promise<boolean> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      return false;
+    }
+    try {
+      const ok = await a.ssh.probeConfigId(id);
+      if (ok) {
+        setConnectionStatus(id, 'agent_ready');
+      }
+      return ok;
+    } catch {
+      return false;
+    }
   }
   
   /**
@@ -454,22 +494,34 @@ export const useSshStore = defineStore('ssh', () => {
   /**
    * List remote directory contents via SSH
    */
-  async function listDirectory(_configId: string, _path: string): Promise<RemoteDirectoryEntry[]> {
-    throw new Error('Remote directory listing is only available in desktop mode');
+  async function listDirectory(configId: string, remotePath: string): Promise<RemoteDirectoryEntry[]> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      throw new Error('SSH requires the Rebebuca server backend (e.g. npx rebebuca).');
+    }
+    return a.ssh.listDirectory(configId, remotePath);
   }
   
   /**
    * Get user's home directory on remote server
    */
-  async function getHomeDirectory(_configId: string): Promise<string> {
-    throw new Error('Remote home directory is only available in desktop mode');
+  async function getHomeDirectory(configId: string): Promise<string> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      throw new Error('SSH requires the Rebebuca server backend (e.g. npx rebebuca).');
+    }
+    return a.ssh.getHomeDirectory(configId);
   }
   
   /**
    * Get available shells on remote server
    */
-  async function getRemoteShells(_configId: string): Promise<RemoteShellInfo[]> {
-    throw new Error('Remote shells are only available in desktop mode');
+  async function getRemoteShells(configId: string): Promise<RemoteShellInfo[]> {
+    const a = await getAdapter();
+    if (!a.ssh) {
+      throw new Error('SSH requires the Rebebuca server backend (e.g. npx rebebuca).');
+    }
+    return a.ssh.getRemoteShells(configId);
   }
   
   return {
