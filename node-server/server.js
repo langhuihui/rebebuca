@@ -54,6 +54,7 @@ import {
   listPorts,
   generateLogPath,
   renameLogFile,
+  readLogFile as systemReadLogFile,
   openExternal,
   openInSystemTerminal,
   openInSpecificTerminal,
@@ -254,6 +255,9 @@ async function handleRequest(clientId, request, clientPtyIds) {
         break;
       case 'system.renameLogFile':
         result = await renameLogFile(params.oldFilename, params.taskId, params.pid);
+        break;
+      case 'system.readLogFile':
+        result = await systemReadLogFile(params.logFilename);
         break;
       case 'system.openExternal':
         await openExternal(params.url);

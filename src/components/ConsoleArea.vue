@@ -43,6 +43,25 @@
       <div class="terminal-tabs">
         <n-scrollbar x-scrollable class="tabs-scrollbar">
           <div class="tabs-container">
+            <!-- Selected history pseudo tab -->
+            <div
+              v-if="uiStore.selectedHistoryItem && !terminalStore.activeTab"
+              class="terminal-tab active history-pseudo-tab"
+              @click="terminalStore.setActiveTab(null)"
+            >
+              <span class="tab-icon">
+                <component :is="svgIcons.clock" />
+              </span>
+              <span class="tab-label">{{ uiStore.selectedHistoryItem.name }}</span>
+              <span
+                class="tab-close"
+                style="opacity: 0.7"
+                @click.stop="closeHistoryPseudoTab"
+              >
+                <component :is="iconComponents.close" />
+              </span>
+            </div>
+
             <!-- Terminal tabs -->
             <div
               v-for="tab in terminalStore.tabs"
@@ -240,6 +259,36 @@
                       <span class="split-tab-label">{{
                         getTabLabel(availableTab)
                       }}</span>
+                      <!-- Tab action buttons (in the same row as label) -->
+                      <span
+                        v-if="availableTab.id === tab.id"
+                        class="split-tab-actions tab-actions"
+                        @click.stop
+                      >
+                        <span
+                          v-if="availableTab.status === 'running'"
+                          class="tab-action-btn"
+                          :title="t('console.stop')"
+                          @click="handleStopTask(availableTab.id)"
+                        >
+                          <component :is="iconComponents.stop(true)" />
+                        </span>
+                        <span
+                          v-if="availableTab.type === 'task'"
+                          class="tab-action-btn"
+                          :title="t('console.restart')"
+                          @click="handleRestartTask(availableTab.id)"
+                        >
+                          <component :is="iconComponents.replay" />
+                        </span>
+                        <span
+                          class="tab-action-btn"
+                          :title="t('console.clear')"
+                          @click="handleClearTerminal(availableTab.id)"
+                        >
+                          <component :is="iconComponents.clear" />
+                        </span>
+                      </span>
                     </div>
                   </div>
                 </n-scrollbar>
@@ -597,12 +646,6 @@ const setTerminalRef = (tabId: string, el: any) => {
   } else {
     terminalRefs.value.delete(tabId);
   }
-};
-
-// Get active terminal ref
-const getActiveTerminalRef = () => {
-  const activeTabId = terminalStore.activeTabId;
-  return activeTabId ? terminalRefs.value.get(activeTabId) : null;
 };
 
 // Screenshot handler for terminal store
@@ -1026,9 +1069,18 @@ const closeTab = async (tabId: string) => {
   await terminalStore.closeTab(tabId);
 };
 
-// Stop the current task
-const handleStopTask = async () => {
-  const tab = terminalStore.activeTab;
+const closeHistoryPseudoTab = () => {
+  uiStore.setSelectedHistoryItem(null);
+  if (!terminalStore.activeTabId && terminalStore.tabs.length > 0) {
+    terminalStore.setActiveTab(terminalStore.tabs[terminalStore.tabs.length - 1].id);
+  }
+};
+
+// Stop task (optional tabId for split panes; omit uses active tab)
+const handleStopTask = async (tabId?: string | MouseEvent) => {
+  const id =
+    typeof tabId === "string" ? tabId : terminalStore.activeTabId;
+  const tab = id ? terminalStore.tabs.find((t) => t.id === id) : undefined;
   if (tab) {
     try {
       await terminalStore.stopTask(tab.id);
@@ -1043,9 +1095,11 @@ const handleStopTask = async () => {
   }
 };
 
-// Restart the current task
-const handleRestartTask = async () => {
-  const tab = terminalStore.activeTab;
+// Restart task (optional tabId for split panes)
+const handleRestartTask = async (tabId?: string | MouseEvent) => {
+  const id =
+    typeof tabId === "string" ? tabId : terminalStore.activeTabId;
+  const tab = id ? terminalStore.tabs.find((t) => t.id === id) : undefined;
   if (!tab || !tab.taskId) {
     console.warn(
       "[ConsoleArea] Cannot restart: no active task tab or no taskId",
@@ -1078,9 +1132,12 @@ const handleRestartTask = async () => {
   }
 };
 
-// Clear terminal
-const handleClearTerminal = () => {
-  getActiveTerminalRef()?.clear();
+// Clear terminal (optional tabId for split panes)
+const handleClearTerminal = (tabId?: string | MouseEvent) => {
+  const id =
+    typeof tabId === "string" ? tabId : terminalStore.activeTabId;
+  const ref = id ? terminalRefs.value.get(id) : null;
+  ref?.clear();
 };
 
 // Terminal event handlers
@@ -1117,7 +1174,7 @@ const onTerminalReady = async (tabId: string) => {
 
 const onTerminalExit = (tabId: string, exitCode: number | null) => {
   console.log("[Terminal] Exited with code:", exitCode, "tab:", tabId);
-  // Status update is handled by terminal store listening to pty-exit event
+  terminalStore.applyPtyExitForTabId(tabId, exitCode);
 };
 
 const onTerminalError = (error: string) => {
@@ -1171,6 +1228,10 @@ const onTerminalError = (error: string) => {
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
   max-width: none; /* Allow active tab to expand for action buttons */
+}
+
+.history-pseudo-tab {
+  max-width: 220px;
 }
 
 .terminal-tab.running .tab-icon {
@@ -1465,11 +1526,30 @@ const onTerminalError = (error: string) => {
   height: 28px;
   padding: 0 4px;
   flex-shrink: 0;
+  gap: 4px;
+  min-width: 0;
 }
 
 .split-tabs-scrollbar {
   flex: 1;
   height: 100%;
+  min-width: 0;
+}
+
+.split-tab-actions {
+  flex-shrink: 0;
+  margin-left: 0;
+  gap: 1px;
+}
+
+.split-tab-actions .tab-action-btn {
+  width: 16px;
+  height: 16px;
+}
+
+.split-tab-actions .tab-action-btn svg {
+  width: 11px;
+  height: 11px;
 }
 
 .split-tabs-container {
@@ -1482,8 +1562,8 @@ const onTerminalError = (error: string) => {
 .split-tab {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
+  gap: 2px;
+  padding: 2px 4px;
   border-radius: 3px;
   cursor: pointer;
   font-size: 11px;
@@ -1491,7 +1571,7 @@ const onTerminalError = (error: string) => {
   background: transparent;
   transition: all 0.2s ease;
   white-space: nowrap;
-  max-width: 120px;
+  max-width: 170px;
 }
 
 .split-tab:hover {
@@ -1523,8 +1603,11 @@ const onTerminalError = (error: string) => {
 }
 
 .split-tab-label {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Split mode active glow effect */

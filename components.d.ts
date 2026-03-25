@@ -43,6 +43,7 @@ declare module 'vue' {
     NThing: typeof import('naive-ui')['NThing']
     NTooltip: typeof import('naive-ui')['NTooltip']
     OAuthLoginDialog: typeof import('./src/components/OAuthLoginDialog.vue')['default']
+    OpenClawPanel: typeof import('./src/components/settings/OpenClawPanel.vue')['default']
     PortManagementPanel: typeof import('./src/components/PortManagementPanel.vue')['default']
     RemoteDirectoryPicker: typeof import('./src/components/sidebar/dialogs/RemoteDirectoryPicker.vue')['default']
     RemoteNotificationModal: typeof import('./src/components/RemoteNotificationModal.vue')['default']

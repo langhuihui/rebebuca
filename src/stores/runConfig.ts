@@ -472,8 +472,8 @@ export const useRunConfigStore = defineStore('runConfig', () => {
   // Read log file content for finished processes
   const readLogFile = async (logFilename: string) => {
     try {
-      const content = await safeInvoke('read_log_file', { logFilename });
-      return content as string;
+      const adapterInstance = await getAdapterInstance();
+      return await adapterInstance.system.readLogFile(logFilename);
     } catch (error) {
       console.error('Failed to read log file:', error);
       return '';

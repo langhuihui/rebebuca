@@ -423,12 +423,12 @@ class ServerSystemAdapter implements SystemAdapter {
     window.open(url, '_blank');
   }
 
-  async openInSystemTerminal(_command: string, _cwd?: string): Promise<void> {
-    console.warn('[Server] openInSystemTerminal not available in server mode');
+  async openInSystemTerminal(command: string, cwd?: string): Promise<void> {
+    await this.client.request('system.openInSystemTerminal', { command, cwd });
   }
 
-  async openInSpecificTerminal(_terminalId: string, _command: string, _cwd?: string): Promise<void> {
-    console.warn('[Server] openInSpecificTerminal not available in server mode');
+  async openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void> {
+    await this.client.request('system.openInSpecificTerminal', { terminalId, command, cwd });
   }
 
   async getAvailableTerminals(): Promise<SystemTerminalInfo[]> {
@@ -463,6 +463,10 @@ class ServerSystemAdapter implements SystemAdapter {
     // Simple implementation
     const timestamp = Date.now();
     return `${taskId}_${pid}_${timestamp}.log`;
+  }
+
+  async readLogFile(logFilename: string): Promise<string> {
+    return this.client.request<string>('system.readLogFile', { logFilename });
   }
 
   async checkFullDiskAccess(): Promise<boolean> {

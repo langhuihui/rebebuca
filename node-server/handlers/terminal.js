@@ -11,7 +11,10 @@ import { randomUUID } from 'crypto';
 import { chmodSync, existsSync, readdirSync, statSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { spawn as spawnProcess } from 'child_process';
+import { spawn as spawnProcess, execFile as execFileCallback } from 'child_process';
+import { promisify } from 'util';
+
+const execFile = promisify(execFileCallback);
 
 /**
  * npm's node-pty macOS tarballs sometimes ship spawn-helper as 644 (non-executable),
@@ -382,13 +385,84 @@ export function isTerminalRunning(ptyId) {
 export async function getTerminalProcessStats(ptyId) {
   const entry = ptys.get(ptyId);
   if (!entry || !entry.running) return null;
-  return {
-    ptyId,
-    pid: entry.pid,
-    cpuUsage: 0,
-    memoryUsage: 0,
-    memoryUsageMb: '0 MB',
-  };
+
+  try {
+    if (!entry.pid || Number(entry.pid) <= 0) return null;
+
+    if (os.platform() === 'win32') {
+      return null;
+    }
+
+    // Collect stats from OS process table with a strict timeout to avoid hanging.
+    // Note: Many terminal tasks run the real workload in child processes; the PTY "master"
+    // PID might be mostly idle, so we sum CPU/RSS for the PTY PID + its direct children.
+    //
+    // - pcpu: CPU %
+    // - rss: resident memory (KB)
+    const parentPid = Number(entry.pid);
+
+    const getChildPids = async (pid) => {
+      try {
+        // macOS: pgrep -P <ppid>
+        const { stdout } = await execFile('pgrep', ['-P', String(pid)], { timeout: 800 });
+        return String(stdout || '')
+          .split(/\s+/)
+          .map((s) => Number.parseInt(s, 10))
+          .filter((n) => Number.isFinite(n) && n > 0);
+      } catch {
+        return [];
+      }
+    };
+
+    const psSumStats = async (pids) => {
+      if (pids.length === 0) return { cpuUsage: 0, memoryUsageBytes: 0 };
+      const pidList = pids.join(',');
+      const { stdout } = await execFile(
+        'ps',
+        ['-p', pidList, '-o', 'pcpu=,rss='],
+        { timeout: 1200 },
+      );
+
+      const lines = String(stdout || '')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      let cpuSum = 0;
+      let rssKbSum = 0;
+      for (const line of lines) {
+        const parts = line.split(/\s+/);
+        if (parts.length < 2) continue;
+        const cpu = Number.parseFloat(parts[0]);
+        const rssKb = Number.parseInt(parts[1], 10);
+        if (Number.isFinite(cpu)) cpuSum += cpu;
+        if (Number.isFinite(rssKb)) rssKbSum += rssKb;
+      }
+
+      return {
+        cpuUsage: Math.max(0, cpuSum),
+        memoryUsageBytes: Math.max(0, rssKbSum * 1024),
+      };
+    };
+
+    const directChildren = await getChildPids(parentPid);
+    const pidSet = new Set([parentPid, ...directChildren]);
+
+    // Clamp to avoid pathological cases with lots of descendants
+    const pidList = Array.from(pidSet).slice(0, 50);
+    const { cpuUsage, memoryUsageBytes } = await psSumStats(pidList);
+
+    const memoryUsageMbValue = memoryUsageBytes / (1024 * 1024);
+    return {
+      ptyId,
+      pid: parentPid,
+      cpuUsage,
+      memoryUsage: memoryUsageBytes,
+      memoryUsageMb: `${memoryUsageMbValue.toFixed(1)} MB`,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

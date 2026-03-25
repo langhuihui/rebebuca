@@ -104,7 +104,13 @@
               }}
             </div>
             <div v-else class="history-list">
-              <div v-for="item in filteredHistory" :key="item.id" class="history-item">
+              <div
+                v-for="item in filteredHistory"
+                :key="item.id"
+                class="history-item"
+                :class="{ 'history-item--active': uiStore.selectedHistoryItem?.id === item.id }"
+                @click="selectHistoryItem(item)"
+              >
                 <div class="history-main">
                   <div class="history-name">{{ item.name }}</div>
                   <div class="history-command">{{ item.command }}</div>
@@ -221,15 +227,33 @@
                     <span class="app-title">Rebebuca</span>
                   </div>
                   <n-space :size="6" align="center" class="task-subnav" :wrap="false">
-                    <n-button size="small" quaternary @click="historyModalVisible = true">
+                    <n-tooltip :disabled="!compactHeader" placement="bottom">
+                      <template #trigger>
+                        <n-button size="small" quaternary @click="historyModalVisible = true">
+                          <template #icon><n-icon><component :is="HistoryIcon" /></n-icon></template>
+                          <span v-if="!compactHeader">{{ t("task.runHistory") }}</span>
+                        </n-button>
+                      </template>
                       {{ t("task.runHistory") }}
-                    </n-button>
-                    <n-button size="small" quaternary @click="overviewModalVisible = true">
+                    </n-tooltip>
+                    <n-tooltip :disabled="!compactHeader" placement="bottom">
+                      <template #trigger>
+                        <n-button size="small" quaternary @click="overviewModalVisible = true">
+                          <template #icon><n-icon><component :is="OverviewIcon" /></n-icon></template>
+                          <span v-if="!compactHeader">{{ t("task.overview") }}</span>
+                        </n-button>
+                      </template>
                       {{ t("task.overview") }}
-                    </n-button>
-                    <n-button size="small" quaternary @click="terminalStore.createPortManagementTab()">
+                    </n-tooltip>
+                    <n-tooltip :disabled="!compactHeader" placement="bottom">
+                      <template #trigger>
+                        <n-button size="small" quaternary @click="terminalStore.createPortManagementTab()">
+                          <template #icon><n-icon><component :is="PortIcon" /></n-icon></template>
+                          <span v-if="!compactHeader">{{ t("task.portManagement") }}</span>
+                        </n-button>
+                      </template>
                       {{ t("task.portManagement") }}
-                    </n-button>
+                    </n-tooltip>
                     <div class="global-search-wrap">
                       <n-input
                         v-model:value="globalSearch"
@@ -270,21 +294,33 @@
                     v-if="showSettingsTabsInHeader"
                     :size="4"
                     class="settings-header-tabs"
+                    :wrap="false"
                   >
-                    <n-button
+                    <n-tooltip
                       v-for="tab in settingsHeaderTabs"
                       :key="tab.name"
-                      size="small"
-                      quaternary
-                      :type="
-                        settingsModalVisible && settingsActiveTab === tab.name
-                          ? 'primary'
-                          : 'default'
-                      "
-                      @click="onSettingsHeaderTabClick(tab.name)"
+                      :disabled="!compactHeader"
+                      placement="bottom"
                     >
+                      <template #trigger>
+                        <n-button
+                          size="small"
+                          quaternary
+                          :type="
+                            settingsModalVisible && settingsActiveTab === tab.name
+                              ? 'primary'
+                              : 'default'
+                          "
+                          @click="onSettingsHeaderTabClick(tab.name)"
+                        >
+                          <template v-if="tab.icon" #icon>
+                            <n-icon><component :is="tab.icon" /></n-icon>
+                          </template>
+                          <span v-if="!compactHeader">{{ tab.label }}</span>
+                        </n-button>
+                      </template>
                       {{ tab.label }}
-                    </n-button>
+                    </n-tooltip>
                   </n-space>
                 </div>
                 <div class="app-header-right">
@@ -478,6 +514,7 @@ import {
   NDropdown,
   NPopover,
   NAlert,
+  NTooltip,
 } from "naive-ui";
 import { useRunConfigStore } from "./stores/runConfig";
 import { useTaskManagerStore } from "./stores/taskManager";
@@ -518,6 +555,11 @@ import {
 import { svgIcons } from "./utils/icons";
 import type { Task } from "./providers/types";
 import { LogoGithub } from "@vicons/ionicons5";
+import {
+  TimeOutline as HistoryIcon,
+  PieChartOutline as OverviewIcon,
+  GitNetworkOutline as PortIcon,
+} from "@vicons/ionicons5";
 import UserMenu from "../shared/components/UserMenu.vue";
 // import { setupSystemTrayMenu } from "./utils/tray";
 
@@ -597,6 +639,14 @@ const settingsActiveTab = ref("general");
 const historyModalVisible = ref(false);
 const overviewModalVisible = ref(false);
 const historySearch = ref("");
+
+// Compact header: show icon-only buttons when window is too narrow
+const compactHeader = ref(false);
+const COMPACT_HEADER_THRESHOLD = 1700;
+
+const checkCompactHeader = () => {
+  compactHeader.value = window.innerWidth < COMPACT_HEADER_THRESHOLD;
+};
 const historyStatusFilter = ref<"all" | "running" | "success" | "error">("all");
 const taskSearchFocused = ref(false);
 const taskSearchHighlight = ref(0);
@@ -765,6 +815,14 @@ const jumpToHistoryWithFailed = () => {
   historyStatusFilter.value = "error";
   overviewModalVisible.value = false;
   historyModalVisible.value = true;
+};
+
+const selectHistoryItem = (
+  item: (typeof runConfigStore.history)[number],
+) => {
+  uiStore.setSelectedHistoryItem(item);
+  terminalStore.setActiveTab(null);
+  historyModalVisible.value = false;
 };
 
 watch(
@@ -1253,6 +1311,10 @@ onMounted(async () => {
   // Expose global API for remote execution
   setupGlobalAPI();
 
+  // Check compact header on mount
+  checkCompactHeader();
+  window.addEventListener("resize", checkCompactHeader);
+
   // Check platform for window controls styling
   uiStore.setWindowsPlatform(await isWindows());
 
@@ -1664,6 +1726,9 @@ onUnmounted(() => {
 
   // Cleanup tray service
   cleanupTrayService();
+
+  // Cleanup header resize observer
+  window.removeEventListener("resize", checkCompactHeader);
 });
 </script>
 
@@ -1839,6 +1904,19 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.history-item:hover {
+  background: color-mix(in srgb, var(--n-primary-color) 8%, transparent);
+}
+
+.history-item--active {
+  border-color: var(--n-primary-color);
+  background: color-mix(in srgb, var(--n-primary-color) 12%, transparent);
 }
 
 .history-main {
@@ -1968,12 +2046,13 @@ onUnmounted(() => {
 .app-header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
 }
 
 .app-header-left {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
+  overflow: hidden;
 }
 
 .app-header-brand {

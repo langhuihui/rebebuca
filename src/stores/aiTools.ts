@@ -142,7 +142,7 @@ export const AI_TOOL_METADATA: Record<AIToolType, AIToolInstallInfo> = {
     uninstallMethods: [
       { id: 'npm', name: 'NPM', command: 'npm uninstall -g @anthropic-ai/claude-code', platform: 'all' },
     ],
-    versionCommand: 'claude --version',
+    versionCommand: 'claude -v',
     launchCommand: 'claude',
   },
   'codex': {

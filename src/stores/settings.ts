@@ -76,6 +76,7 @@ export const useSettingsStore = defineStore('settings', () => {
   
   // Initialization flag
   const initialized = ref(false);
+  let initializePromise: Promise<void> | null = null;
   
   /**
    * Save settings to persistent storage
@@ -119,9 +120,21 @@ export const useSettingsStore = defineStore('settings', () => {
    */
   async function initialize(): Promise<void> {
     if (initialized.value) return;
-    
-    initialized.value = true;
-    await loadSettings();
+    if (initializePromise) {
+      await initializePromise;
+      return;
+    }
+
+    initializePromise = (async () => {
+      await loadSettings();
+      initialized.value = true;
+    })();
+
+    try {
+      await initializePromise;
+    } finally {
+      initializePromise = null;
+    }
   }
   
   /**
@@ -170,6 +183,9 @@ export const useSettingsStore = defineStore('settings', () => {
       return null;
     }
   }
+
+  // Eagerly load persisted settings to avoid default-value overwrite races.
+  void initialize();
   
   return {
     settings,

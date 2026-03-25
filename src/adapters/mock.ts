@@ -605,6 +605,11 @@ class MockSystemAdapter implements SystemAdapter {
     return newFilename;
   }
 
+  async readLogFile(logFilename: string): Promise<string> {
+    const content = mockFileSystem.get(`/mock/logs/${logFilename}`);
+    return content || '';
+  }
+
   async checkFullDiskAccess(): Promise<boolean> {
     console.log('[Mock] checkFullDiskAccess');
     // Always return true in mock mode

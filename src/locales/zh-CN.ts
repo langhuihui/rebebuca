@@ -505,6 +505,7 @@ export default {
     updatingInTerminal: '正在系统终端中更新，请在终端中完成更新',
     // AI Tools settings
     aiTools: 'AI 工具',
+    openClaw: '🦞 OpenClaw',
     // Release notes
     releaseNotes: '更新日志',
     loadReleaseNotes: '加载更新日志',
@@ -872,6 +873,7 @@ export default {
     updateAvailable: '有更新',
     latestVersion: '最新',
     updatingInTerminal: '正在系统终端中更新，请在终端中完成更新',
+    updateSuccess: '更新成功',
     updateFailed: '更新失败',
     updateNotSupported: '此工具不支持更新',
     versionCheckFailed: '检查最新版本失败',
@@ -903,6 +905,16 @@ export default {
     uninstallNotSupported: '此工具不支持卸载',
     confirmUninstall: '确认卸载',
     confirmUninstallMessage: '确定要卸载 {tool} 吗？',
+  },
+  openClaw: {
+    title: 'OpenClaw 生态全景',
+    coreFeatures: '核心特性',
+    visitWebsite: '访问官网',
+    installOptions: '安装选项',
+    techStack: '技术栈',
+    commandCopied: '命令已复制到剪贴板',
+    copyFailed: '复制失败',
+    viewTutorial: '查看教程',
   },
   supervisorAI: {
     title: '监工 AI',

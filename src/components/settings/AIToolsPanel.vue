@@ -53,6 +53,14 @@
                     v{{ toolVersions[toolType] }}
                   </n-tag>
                   <n-tag
+                    v-if="installSources[toolType]"
+                    type="info"
+                    size="small"
+                    style="margin-left: 8px"
+                  >
+                    {{ getInstallSourceLabel(toolType) }}
+                  </n-tag>
+                  <n-tag
                     v-if="latestVersions[toolType] && isUpdateAvailable(toolType)"
                     type="warning"
                     size="small"
@@ -72,24 +80,19 @@
                 <n-tag v-else type="warning" size="small">
                   {{ t("aiTools.notInstalled") }}
                 </n-tag>
-                <n-dropdown
-                  trigger="click"
-                  :options="getRefreshOptions(toolType)"
-                  @select="(key: string) => handleRefreshSelect(key, toolType)"
+                <n-button
+                  text
+                  size="tiny"
+                  :loading="checkingInstall[toolType] || checkingVersion[toolType]"
+                  :title="t('aiTools.refresh')"
+                  @click="refreshToolStatus(toolType)"
                 >
-                  <n-button
-                    text
-                    size="tiny"
-                    :loading="checkingInstall[toolType] || checkingVersion[toolType]"
-                    :title="t('aiTools.refresh')"
-                  >
-                    <template #icon>
-                      <n-icon size="14">
-                        <component :is="svgIcons.refresh" />
-                      </n-icon>
-                    </template>
-                  </n-button>
-                </n-dropdown>
+                  <template #icon>
+                    <n-icon size="14">
+                      <component :is="svgIcons.refresh" />
+                    </n-icon>
+                  </template>
+                </n-button>
               </div>
             </div>
 
@@ -114,7 +117,7 @@
 
               <!-- Package Manager Tabs for npm-based tools -->
               <n-tabs
-                v-if="hasNpmPackage(toolType)"
+                v-if="shouldShowNpmUpgradeTabs(toolType)"
                 v-model:value="selectedUpgradePackageManager[toolType]"
                 type="line"
                 size="small"
@@ -827,7 +830,6 @@ import {
   NDivider,
   NSpin,
   NSwitch,
-  NDropdown,
   useMessage,
 } from "naive-ui";
 import {
@@ -910,6 +912,8 @@ const updating = ref<Record<string, boolean>>({});
 
 // Track which tools have been checked to avoid repeated checks
 const checkedTools = ref<Record<string, boolean>>({});
+type InstallSource = "npm" | "brew" | "winget" | "script" | "unknown";
+const installSources = ref<Record<string, InstallSource>>({});
 
 // Installation terminal state (for Windows PTY-based installation)
 const installingTerminal = ref<AIToolType | null>(null);
@@ -1062,6 +1066,19 @@ const getAvailableInstallMethods = (toolType: AIToolType) => {
 
 // Get uninstall methods available for current platform
 const getAvailableUninstallMethods = (toolType: AIToolType) => {
+  if (toolType === "claude-code" && toolVersions.value[toolType]) {
+    const source = installSources.value[toolType];
+    if (source === "npm") {
+      return [{ id: "npm", name: "NPM", command: "npm uninstall -g @anthropic-ai/claude-code", platform: "all" as const }];
+    }
+    if (source === "brew") {
+      return [{ id: "brew", name: "Homebrew", command: "brew uninstall --cask claude-code", platform: "macos" as const }];
+    }
+    if (source === "winget") {
+      return [{ id: "winget", name: "WinGet", command: "winget uninstall Anthropic.ClaudeCode", platform: "windows" as const }];
+    }
+  }
+
   const methods = AI_TOOL_METADATA[toolType].uninstallMethods || [];
   return methods.filter(
     (m) => m.platform === "all" || m.platform === currentPlatform.value
@@ -1085,9 +1102,31 @@ const NPM_PACKAGE_MAP: Record<AIToolType, string | null> = {
   'kilocode': '@kilocode/cli',
 };
 
+const CLAUDE_INSTALL_COMMANDS = {
+  scriptUnix: "curl -fsSL https://claude.ai/install.sh | bash",
+  brew: "brew install --cask claude-code",
+  scriptWindows: "irm https://claude.ai/install.ps1 | iex",
+  winget: "winget install Anthropic.ClaudeCode",
+};
+
 // Check if tool has npm package
 const hasNpmPackage = (toolType: AIToolType): boolean => {
   return NPM_PACKAGE_MAP[toolType] !== null;
+};
+
+const shouldShowNpmUpgradeTabs = (toolType: AIToolType): boolean => {
+  if (!hasNpmPackage(toolType)) return false;
+  const source = installSources.value[toolType];
+  return source === "npm" || source === "unknown" || !source;
+};
+
+const getInstallSourceLabel = (toolType: AIToolType): string => {
+  const source = installSources.value[toolType];
+  if (source === "npm") return "npm";
+  if (source === "brew") return "Homebrew";
+  if (source === "winget") return "WinGet";
+  if (source === "script") return "Script";
+  return "Unknown";
 };
 
 // Check if tool has npm install method
@@ -1138,6 +1177,17 @@ const getUpgradeCommand = (toolType: AIToolType, pm: 'npm' | 'pnpm' | 'yarn'): s
 
 // Get tool update command (for non-npm tools)
 const getToolUpdateCommand = (toolType: AIToolType): string | null => {
+  if (toolType === "claude-code") {
+    const source = installSources.value[toolType];
+    if (source === "brew") return CLAUDE_INSTALL_COMMANDS.brew;
+    if (source === "winget") return CLAUDE_INSTALL_COMMANDS.winget;
+    if (source === "script") {
+      return currentPlatform.value === "windows"
+        ? CLAUDE_INSTALL_COMMANDS.scriptWindows
+        : CLAUDE_INSTALL_COMMANDS.scriptUnix;
+    }
+    return null;
+  }
   return getUpdateCommand(toolType);
 };
 
@@ -1179,12 +1229,250 @@ const runUninstallCommandWithOptions = async (
   await runUninstallCommand(toolType, method, useSudo, useWsl);
 };
 
-// Check if a single tool is installed (web: no native check, just mark as checked)
+const runDetectionCommand = async (command: string, timeoutMs = 8000): Promise<string> => {
+  try {
+    const { getAdapter } = await import("../../adapters");
+    const adapter = await getAdapter();
+
+    return await new Promise<string>(async (resolve) => {
+      let collectedOutput = "";
+      let settled = false;
+      let ptyId = "";
+      let stopListeningData: (() => void) | undefined;
+      let stopListeningExit: (() => void) | undefined;
+      let timer: number | undefined;
+
+      const cleanup = () => {
+        if (timer !== undefined) {
+          window.clearTimeout(timer);
+        }
+        stopListeningData?.();
+        stopListeningExit?.();
+      };
+
+      try {
+        const isWindows = currentPlatform.value === "windows";
+        const terminal = await adapter.terminal.create({
+          command: isWindows ? "powershell" : "sh",
+          args: isWindows ? ["-Command", `${command} 2>&1`] : ["-lc", `${command} 2>&1`],
+          cwd: undefined,
+          env: undefined,
+          logPath: undefined,
+          shellPath: isWindows ? "powershell" : undefined,
+        });
+
+        ptyId = terminal.ptyId;
+
+        stopListeningData = adapter.terminal.onData((event) => {
+          if (event.ptyId !== ptyId || settled) return;
+          collectedOutput += event.data;
+        });
+
+        stopListeningExit = adapter.terminal.onExit((event) => {
+          if (event.ptyId !== ptyId || settled) return;
+          settled = true;
+          cleanup();
+          resolve(collectedOutput);
+        });
+
+        timer = window.setTimeout(async () => {
+          if (settled) return;
+          settled = true;
+          try {
+            if (ptyId) {
+              await adapter.terminal.kill(ptyId);
+            }
+          } catch {
+            // ignore timeout kill failures
+          }
+          cleanup();
+          resolve(collectedOutput);
+        }, timeoutMs);
+      } catch {
+        cleanup();
+        resolve("");
+      }
+    });
+  } catch {
+    return "";
+  }
+};
+
+const detectNpmInstalledVersion = async (toolType: AIToolType): Promise<string | null> => {
+  const npmPackageName = NPM_PACKAGE_MAP[toolType];
+  if (!npmPackageName) return null;
+
+  const npmOutput = await runDetectionCommand(`npm list -g ${npmPackageName} --depth=0`, 8000);
+  const escapedPackageName = npmPackageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const npmVersionRegex = new RegExp(`${escapedPackageName}@([0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?)`);
+  const npmMatch = npmOutput.match(npmVersionRegex);
+  return npmMatch?.[1] || null;
+};
+
+const detectBinaryPath = async (binary: string): Promise<string | null> => {
+  const cmd = currentPlatform.value === "windows" ? `where ${binary}` : `command -v ${binary}`;
+  const output = await runDetectionCommand(cmd, 5000);
+  const lines = output
+    .replace(/\u001b\[[0-9;]*m/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return null;
+  return lines[0];
+};
+
+const inferInstallSourceByPath = (binaryPath: string | null, fallback: InstallSource = "unknown"): InstallSource => {
+  if (!binaryPath) return fallback;
+  const normalized = binaryPath.toLowerCase();
+  if (normalized.includes("homebrew") || normalized.includes("/opt/homebrew/") || normalized.includes("/cellar/")) {
+    return "brew";
+  }
+  if (normalized.includes("winget")) {
+    return "winget";
+  }
+  if (normalized.includes("node_modules")) {
+    return "npm";
+  }
+  return fallback;
+};
+
+const parseVersionFromOutput = (output: string): string | null => {
+  const plainOutput = output.replace(/\u001b\[[0-9;]*m/g, "").trim();
+  if (!plainOutput) return null;
+
+  if (/command not found|not recognized|No such file|npm ERR!/i.test(plainOutput)) {
+    return null;
+  }
+
+  const versionMatch = plainOutput.match(/v?\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?/);
+  if (versionMatch) {
+    return versionMatch[0].replace(/^v/i, "");
+  }
+
+  const noisePattern = /(setting up emsdk environment|emsdk_quiet=1)/i;
+  const meaningfulLines = plainOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !noisePattern.test(line));
+
+  if (meaningfulLines.length === 0) return null;
+  return meaningfulLines[meaningfulLines.length - 1];
+};
+
+const parseClaudeCliVersionFromOutput = (output: string): string | null => {
+  const plainOutput = output.replace(/\u001b\[[0-9;]*m/g, "").trim();
+  if (!plainOutput) return null;
+  if (/command not found|not recognized|No such file/i.test(plainOutput)) {
+    return null;
+  }
+
+  const lines = plainOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  // 1) Prefer lines explicitly mentioning Claude Code.
+  for (const line of lines) {
+    if (!/claude code/i.test(line)) continue;
+    const match = line.match(/v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)/i);
+    if (match?.[1]) return match[1];
+  }
+
+  // 2) Prefer semver lines, excluding year-style build versions like 2025.x.x.
+  for (const line of lines) {
+    const match = line.match(/v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)/i);
+    if (!match?.[1]) continue;
+    if (/^\d{4}\./.test(match[1])) continue;
+    return match[1];
+  }
+
+  // 3) Last resort: generic parser.
+  return parseVersionFromOutput(output);
+};
+
+const detectInstalledToolInfo = async (toolType: AIToolType): Promise<{ version: string | null; source: InstallSource }> => {
+  try {
+    const binaryName = AI_TOOL_METADATA[toolType].launchCommand;
+    const binaryPath = await detectBinaryPath(binaryName);
+
+    // Claude Code has multiple common install sources and requires source-aware upgrade options.
+    if (toolType === "claude-code") {
+      if (currentPlatform.value !== "windows") {
+        const brewOutput = await runDetectionCommand("brew list --cask claude-code", 8000);
+        const hasBrewInstall = /claude-code/i.test(brewOutput) && !/not installed|Error:/i.test(brewOutput);
+        if (hasBrewInstall) {
+          const versionFromCli = parseClaudeCliVersionFromOutput(await runDetectionCommand("claude -v", 8000))
+            || parseClaudeCliVersionFromOutput(await runDetectionCommand("claude --version", 8000));
+          return { version: versionFromCli, source: "brew" };
+        }
+      } else {
+        const wingetOutput = await runDetectionCommand("winget list --id Anthropic.ClaudeCode --exact", 8000);
+        const hasWingetInstall = /Anthropic\.ClaudeCode/i.test(wingetOutput);
+        if (hasWingetInstall) {
+          const versionFromCli = parseClaudeCliVersionFromOutput(await runDetectionCommand("claude -v", 8000))
+            || parseClaudeCliVersionFromOutput(await runDetectionCommand("claude --version", 8000));
+          return { version: versionFromCli, source: "winget" };
+        }
+      }
+
+      // Script/other installer fallback if CLI is available but package managers don't detect it.
+      const claudeOutput = await runDetectionCommand("claude -v", 8000);
+      const claudeVersion = parseClaudeCliVersionFromOutput(claudeOutput);
+      if (claudeVersion) {
+        return { version: claudeVersion, source: inferInstallSourceByPath(binaryPath, "script") };
+      }
+      const claudeLongOutput = await runDetectionCommand("claude --version", 8000);
+      const longVersion = parseClaudeCliVersionFromOutput(claudeLongOutput);
+      if (longVersion) {
+        return { version: longVersion, source: inferInstallSourceByPath(binaryPath, "unknown") };
+      }
+
+      // NPM check last.
+      const npmVersion = await detectNpmInstalledVersion(toolType);
+      if (npmVersion) {
+        return { version: npmVersion, source: inferInstallSourceByPath(binaryPath, "npm") };
+      }
+      return { version: null, source: "unknown" };
+    }
+
+    // 1) Prefer each tool's native version command / binary path first.
+    const versionCommand = AI_TOOL_METADATA[toolType].versionCommand;
+    if (!versionCommand) return { version: null, source: "unknown" };
+    const fallbackOutput = await runDetectionCommand(versionCommand, 8000);
+    const detectedVersion = parseVersionFromOutput(fallbackOutput);
+    if (detectedVersion) {
+      return { version: detectedVersion, source: inferInstallSourceByPath(binaryPath, "unknown") };
+    }
+
+    // 2) NPM check last.
+    const npmVersion = await detectNpmInstalledVersion(toolType);
+    if (npmVersion) {
+      return { version: npmVersion, source: inferInstallSourceByPath(binaryPath, "npm") };
+    }
+    return { version: null, source: "unknown" };
+  } catch (error) {
+    console.error(`Failed to detect installation for ${toolType}:`, error);
+    return { version: null, source: "unknown" };
+  }
+};
+
+// Check if a single tool is installed
 const checkSingleTool = async (toolType: AIToolType, _force = false) => {
   if (checkingInstall.value[toolType]) return;
   checkingInstall.value[toolType] = true;
-  checkedTools.value[toolType] = true;
-  checkingInstall.value[toolType] = false;
+  try {
+    const { version: installedVersion, source } = await detectInstalledToolInfo(toolType);
+    toolVersions.value[toolType] = installedVersion || "";
+    installSources.value[toolType] = source;
+
+    if (!installedVersion) {
+      delete latestVersions.value[toolType];
+      delete installSources.value[toolType];
+    }
+  } finally {
+    checkedTools.value[toolType] = true;
+    checkingInstall.value[toolType] = false;
+  }
 };
 
 const openWebsite = async (toolType: AIToolType) => {
@@ -1202,31 +1490,11 @@ const copyCommand = async (command: string) => {
   }
 };
 
-// Get refresh dropdown options
-const getRefreshOptions = (toolType: AIToolType) => {
-  const options = [
-    {
-      label: t("aiTools.recheckInstall"),
-      key: "install",
-    },
-  ];
-  
+// Recheck install status and latest version immediately
+const refreshToolStatus = async (toolType: AIToolType) => {
+  await checkSingleTool(toolType, true);
   if (toolVersions.value[toolType]) {
-    options.push({
-      label: t("aiTools.checkUpdate"),
-      key: "version",
-    });
-  }
-  
-  return options;
-};
-
-// Handle refresh option selection
-const handleRefreshSelect = (key: string, toolType: AIToolType) => {
-  if (key === "install") {
-    checkSingleTool(toolType, true);
-  } else if (key === "version") {
-    checkLatestVersion(toolType);
+    await checkLatestVersion(toolType);
   }
 };
 
@@ -1255,7 +1523,7 @@ const injectSudoPasswordIntoCommand = (command: string, useSudo: boolean): strin
 const runCommandInPty = async (
   toolType: AIToolType,
   command: string,
-  onComplete: () => void,
+  onComplete: (exitCode: number) => void,
   isUpgrade: boolean = false
 ) => {
   try {
@@ -1313,7 +1581,7 @@ const runCommandInPty = async (
 
         // Call completion callback
         setTimeout(() => {
-          onComplete();
+          onComplete(event.exitCode ?? 0);
         }, 1000);
       }
     });
@@ -1329,6 +1597,41 @@ const runCommandInPty = async (
       installPtyId.value = null;
     }
     return false;
+  }
+};
+
+const runUpgradeInPty = async (
+  toolType: AIToolType,
+  command: string,
+  useSudo: boolean = false,
+  useWsl: boolean = false
+) => {
+  if (upgradingTerminal.value === toolType) {
+    return;
+  }
+
+  let finalCmd = useSudo ? injectSudoPasswordIntoCommand(command, useSudo) : command;
+  if (useWsl && currentPlatform.value === 'windows') {
+    finalCmd = `wsl ${finalCmd}`;
+  }
+
+  const started = await runCommandInPty(
+    toolType,
+    finalCmd,
+    async (exitCode: number) => {
+      if (exitCode === 0) {
+        message.success(t("aiTools.updateSuccess"));
+      } else {
+        message.error(t("aiTools.updateFailed"));
+      }
+
+      await refreshToolStatus(toolType);
+    },
+    true
+  );
+
+  if (!started) {
+    message.error(t("aiTools.installationFailed"));
   }
 };
 
@@ -1463,23 +1766,11 @@ const updateTool = async (toolType: AIToolType, useSudo: boolean = false, useWsl
     message.warning(t("aiTools.updateNotSupported"));
     return;
   }
-  const finalCmd = useSudo ? injectSudoPasswordIntoCommand(updateCmd, useSudo) : updateCmd;
-  if (useWsl && currentPlatform.value === 'windows') {
-    await copyCommand(`wsl ${finalCmd}`);
-  } else {
-    await copyCommand(finalCmd);
-  }
-  message.info(t("aiTools.copyAndRunManually"));
+  await runUpgradeInPty(toolType, updateCmd, useSudo, useWsl);
 };
 
-const updateToolWithCommand = async (_toolType: AIToolType, command: string, useSudo: boolean = false, useWsl: boolean = false) => {
-  const finalCmd = useSudo ? injectSudoPasswordIntoCommand(command, useSudo) : command;
-  if (useWsl && currentPlatform.value === 'windows') {
-    await copyCommand(`wsl ${finalCmd}`);
-  } else {
-    await copyCommand(finalCmd);
-  }
-  message.info(t("aiTools.copyAndRunManually"));
+const updateToolWithCommand = async (toolType: AIToolType, command: string, useSudo: boolean = false, useWsl: boolean = false) => {
+  await runUpgradeInPty(toolType, command, useSudo, useWsl);
 };
 
 </script>

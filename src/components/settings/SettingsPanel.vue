@@ -19,7 +19,7 @@
 <template>
   <div class="settings-panel">
     <div v-if="showTabBar" class="settings-inline-tab-bar">
-      <n-space :size="4" class="settings-inline-tabs">
+      <n-space :size="4" class="settings-inline-tabs" :wrap="false">
         <n-button
           v-for="tab in settingsHeaderTabs"
           :key="tab.name"
@@ -28,6 +28,9 @@
           :type="activeTab === tab.name ? 'primary' : 'default'"
           @click="activeTab = tab.name"
         >
+          <template v-if="tab.icon" #icon>
+            <n-icon><component :is="tab.icon" /></n-icon>
+          </template>
           {{ tab.label }}
         </n-button>
       </n-space>
@@ -149,6 +152,10 @@
       <div v-show="activeTab === 'mcp'" class="settings-tab-pane">
         <MCPPanel />
       </div>
+
+      <div v-show="activeTab === 'openclaw'" class="settings-tab-pane">
+        <OpenClawPanel />
+      </div>
     </div>
   </div>
 </template>
@@ -183,6 +190,7 @@ import BackendLogViewer from '../BackendLogViewer.vue';
 import AIToolsPanel from './AIToolsPanel.vue';
 import SshPanel from './SshPanel.vue';
 import MCPPanel from './MCPPanel.vue';
+import OpenClawPanel from './OpenClawPanel.vue';
 
 withDefaults(
   defineProps<{
@@ -381,7 +389,8 @@ onUnmounted(() => {
 }
 
 .settings-inline-tabs {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .settings-panel-body {

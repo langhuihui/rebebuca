@@ -258,6 +258,65 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   };
 
+  /**
+   * Single path for PTY exit → tab UI + side effects.
+   * Used by adapter onExit and by TerminalView @exit (fallback when adapter event is missed).
+   */
+  const applyPtyExitToTab = async (tab: TerminalTab, exitCode: number | null) => {
+    if (tab.type !== 'task' && tab.type !== 'shell') return;
+    if (tab.status === 'success' || tab.status === 'error' || tab.status === 'closed') return;
+
+    const success = exitCode === 0 || exitCode === null;
+    tab.exitCode = exitCode ?? undefined;
+    tab.status = success ? 'success' : 'error';
+
+    if (tab.isFFmpegTask && tab.ffmpegTaskId) {
+      try {
+        const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
+        const ffmpegStore = useFFmpegProgressStore();
+        ffmpegStore.finishTask(tab.ffmpegTaskId, exitCode ?? undefined);
+        console.log('[Terminal Store] FFmpeg progress tracking finished:', tab.ffmpegTaskId);
+      } catch (error) {
+        console.warn('[Terminal Store] Failed to finish FFmpeg progress:', error);
+      }
+    }
+
+    try {
+      const { useTaskManagerStore } = await import('./taskManager');
+      const taskManager = useTaskManagerStore();
+      taskManager.onTaskExit(tab.id);
+    } catch (error) {
+      console.error('[Terminal Store] Failed to notify taskManager:', error);
+    }
+
+    if (tab.historyId) {
+      try {
+        const { useRunConfigStore } = await import('./runConfig');
+        const runConfigStore = useRunConfigStore();
+        const historyItem = runConfigStore.history.find(h => h.id === tab.historyId);
+
+        if (historyItem) {
+          const duration = historyItem.startTime ? Date.now() - historyItem.startTime : undefined;
+          await runConfigStore.updateHistory(tab.historyId, {
+            status: success ? 'success' : 'error',
+            duration,
+          });
+          console.log('[Terminal Store] Updated history record:', tab.historyId);
+        }
+      } catch (error) {
+        console.error('[Terminal Store] Failed to update history:', error);
+      }
+    }
+  };
+
+  /** Called from TerminalView @exit — keeps tab status in sync if store adapter exit was not delivered. */
+  const applyPtyExitForTabId = (tabId: string, exitCode: number | null) => {
+    const tab = tabs.value.find(t => t.id === tabId);
+    if (tab) {
+      void applyPtyExitToTab(tab, exitCode);
+    }
+  };
+
   // Initialize event listeners
   const initListeners = async () => {
     if (unlistenExit) return; // Already initialized
@@ -334,51 +393,8 @@ export const useTerminalStore = defineStore('terminal', () => {
         console.log('[Terminal Store] PTY exit event:', ptyId, exitCode);
 
         const tab = tabs.value.find(t => t.ptyId === ptyId);
-        // Only process exit events for task/shell tabs, not special tabs like settings/notifications
-        if (tab && (tab.type === 'task' || tab.type === 'shell')) {
-          tab.exitCode = exitCode ?? undefined;
-          tab.status = exitCode === 0 ? 'success' : 'error';
-
-          // 完成 FFmpeg 进度追踪
-          if (tab.isFFmpegTask && tab.ffmpegTaskId) {
-            try {
-              const { useFFmpegProgressStore } = await import('../ffmpeg/stores/progressStore');
-              const ffmpegStore = useFFmpegProgressStore();
-              ffmpegStore.finishTask(tab.ffmpegTaskId, exitCode ?? undefined);
-              console.log('[Terminal Store] FFmpeg progress tracking finished:', tab.ffmpegTaskId);
-            } catch (error) {
-              console.warn('[Terminal Store] Failed to finish FFmpeg progress:', error);
-            }
-          }
-
-          // Notify taskManager that this task has exited
-          try {
-            const { useTaskManagerStore } = await import('./taskManager');
-            const taskManager = useTaskManagerStore();
-            taskManager.onTaskExit(tab.id);
-          } catch (error) {
-            console.error('[Terminal Store] Failed to notify taskManager:', error);
-          }
-
-          // Update history record if this tab has a historyId
-          if (tab.historyId) {
-            try {
-              const { useRunConfigStore } = await import('./runConfig');
-              const runConfigStore = useRunConfigStore();
-              const historyItem = runConfigStore.history.find(h => h.id === tab.historyId);
-
-              if (historyItem) {
-                const duration = historyItem.startTime ? Date.now() - historyItem.startTime : undefined;
-                await runConfigStore.updateHistory(tab.historyId, {
-                  status: exitCode === 0 ? 'success' : 'error',
-                  duration,
-                });
-                console.log('[Terminal Store] Updated history record:', tab.historyId);
-              }
-            } catch (error) {
-              console.error('[Terminal Store] Failed to update history:', error);
-            }
-          }
+        if (tab) {
+          await applyPtyExitToTab(tab, exitCode);
         }
       });
 
@@ -1260,6 +1276,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     setActiveTab,
     findTabByHistoryId,
     findTabByPtyId,
+    applyPtyExitForTabId,
     updateTabStatus,
     updateTabStats,
     getTabProcessStats,

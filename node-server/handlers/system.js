@@ -348,6 +348,26 @@ export async function renameLogFile(oldFilename, taskId, pid) {
   return newFilename;
 }
 
+/**
+ * Read a task log file content by filename.
+ * Returns UTF-8 text content, or empty string if file is missing.
+ */
+export async function readLogFile(logFilename) {
+  if (!logFilename) {
+    return '';
+  }
+
+  const logPath = path.join(LOG_DIR, logFilename);
+  try {
+    if (!fs.existsSync(logPath)) {
+      return '';
+    }
+    return fs.readFileSync(logPath, 'utf8');
+  } catch (err) {
+    throw new Error(`Failed to read log file ${logFilename}: ${err.message}`);
+  }
+}
+
 // ============================================================================
 // Other system operations
 // ============================================================================
@@ -366,19 +386,107 @@ export async function openExternal(url) {
   }
 }
 
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function buildTerminalCommand(command, cwd) {
+  if (!cwd) return command;
+  return `cd ${shellQuote(cwd)}; ${command}`;
+}
+
+function escapeAppleScriptString(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 /**
  * Open a command in the system terminal.
- * In web/server mode this is a no-op (users have their own terminal).
  */
-export async function openInSystemTerminal(_command, _cwd) {
-  // No-op in server mode – the user's browser cannot open a local terminal window.
+export async function openInSystemTerminal(command, cwd) {
+  const platform = os.platform();
+  const finalCommand = buildTerminalCommand(command, cwd);
+
+  if (platform === 'darwin') {
+    const script = [
+      'tell application "Terminal"',
+      '  activate',
+      `  do script "${escapeAppleScriptString(finalCommand)}"`,
+      'end tell',
+    ].join('\n');
+    spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref();
+    return;
+  }
+
+  if (platform === 'win32') {
+    spawn('cmd', ['/c', 'start', '', 'cmd.exe', '/k', finalCommand], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
+    return;
+  }
+
+  // Linux default: x-terminal-emulator is the most portable entrypoint.
+  spawn('x-terminal-emulator', ['-e', finalCommand], { detached: true, stdio: 'ignore' }).unref();
 }
 
 /**
  * Open a command in a specific terminal emulator.
  */
-export async function openInSpecificTerminal(_terminalId, _command, _cwd) {
-  // No-op in server mode
+export async function openInSpecificTerminal(terminalId, command, cwd) {
+  const platform = os.platform();
+  const finalCommand = buildTerminalCommand(command, cwd);
+
+  if (platform === 'darwin') {
+    if (terminalId === 'iterm2') {
+      const script = [
+        'tell application "iTerm"',
+        '  activate',
+        '  if (count of windows) = 0 then',
+        '    create window with default profile',
+        '  end if',
+        `  tell current session of current window to write text "${escapeAppleScriptString(finalCommand)}"`,
+        'end tell',
+      ].join('\n');
+      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref();
+      return;
+    }
+
+    // Fallback to default Terminal.app for unknown terminal IDs on macOS.
+    await openInSystemTerminal(command, cwd);
+    return;
+  }
+
+  if (platform === 'win32') {
+    if (terminalId === 'powershell' || terminalId === 'pwsh') {
+      const shellExe = terminalId === 'pwsh' ? 'pwsh.exe' : 'powershell.exe';
+      spawn('cmd', ['/c', 'start', '', shellExe, '-NoExit', '-Command', finalCommand], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+      return;
+    }
+    spawn('cmd', ['/c', 'start', '', 'cmd.exe', '/k', finalCommand], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
+    return;
+  }
+
+  // Linux common terminals
+  const linuxTerminalArgs = {
+    'gnome-terminal': ['--', 'bash', '-lc', finalCommand],
+    konsole: ['-e', 'bash', '-lc', finalCommand],
+    'xfce4-terminal': ['--command', `bash -lc ${shellQuote(finalCommand)}`],
+    xterm: ['-e', 'bash', '-lc', finalCommand],
+    alacritty: ['-e', 'bash', '-lc', finalCommand],
+  };
+  const args = linuxTerminalArgs[terminalId];
+  if (args) {
+    spawn(terminalId, args, { detached: true, stdio: 'ignore' }).unref();
+    return;
+  }
+
+  await openInSystemTerminal(command, cwd);
 }
 
 /**

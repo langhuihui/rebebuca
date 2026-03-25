@@ -779,11 +779,13 @@ const showRecentCountModal = ref(false);
 const recentCountDraft = ref(5);
 
 const openRecentCountModal = () => {
+  void settingsStore.initialize();
   recentCountDraft.value = settingsStore.settings.recentTasksCount ?? 5;
   showRecentCountModal.value = true;
 };
 
 const applyRecentTasksCount = async () => {
+  await settingsStore.initialize();
   const v = recentCountDraft.value;
   const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 5;
   settingsStore.settings.recentTasksCount = Math.max(0, Math.min(20, n));
