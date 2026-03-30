@@ -257,11 +257,13 @@
                     <div class="global-search-wrap">
                       <n-input
                         v-model:value="globalSearch"
+                        ref="taskSearchInputRef"
                         clearable
                         size="small"
                         :placeholder="t('task.searchPlaceholder') || 'Search tasks...'"
                         class="global-search"
                         @focus="taskSearchFocused = true"
+                        @update:value="taskSearchFocused = true"
                         @blur="onTaskSearchBlur"
                         @keydown="onTaskSearchKeydown"
                       >
@@ -269,25 +271,43 @@
                           <n-icon><component :is="svgIcons.search" /></n-icon>
                         </template>
                       </n-input>
-                      <div v-show="taskSearchPanelVisible" class="task-search-dropdown">
-                        <div v-if="taskSearchResults.length === 0" class="task-search-empty">
-                          {{ t("task.noResults") || "No tasks found" }}
-                        </div>
+                      <Teleport to="body">
                         <div
-                          v-for="(task, index) in taskSearchResults"
-                          :key="task.id"
-                          class="task-search-item"
-                          :class="{
-                            'task-search-item--active': index === taskSearchHighlight,
-                          }"
-                          @mousedown.prevent="runTaskFromSearch(task)"
+                          v-show="taskSearchPanelVisible"
+                          class="task-search-dropdown"
+                          :style="taskSearchDropdownInlineStyle"
+                          ref="taskSearchDropdownElRef"
                         >
-                          <span class="task-search-item-name">{{ task.name }}</span>
-                          <span v-if="task.command" class="task-search-item-cmd">{{
-                            task.command
-                          }}</span>
+                          <div
+                            v-if="taskSearchResults.length === 0"
+                            class="task-search-empty"
+                          >
+                            {{ t("task.noResults") || "No tasks found" }}
+                          </div>
+                          <div
+                            v-for="(task, index) in taskSearchResults"
+                            :key="task.id"
+                            class="task-search-item"
+                            :class="{
+                              'task-search-item--active': index === taskSearchHighlight,
+                            }"
+                            @mousedown.prevent="runTaskFromSearch(task)"
+                          >
+                            <div class="task-search-item-title">
+                              <span class="task-search-item-name">{{ task.name }}</span>
+                              <span v-if="task.cwd" class="task-search-item-cwd">
+                                {{ task.cwd }}
+                              </span>
+                            </div>
+                            <span
+                              v-if="task.command"
+                              class="task-search-item-cmd"
+                            >
+                              {{ task.command }}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      </Teleport>
                     </div>
                   </n-space>
                   <n-space
@@ -324,84 +344,12 @@
                   </n-space>
                 </div>
                 <div class="app-header-right">
-                  <n-popover
-                    v-if="!props.embedded"
-                    trigger="click"
-                    placement="bottom-end"
-                    :show-arrow="false"
-                    class="version-update-popover"
+                  <span
+                    class="version-chip"
+                    :class="{ 'version-chip--update': updaterStore.updateAvailable }"
                   >
-                    <template #trigger>
-                      <button
-                        type="button"
-                        class="version-chip version-chip-trigger"
-                        :class="{ 'version-chip--update': updaterStore.updateAvailable }"
-                      >
-                        v{{ headerDisplayVersion }}
-                      </button>
-                    </template>
-                    <div class="version-popover-inner">
-                      <n-space vertical :size="12" style="width: 100%">
-                        <div class="version-popover-line">
-                          <span class="version-popover-muted">{{ t("settings.currentVersion") }}</span>
-                          <span class="version-popover-strong">v{{ headerDisplayVersion }}</span>
-                        </div>
-                        <n-button
-                          block
-                          size="small"
-                          :loading="updaterStore.checking"
-                          @click="onHeaderCheckForUpdates"
-                        >
-                          {{ t("settings.checkUpdate") }}
-                        </n-button>
-                        <n-alert
-                          v-if="updaterStore.updateAvailable && updaterStore.updateInfo"
-                          type="success"
-                        >
-                          <template #header>
-                            {{ t("settings.updateAvailable") }}: v{{
-                              updaterStore.updateInfo.version
-                            }}
-                          </template>
-                          <div v-if="updaterStore.updateInfo.body" class="version-popover-notes">
-                            {{ updaterStore.updateInfo.body }}
-                          </div>
-                          <div class="version-popover-cmd">
-                            <span class="version-popover-muted">{{ t("settings.npmUpdateHint") }}</span>
-                            <code class="version-popover-code">{{ npmUpdateHintCommand }}</code>
-                          </div>
-                          <n-button
-                            type="primary"
-                            size="small"
-                            block
-                            style="margin-top: 10px"
-                            :loading="updaterStore.downloading"
-                            @click="onHeaderDownloadUpdate"
-                          >
-                            {{
-                              updaterStore.downloading
-                                ? t("settings.updatingInTerminal")
-                                : t("settings.updateViaNpm")
-                            }}
-                          </n-button>
-                        </n-alert>
-                        <n-alert
-                          v-else-if="headerUpdateChecked && !updaterStore.updateAvailable"
-                          type="info"
-                        >
-                          {{ t("settings.noUpdate") }}
-                        </n-alert>
-                        <n-alert v-if="updaterStore.error" type="error">
-                          {{ updaterStore.error }}
-                          <div class="version-popover-cmd" style="margin-top: 8px">
-                            <span class="version-popover-muted">{{ t("settings.npmUpdateHint") }}</span>
-                            <code class="version-popover-code">{{ npmUpdateHintCommand }}</code>
-                          </div>
-                        </n-alert>
-                      </n-space>
-                    </div>
-                  </n-popover>
-                  <span v-else class="version-chip">v{{ headerDisplayVersion }}</span>
+                    v{{ headerDisplayVersion }}
+                  </span>
                   <n-dropdown
                     v-if="!props.embedded"
                     trigger="click"
@@ -610,28 +558,9 @@ const onLanguageMenuSelect = (key: string) => {
 // About dialog state
 const showAboutDialog = ref(false);
 const currentVersion = ref("");
-
-const headerUpdateChecked = ref(false);
 const headerDisplayVersion = computed(
   () => updaterStore.currentVersion || currentVersion.value,
 );
-const npmUpdateHintCommand = computed(() => {
-  const latest = updaterStore.updateInfo?.version;
-  return `npm i -g rebebuca@${latest || "latest"}`;
-});
-
-const onHeaderCheckForUpdates = async () => {
-  headerUpdateChecked.value = true;
-  await updaterStore.checkForUpdates();
-};
-
-const onHeaderDownloadUpdate = async () => {
-  try {
-    await updaterStore.downloadAndInstall();
-  } catch (e) {
-    console.error("[App] Update failed:", e);
-  }
-};
 
 const globalSearch = ref("");
 const settingsModalVisible = ref(false);
@@ -670,17 +599,136 @@ const showSettingsTabsInHeader = computed(() => !props.embedded);
 
 const showWorkspaceLayoutMenu = computed(() => !props.embedded);
 
+const taskSearchInputRef = ref<any>(null);
+const taskSearchDropdownElRef = ref<HTMLElement | null>(null);
+const taskSearchDropdownPos = ref({ top: 0, left: 0, width: 0 });
+const taskSearchDropdownInlineStyle = computed(() => ({
+  top: `${taskSearchDropdownPos.value.top}px`,
+  left: `${taskSearchDropdownPos.value.left}px`,
+  width: `${taskSearchDropdownPos.value.width}px`,
+}));
+
+const syncTaskSearchDropdownThemeVars = () => {
+  const dropdownEl = taskSearchDropdownElRef.value;
+  if (!dropdownEl) return;
+
+  const comp = taskSearchInputRef.value as any;
+  const elFromRef: HTMLElement | undefined =
+    comp?.$el && comp.$el instanceof HTMLElement ? comp.$el : comp;
+  const elFromDom =
+    (document.querySelector(
+      ".global-search input",
+    ) as HTMLElement | null) ||
+    (document.querySelector(".global-search") as HTMLElement | null);
+  const sourceEl =
+    elFromRef && typeof elFromRef.getBoundingClientRect === "function"
+      ? elFromRef
+      : elFromDom;
+  if (!sourceEl) return;
+
+  const sourceStyles = window.getComputedStyle(sourceEl);
+
+  // Custom properties might be defined on some ancestor (e.g. NConfigProvider),
+  // so walk up to find the closest resolved value.
+  const getVarFromAncestors = (start: HTMLElement, name: string) => {
+    let el: HTMLElement | null = start;
+    // Avoid infinite loops; DOM depth is small here.
+    for (let i = 0; i < 25 && el; i++) {
+      const v = window.getComputedStyle(el).getPropertyValue(name).trim();
+      if (v) return v;
+      el = el.parentElement;
+    }
+    return "";
+  };
+
+  const varNames = [
+    "--n-color",
+    "--n-color-modal",
+    "--n-border-color",
+    "--n-color-hover",
+    "--n-text-color-1",
+    "--n-text-color-3",
+    "--n-text-color-2",
+    "--n-primary-color",
+  ];
+
+  for (const name of varNames) {
+    const value = getVarFromAncestors(sourceEl as HTMLElement, name);
+    if (value) dropdownEl.style.setProperty(name, value);
+  }
+
+  // Critical fallback: if theme CSS vars couldn't be resolved (teleport scope),
+  // use the resolved colors from the input itself so text stays readable.
+  const fallbackText1 =
+    sourceStyles.getPropertyValue("--n-text-color-1").trim() ||
+    sourceStyles.color.trim();
+  const fallbackText2 =
+    sourceStyles.getPropertyValue("--n-text-color-2").trim() ||
+    fallbackText1;
+  const fallbackText3 =
+    sourceStyles.getPropertyValue("--n-text-color-3").trim() ||
+    fallbackText2;
+
+  if (fallbackText1) {
+    dropdownEl.style.setProperty("--n-text-color-1", fallbackText1);
+    dropdownEl.style.color = fallbackText1; // explicit to avoid inherit->black
+  }
+  if (fallbackText2) dropdownEl.style.setProperty("--n-text-color-2", fallbackText2);
+  if (fallbackText3) dropdownEl.style.setProperty("--n-text-color-3", fallbackText3);
+
+  if (import.meta.env.DEV) {
+    console.debug("[TaskSearch] synced vars", {
+      nText1: dropdownEl.style.getPropertyValue("--n-text-color-1"),
+      nText2: dropdownEl.style.getPropertyValue("--n-text-color-2"),
+      nText3: dropdownEl.style.getPropertyValue("--n-text-color-3"),
+    });
+  }
+};
+
 const taskSearchPanelVisible = computed(
   () => taskSearchFocused.value && globalSearch.value.trim().length > 0,
 );
+
+function updateTaskSearchDropdownPos() {
+  const comp = taskSearchInputRef.value as any;
+  // Naive UI component refs might not be the raw <input>; try $el first,
+  // then fall back to DOM queries.
+  const elFromRef: HTMLElement | undefined =
+    comp?.$el && comp.$el instanceof HTMLElement ? comp.$el : comp;
+  const elFromDom =
+    (document.querySelector(
+      ".global-search input",
+    ) as HTMLElement | null) ||
+    (document.querySelector(".global-search") as HTMLElement | null);
+  const el =
+    elFromRef && typeof elFromRef.getBoundingClientRect === "function"
+      ? elFromRef
+      : elFromDom;
+  if (!el || typeof el.getBoundingClientRect !== "function") return;
+
+  const rect = el.getBoundingClientRect();
+  const dropdownWidth = Math.min(
+    980,
+    Math.max(420, Math.round(rect.width * 1.8)),
+  );
+  // Keep a small gap under the input.
+  taskSearchDropdownPos.value = {
+    top: rect.bottom + 4,
+    left: rect.left,
+    width: dropdownWidth,
+  };
+
+  // Apply theme vars after the dropdown is visible.
+  syncTaskSearchDropdownThemeVars();
+}
 
 const taskSearchResults = computed(() => {
   const q = globalSearch.value.trim().toLowerCase();
   if (!q) return [];
   return taskManager.combinedTasks.filter(
     (task) =>
-      task.name.toLowerCase().includes(q) ||
-      (task.command && task.command.toLowerCase().includes(q)),
+      // Search only "command name" (task.name). Do not match command path.
+      task.name.toLowerCase().includes(q),
   );
 });
 
@@ -731,8 +779,26 @@ const onTaskSearchKeydown = (e: KeyboardEvent) => {
   }
 };
 
-watch(globalSearch, () => {
+watch(globalSearch, (v) => {
   taskSearchHighlight.value = 0;
+  if (v.trim().length > 0) requestAnimationFrame(() => updateTaskSearchDropdownPos());
+  if (import.meta.env.DEV) {
+    console.debug("[TaskSearch]", {
+      globalSearch: v,
+      panelVisible: taskSearchPanelVisible.value,
+      results: taskSearchResults.value.length,
+      dropdownPos: taskSearchDropdownPos.value,
+    });
+  }
+});
+
+watch(taskSearchPanelVisible, (visible) => {
+  if (!visible) return;
+  // Wait for v-show/Teleport to render before measuring.
+  requestAnimationFrame(() => {
+    updateTaskSearchDropdownPos();
+    syncTaskSearchDropdownThemeVars();
+  });
 });
 
 watch(taskSearchResults, (list) => {
@@ -2052,7 +2118,8 @@ onUnmounted(() => {
 .app-header-left {
   flex-wrap: nowrap;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .app-header-brand {
@@ -2079,24 +2146,24 @@ onUnmounted(() => {
 }
 
 .task-search-dropdown {
-  position: absolute;
-  top: 100%;
+  position: fixed;
+  top: 0;
   left: 0;
-  margin-top: 4px;
-  min-width: 100%;
-  max-height: min(320px, 50vh);
+  min-width: 240px; /* Avoid "0px width" causing invisible dropdown */
+  max-height: min(640px, 70vh);
   overflow-y: auto;
-  z-index: 3000;
-  background: var(--n-color);
-  border: 1px solid var(--n-border-color);
+  z-index: 10000;
+  background: var(--n-color-modal, var(--n-color, #ffffff));
+  border: 1px solid var(--n-border-color, rgba(0, 0, 0, 0.18));
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  color: var(--n-text-color-1, #e6e6e6);
 }
 
 .task-search-empty {
   padding: 12px 14px;
   font-size: 13px;
-  color: var(--n-text-color-3);
+  color: var(--n-text-color-3, #bdbdbd);
 }
 
 .task-search-item {
@@ -2106,6 +2173,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 2px;
   border-bottom: 1px solid var(--n-border-color);
+  color: var(--n-text-color-1, #e6e6e6);
 }
 
 .task-search-item:last-child {
@@ -2114,7 +2182,10 @@ onUnmounted(() => {
 
 .task-search-item:hover,
 .task-search-item--active {
-  background: color-mix(in srgb, var(--n-primary-color) 14%, transparent);
+  background: var(
+    --n-color-hover,
+    color-mix(in srgb, var(--n-primary-color, #409eff) 14%, transparent)
+  );
 }
 
 .task-search-item-name {
@@ -2123,12 +2194,32 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--n-text-color-1, #e6e6e6);
+}
+
+.task-search-item-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.task-search-item-cwd {
+  flex: 0 1 55%;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--n-text-color-3, #bdbdbd);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .task-search-item-cmd {
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: var(--n-text-color-3);
+  color: var(--n-text-color-2, #9e9e9e);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

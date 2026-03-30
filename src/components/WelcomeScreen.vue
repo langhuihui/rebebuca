@@ -74,12 +74,17 @@
       </div>
       
       <!-- New Version Available Section -->
-      <div v-if="updaterStore.newVersionNote" class="new-version-section">
+      <div
+        v-if="updaterStore.updateAvailable && updaterStore.updateInfo"
+        class="new-version-section"
+      >
         <div class="new-version-header">
           <div class="new-version-title">
             <component :is="iconComponents.upgrade" class="upgrade-icon" />
             {{ t('settings.newVersionAvailable') }}
-            <span class="version-badge new-version-badge">{{ updaterStore.newVersionNote.tag }}</span>
+            <span class="version-badge new-version-badge"
+              >v{{ updaterStore.updateInfo.version }}</span
+            >
           </div>
           <n-button 
             type="primary" 
@@ -102,7 +107,10 @@
         />
         <n-collapse :default-expanded-names="[]" style="margin-top: 12px;">
           <n-collapse-item :title="t('settings.viewNewFeatures')" name="features">
-            <div class="new-version-features" v-html="formatReleaseBody(updaterStore.newVersionNote.body)"></div>
+            <div
+              class="new-version-features"
+              v-html="formatReleaseBody(newVersionBody)"
+            ></div>
           </n-collapse-item>
         </n-collapse>
       </div>
@@ -127,6 +135,7 @@
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { computed } from "vue";
 import { NScrollbar, NButton, NProgress, NCollapse, NCollapseItem } from "naive-ui";
 import { useUpdaterStore } from "../stores/updater";
 import { iconComponents } from "../utils/icons";
@@ -141,6 +150,11 @@ defineProps<Props>();
 const { t } = useI18n();
 const updaterStore = useUpdaterStore();
 const { currentLocale } = useLocale();
+
+const newVersionBody = computed(() => {
+  // Prefer backend-provided release notes; fall back to the self-hosted release JSON.
+  return updaterStore.updateInfo?.body || updaterStore.newVersionNote?.body || "";
+});
 
 // Handle upgrade button click
 const handleUpgrade = async () => {
