@@ -108,6 +108,26 @@ function buildCommandString(command, args) {
   return [command, ...(args || [])].map(quoteShellArg).join(' ');
 }
 
+/**
+ * Build a Windows cmd.exe-compatible command string.
+ * Uses double-quote quoting (single quotes have no special meaning in cmd.exe).
+ */
+function buildWindowsCommandString(command, args) {
+  return [command, ...(args || [])]
+    .map((arg) => {
+      const s = String(arg);
+      if (s === '') return '""';
+      // Wrap in double quotes if the arg contains spaces, tabs, double quotes,
+      // or cmd.exe special characters (&, |, <, >, ^, %)
+      if (/[\s"&|<>^%]/.test(s)) {
+        // Escape embedded double quotes by doubling them (cmd.exe convention)
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    })
+    .join(' ');
+}
+
 function registerPtyEntry(ptyId, processLike, mode = 'pty', meta = {}) {
   ptys.set(ptyId, { processLike, pid: processLike.pid, running: true, mode, meta });
 
@@ -220,11 +240,15 @@ export async function createTerminal(params) {
   if (isTaskCommand) {
     // If task already provides an explicit shell -c command, run it directly.
     if (!isShellScriptRun) {
-      const cmdString = buildCommandString(command, args);
       if (os.platform() === 'win32') {
-        // Use cmd.exe /d /s /c "<cmd>"
-        finalArgs = ['/d', '/s', '/c', cmdString];
+        // Build a Windows-compatible command string using double-quote quoting.
+        // Omit /d so that AutoRun registry entries (e.g. Conda, NVM for Windows,
+        // pyenv-win) can run and set up the shell environment — the Windows
+        // equivalent of the Unix login-shell (-l) flag used on other platforms.
+        const winCmdString = buildWindowsCommandString(command, args);
+        finalArgs = ['/s', '/c', winCmdString];
       } else {
+        const cmdString = buildCommandString(command, args);
         // Use login shell to load PATH and env (zsh/bash)
         finalArgs = ['-lc', cmdString];
       }
