@@ -608,6 +608,97 @@ const taskSearchDropdownInlineStyle = computed(() => ({
   width: `${taskSearchDropdownPos.value.width}px`,
 }));
 
+/** Parse rgb/rgba string to [r,g,b] or null */
+function parseRgbTuple(color: string): [number, number, number] | null {
+  const m = color.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+/** Blend translucent panel color over a solid base (opaque result). */
+function flattenOverBase(rgba: string, baseRgb: [number, number, number]): string {
+  const m = rgba.match(
+    /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/,
+  );
+  if (!m) return rgba;
+  const r = Number(m[1]);
+  const g = Number(m[2]);
+  const b = Number(m[3]);
+  const a = m[4] !== undefined ? Number(m[4]) : 1;
+  if (a >= 0.999) {
+    return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+  }
+  const [br, bg, bb] = baseRgb;
+  const outR = Math.round(r * a + br * (1 - a));
+  const outG = Math.round(g * a + bg * (1 - a));
+  const outB = Math.round(b * a + bb * (1 - a));
+  return `rgb(${outR},${outG},${outB})`;
+}
+
+/**
+ * Resolve an opaque panel background: Naive modal color may be translucent;
+ * blend over app/body background so the dropdown does not look "see-through".
+ * `dropdownEl` must already have `--n-color-modal` / `--n-color` copied so
+ * resolution happens in theme scope (no white fallback in dark theme).
+ */
+function resolveOpaqueDropdownBackground(
+  dropdownEl: HTMLElement,
+  sourceEl: HTMLElement,
+): string | null {
+  const mount =
+    (sourceEl.closest(".n-config-provider") as HTMLElement | null) ||
+    document.body;
+  const isDark = mount.classList.contains("n-config-provider--dark");
+
+  const naiveDarkPanelRgb = "rgb(24, 24, 28)";
+  const naiveLightPanelRgb = "rgb(255, 255, 255)";
+
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:absolute;left:-99999px;top:0;width:1px;height:1px;pointer-events:none;visibility:hidden;opacity:0;";
+  probe.style.background = "var(--n-color-modal, var(--n-color))";
+  dropdownEl.appendChild(probe);
+  let bg = window.getComputedStyle(probe).backgroundColor;
+  dropdownEl.removeChild(probe);
+
+  if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
+    bg = isDark ? naiveDarkPanelRgb : naiveLightPanelRgb;
+  }
+
+  const rgbParts = bg.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+  if (isDark && rgbParts) {
+    const r = Number(rgbParts[1]);
+    const g = Number(rgbParts[2]);
+    const b = Number(rgbParts[3]);
+    if (r > 220 && g > 220 && b > 220) {
+      bg = naiveDarkPanelRgb;
+    }
+  }
+
+  const baseEl =
+    (sourceEl.closest(".app-window") as HTMLElement | null) ||
+    (mount.querySelector(".app-window") as HTMLElement | null) ||
+    document.body;
+  const baseBg = window.getComputedStyle(baseEl).backgroundColor;
+  let baseRgb = parseRgbTuple(baseBg);
+  if (
+    !baseRgb ||
+    baseBg === "transparent" ||
+    baseBg === "rgba(0, 0, 0, 0)"
+  ) {
+    baseRgb = isDark ? [24, 24, 28] : [255, 255, 255];
+  }
+
+  const alphaMatch = bg.match(
+    /rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/,
+  );
+  if (alphaMatch) {
+    const alpha = Number(alphaMatch[1]);
+    if (alpha < 0.999) return flattenOverBase(bg, baseRgb);
+  }
+  return bg;
+}
+
 const syncTaskSearchDropdownThemeVars = () => {
   const dropdownEl = taskSearchDropdownElRef.value;
   if (!dropdownEl) return;
@@ -682,6 +773,13 @@ const syncTaskSearchDropdownThemeVars = () => {
       nText2: dropdownEl.style.getPropertyValue("--n-text-color-2"),
       nText3: dropdownEl.style.getPropertyValue("--n-text-color-3"),
     });
+  }
+
+  const opaqueBg = resolveOpaqueDropdownBackground(dropdownEl, sourceEl as HTMLElement);
+  if (opaqueBg) {
+    dropdownEl.style.background = opaqueBg;
+    dropdownEl.style.backgroundColor = opaqueBg;
+    dropdownEl.style.backgroundImage = "none";
   }
 };
 
@@ -2153,7 +2251,8 @@ onUnmounted(() => {
   max-height: min(640px, 70vh);
   overflow-y: auto;
   z-index: 10000;
-  background: var(--n-color-modal, var(--n-color, #ffffff));
+  background-color: var(--n-color-modal, var(--n-color));
+  background-image: none;
   border: 1px solid var(--n-border-color, rgba(0, 0, 0, 0.18));
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
