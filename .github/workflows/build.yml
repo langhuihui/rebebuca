@@ -1,5 +1,5 @@
 # Publishes via npm Trusted Publishing (OIDC). Configure on npmjs.com with workflow file: build.yml
-# Requires Node >= 22.14 and npm CLI >= 11.5.1 (see https://docs.npmjs.com/trusted-publishers).
+# Use Node 24+ so the bundled npm meets Trusted Publishing (npm CLI >= 11.5.1); see https://docs.npmjs.com/trusted-publishers
 name: Build and Publish to npm
 
 on:
@@ -19,12 +19,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Do not set registry-url here: setup-node injects a placeholder NODE_AUTH_TOKEN when none is provided,
-      # which prevents npm Trusted Publishing (OIDC) and surfaces as E404 Not Found on PUT.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -60,15 +59,6 @@ jobs:
             echo 'npm pack output is missing web-public; refusing to publish.'
             exit 1
           }
-
-      # pnpm publish delegates to npm CLI; ensure npm meets OIDC trusted publishing minimum (>= 11.5.1).
-      # Do not use `npm install -g npm@latest`: some GitHub-hosted Node toolcache builds ship a broken global npm (e.g. MODULE_NOT_FOUND: promise-retry). Corepack activates a full npm install without self-upgrade.
-      - name: Upgrade npm for OIDC publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          timeout 120 bash -c 'corepack enable && corepack prepare npm@11.12.1 --activate'
-          npm --version
 
       - name: Publish to npm (Trusted Publisher / OIDC)
         run: npm publish --access public
