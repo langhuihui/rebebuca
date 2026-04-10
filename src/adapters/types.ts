@@ -82,12 +82,23 @@ export interface AdminExecuteResult {
   stderr: string;
 }
 
-// Port types
+// Port types (enriched; see port-whisperer-style metadata in node-server/handlers/port-enrichment.js)
+export type PortListenerStatus = 'healthy' | 'orphaned' | 'zombie';
+
 export interface PortInfo {
   port: number;
   pid: number;
   process: string;
   protocol: string;
+  command?: string;
+  cwd?: string;
+  project?: string;
+  framework?: string | null;
+  uptime?: string | null;
+  status?: PortListenerStatus;
+  memory?: string | null;
+  dockerContainer?: string;
+  dockerImage?: string;
 }
 
 // Log types
@@ -197,8 +208,9 @@ export interface SystemAdapter {
   getAvailableShells(): Promise<ShellInfo[]>;
   executeWithAdmin(command: string, args: string[]): Promise<AdminExecuteResult>;
   getProcessInfo(pid: number): Promise<ProcessInfo | null>;
-  listPorts(): Promise<PortInfo[]>;
+  listPorts(options?: { showAll?: boolean }): Promise<PortInfo[]>;
   killProcess(pid: number): Promise<void>;
+  killProcessForce(pid: number): Promise<void>;
   generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo>;
   renameLogFile(oldFilename: string, taskId: string, pid: number): Promise<string>;
   readLogFile(logFilename: string): Promise<string>;

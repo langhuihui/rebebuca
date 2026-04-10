@@ -51,6 +51,7 @@ import {
   getAvailableTerminals,
   getProcessInfo,
   killProcess,
+  killProcessForce,
   listPorts,
   generateLogPath,
   renameLogFile,
@@ -247,8 +248,12 @@ async function handleRequest(clientId, request, clientPtyIds) {
         await killProcess(params.pid);
         result = null;
         break;
+      case 'system.killProcessForce':
+        await killProcessForce(params.pid);
+        result = null;
+        break;
       case 'system.listPorts':
-        result = await listPorts();
+        result = await listPorts(params || {});
         break;
       case 'system.generateLogPath':
         result = await generateLogPath(params.taskId, params.pid);

@@ -94,6 +94,22 @@
                   </template>
                 </n-button>
               </div>
+              <div v-if="hasMultipleDetectedVersions(toolType)" class="multi-version-list">
+                <div class="multi-version-title">
+                  {{ t("aiTools.multipleVersionsDetected") }}
+                </div>
+                <div
+                  v-for="entry in getDistinctDetectedVersions(toolType)"
+                  :key="`${entry.version}-${entry.path}`"
+                  class="multi-version-row"
+                >
+                  <n-tag size="small" type="warning">v{{ entry.version }}</n-tag>
+                  <n-tag size="small" type="default">
+                    {{ getInstallSourceLabelBySource(entry.source) }}
+                  </n-tag>
+                  <span class="multi-version-path">{{ entry.path }}</span>
+                </div>
+              </div>
             </div>
 
             <!-- Website Link -->
@@ -897,6 +913,12 @@ const useWslForUpgrade = ref<Record<string, boolean>>({});
 
 // Tool versions (empty string means not installed)
 const toolVersions = ref<Record<string, string>>({});
+type DetectedVersionEntry = {
+  version: string;
+  path: string;
+  source: InstallSource;
+};
+const detectedVersions = ref<Record<string, DetectedVersionEntry[]>>({});
 
 // Latest versions from registry
 const latestVersions = ref<Record<string, string>>({});
@@ -1122,6 +1144,10 @@ const shouldShowNpmUpgradeTabs = (toolType: AIToolType): boolean => {
 
 const getInstallSourceLabel = (toolType: AIToolType): string => {
   const source = installSources.value[toolType];
+  return getInstallSourceLabelBySource(source);
+};
+
+const getInstallSourceLabelBySource = (source: InstallSource | undefined): string => {
   if (source === "npm") return "npm";
   if (source === "brew") return "Homebrew";
   if (source === "winget") return "WinGet";
@@ -1336,6 +1362,65 @@ const inferInstallSourceByPath = (binaryPath: string | null, fallback: InstallSo
   return fallback;
 };
 
+const escapeShellArg = (value: string): string => {
+  if (!value) return "''";
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+};
+
+const getVersionCommandForBinaryPath = (toolType: AIToolType, binaryPath: string): string => {
+  const template = AI_TOOL_METADATA[toolType].versionCommand;
+  if (!template) return `${escapeShellArg(binaryPath)} --version`;
+  return template.replace(/^\S+/, escapeShellArg(binaryPath));
+};
+
+const detectAllBinaryVersions = async (toolType: AIToolType): Promise<DetectedVersionEntry[]> => {
+  const binaryName = AI_TOOL_METADATA[toolType].launchCommand;
+  if (!binaryName) return [];
+
+  const locateCommand = currentPlatform.value === "windows" ? `where ${binaryName}` : `which -a ${binaryName}`;
+  const locateOutput = await runDetectionCommand(locateCommand, 8000);
+  const uniquePaths = Array.from(new Set(
+    locateOutput
+      .replace(/\u001b\[[0-9;]*m/g, "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !/not found|INFO: Could not find files/i.test(line))
+  ));
+
+  const entries: DetectedVersionEntry[] = [];
+  for (const binaryPath of uniquePaths) {
+    const versionOutput = await runDetectionCommand(getVersionCommandForBinaryPath(toolType, binaryPath), 5000);
+    const version = toolType === "claude-code"
+      ? parseClaudeCliVersionFromOutput(versionOutput)
+      : parseVersionFromOutput(versionOutput);
+    if (!version) continue;
+    entries.push({
+      version,
+      path: binaryPath,
+      source: inferInstallSourceByPath(binaryPath, "unknown"),
+    });
+  }
+
+  return entries;
+};
+
+const getDistinctDetectedVersions = (toolType: AIToolType): DetectedVersionEntry[] => {
+  const entries = detectedVersions.value[toolType] || [];
+  const deduplicated = new Map<string, DetectedVersionEntry>();
+  for (const entry of entries) {
+    const key = `${entry.version}@@${entry.path}`;
+    if (!deduplicated.has(key)) {
+      deduplicated.set(key, entry);
+    }
+  }
+  return Array.from(deduplicated.values());
+};
+
+const hasMultipleDetectedVersions = (toolType: AIToolType): boolean => {
+  const versions = new Set(getDistinctDetectedVersions(toolType).map((entry) => entry.version));
+  return versions.size > 1;
+};
+
 const parseVersionFromOutput = (output: string): string | null => {
   const plainOutput = output.replace(/\u001b\[[0-9;]*m/g, "").trim();
   if (!plainOutput) return null;
@@ -1464,10 +1549,12 @@ const checkSingleTool = async (toolType: AIToolType, _force = false) => {
     const { version: installedVersion, source } = await detectInstalledToolInfo(toolType);
     toolVersions.value[toolType] = installedVersion || "";
     installSources.value[toolType] = source;
+    detectedVersions.value[toolType] = await detectAllBinaryVersions(toolType);
 
     if (!installedVersion) {
       delete latestVersions.value[toolType];
       delete installSources.value[toolType];
+      delete detectedVersions.value[toolType];
     }
   } finally {
     checkedTools.value[toolType] = true;
@@ -1864,6 +1951,31 @@ const updateToolWithCommand = async (toolType: AIToolType, command: string, useS
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.multi-version-list {
+  margin-top: 8px;
+}
+
+.multi-version-title {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  margin-bottom: 6px;
+}
+
+.multi-version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.multi-version-path {
+  font-size: 12px;
+  color: var(--n-text-color-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  word-break: break-all;
 }
 
 .tool-info {

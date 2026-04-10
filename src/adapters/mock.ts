@@ -573,19 +573,58 @@ class MockSystemAdapter implements SystemAdapter {
     return { pid: _pid, name: 'mock-process', cpuUsage: 5.2, memoryUsage: 128 };
   }
 
-  async listPorts(): Promise<PortInfo[]> {
+  async listPorts(_options?: { showAll?: boolean }): Promise<PortInfo[]> {
     return [
-      { port: 3000, pid: 12345, process: 'node', protocol: 'tcp' },
-      { port: 5173, pid: 12346, process: 'vite', protocol: 'tcp' },
-      { port: 8080, pid: 12347, process: 'nginx', protocol: 'tcp' },
-      { port: 3306, pid: 12348, process: 'mysqld', protocol: 'tcp' },
-      { port: 6379, pid: 12349, process: 'redis-server', protocol: 'tcp' },
-      { port: 27017, pid: 12350, process: 'mongod', protocol: 'tcp' },
+      {
+        port: 3000,
+        pid: 12345,
+        process: 'node',
+        protocol: 'tcp',
+        command: 'next dev',
+        project: 'my-app',
+        framework: 'Next.js',
+        uptime: '2h 15m',
+        status: 'healthy',
+        memory: '128.5 MB',
+      },
+      {
+        port: 5173,
+        pid: 12346,
+        process: 'node',
+        protocol: 'tcp',
+        command: 'vite',
+        project: 'ui-kit',
+        framework: 'Vite',
+        uptime: '45m 12s',
+        status: 'healthy',
+        memory: '52.1 MB',
+      },
+      {
+        port: 5432,
+        pid: 12351,
+        process: 'docker',
+        protocol: 'tcp',
+        dockerContainer: 'db-1',
+        dockerImage: 'postgres:16',
+        project: 'db-1',
+        framework: 'PostgreSQL',
+        uptime: '3d 1h',
+        status: 'healthy',
+        memory: '220.0 MB',
+      },
+      { port: 8080, pid: 12347, process: 'nginx', protocol: 'tcp', status: 'healthy' },
+      { port: 3306, pid: 12348, process: 'mysqld', protocol: 'tcp', status: 'healthy' },
+      { port: 6379, pid: 12349, process: 'redis-server', protocol: 'tcp', status: 'healthy' },
+      { port: 27017, pid: 12350, process: 'mongod', protocol: 'tcp', status: 'healthy' },
     ];
   }
 
   async killProcess(_pid: number): Promise<void> {
     console.log('[Mock] killProcess:', _pid);
+  }
+
+  async killProcessForce(_pid: number): Promise<void> {
+    console.log('[Mock] killProcessForce:', _pid);
   }
 
   async generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo> {

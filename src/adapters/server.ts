@@ -447,12 +447,16 @@ class ServerSystemAdapter implements SystemAdapter {
     return this.client.request<ProcessInfo | null>('system.getProcessInfo', { pid });
   }
 
-  async listPorts(): Promise<PortInfo[]> {
-    return this.client.request<PortInfo[]>('system.listPorts');
+  async listPorts(options?: { showAll?: boolean }): Promise<PortInfo[]> {
+    return this.client.request<PortInfo[]>('system.listPorts', options ?? {});
   }
 
   async killProcess(pid: number): Promise<void> {
     await this.client.request('system.killProcess', { pid });
+  }
+
+  async killProcessForce(pid: number): Promise<void> {
+    await this.client.request('system.killProcessForce', { pid });
   }
 
   async generateLogPath(taskId: string, pid?: number): Promise<LogPathInfo> {

@@ -11,6 +11,7 @@ import path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import crypto from 'crypto';
+import { enrichListeningPorts, isDevProcess } from './port-enrichment.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -197,6 +198,10 @@ export async function getProcessInfo(pid) {
  */
 export async function killProcess(pid) {
   try {
+    if (os.platform() === 'win32') {
+      await execFileAsync('taskkill', ['/PID', String(pid)], { timeout: 15000, windowsHide: true });
+      return;
+    }
     process.kill(pid, 'SIGTERM');
   } catch (err) {
     throw new Error(`Failed to kill process ${pid}: ${err.message}`);
@@ -204,10 +209,17 @@ export async function killProcess(pid) {
 }
 
 /**
- * Kill a process by PID (SIGKILL).
+ * Kill a process by PID (SIGKILL / taskkill /F on Windows).
  */
 export async function killProcessForce(pid) {
   try {
+    if (os.platform() === 'win32') {
+      await execFileAsync('taskkill', ['/F', '/PID', String(pid)], {
+        timeout: 15000,
+        windowsHide: true,
+      });
+      return;
+    }
     process.kill(pid, 'SIGKILL');
   } catch (err) {
     throw new Error(`Failed to force-kill process ${pid}: ${err.message}`);
@@ -219,57 +231,60 @@ export async function killProcessForce(pid) {
 // ============================================================================
 
 /**
- * List TCP ports that are in LISTEN state along with their owning process.
- * Returns an array of { port, pid, process, protocol }.
+ * List TCP ports in LISTEN state with enriched metadata (project, framework, Docker, uptime, …).
+ * @param {{ showAll?: boolean }} [options] - If showAll is false, keep only dev-like listeners (port-whisperer-style).
+ * @returns {Promise<Array>} Port rows for the UI / API.
  */
-export async function listPorts() {
-  const platform = os.platform();
+export async function listPorts(options = {}) {
+  const { showAll = true } = options;
   try {
-    if (platform === 'win32') {
-      return await listPortsWindows();
-    } else {
-      return await listPortsUnix();
+    const raw =
+      os.platform() === 'win32' ? await listPortsWindowsRaw() : await listPortsUnixRaw();
+    let enriched = await enrichListeningPorts(raw);
+    if (!showAll) {
+      enriched = enriched.filter((row) => isDevProcess(row.process, row.command || ''));
     }
+    return enriched.sort((a, b) => a.port - b.port);
   } catch (err) {
     console.warn('[System] listPorts failed:', err.message);
     return [];
   }
 }
 
-async function listPortsUnix() {
+async function listPortsUnixRaw() {
   const platform = os.platform();
-  const ports = [];
+  /** @type {Map<number, { port: number, pid: number, process: string, protocol: string }>} */
+  const portMap = new Map();
+
+  if (platform !== 'darwin') {
+    try {
+      const { stdout } = await execFileAsync('ss', ['-tlnp']);
+      for (const line of stdout.split('\n').slice(1)) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 4) continue;
+        const localAddr = parts[3];
+        const portMatch = localAddr.match(/:(\d+)$/);
+        if (!portMatch) continue;
+        const port = parseInt(portMatch[1], 10);
+        if (portMap.has(port)) continue;
+        const pidMatch = line.match(/pid=(\d+)/);
+        const procMatch = line.match(/users:\(\("([^"]+)"/);
+        if (port > 0) {
+          portMap.set(port, {
+            port,
+            pid: pidMatch ? parseInt(pidMatch[1], 10) : 0,
+            process: procMatch ? procMatch[1] : '',
+            protocol: 'tcp',
+          });
+        }
+      }
+      if (portMap.size > 0) return [...portMap.values()];
+    } catch {
+      /* fall through to lsof */
+    }
+  }
 
   try {
-    // Try ss first (Linux), then lsof (macOS/Linux)
-    if (platform !== 'darwin') {
-      try {
-        const { stdout } = await execFileAsync('ss', ['-tlnp']);
-        for (const line of stdout.split('\n').slice(1)) {
-          const parts = line.trim().split(/\s+/);
-          if (parts.length < 4) continue;
-          const localAddr = parts[3];
-          const portMatch = localAddr.match(/:(\d+)$/);
-          if (!portMatch) continue;
-          const port = parseInt(portMatch[1], 10);
-          const pidMatch = line.match(/pid=(\d+)/);
-          const procMatch = line.match(/users:\(\("([^"]+)"/);
-          if (port > 0) {
-            ports.push({
-              port,
-              pid: pidMatch ? parseInt(pidMatch[1], 10) : 0,
-              process: procMatch ? procMatch[1] : '',
-              protocol: 'tcp',
-            });
-          }
-        }
-        return ports;
-      } catch (_) {
-        // Fall through to lsof
-      }
-    }
-
-    // lsof fallback
     const { stdout } = await execFileAsync('lsof', ['-iTCP', '-sTCP:LISTEN', '-n', '-P']);
     for (const line of stdout.split('\n').slice(1)) {
       const parts = line.trim().split(/\s+/);
@@ -280,19 +295,20 @@ async function listPortsUnix() {
       const portMatch = addrPort.match(/:(\d+)$/);
       if (!portMatch) continue;
       const port = parseInt(portMatch[1], 10);
-      if (port > 0) {
-        ports.push({ port, pid, process: processName, protocol: 'tcp' });
+      if (port > 0 && !portMap.has(port)) {
+        portMap.set(port, { port, pid, process: processName, protocol: 'tcp' });
       }
     }
   } catch (err) {
     console.warn('[System] Port listing failed:', err.message);
   }
 
-  return ports;
+  return [...portMap.values()];
 }
 
-async function listPortsWindows() {
-  const ports = [];
+async function listPortsWindowsRaw() {
+  /** @type {Map<number, { port: number, pid: number, process: string, protocol: string }>} */
+  const portMap = new Map();
   try {
     const { stdout } = await execFileAsync('netstat', ['-ano']);
     for (const line of stdout.split('\n')) {
@@ -302,14 +318,14 @@ async function listPortsWindows() {
       if (!portMatch) continue;
       const port = parseInt(portMatch[1], 10);
       const pid = parseInt(parts[4], 10);
-      if (port > 0) {
-        ports.push({ port, pid, process: '', protocol: 'tcp' });
+      if (port > 0 && !portMap.has(port)) {
+        portMap.set(port, { port, pid, process: '', protocol: 'tcp' });
       }
     }
   } catch (err) {
     console.warn('[System] Windows port listing failed:', err.message);
   }
-  return ports;
+  return [...portMap.values()];
 }
 
 // ============================================================================
