@@ -19,11 +19,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Do not set registry-url here: setup-node injects a placeholder NODE_AUTH_TOKEN when none is provided,
+      # which prevents npm Trusted Publishing (OIDC) and surfaces as E404 Not Found on PUT.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
