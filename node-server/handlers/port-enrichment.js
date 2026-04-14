@@ -16,17 +16,6 @@ const execFileAsync = promisify(execFile);
 const EXEC_SHORT_MS = 5000;
 const EXEC_LONG_MS = 10000;
 
-function formatUptime(ms) {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  if (days > 0) return `${days}d ${hours % 24}h`;
-  if (hours > 0) return `${hours}h ${minutes % 60}m`;
-  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-  return `${seconds}s`;
-}
-
 function formatMemory(rssKB) {
   if (rssKB > 1048576) return `${(rssKB / 1048576).toFixed(1)} GB`;
   if (rssKB > 1024) return `${(rssKB / 1024).toFixed(1)} MB`;
@@ -314,8 +303,8 @@ function chunk(arr, size) {
   return out;
 }
 
-const PS_LINE =
-  /^(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+\w+\s+(\w+\s+\d+\s+[\d:]+\s+\d+)\s+(.*)$/;
+/** pid ppid stat rss etime command — etime is locale-independent (unlike lstart). */
+const PS_LINE = /^(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(.*)$/;
 
 async function batchProcessInfoDarwin(pids) {
   const map = new Map();
@@ -325,7 +314,7 @@ async function batchProcessInfoDarwin(pids) {
       const pidList = group.join(',');
       const { stdout } = await execFileAsync(
         'ps',
-        ['-p', pidList, '-o', 'pid=,ppid=,stat=,rss=,lstart=,command='],
+        ['-ww', '-p', pidList, '-o', 'pid=,ppid=,stat=,rss=,etime=,command='],
         { timeout: EXEC_SHORT_MS, maxBuffer: 10 * 1024 * 1024 },
       );
       for (const line of stdout.trim().split('\n')) {
@@ -336,7 +325,7 @@ async function batchProcessInfoDarwin(pids) {
           ppid: parseInt(m[2], 10),
           stat: m[3],
           rss: parseInt(m[4], 10),
-          lstart: m[5],
+          etime: m[5],
           command: m[6],
         });
       }
@@ -390,7 +379,7 @@ async function batchProcessInfoLinux(pids) {
       const pidList = group.join(',');
       const { stdout } = await execFileAsync(
         'ps',
-        ['-p', pidList, '-o', 'pid=,ppid=,stat=,rss=,lstart=,command='],
+        ['-ww', '-p', pidList, '-o', 'pid=,ppid=,stat=,rss=,etime=,command='],
         { timeout: EXEC_SHORT_MS, maxBuffer: 10 * 1024 * 1024 },
       );
       for (const line of stdout.trim().split('\n')) {
@@ -401,7 +390,7 @@ async function batchProcessInfoLinux(pids) {
           ppid: parseInt(m[2], 10),
           stat: m[3],
           rss: parseInt(m[4], 10),
-          lstart: m[5],
+          etime: m[5],
           command: m[6],
         });
       }
@@ -440,7 +429,7 @@ async function batchProcessInfoLinux(pids) {
         ppid,
         stat,
         rss,
-        lstart: '',
+        etime: '',
         command: command || getProcessNameFromProc(pid),
       });
     } catch {
@@ -490,7 +479,7 @@ async function batchProcessInfoWindows(pids) {
           ppid: row.ParentProcessId != null ? parseInt(row.ParentProcessId, 10) : 0,
           stat: '',
           rss: 0,
-          lstart: '',
+          etime: '',
           command: cmd,
         });
       }
@@ -549,10 +538,7 @@ export async function enrichListeningPorts(entries) {
       if (ps.stat && ps.stat.includes('Z')) row.status = 'zombie';
       else if (ps.ppid === 1 && isDevProcess(displayName, command)) row.status = 'orphaned';
       if (ps.rss > 0) row.memory = formatMemory(ps.rss);
-      if (ps.lstart) {
-        const startTime = new Date(ps.lstart);
-        if (!Number.isNaN(startTime.getTime())) row.uptime = formatUptime(Date.now() - startTime.getTime());
-      }
+      if (ps.etime && ps.etime !== '-') row.uptime = ps.etime.trim();
       row.framework = detectFrameworkFromCommand(command, displayName) || row.framework;
     }
 
