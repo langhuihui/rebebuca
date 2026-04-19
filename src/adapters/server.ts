@@ -423,12 +423,12 @@ class ServerSystemAdapter implements SystemAdapter {
     window.open(url, '_blank');
   }
 
-  async openInSystemTerminal(command: string, cwd?: string): Promise<void> {
-    await this.client.request('system.openInSystemTerminal', { command, cwd });
+  async openInSystemTerminal(command: string, cwd?: string, env?: Record<string, string>): Promise<void> {
+    await this.client.request('system.openInSystemTerminal', { command, cwd, env });
   }
 
-  async openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void> {
-    await this.client.request('system.openInSpecificTerminal', { terminalId, command, cwd });
+  async openInSpecificTerminal(terminalId: string, command: string, cwd?: string, env?: Record<string, string>): Promise<void> {
+    await this.client.request('system.openInSpecificTerminal', { terminalId, command, cwd, env });
   }
 
   async getAvailableTerminals(): Promise<SystemTerminalInfo[]> {

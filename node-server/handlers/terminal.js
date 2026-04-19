@@ -11,10 +11,12 @@ import { randomUUID } from 'crypto';
 import { chmodSync, existsSync, readdirSync, statSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { spawn as spawnProcess, execFile as execFileCallback } from 'child_process';
+import { spawn as spawnProcess, execFile as execFileCallback, spawnSync } from 'child_process';
 import { promisify } from 'util';
 
 const execFile = promisify(execFileCallback);
+const nodeRequire = createRequire(import.meta.url);
+const treeKill = promisify(nodeRequire('tree-kill'));
 
 /**
  * npm's node-pty macOS tarballs sometimes ship spawn-helper as 644 (non-executable),
@@ -128,6 +130,47 @@ function buildWindowsCommandString(command, args) {
     .join(' ');
 }
 
+/**
+ * Frontend already sends cmd + ['/c', line] or ['/k', line]. Spawn that executable
+ * with those argv entries directly. Wrapping as `cmd /s /c cmd /c "pnpm run dev"` nests
+ * quotes into one argv slot and CMD then treats '\"pnpm run dev\"' as a program name.
+ */
+function isWindowsCmdSlashInvocation(command, args) {
+  if (!command || !Array.isArray(args) || args.length < 2) return false;
+  const base = path.basename(String(command)).toLowerCase();
+  if (base !== 'cmd.exe' && base !== 'cmd') return false;
+  const a0 = String(args[0]).toLowerCase();
+  return a0 === '/c' || a0 === '/k';
+}
+
+function resolveWindowsCmdExecutable(command) {
+  const s = String(command);
+  const norm = s.replace(/\\/g, '/').toLowerCase();
+  if (norm === 'cmd' || norm.endsWith('/cmd') || norm.endsWith('/cmd.exe')) {
+    const comspec = process.env.ComSpec || process.env.COMSPEC;
+    if (comspec && existsSync(comspec)) return comspec;
+    const fb = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
+    if (existsSync(fb)) return fb;
+  }
+  if (existsSync(s)) return s;
+  return s;
+}
+
+/** PowerShell -Command / -File: spawn exe + argv directly (same quoting class of bugs). */
+function isWindowsPowerShellInvocation(command, args) {
+  if (!command || !Array.isArray(args) || args.length < 2) return false;
+  const base = path.basename(String(command)).toLowerCase();
+  if (!['powershell.exe', 'pwsh.exe'].includes(base)) return false;
+  const a0 = String(args[0]).toLowerCase();
+  return a0 === '-command' || a0 === '-file';
+}
+
+function resolveWindowsSpawnExecutable(command) {
+  const s = String(command);
+  if (existsSync(s)) return s;
+  return s;
+}
+
 function registerPtyEntry(ptyId, processLike, mode = 'pty', meta = {}) {
   ptys.set(ptyId, { processLike, pid: processLike.pid, running: true, mode, meta });
 
@@ -214,6 +257,17 @@ export async function createTerminal(params) {
   const workingDir = cwd || os.homedir();
   const ptyId = requestedId || generatePtyId();
 
+  if (sessionMeta.label || command !== 'default') {
+    console.log('[Terminal] create:', {
+      ptyId,
+      label: sessionMeta.label,
+      command,
+      argsPreview: Array.isArray(args) ? args.slice(0, 8) : args,
+      cwd: workingDir,
+      shellPath: shellPath || '(default shell)',
+    });
+  }
+
   // Merge environment with current process env, preferring caller-supplied vars
   const mergedEnvRaw = {
     ...process.env,
@@ -241,12 +295,20 @@ export async function createTerminal(params) {
     // If task already provides an explicit shell -c command, run it directly.
     if (!isShellScriptRun) {
       if (os.platform() === 'win32') {
-        // Build a Windows-compatible command string using double-quote quoting.
-        // Omit /d so that AutoRun registry entries (e.g. Conda, NVM for Windows,
-        // pyenv-win) can run and set up the shell environment — the Windows
-        // equivalent of the Unix login-shell (-l) flag used on other platforms.
-        const winCmdString = buildWindowsCommandString(command, args);
-        finalArgs = ['/s', '/c', winCmdString];
+        if (isWindowsCmdSlashInvocation(command, args)) {
+          shell = resolveWindowsCmdExecutable(command);
+          finalArgs = args;
+        } else if (isWindowsPowerShellInvocation(command, args)) {
+          shell = resolveWindowsSpawnExecutable(command);
+          finalArgs = args;
+        } else {
+          // Build a Windows-compatible command string using double-quote quoting.
+          // Omit /d so that AutoRun registry entries (e.g. Conda, NVM for Windows,
+          // pyenv-win) can run and set up the shell environment — the Windows
+          // equivalent of the Unix login-shell (-l) flag used on other platforms.
+          const winCmdString = buildWindowsCommandString(command, args);
+          finalArgs = ['/s', '/c', winCmdString];
+        }
       } else {
         const cmdString = buildCommandString(command, args);
         // Use login shell to load PATH and env (zsh/bash)
@@ -365,29 +427,152 @@ export function resizeTerminal(ptyId, cols, rows) {
 }
 
 /**
- * Send SIGTERM to a PTY process.
+ * Windows: taskkill /T sometimes fails with access denied or "circular" process trees
+ * (conhost ↔ powershell ↔ children). Retry root-only kill + PowerShell Stop-Process.
  */
-export function killTerminal(ptyId) {
+function killWindowsProcessTreeBestEffort(pid) {
+  const id = String(pid);
+  const spawnOpts = {
+    windowsHide: true,
+    encoding: 'utf8',
+    timeout: 30000,
+    maxBuffer: 1024 * 1024,
+  };
+
+  const summarize = (r) => [r.stderr, r.stdout].filter(Boolean).join(' ').trim();
+
+  const attempts = [
+    { cmd: 'taskkill', args: ['/PID', id, '/T', '/F'], label: 'taskkill /T /F' },
+    { cmd: 'taskkill', args: ['/PID', id, '/F'], label: 'taskkill /F (root)' },
+  ];
+
+  for (const { cmd, args, label } of attempts) {
+    try {
+      const r = spawnSync(cmd, args, spawnOpts);
+      if (r.status === 0) {
+        console.log(`[Terminal] ${label}: ok pid=${id}`);
+        return true;
+      }
+      const text = summarize(r);
+      const benign =
+        !text ||
+        /not find|could not find|no tasks running|not running|没有找到进程|no process/i.test(text);
+      if (!benign) {
+        console.warn(`[Terminal] ${label} pid=${id}:`, text.slice(0, 600));
+      }
+    } catch (e) {
+      console.warn(`[Terminal] ${label} threw:`, e?.message || e);
+    }
+  }
+
+  const psExe = path.join(
+    process.env.SystemRoot || 'C:\\Windows',
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe',
+  );
+  const exe = existsSync(psExe) ? psExe : 'powershell.exe';
+  try {
+    const r = spawnSync(
+      exe,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        `try { Stop-Process -Id ${Number(pid)} -Force -ErrorAction Stop; exit 0 } catch { exit 1 }`,
+      ],
+      spawnOpts,
+    );
+    if (r.status === 0) {
+      console.log('[Terminal] Stop-Process -Force: ok pid=', id);
+      return true;
+    }
+    const psOut = summarize(r);
+    if (psOut && !/Cannot find a process|找不到进程/i.test(psOut)) {
+      console.warn('[Terminal] Stop-Process failed pid=', id, psOut.slice(0, 400));
+    }
+  } catch (e) {
+    console.warn('[Terminal] Stop-Process threw:', e?.message || e);
+  }
+
+  return false;
+}
+
+/**
+ * Kill PTY root PID and all descendants (pnpm/npm/node leaves children otherwise).
+ * Windows: custom fallbacks (see killWindowsProcessTreeBestEffort). Unix: tree-kill.
+ */
+async function killProcessTree(pid, signal) {
+  const n = Number(pid);
+  if (!Number.isFinite(n) || n <= 0) return;
+
+  if (os.platform() === 'win32') {
+    killWindowsProcessTreeBestEffort(n);
+    return;
+  }
+
+  try {
+    await treeKill(n, signal);
+  } catch (err) {
+    const msg = String(err?.message || err);
+    if (!msg.includes('not found') && !msg.includes('No such process')) {
+      console.warn('[Terminal] killProcessTree:', msg);
+    }
+  }
+}
+
+/**
+ * Send SIGTERM to a PTY process tree (not only the shell — fixes orphan children).
+ */
+export async function killTerminal(ptyId) {
   const entry = ptys.get(ptyId);
   if (!entry) return;
+  const pid = entry.pid;
   try {
-    entry.processLike.kill('SIGTERM');
-  } catch (_) {
-    // Ignore if already dead
+    // Close PTY first so conhost/cmd tear down; then kill any surviving children (pnpm/node).
+    try {
+      entry.processLike.kill('SIGTERM');
+    } catch (_) {
+      // Ignore if already dead
+    }
+    if (os.platform() === 'win32') {
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    if (pid) {
+      await killProcessTree(pid, 'SIGTERM');
+    }
+  } catch (e) {
+    console.warn('[Terminal] killTerminal:', e?.message || e);
   }
   entry.running = false;
 }
 
 /**
- * Force-kill (SIGKILL) a PTY process.
+ * Force-kill (SIGKILL / taskkill /T /F on Windows) a PTY process tree.
  */
-export function forceKillTerminal(ptyId) {
+export async function forceKillTerminal(ptyId) {
   const entry = ptys.get(ptyId);
   if (!entry) return;
+  const pid = entry.pid;
   try {
-    entry.processLike.kill('SIGKILL');
-  } catch (_) {
-    // Ignore if already dead
+    try {
+      entry.processLike.kill('SIGKILL');
+    } catch (_) {
+      // Ignore if already dead
+    }
+    if (os.platform() === 'win32') {
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    if (pid) {
+      await killProcessTree(pid, 'SIGKILL');
+    }
+  } catch (e) {
+    console.warn('[Terminal] forceKillTerminal:', e?.message || e);
   }
   entry.running = false;
   ptys.delete(ptyId);
@@ -492,9 +677,9 @@ export async function getTerminalProcessStats(ptyId) {
 /**
  * Kill all PTYs owned by a client (called on disconnect).
  */
-export function killClientPtys(ptyIds) {
+export async function killClientPtys(ptyIds) {
   for (const id of ptyIds) {
-    killTerminal(id);
+    await killTerminal(id);
     ptys.delete(id);
     ptyScrollback.delete(id);
   }

@@ -510,11 +510,11 @@ class MockSystemAdapter implements SystemAdapter {
     }
   }
 
-  async openInSystemTerminal(_command: string, _cwd?: string): Promise<void> {
+  async openInSystemTerminal(_command: string, _cwd?: string, _env?: Record<string, string>): Promise<void> {
     console.log('[Mock] openInSystemTerminal not available in browser');
   }
 
-  async openInSpecificTerminal(_terminalId: string, _command: string, _cwd?: string): Promise<void> {
+  async openInSpecificTerminal(_terminalId: string, _command: string, _cwd?: string, _env?: Record<string, string>): Promise<void> {
     console.log('[Mock] openInSpecificTerminal not available in browser');
   }
 

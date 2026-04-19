@@ -40,6 +40,23 @@ import { useSshStore } from './ssh';
 import { syncTasksToMCP, initMCPTaskListener } from '../services/mcp/taskSync';
 
 /**
+ * Windows user-selected shell: cmd.exe expects `/c`, PowerShell expects `-Command`.
+ * Passing `-Command` to cmd.exe breaks task runs (blank or no output).
+ */
+function windowsShellArgsForInlineCommand(shellPath: string, inlineCommand: string): string[] {
+  const norm = shellPath.replace(/\\/g, '/').toLowerCase();
+  if (
+    norm.endsWith('/cmd.exe') ||
+    norm.endsWith('/cmd') ||
+    norm === 'cmd.exe' ||
+    norm === 'cmd'
+  ) {
+    return ['/c', inlineCommand];
+  }
+  return ['-Command', inlineCommand];
+}
+
+/**
  * Check if command contains sudo and inject password if stored
  * Returns modified command/args or original if no sudo or no password stored
  */
@@ -1457,16 +1474,30 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     if (isMacroTask) {
       console.log('[TaskManager] Executing macro task:', task.name);
 
+      let macroRan = false;
       // Check if this is a parallel macro task
       if (task.executionMode === 'parallel' && task.subTasks) {
         await executeTasksParallel(task.subTasks, options);
+        macroRan = true;
       } else if (task.dependsOn) {
         // Serial execution with dependencies
         const resolvedTasks = resolveTaskDependencies(task.id);
         await executeTasksSerial(resolvedTasks, options);
+        macroRan = true;
       } else if (task.subTasks) {
         // Serial execution without dependencies (default)
         await executeTasksSerial(task.subTasks, options);
+        macroRan = true;
+      }
+
+      if (!macroRan) {
+        console.warn('[TaskManager] Macro task has no sub-tasks or dependencies:', task.name);
+        const notificationStore = useNotificationStore();
+        notificationStore.addWarning(
+          'Macro task empty',
+          `Task "${task.name}" is a macro but has no dependencies or sub-tasks to run. Set type to Shell or add sub-tasks.`,
+          'frontend',
+        );
       }
 
       // Update task run statistics for macro task
@@ -1512,7 +1543,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     // Check if task should be executed in system terminal
     if (task.useSystemTerminal) {
       console.log('[TaskManager] Task configured to use system terminal:', task.name);
-      await executeInSystemTerminal(task, cwd);
+      await executeInSystemTerminal(task, cwd, env);
       // Update task run statistics for system terminal tasks
       await updateTaskRunStats(task.id);
       return;
@@ -1599,9 +1630,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       const isWindows = navigator.platform.toLowerCase().includes('win');
       if (isWindows) {
         if (task.shellPath) {
-          // Use user-configured shell (e.g., PowerShell)
           command = task.shellPath;
-          args = ['-Command', task.command];
+          args = windowsShellArgsForInlineCommand(task.shellPath, task.command);
         } else {
           // Default to cmd
           command = 'cmd';
@@ -1618,11 +1648,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         const isWindows = navigator.platform.toLowerCase().includes('win');
         if (isWindows) {
           if (task.shellPath) {
-            // Use user-configured shell (e.g., PowerShell)
             command = task.shellPath;
-            args = ['-Command', task.command];
+            args = windowsShellArgsForInlineCommand(task.shellPath, task.command);
           } else {
-            // Default to cmd
             command = 'cmd';
             args = ['/c', task.command];
           }
@@ -1641,6 +1669,17 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       command = task.command;
       args = task.args || [];
     }
+
+    console.log('[TaskManager] PTY task resolved:', {
+      id: task.id,
+      name: task.name,
+      source: task.source,
+      cwd: cwd ?? '(none)',
+      shellPath: task.shellPath ?? '(default)',
+      envKeys: env ? Object.keys(env).sort() : [],
+      execCommand: command,
+      execArgs: args,
+    });
 
     // Build the full command string for display
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
@@ -2082,8 +2121,9 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
   /**
    * Execute task in system terminal
+   * @param mergedEnv Effective env for the task (task.env merged with runtime options)
    */
-  async function executeInSystemTerminal(task: Task, cwd?: string): Promise<void> {
+  async function executeInSystemTerminal(task: Task, cwd?: string, mergedEnv?: Record<string, string>): Promise<void> {
     // Guard: Can only execute tasks with commands in system terminal
     if (!task.command) {
       console.error('[TaskManager] Cannot execute macro task in system terminal:', task.name);
@@ -2113,22 +2153,22 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
             if (terminalExists) {
               // Use the specific terminal
-              await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined);
+              await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined, mergedEnv);
             } else {
               // Preferred terminal no longer available, clear preference and use default
               console.warn(`[TaskManager] Preferred terminal '${preferredTerminal}' not found, using default`);
               settingsStore.settings.preferredTerminal = null;
               await settingsStore.saveSettings();
-              await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+              await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined, mergedEnv);
             }
           } catch (error) {
             // If we can't check availability, try the preferred terminal anyway as fallback
             console.warn('[TaskManager] Could not verify terminal availability, trying preferred terminal anyway:', error);
-            await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined);
+            await adapterInstance.system.openInSpecificTerminal(preferredTerminal, fullCommand, cwd || undefined, mergedEnv);
           }
         } else {
           // Use the default system terminal
-          await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined);
+          await adapterInstance.system.openInSystemTerminal(fullCommand, cwd || undefined, mergedEnv);
         }
       }
       console.log(`[TaskManager] Task opened in system terminal: ${task.name}`);

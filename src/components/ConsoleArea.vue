@@ -1142,10 +1142,19 @@ const handleClearTerminal = (tabId?: string | MouseEvent) => {
 
 // Terminal event handlers
 const onTerminalReady = async (tabId: string) => {
-  console.log("[Terminal] Ready:", tabId);
+  const tab = terminalStore.tabs.find((t) => t.id === tabId);
+  console.log("[Terminal] Ready:", tabId, {
+    tabType: tab?.type,
+    status: tab?.status,
+    ptyId: tab?.ptyId,
+    label: tab?.label,
+    willStartTask:
+      tab?.type === "task" && tab?.status === "pending",
+    willStartShell:
+      tab?.type === "shell" && tab?.status === "pending",
+  });
 
   // Start pending task/shell after terminal UI is ready
-  const tab = terminalStore.tabs.find((t) => t.id === tabId);
   if (tab?.restoredScrollback) {
     tab.restoredScrollback = undefined;
   }
@@ -1155,6 +1164,11 @@ const onTerminalReady = async (tabId: string) => {
     } catch (error) {
       console.error("[Terminal] Failed to start task:", error);
     }
+  } else if (tab?.type === "task") {
+    console.warn(
+      "[Terminal] Task tab ready but startTask not run — check status (expected pending):",
+      tab.status,
+    );
   }
 
   if (tab && tab.type === "shell" && tab.status === "pending") {

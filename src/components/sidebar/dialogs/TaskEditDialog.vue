@@ -32,20 +32,25 @@
         <n-input v-model:value="editingTask.name" :placeholder="t('task.namePlaceholder')" />
       </n-form-item>
       
-      <!-- Task Type Selection (only for user tasks) -->
-      <n-form-item v-if="isUserTask" :label="t('task.type')">
-        <n-radio-group v-model:value="editingTask.type">
-          <n-radio value="shell">{{ t('task.typeShell') }}</n-radio>
-          <n-radio value="macro">{{ t('task.typeMacro') }}</n-radio>
-        </n-radio-group>
-        <n-tooltip v-if="editingTask.type === 'macro'" trigger="hover" placement="top">
-          <template #trigger>
-            <n-icon size="16" style="margin-left: 8px; cursor: help; vertical-align: middle;">
-              <component :is="svgIcons.info" />
-            </n-icon>
-          </template>
-          {{ t('task.macroTaskHelp') }}
-        </n-tooltip>
+      <!-- Task type: editable for user tasks; read-only label for scanned tasks (script, npm, etc.) -->
+      <n-form-item :label="t('task.type')">
+        <template v-if="isUserTask">
+          <n-radio-group v-model:value="editingTask.type">
+            <n-radio value="shell">{{ t('task.typeShell') }}</n-radio>
+            <n-radio value="macro">{{ t('task.typeMacro') }}</n-radio>
+          </n-radio-group>
+          <n-tooltip v-if="editingTask.type === 'macro'" trigger="hover" placement="top">
+            <template #trigger>
+              <n-icon size="16" style="margin-left: 8px; cursor: help; vertical-align: middle;">
+                <component :is="svgIcons.info" />
+              </n-icon>
+            </template>
+            {{ t('task.macroTaskHelp') }}
+          </n-tooltip>
+        </template>
+        <n-text v-else depth="3">
+          {{ editingTask.type === TaskType.MACRO ? t('task.typeMacro') : t('task.typeShell') }}
+        </n-text>
       </n-form-item>
       
       <!-- Command field (hidden for macro tasks) -->
@@ -308,6 +313,7 @@ import {
   NRadio,
   NRadioGroup,
   NTag,
+  NText,
   type FormRules,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';

@@ -202,8 +202,8 @@ export interface SystemAdapter {
   getArch(): Promise<string>;
   getHomeDir(): Promise<string>;
   openExternal(url: string): Promise<void>;
-  openInSystemTerminal(command: string, cwd?: string): Promise<void>;
-  openInSpecificTerminal(terminalId: string, command: string, cwd?: string): Promise<void>;
+  openInSystemTerminal(command: string, cwd?: string, env?: Record<string, string>): Promise<void>;
+  openInSpecificTerminal(terminalId: string, command: string, cwd?: string, env?: Record<string, string>): Promise<void>;
   getAvailableTerminals(): Promise<SystemTerminalInfo[]>;
   getAvailableShells(): Promise<ShellInfo[]>;
   executeWithAdmin(command: string, args: string[]): Promise<AdminExecuteResult>;

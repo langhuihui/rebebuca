@@ -591,7 +591,15 @@ export const useTerminalStore = defineStore('terminal', () => {
     tabs.value.push(tab);
     setActiveTab(id);
 
-    console.log('[Terminal Store] Task tab created (pending):', ptyId);
+    console.log('[Terminal Store] Task tab created (pending):', ptyId, {
+      label: options.label,
+      command: options.command,
+      args: options.args,
+      cwd: options.cwd,
+      shellPath: options.shellPath ?? null,
+      envKeys: options.env ? Object.keys(options.env).sort() : [],
+      taskId: options.taskId,
+    });
     return tab;
   };
 
@@ -635,11 +643,29 @@ export const useTerminalStore = defineStore('terminal', () => {
   const startTask = async (tabId: string): Promise<void> => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab || tab.type !== 'task' || tab.status !== 'pending' || !tab.execParams) {
-      console.warn('[Terminal Store] Cannot start task - invalid state:', tabId, tab?.status);
+      console.warn('[Terminal Store] Cannot start task — skipping PTY spawn:', {
+        tabId,
+        found: !!tab,
+        type: tab?.type,
+        status: tab?.status,
+        hasExecParams: !!tab?.execParams,
+        hint: 'Usually means TerminalView did not fire @ready while tab was still pending, or status changed early.',
+      });
       return;
     }
 
     const { command, args, cwd, env, logPath, shellPath } = tab.execParams;
+
+    console.log('[Terminal Store] startTask → adapter.terminal.create', {
+      tabId,
+      ptyId: tab.ptyId,
+      label: tab.label,
+      command,
+      args,
+      cwd,
+      shellPath: shellPath ?? null,
+      envKeys: env ? Object.keys(env).sort() : [],
+    });
 
     try {
       tab.status = 'running';
@@ -758,8 +784,12 @@ export const useTerminalStore = defineStore('terminal', () => {
     const tab = tabs.value.find(t => t.id === tabId);
     if (!tab) return;
 
-    // If running, try to kill the task/close the PTY (only for task/shell tabs)
-    if (tab.status === 'running' && (tab.type === 'task' || tab.type === 'shell')) {
+    // Kill OS process tree for any tab that was started (not pending): stopping only the PTY
+    // shell leaves pnpm/node children on Windows.
+    if (
+      tab.status !== 'pending' &&
+      (tab.type === 'task' || tab.type === 'shell')
+    ) {
       try {
         const adapterInstance = await getAdapterInstance();
         if (tab.sshExecId && adapterInstance.ssh) {

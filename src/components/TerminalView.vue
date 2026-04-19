@@ -553,6 +553,10 @@ const initTerminal = async () => {
     console.log(
       "[TerminalView] Terminal initialized successfully, buffer length:",
       terminal.buffer.active.length,
+      {
+        ptyId: props.ptyId,
+        attachOnly: props.attachOnly,
+      },
     );
     emit("ready");
   } catch (error) {

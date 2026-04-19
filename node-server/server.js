@@ -177,12 +177,12 @@ async function handleRequest(clientId, request, clientPtyIds) {
         result = null;
         break;
       case 'terminal.kill':
-        killTerminal(params.ptyId);
+        await killTerminal(params.ptyId);
         clientPtyIds.delete(params.ptyId);
         result = null;
         break;
       case 'terminal.forceKill':
-        forceKillTerminal(params.ptyId);
+        await forceKillTerminal(params.ptyId);
         clientPtyIds.delete(params.ptyId);
         result = null;
         break;
@@ -269,11 +269,11 @@ async function handleRequest(clientId, request, clientPtyIds) {
         result = null;
         break;
       case 'system.openInSystemTerminal':
-        await openInSystemTerminal(params.command, params.cwd);
+        await openInSystemTerminal(params.command, params.cwd, params.env);
         result = null;
         break;
       case 'system.openInSpecificTerminal':
-        await openInSpecificTerminal(params.terminalId, params.command, params.cwd);
+        await openInSpecificTerminal(params.terminalId, params.command, params.cwd, params.env);
         result = null;
         break;
       case 'system.executeWithAdmin':
@@ -471,7 +471,10 @@ export async function createServer({
   if (!existsSync(resolvedStaticDir)) {
     console.warn(
       `[Server] Static directory not found: ${resolvedStaticDir}\n` +
-        '         Run "pnpm run build:server-app" first to build the frontend (outputs web-public/).',
+        '         • Local dev: run "pnpm run dev" and open the Vite URL (default http://127.0.0.1:6173), not port ' +
+        String(port) +
+        '.\n' +
+        '         • Production-like: run "pnpm run build:server-app" first (outputs web-public/ for this port).',
     );
   }
 

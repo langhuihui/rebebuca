@@ -406,9 +406,35 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
-function buildTerminalCommand(command, cwd) {
+/**
+ * Prefix command with a cwd change appropriate for the target shell.
+ * Windows cmd.exe does not treat single quotes like POSIX shells — the old POSIX-only
+ * cd broke "open in system terminal" so only an empty cmd window appeared.
+ *
+ * @param {'posix'|'cmd'|'powershell'} cwdStyle
+ */
+function buildTerminalCommand(command, cwd, cwdStyle = 'posix') {
   if (!cwd) return command;
+  if (cwdStyle === 'powershell') {
+    const lit = String(cwd).replace(/'/g, "''");
+    return `Set-Location -LiteralPath '${lit}'; ${command}`;
+  }
+  if (cwdStyle === 'cmd') {
+    const escaped = String(cwd).replace(/"/g, '""');
+    return `cd /d "${escaped}" && ${command}`;
+  }
   return `cd ${shellQuote(cwd)}; ${command}`;
+}
+
+/** Merge caller env overrides into process.env for detached spawns */
+function mergeSpawnEnv(extraEnv) {
+  const merged = { ...process.env };
+  if (!extraEnv || typeof extraEnv !== 'object') return merged;
+  for (const [k, v] of Object.entries(extraEnv)) {
+    if (v === undefined || v === null) continue;
+    merged[k] = typeof v === 'string' ? v : String(v);
+  }
+  return merged;
 }
 
 function escapeAppleScriptString(value) {
@@ -417,10 +443,13 @@ function escapeAppleScriptString(value) {
 
 /**
  * Open a command in the system terminal.
+ * @param {Record<string, string>} [extraEnv] Optional env vars merged into the spawned process (and children).
  */
-export async function openInSystemTerminal(command, cwd) {
+export async function openInSystemTerminal(command, cwd, extraEnv) {
   const platform = os.platform();
-  const finalCommand = buildTerminalCommand(command, cwd);
+  const cwdStyle = platform === 'win32' ? 'cmd' : 'posix';
+  const finalCommand = buildTerminalCommand(command, cwd, cwdStyle);
+  const spawnEnv = mergeSpawnEnv(extraEnv);
 
   if (platform === 'darwin') {
     const script = [
@@ -429,7 +458,7 @@ export async function openInSystemTerminal(command, cwd) {
       `  do script "${escapeAppleScriptString(finalCommand)}"`,
       'end tell',
     ].join('\n');
-    spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref();
+    spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore', env: spawnEnv }).unref();
     return;
   }
 
@@ -437,22 +466,26 @@ export async function openInSystemTerminal(command, cwd) {
     spawn('cmd', ['/c', 'start', '', 'cmd.exe', '/k', finalCommand], {
       detached: true,
       stdio: 'ignore',
+      env: spawnEnv,
+      windowsHide: true,
     }).unref();
     return;
   }
 
   // Linux default: x-terminal-emulator is the most portable entrypoint.
-  spawn('x-terminal-emulator', ['-e', finalCommand], { detached: true, stdio: 'ignore' }).unref();
+  spawn('x-terminal-emulator', ['-e', finalCommand], { detached: true, stdio: 'ignore', env: spawnEnv }).unref();
 }
 
 /**
  * Open a command in a specific terminal emulator.
+ * @param {Record<string, string>} [extraEnv] Optional env vars merged into the spawned process.
  */
-export async function openInSpecificTerminal(terminalId, command, cwd) {
+export async function openInSpecificTerminal(terminalId, command, cwd, extraEnv) {
   const platform = os.platform();
-  const finalCommand = buildTerminalCommand(command, cwd);
+  const spawnEnv = mergeSpawnEnv(extraEnv);
 
   if (platform === 'darwin') {
+    const finalCommand = buildTerminalCommand(command, cwd, 'posix');
     if (terminalId === 'iterm2') {
       const script = [
         'tell application "iTerm"',
@@ -463,31 +496,38 @@ export async function openInSpecificTerminal(terminalId, command, cwd) {
         `  tell current session of current window to write text "${escapeAppleScriptString(finalCommand)}"`,
         'end tell',
       ].join('\n');
-      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref();
+      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore', env: spawnEnv }).unref();
       return;
     }
 
     // Fallback to default Terminal.app for unknown terminal IDs on macOS.
-    await openInSystemTerminal(command, cwd);
+    await openInSystemTerminal(command, cwd, extraEnv);
     return;
   }
 
   if (platform === 'win32') {
+    const cwdStyle = terminalId === 'powershell' || terminalId === 'pwsh' ? 'powershell' : 'cmd';
+    const finalCommand = buildTerminalCommand(command, cwd, cwdStyle);
     if (terminalId === 'powershell' || terminalId === 'pwsh') {
       const shellExe = terminalId === 'pwsh' ? 'pwsh.exe' : 'powershell.exe';
       spawn('cmd', ['/c', 'start', '', shellExe, '-NoExit', '-Command', finalCommand], {
         detached: true,
         stdio: 'ignore',
+        env: spawnEnv,
+        windowsHide: true,
       }).unref();
       return;
     }
     spawn('cmd', ['/c', 'start', '', 'cmd.exe', '/k', finalCommand], {
       detached: true,
       stdio: 'ignore',
+      env: spawnEnv,
+      windowsHide: true,
     }).unref();
     return;
   }
 
+  const finalCommand = buildTerminalCommand(command, cwd, 'posix');
   // Linux common terminals
   const linuxTerminalArgs = {
     'gnome-terminal': ['--', 'bash', '-lc', finalCommand],
@@ -498,11 +538,11 @@ export async function openInSpecificTerminal(terminalId, command, cwd) {
   };
   const args = linuxTerminalArgs[terminalId];
   if (args) {
-    spawn(terminalId, args, { detached: true, stdio: 'ignore' }).unref();
+    spawn(terminalId, args, { detached: true, stdio: 'ignore', env: spawnEnv }).unref();
     return;
   }
 
-  await openInSystemTerminal(command, cwd);
+  await openInSystemTerminal(command, cwd, extraEnv);
 }
 
 /**
