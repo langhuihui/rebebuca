@@ -1,0 +1,48 @@
+{
+  "name": "port-hunter-cli",
+  "version": "1.0.1",
+  "description": "Interactive terminal UI to list and kill processes listening on TCP ports (macOS, Linux, Windows)",
+  "type": "module",
+  "bin": {
+    "port-hunter": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node ./src/index.js",
+    "prepublishOnly": "node --check ./src/index.js"
+  },
+  "keywords": [
+    "port",
+    "kill-port",
+    "lsof",
+    "netstat",
+    "cli",
+    "tui",
+    "blessed",
+    "process",
+    "devtools"
+  ],
+  "license": "MIT",
+  "author": "Rebebuca contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/langhuihui/rebebuca.git",
+    "directory": "port-hunter-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/langhuihui/rebebuca/issues"
+  },
+  "homepage": "https://github.com/langhuihui/rebebuca/tree/main/port-hunter-cli#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5"
+  }
+}

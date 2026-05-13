@@ -134,6 +134,23 @@
         </ul>
         <p class="cli-help">{{ t.cliHelpHint }}</p>
       </section>
+
+      <section class="cli-docs ph-docs" aria-labelledby="ph-heading">
+        <h2 id="ph-heading" class="cli-title">{{ t.portHunterTitle }}</h2>
+        <p class="cli-intro">{{ t.portHunterIntro }}</p>
+        <div class="cmd-row ph-cmd-row">
+          <code class="cmd" tabindex="0">{{ portHunterInstallCmd }}</code>
+          <button type="button" class="copy" @click="copyPortHunterCmd">
+            {{ phCopied ? t.copied : t.copy }}
+          </button>
+        </div>
+        <ul class="ph-list">
+          <li v-for="(line, idx) in t.portHunterBullets" :key="'ph-' + idx">
+            {{ line }}
+          </li>
+        </ul>
+        <p class="cli-help ph-repo">{{ t.portHunterRepo }}</p>
+      </section>
     </main>
 
     <div v-if="lang === 'zh'" class="qq-card">
@@ -296,6 +313,16 @@ const strings = {
       ],
     ],
     cliHelpHint: "Tip: run npx rebebuca --help in your terminal for the full, up-to-date usage text.",
+    portHunterTitle: "Port Hunter CLI",
+    portHunterIntro:
+      "A terminal tool to list TCP listeners, inspect commands and resource usage, and stop processes with two-step confirmation—bundled in the same repository as Rebebuca.",
+    portHunterBullets: [
+      "Shows port, PID, project folder, uptime, memory, CPU (macOS), and command line.",
+      "Interactive TUI: fuzzy filter (/), refresh, kill with confirmation.",
+      "Use port-hunter --once for a one-shot table in the terminal.",
+    ],
+    portHunterRepo:
+      "Package directory: port-hunter-cli — source on GitHub with Rebebuca.",
   },
   zh: {
     eyebrow: "运行配置管理",
@@ -348,6 +375,15 @@ const strings = {
       ],
     ],
     cliHelpHint: "提示：在终端执行 npx rebebuca --help 可查看与当前版本一致的完整说明。",
+    portHunterTitle: "Port Hunter CLI（端口猎人）",
+    portHunterIntro:
+      "在终端查看本机 TCP 监听、进程命令行与资源占用，并在双重确认后结束进程；与 Rebebuca 同属一个开源仓库。",
+    portHunterBullets: [
+      "展示端口、PID、项目目录、运行时长、内存、CPU（macOS）与命令行等信息。",
+      "交互界面支持模糊筛选（/）、刷新、两步确认结束监听进程。",
+      "执行 port-hunter --once 可一次性输出表格。",
+    ],
+    portHunterRepo: "npm 包目录：port-hunter-cli，源码与 Rebebuca 同在 GitHub 仓库。",
   },
 } as const;
 
@@ -362,6 +398,8 @@ const themeToggleLabel = computed(() =>
 );
 
 const installCmd = "npx rebebuca";
+
+const portHunterInstallCmd = "npx port-hunter-cli";
 
 const snapSrc = computed(() => {
   const zh = lang.value === "zh";
@@ -388,6 +426,9 @@ const jessibucaLogoSrc = computed(() =>
 const copied = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
+const phCopied = ref(false);
+let phCopyTimer: ReturnType<typeof setTimeout> | null = null;
+
 let mqlCleanup: (() => void) | null = null;
 
 onMounted(() => {
@@ -404,6 +445,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   mqlCleanup?.();
+  if (copyTimer) clearTimeout(copyTimer);
+  if (phCopyTimer) clearTimeout(phCopyTimer);
 });
 
 function toggleTheme() {
@@ -431,6 +474,20 @@ async function copyCmd() {
     }, 2000);
   } catch {
     copied.value = false;
+  }
+}
+
+async function copyPortHunterCmd() {
+  try {
+    await navigator.clipboard.writeText(portHunterInstallCmd);
+    phCopied.value = true;
+    if (phCopyTimer) clearTimeout(phCopyTimer);
+    phCopyTimer = setTimeout(() => {
+      phCopied.value = false;
+      phCopyTimer = null;
+    }, 2000);
+  } catch {
+    phCopied.value = false;
   }
 }
 </script>
@@ -668,6 +725,34 @@ async function copyCmd() {
 .cli-env {
   margin-bottom: 1.25rem;
   color: #6f7a8f;
+}
+
+.ph-docs {
+  margin-top: 2.25rem;
+}
+
+.ph-cmd-row {
+  margin-bottom: 0.75rem;
+}
+
+.ph-list {
+  margin: 0.65rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: #8b93a5;
+}
+
+.ph-list li {
+  margin-bottom: 0.45rem;
+}
+
+.ph-list li:last-child {
+  margin-bottom: 0;
+}
+
+.ph-repo {
+  margin-top: 1rem;
 }
 
 .cli-subheading {
@@ -940,6 +1025,10 @@ async function copyCmd() {
 
 .landing--light .cli-desc {
   color: #475569;
+}
+
+.landing--light .ph-list {
+  color: #64748b;
 }
 
 .landing--light .meta {
