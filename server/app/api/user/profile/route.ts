@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB } from '@/lib/db';
@@ -52,7 +51,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json() as { displayName?: string; avatarUrl?: string; locale?: string; timezone?: string };
     const { displayName, avatarUrl, locale, timezone } = body;
 
-    const db = getDB();
+    const db = await getDB();
     const now = new Date().toISOString();
 
     // Build update query dynamically

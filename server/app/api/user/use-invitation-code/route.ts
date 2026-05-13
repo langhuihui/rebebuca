@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB } from '@/lib/db';
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Check if user has already used an invitation code
     const existingUsage = await db.prepare(`

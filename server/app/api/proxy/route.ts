@@ -11,7 +11,6 @@ const R2_BASE_URL = 'https://download.m7s.live/rb';
 // Allowed files that can be proxied
 const ALLOWED_FILES = ['releases.json', 'notification.json', 'latest.json'];
 
-export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   try {

@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getDB } from '@/lib/db';
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Delete session from database
     if (refreshToken) {
-      const db = getDB();
+      const db = await getDB();
       await db.prepare('DELETE FROM sessions WHERE refresh_token = ?').bind(refreshToken).run();
     }
 

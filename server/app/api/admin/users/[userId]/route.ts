@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSuperAdmin } from '@/lib/auth';
 import { getDB, User } from '@/lib/db';
@@ -17,7 +16,7 @@ export async function PATCH(
       isBanned?: boolean;
     };
 
-    const db = getDB();
+    const db = await getDB();
 
     // Check if user exists
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<User>();
@@ -122,7 +121,7 @@ export async function GET(
     await requireSuperAdmin();
 
     const { userId } = await params;
-    const db = getDB();
+    const db = await getDB();
 
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<User>();
     if (!user) {

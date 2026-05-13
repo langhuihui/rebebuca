@@ -4,7 +4,7 @@ import { getDB, User, createInvitationCodesForUser } from '../db';
 import { verifyCloudflareAccessJWT, getCloudflareAccessEmail } from './cloudflare-access';
 
 export async function getCurrentUser(): Promise<User | null> {
-  const db = getDB();
+  const db = await getDB();
   const headerStore = await headers();
   
   // First, try Cloudflare Access authentication

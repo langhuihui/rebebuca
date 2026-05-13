@@ -1,12 +1,12 @@
 import { SignJWT, jwtVerify } from 'jose';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const JWT_ALGORITHM = 'HS256';
 const ACCESS_TOKEN_EXPIRY = '7d';
 const REFRESH_TOKEN_EXPIRY = '30d';
 
-function getJwtSecret(): Uint8Array {
-  const ctx = getRequestContext();
+async function getJwtSecret(): Promise<Uint8Array> {
+  const ctx = await getCloudflareContext({ async: true });
   const secret = ctx.env.JWT_SECRET || 'default-secret-change-in-production';
   return new TextEncoder().encode(secret);
 }
@@ -22,7 +22,7 @@ export async function createAccessToken(userId: string, email: string): Promise<
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime(ACCESS_TOKEN_EXPIRY)
-    .sign(getJwtSecret());
+    .sign(await getJwtSecret());
 }
 
 export async function createRefreshToken(userId: string, email: string): Promise<string> {
@@ -30,12 +30,12 @@ export async function createRefreshToken(userId: string, email: string): Promise
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime(REFRESH_TOKEN_EXPIRY)
-    .sign(getJwtSecret());
+    .sign(await getJwtSecret());
 }
 
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret());
+    const { payload } = await jwtVerify(token, await getJwtSecret());
     return payload as unknown as TokenPayload;
   } catch {
     return null;

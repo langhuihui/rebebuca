@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getDB, generateId, User, Session } from '@/lib/db';
@@ -38,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Check if session exists and is valid
     const session = await db.prepare(`

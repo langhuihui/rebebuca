@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB, Subscription, Product } from '@/lib/db';
@@ -15,7 +14,7 @@ export async function GET() {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Get active subscription
     const subscription = await db.prepare(`

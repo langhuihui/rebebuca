@@ -32,7 +32,7 @@ const nextConfig = {
     ],
   },
   
-  // CORS headers for API routes (allow Tauri/Vue client)
+  // CORS headers for API routes (browser / Vue client)
   async headers() {
     return [
       {

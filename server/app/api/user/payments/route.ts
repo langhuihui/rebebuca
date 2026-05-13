@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB, Payment } from '@/lib/db';
@@ -22,7 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50);
     const offset = (page - 1) * limit;
 
-    const db = getDB();
+    const db = await getDB();
 
     // Get total count
     const countResult = await db.prepare(`

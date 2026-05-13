@@ -1,4 +1,4 @@
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export interface User {
   id: string;
@@ -75,9 +75,9 @@ export interface InvitationCode {
   updated_at: string;
 }
 
-export function getDB(): D1Database {
+export async function getDB(): Promise<D1Database> {
   try {
-    const ctx = getRequestContext();
+    const ctx = await getCloudflareContext({ async: true });
     if (!ctx?.env?.DB) {
       console.error('DB binding not found in context. Available env keys:', ctx?.env ? Object.keys(ctx.env) : 'no env');
       throw new Error('D1 database binding "DB" not found. Please check Pages project settings > Functions > D1 Database bindings.');
@@ -113,7 +113,7 @@ export function generateInvitationCode(): string {
  * Create invitation codes for a new user
  */
 export async function createInvitationCodesForUser(userId: string, count: number = 3): Promise<InvitationCode[]> {
-  const db = getDB();
+  const db = await getDB();
   const now = new Date().toISOString();
   const codes: InvitationCode[] = [];
 

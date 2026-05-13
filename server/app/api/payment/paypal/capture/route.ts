@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB, generateId, Payment, Product } from '@/lib/db';
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
     const now = new Date().toISOString();
 
     // Get payment record

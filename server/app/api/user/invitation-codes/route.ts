@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB, InvitationCode } from '@/lib/db';
@@ -16,7 +15,7 @@ export async function GET() {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     const { results: codes } = await db.prepare(`
       SELECT * FROM invitation_codes

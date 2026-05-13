@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSuperAdmin } from '@/lib/auth';
 import { getDB, User } from '@/lib/db';
@@ -15,7 +14,7 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role') || '';
     const banned = searchParams.get('banned');
 
-    const db = getDB();
+    const db = await getDB();
     const offset = (page - 1) * limit;
 
     let query = 'SELECT * FROM users WHERE 1=1';

@@ -1,5 +1,4 @@
 import { jwtVerify, createRemoteJWKSet } from 'jose';
-import { getRequestContext } from '@cloudflare/next-on-pages';
 
 // Cloudflare Access configuration
 const CF_ACCESS_TEAM_DOMAIN = 'https://langhuihui.cloudflareaccess.com';

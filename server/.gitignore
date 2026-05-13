@@ -7,6 +7,9 @@
 /.next/
 /out/
 
+# OpenNext (Cloudflare) — regenerate with `pnpm exec opennextjs-cloudflare build`
+/.open-next/
+
 # Production
 /build
 

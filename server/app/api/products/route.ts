@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getDB, Product } from '@/lib/db';
 
@@ -6,7 +5,7 @@ import { getDB, Product } from '@/lib/db';
 // GET /api/products - Get all active products
 export async function GET() {
   try {
-    const db = getDB();
+    const db = await getDB();
 
     const { results: products } = await db.prepare(`
       SELECT * FROM products WHERE is_active = 1 ORDER BY price_usd ASC

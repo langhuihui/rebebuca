@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDB } from '@/lib/db';
@@ -23,7 +22,7 @@ export async function GET() {
       });
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Check if user has used an invitation code (used_by_user_id points to this user)
     const usedCode = await db.prepare(`

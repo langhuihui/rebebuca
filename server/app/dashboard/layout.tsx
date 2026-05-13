@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const db = getDB();
+  const db = await getDB();
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(payload.sub).first<User>();
 
   if (!user) {

@@ -1,12 +1,11 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 
 // Google OAuth: Redirect to Google authorization
 export async function GET(request: NextRequest) {
   const { origin } = new URL(request.url);
-  const ctx = getRequestContext();
+  const ctx = await getCloudflareContext({ async: true });
   
   const clientId = ctx.env.GOOGLE_CLIENT_ID;
   if (!clientId) {

@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDB, generateId, User } from '@/lib/db';
 import { verifyPassword, createAccessToken, createRefreshToken, getRefreshTokenExpiry } from '@/lib/auth';
@@ -17,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Find user
     const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<User>();

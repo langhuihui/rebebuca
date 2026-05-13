@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -22,7 +21,7 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const db = getDB();
+  const db = await getDB();
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(payload.sub).first<User>();
 
   if (!user) {

@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDB, generateId, createInvitationCodesForUser } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Check if user already exists
     const existingUser = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();

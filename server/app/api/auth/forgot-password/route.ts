@@ -1,6 +1,5 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDB, generateId, User } from '@/lib/db';
 import { sendPasswordResetEmail } from '@/lib/email';
 import type { D1Database } from '@cloudflare/workers-types';
@@ -18,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Find user
     const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first<User>();
@@ -39,10 +38,10 @@ export async function POST(request: NextRequest) {
       // Get environment context for Cloudflare Workers
       let env: any = null;
       try {
-        const ctx = getRequestContext();
+        const ctx = await getCloudflareContext({ async: true });
         env = ctx.env;
       } catch {
-        // If getRequestContext fails, env will be null and email will use environment variables
+        // If context is unavailable, env will be null and email will use environment variables
       }
 
       // Send email with reset link
@@ -71,7 +70,7 @@ export async function POST(request: NextRequest) {
       // Check if it's a D1 database error
       if (error.message.includes('D1_ERROR') || error.message.includes('no such table')) {
         try {
-          const ctx = getRequestContext();
+          const ctx = await getCloudflareContext({ async: true });
           const hasDB = ctx?.env?.DB ? 'yes' : 'no';
           const envKeys = ctx?.env ? Object.keys(ctx.env).join(', ') : 'no env';
           console.error('D1 Debug Info:', {

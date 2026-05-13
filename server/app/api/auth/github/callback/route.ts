@@ -1,6 +1,5 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { jwtVerify } from 'jose';
 import { getDB, generateId, User, createInvitationCodesForUser } from '@/lib/db';
 import { createAccessToken, createRefreshToken, getRefreshTokenExpiry } from '@/lib/auth';
@@ -65,11 +64,11 @@ export async function GET(request: NextRequest) {
 
   // Verify state for CSRF protection
   // - Legacy web flow uses random UUID state stored in cookie
-  // - Tauri flow uses signed JWT state carrying an optional loopback redirect
-  const ctx = getRequestContext();
+  // - Local web UI flow uses signed JWT state carrying an optional loopback redirect
+  const ctx = await getCloudflareContext({ async: true });
   let appRedirect: string | undefined;
 
-  // 1) Try signed JWT state (Tauri)
+  // 1) Try signed JWT state (local / loopback OAuth)
   try {
     const secret = new TextEncoder().encode(ctx.env.JWT_SECRET || 'default-secret-change-in-production');
     const { payload } = await jwtVerify(state, secret);
@@ -163,7 +162,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/login?error=no_email`);
     }
 
-    const db = getDB();
+    const db = await getDB();
     const now = new Date().toISOString();
 
     // Find or create user
@@ -210,7 +209,7 @@ export async function GET(request: NextRequest) {
       VALUES (?, ?, ?, ?, ?)
     `).bind(generateId(), user.id, refreshToken, refreshExpiry.toISOString(), now).run();
 
-    // If this was a Tauri OAuth flow, redirect back to loopback callback with tokens.
+    // If this was a local loopback OAuth flow, redirect back to the app with tokens.
     if (appRedirect) {
       const callbackUrl = new URL(appRedirect);
       callbackUrl.searchParams.set('accessToken', jwtAccessToken);

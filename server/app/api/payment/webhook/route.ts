@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDB, Payment } from '@/lib/db';
 import { verifyWebhookSignature } from '@/lib/paypal';
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     console.log('PayPal webhook event:', eventType);
 
-    const db = getDB();
+    const db = await getDB();
     const now = new Date().toISOString();
 
     switch (eventType) {

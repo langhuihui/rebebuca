@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDB } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
@@ -32,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
 
     // Find valid reset token
     const resetToken = await db.prepare(`

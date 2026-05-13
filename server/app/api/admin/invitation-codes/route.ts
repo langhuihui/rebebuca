@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSuperAdmin } from '@/lib/auth';
 import { getDB, generateId, generateInvitationCode, InvitationCode } from '@/lib/db';
@@ -18,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
     const now = new Date().toISOString();
     const codes: InvitationCode[] = [];
 
@@ -82,7 +81,7 @@ export async function GET() {
   try {
     await requireSuperAdmin();
 
-    const db = getDB();
+    const db = await getDB();
 
     const { results: codes } = await db.prepare(`
       SELECT ic.*, 

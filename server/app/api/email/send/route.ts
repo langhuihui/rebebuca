@@ -1,6 +1,4 @@
-// This route works with Edge Runtime (Cloudflare Pages compatible)
-// It calls an external SMTP service via HTTP API
-export const runtime = 'edge';
+// Calls an external SMTP service via HTTP API (Cloudflare Workers / OpenNext compatible)
 import { NextRequest, NextResponse } from 'next/server';
 
 interface EmailRequest {
