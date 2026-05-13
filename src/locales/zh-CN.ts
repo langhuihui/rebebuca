@@ -579,7 +579,7 @@ export default {
     error: '错误',
     update: '更新',
     frontendError: '前端错误',
-    tauriError: 'Tauri 错误',
+    backendError: '后端错误',
     warning: '警告',
     info: '信息',
   },
@@ -721,8 +721,8 @@ export default {
     naiveui: '现代化的 Vue 3 组件库',
     pinia: '轻量级状态管理',
     vite: '下一代前端构建工具',
-    tauri: '轻量级桌面应用框架',
-    rust: '系统级编程语言'
+    nuxt: 'Vue 全栈工具链（静态站点与服务端）',
+    nodeRuntime: 'Node.js 运行时（Rebebuca 服务端）'
   },
   download: {
     title: '下载',
@@ -803,13 +803,13 @@ export default {
     tasks: {
       install: '安装依赖',
       dev: '启动开发服务器',
-      tauri: '启动 Tauri 应用',
+      preview: '预览生产构建',
       features: '查看功能列表',
       techstack: '查看技术栈',
       version: '查看版本信息',
       help: '查看帮助',
       build: '构建前端',
-      tauribuild: '构建桌面应用',
+      buildStatic: '构建静态 Web界面',
       test: '运行测试',
       viewFeatures: '查看功能介绍',
       viewTech: '查看技术栈',

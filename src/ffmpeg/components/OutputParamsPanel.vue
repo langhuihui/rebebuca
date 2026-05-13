@@ -133,7 +133,7 @@ const handleContainerChange = (container: string) => {
 // 处理浏览输出目录
 const handleBrowseOutputDir = () => {
   // 这里需要实现目录选择功能
-  // 可以使用 Tauri 的 dialog API 或其他方式
+  // 可使用浏览器文件选择或服务端 API
   message.info('目录选择功能将在后续版本中实现');
 };
 </script>

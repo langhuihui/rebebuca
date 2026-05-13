@@ -38,8 +38,6 @@ export const useUIStore = defineStore("ui", () => {
     ];
   });
 
-  const isTauri = () => false;
-
   const clampSidebarWidth = (width: number) =>
     Math.min(420, Math.max(200, Math.round(width)));
 

@@ -96,7 +96,7 @@ source <(npx rebebuca complete bash)
 - **Vite** - Next generation frontend build tool
 
 ### Backend (Node.js)
-- **Node.js** - HTTP + WebSocket server (replaces Rust/Tauri)
+- **Node.js** - HTTP + WebSocket server
 - **node-pty** - Native PTY terminal emulation
 - **ws** - High-performance WebSocket library
 

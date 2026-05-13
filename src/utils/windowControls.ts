@@ -1,4 +1,4 @@
-// Window control helpers (minimize/maximize/close/drag). Only relevant for Tauri desktop; in browser/server they are no-ops.
+// Window control helpers (minimize/maximize/close/drag). No-ops in browser / Node web UI.
 
 export const safeGetCurrentWindow = async () => null;
 

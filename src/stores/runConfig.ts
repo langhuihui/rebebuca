@@ -53,14 +53,6 @@ export interface RunConfig {
   sshConfig?: SshConfig;
 }
 
-export interface TauriRunConfig {
-  name: string;
-  command: string;
-  working_directory?: string;
-  environment?: Record<string, string>;
-  arguments?: string[];
-}
-
 export interface RunHistory {
   id: string;
   configId: string;

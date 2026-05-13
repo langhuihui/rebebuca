@@ -765,7 +765,7 @@ const terminalStore = useTerminalStore();
 const notificationStore = useNotificationStore();
 const { effectiveTheme } = useTheme();
 
-/** Tauri/desktop integrations disabled in web build */
+/** Desktop shell integrations are not used in browser builds */
 const isDesktopMode = false;
 
 /** 最近运行：显示数 > 0 时始终显示分组（可预调数量）；为 0 时仅在有运行统计时显示以便恢复 */

@@ -2,7 +2,7 @@
  * Storage Handler
  *
  * A simple key-value store backed by a JSON file on disk.
- * Replaces Tauri's plugin-store with a Node.js-native implementation.
+ * Node.js-native persistent store for the server UI.
  *
  * Writes are debounced: changes accumulate in memory and are flushed to
  * disk after a short idle period (or on explicit `save()` calls).

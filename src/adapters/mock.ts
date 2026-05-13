@@ -850,7 +850,7 @@ class MockOrchestrationAdapter implements OrchestrationAdapter {
  * Mock Backend Adapter - Main class
  */
 export class MockAdapter implements BackendAdapter {
-  readonly type: 'tauri' | 'server' | 'mock' = 'mock';
+  readonly type: 'mock' = 'mock';
 
   terminal: TerminalAdapter;
   fs: FileSystemAdapter;

@@ -43,11 +43,8 @@ export function useTrayMenu() {
     try {
       adapter = await getAdapter();
       
-      // Tray was only supported in Tauri (desktop); in Node/server mode there is no system tray
+      // No system tray in browser / Node web UI
       if (!adapter) return;
-      initialized = true;
-      isReady.value = true;
-      
       initialized = true;
       isReady.value = true;
       console.log('[TrayMenu] Tray menu service initialized');

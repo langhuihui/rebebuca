@@ -2,7 +2,7 @@
  * Backend Adapter Types
  * 
  * Defines the interface for backend adapters that abstract away
- * the underlying platform (Tauri, Server, Mock)
+ * the underlying platform (server API or mock)
  */
 
 // Terminal types

@@ -8,7 +8,7 @@
 - Vue 3
 - Naive UI
 - Pinia
-- @tauri-apps/plugin-dialog
+- Node/browser APIs
 
 ### 导入组件
 

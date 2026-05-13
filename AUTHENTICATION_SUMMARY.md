@@ -2,7 +2,7 @@
 
 ## 概述
 
-已在 **Website** 和 **Tauri (主应用)** 两个 Web 端成功实现用户信息获取和登录跳转功能。
+已在 **Website** 与 **Rebebuca Web UI** 两个 Web 端成功实现用户信息获取和登录跳转功能。
 
 ## 架构说明
 
@@ -24,7 +24,7 @@
   - 登录/注册按钮
   - 跳转到认证服务器
 
-### Tauri (桌面应用)
+### Rebebuca Web UI（本地）
 - **位置**: `src/`
 - **技术栈**: Vue 3 + TypeScript + Pinia + Naive UI
 - **功能**:
@@ -84,7 +84,7 @@
 - 用户信息卡片 (已登录时显示)
 ```
 
-### 2. Tauri (主应用) 端功能
+### 2. Rebebuca Web UI 端功能
 
 #### 认证服务更新 (`src/services/authService.ts`)
 ```typescript
@@ -183,7 +183,7 @@ const { redirectToLogin } = useAuth();
 redirectToLogin(window.location.pathname);
 ```
 
-### Tauri (主应用) 端
+### Rebebuca Web UI 端
 
 #### 在组件中使用认证
 ```vue
@@ -258,7 +258,7 @@ function handleProtectedAction() {
 重新获取用户信息
 ```
 
-### 3. Tauri 应用中的认证
+### 3. Web UI 中的认证
 
 ```
 应用启动
@@ -298,7 +298,7 @@ TitleBar 显示 UserMenu 组件
   - `rebebuca_refresh_token`
   - `rebebuca_user`
 
-### Tauri (主应用)
+### Rebebuca Web UI
 - **localStorage**: 存储 token 和用户信息
 - **Keys**:
   - `rebebuca_access_token`
@@ -315,7 +315,7 @@ TitleBar 显示 UserMenu 组件
 
 ## 安全考虑
 
-1. **Token 存储**: Website 和 Tauri 都使用 localStorage 存储 token (httpOnly cookies 仅在 server 端)
+1. **Token 存储**: Website 和 Web UI 都使用 localStorage 存储 token (httpOnly cookies 仅在 server 端)
 2. **HTTPS**: 生产环境必须使用 HTTPS
 3. **Token 刷新**: 自动刷新过期 token
 4. **认证检查**: 受保护路由需要认证
@@ -340,7 +340,7 @@ TitleBar 显示 UserMenu 组件
    pnpm build
    ```
 
-### Tauri (主应用)
+### Rebebuca Web UI
 1. 认证功能已集成
 2. 无需额外配置
 3. 自动读取用户信息并显示
@@ -381,7 +381,7 @@ website/
         └── PricingView.vue
 ```
 
-### Tauri (主应用) 更新文件
+### Rebebuca Web UI 更新文件
 ```
 src/
 ├── services/
@@ -407,8 +407,8 @@ src/
 5. 测试订阅状态显示
 6. 测试 Dashboard 跳转
 
-### Tauri (主应用) 测试
-1. 启动 Tauri 应用
+### Rebebuca Web UI 测试
+1. 启动 Rebebuca（npx）
 2. 查看 TitleBar 中的用户菜单
 3. 点击登录按钮
 4. 在认证服务器完成登录
@@ -426,7 +426,7 @@ src/
 
 ## 总结
 
-已成功在 Website 和 Tauri (主应用) 两个 Web 端实现完整的认证功能:
+已成功在 Website 和 Rebebuca Web UI 两个 Web 端实现完整的认证功能:
 
 ✅ **Website**:
 - 用户信息获取和显示
@@ -434,7 +434,7 @@ src/
 - 登录/注册跳转
 - Dashboard 跳转
 
-✅ **Tauri (主应用)**:
+✅ **Rebebuca Web UI**:
 - 用户菜单组件
 - 用户头像和信息显示
 - 订阅状态徽章

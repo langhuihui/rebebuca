@@ -296,7 +296,7 @@ import { useTerminalStore } from '../../stores/terminal';
 import { svgIcons } from '../../utils/icons';
 import { getAdapter } from '../../adapters';
 
-// Helper to get home directory (works in both Tauri and server modes)
+// Helper to get home directory (server adapter)
 async function getHomeDir(): Promise<string> {
   const adapter = await getAdapter();
   return adapter.system.getHomeDir();

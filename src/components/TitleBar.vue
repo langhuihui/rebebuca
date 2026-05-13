@@ -597,7 +597,7 @@ void useFeatureFlagsStore();
 void useAuthStore();
 const { setThemeMode } = useTheme();
 
-// Desktop (Tauri) mode no longer used; always false
+// Embedded browser UI has no native titlebar controls
 const isDesktopMode = false;
 
 // Notification dialog state

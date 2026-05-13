@@ -169,14 +169,14 @@ export const useSshStore = defineStore('ssh', () => {
    * Refresh connection status for all configs
    */
   async function refreshConnectionStatuses(): Promise<void> {
-    // SSH connection status was Tauri-only
+    // SSH connection status (server mode only)
   }
   
   /**
    * Refresh connection status for a specific config
    */
   async function refreshConnectionStatus(_configId: string): Promise<void> {
-    // SSH connection status was Tauri-only
+    // SSH connection status (server mode only)
   }
   
   /**

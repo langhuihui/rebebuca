@@ -75,7 +75,7 @@ const portFilter = ref("");
 
 const demoProcesses = ref([
   { pid: 12345, name: "node", command: "node server.js", ports: [5173, 5174] },
-  { pid: 12346, name: "tauri", command: "tauri dev", ports: [1420] },
+  { pid: 12346, name: "vite", command: "vite --port 6173", ports: [6173] },
   { pid: 12347, name: "nginx", command: "nginx -g daemon off", ports: [80, 443] },
   { pid: 12348, name: "python", command: "python -m http.server", ports: [8000] },
   { pid: 12349, name: "go", command: "go run main.go", ports: [8080, 8081] },

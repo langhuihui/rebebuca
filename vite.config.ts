@@ -5,9 +5,6 @@ import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { NaiveUiResolver } from "unplugin-vue-components/resolvers";
 
-// @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
-
 // Check if building for web demo
 const isWebBuild = process.env.VITE_BUILD_TARGET === 'web';
 // Check if building the server-mode app (for npx rebebuca)
@@ -37,7 +34,7 @@ export default defineConfig(async () => ({
     }),
     Components({
       resolvers: [NaiveUiResolver()]
-    })
+    }),
   ],
   
   // Define environment variables - use 'process.env.VITE_BACKEND' for replacement
@@ -52,41 +49,18 @@ export default defineConfig(async () => ({
     },
   },
   
-  // Tauri build uses 'public', website build merges 'public' + 'public-website' via plugin
-  
-  // Build configuration based on target
   build: isWebBuild ? {
-    // Web app build: outputs to dist/web  
     outDir: 'dist/web',
   } : isServerAppBuild ? {
-    // Server-mode Vite build (legacy); npx UI is Nuxt → web-public via build:server-app.
     outDir: 'dist/server',
   } : {
-    // Tauri app build: outputs to dist
     outDir: 'dist',
   },
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 1420,
-    strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
-    watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
-    },
-    // Proxy API/WS to node-server in dev so /api/proxy and /ws work (backend must be on 3000)
+    port: 6173,
+    strictPort: false,
     proxy: (backendType === 'server' || process.env.NODE_ENV !== 'production') ? {
       '/api': {
         target: 'http://localhost:3000',

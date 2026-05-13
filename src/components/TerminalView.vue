@@ -1082,8 +1082,7 @@ const handleDragLeave = () => {
 };
 
 const handleDrop = async (event: DragEvent) => {
-  // Browser drop events don't contain file paths in Tauri
-  // We use Tauri's drag-drop events instead (setupDragDropListener)
+  // Browser drop events do not expose raw file paths
   event.preventDefault();
 };
 
@@ -1105,7 +1104,7 @@ const writePathsToPty = async (paths: string[]) => {
 };
 
 const setupDragDropListener = async () => {
-  // Drag-drop was Tauri-only
+  // Path-based drag-drop is not available in the browser
 };
 
 // Check if the drop position is over this terminal element

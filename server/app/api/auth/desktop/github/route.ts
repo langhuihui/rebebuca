@@ -1,6 +1,5 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { SignJWT } from 'jose';
 
 const STATE_ALG = 'HS256';
@@ -24,11 +23,11 @@ function isAllowedLoopbackRedirect(raw: string): boolean {
   }
 }
 
-// GitHub OAuth: return GitHub authorization URL for Tauri/desktop apps.
+// GitHub OAuth: return GitHub authorization URL for local web UI (loopback redirect).
 // The `state` is a short-lived signed JWT and may include a loopback redirect URL.
 export async function GET(request: NextRequest) {
   const { origin, searchParams } = new URL(request.url);
-  const ctx = getRequestContext();
+  const ctx = await getCloudflareContext({ async: true });
 
   const clientId = ctx.env.GITHUB_CLIENT_ID;
   if (!clientId) {

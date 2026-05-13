@@ -443,7 +443,7 @@ import {
 ## 下一步
 
 1. **集成实际的 FFmpeg 执行**
-   - 使用 Tauri 的 shell 命令
+   - 使用 Node.js 的 shell 命令
    - 处理真实的 FFmpeg 输出
 
 2. **完善测试**

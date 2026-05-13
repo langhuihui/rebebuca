@@ -1,4 +1,4 @@
-# Tauri OAuth 登录修复说明
+# OAuth 登录修复说明（历史记录）
 
 ## 问题
 
@@ -71,7 +71,7 @@ async function startOAuthLogin(provider: 'github' | 'google') {
   oauthLoading.value = provider;
 
   // 1. 获取 OAuth URL
-  const response = await fetch(`${AUTH_SERVER_URL}/api/auth/tauri/${provider}`);
+  const response = await fetch(`${AUTH_SERVER_URL}/api/auth/desktop/${provider}`);
 
   // 2. 保存 state
   sessionStorage.setItem('oauth_state', data.state);
@@ -276,4 +276,4 @@ auth: {
    - 支持多设备登录
    - 支持登录历史记录
 
-现在 Tauri 应用支持类似 VS Code 的 OAuth 登录体验！🎉
+当前 Web 产品以邮箱登录为主；loopback OAuth 相关路由见 `server/app/api/auth/desktop/`。

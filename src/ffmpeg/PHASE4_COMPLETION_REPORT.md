@@ -145,7 +145,7 @@
 - Naive UI 组件库
 - Pinia 状态管理
 - vuedraggable 拖拽排序
-- @tauri-apps/plugin-dialog 文件选择
+- Node/browser APIs 文件选择
 
 ### 关键特性
 1. **响应式设计**: 所有配置实时更新命令预览

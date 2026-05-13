@@ -468,7 +468,6 @@ import { useRunConfigStore } from "./stores/runConfig";
 import { useTaskManagerStore } from "./stores/taskManager";
 import { useTerminalStore } from "./stores/terminal";
 import { useUIStore } from "./stores/ui";
-import { useAppStore } from "./stores/app";
 import { useUpdaterStore } from "./stores/updater";
 import { useFeatureFlagsStore } from "./stores/featureFlags";
 import { useNotificationStore } from "./stores/notification";
@@ -483,7 +482,6 @@ import ServerDirectoryPicker from "./components/ServerDirectoryPicker.vue";
 import ServerFilePicker from "./components/ServerFilePicker.vue";
 import RemoteNotificationModal from "./components/RemoteNotificationModal.vue";
 import { useTheme } from "./composables/useTheme";
-type UnlistenFn = () => void;
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
 import {
@@ -509,7 +507,6 @@ import {
   GitNetworkOutline as PortIcon,
 } from "@vicons/ionicons5";
 import UserMenu from "../shared/components/UserMenu.vue";
-// import { setupSystemTrayMenu } from "./utils/tray";
 
 // Props for embedded mode (website demo)
 interface Props {
@@ -534,7 +531,6 @@ const runConfigStore = useRunConfigStore();
 const taskManager = useTaskManagerStore();
 const terminalStore = useTerminalStore();
 const uiStore = useUIStore();
-const appStore = useAppStore();
 const updaterStore = useUpdaterStore();
 const featureFlagsStore = useFeatureFlagsStore();
 const notificationStore = useNotificationStore();
@@ -1042,16 +1038,6 @@ const outputBuffer = ref<
   >
 >({});
 
-// Tauri event listeners
-let unlistenOutput: UnlistenFn | null = null;
-let unlistenStarted: UnlistenFn | null = null;
-let unlistenStopped: UnlistenFn | null = null;
-let unlistenPtyExit: UnlistenFn | null = null;
-let unlistenSshOutput: UnlistenFn | null = null;
-let unlistenSshProcessStarted: UnlistenFn | null = null;
-let unlistenSshProcessFinished: UnlistenFn | null = null;
-let unlistenSshError: UnlistenFn | null = null;
-
 // Process monitoring
 let processStatsInterval: number | null = null;
 
@@ -1114,7 +1100,7 @@ const appendOutputToHistory = (
 
     // Only update output for running processes
     if (historyItem.status === "running") {
-      // Note: [ERROR] prefix is already added by Rust backend for stderr
+      // Note: [ERROR] prefix may be added by the backend for stderr
       // Update the history item in store with new output
       const updatedOutput = (historyItem.output || "") + content;
       runConfigStore.updateHistory(historyItem.id, {
@@ -1178,7 +1164,7 @@ const processBufferedOutput = (processId: string) => {
     let totalOutput = historyItem.output || "";
 
     for (const bufferedOutput of bufferedOutputs) {
-      // Note: [ERROR] prefix is already added by Rust backend for stderr
+      // Note: [ERROR] prefix may be added by the backend for stderr
       totalOutput += bufferedOutput.content;
     }
 
@@ -1470,7 +1456,6 @@ const setupGlobalAPI = () => {
   console.log("[Rebebuca] Global API exposed at window.rebebucaAPI");
 };
 
-// Setup Tauri event listeners on mount
 onMounted(async () => {
   // Expose global API for remote execution
   setupGlobalAPI();
@@ -1521,346 +1506,12 @@ onMounted(async () => {
     console.warn("[App] Terminal listeners / PTY restore:", e);
   }
 
-  // Listen for show-about-dialog event from Rust menu
-  await appStore.safeListen("show-about-dialog", () => {
-    showAboutDialog.value = true;
-  });
-
-  // Check for what's new dialog (after update)
   await updaterStore.checkWhatsNew();
-
-  // Listen for process output
-  unlistenOutput = await appStore.safeListen(
-    "process-output",
-    async (event) => {
-      const { process_id, content, output_type } = event.payload;
-      console.log(
-        `[FRONTEND] Received ${output_type} output - PID: ${process_id}, Content: ${content.substring(
-          0,
-          100,
-        )}...`,
-      );
-      appendOutputToHistory(process_id, content, output_type);
-
-      // Send system notification for stderr
-      if (output_type === "stderr") {
-        const historyItem = findHistoryByProcessId(process_id);
-        if (historyItem) {
-          try {
-            await appStore.safeSendNotification({
-              title: `${t("error.title")}: ${historyItem.name}`,
-              body: content.trim().substring(0, 100), // Limit notification content
-            });
-          } catch (error) {
-            console.error("Failed to send notification:", error);
-          }
-        }
-      }
-    },
-  );
-
-  // Listen for process started
-  unlistenStarted = await appStore.safeListen(
-    "process-started",
-    (event: any) => {
-      const { internal_id, system_pid } = event.payload;
-      console.log(
-        `[FRONTEND] Process started - Internal UUID: ${internal_id}, System PID: ${system_pid}`,
-      );
-
-      // Find history item by the internal_id (UUID)
-      const historyItem = findHistoryByProcessId(internal_id);
-
-      if (historyItem) {
-        // Use system_pid if available, otherwise use internal_id
-        const processId = system_pid ? system_pid.toString() : internal_id;
-
-        console.log(
-          `[FRONTEND] Process started - updating history item ${historyItem.id} with process ID: ${processId} (system_pid: ${system_pid}, internal_id: ${internal_id})`,
-        );
-        console.log(`[FRONTEND] History item before update:`, {
-          id: historyItem.id,
-          pid: historyItem.pid,
-          internalId: historyItem.internalId,
-          status: historyItem.status,
-        });
-
-        // Update the history item with the process ID (system PID or internal ID)
-        runConfigStore.updateHistory(historyItem.id, {
-          pid: processId, // 使用系统PID（如果存在）或内部ID作为pid
-        });
-
-        console.log(`[FRONTEND] History item after update:`, {
-          id: historyItem.id,
-          pid: historyItem.pid,
-          internalId: historyItem.internalId,
-          status: historyItem.status,
-        });
-
-        updateHistoryStatus(processId, "running");
-
-        // Process any buffered output for this process
-        processBufferedOutput(processId);
-      } else {
-        console.warn(
-          `[FRONTEND] History item not found for internal UUID ${internal_id}`,
-        );
-        console.warn(
-          `[FRONTEND] Available history items:`,
-          runConfigStore.history.map((h) => ({
-            id: h.id,
-            pid: h.pid,
-            internalId: h.internalId,
-            status: h.status,
-          })),
-        );
-      }
-    },
-  );
-
-  // Listen for process stopped
-  unlistenStopped = await appStore.safeListen(
-    "process-stopped",
-    async (event: any) => {
-      const { internal_id, system_pid, status } = event.payload;
-      console.log(
-        `[FRONTEND] Process stopped - Internal UUID: ${internal_id}, System PID: ${system_pid}, Status: ${status}`,
-      );
-
-      // For kill_process, internal_id is actually the system PID
-      // We need to find the history item by system PID
-      let processId = system_pid ? system_pid.toString() : internal_id;
-
-      // If internal_id is a number (system PID), use it directly
-      if (!isNaN(Number(internal_id))) {
-        processId = internal_id;
-      }
-
-      // Map Tauri ProcessStatus to our history status
-      let historyStatus: "running" | "success" | "error";
-      if (status === "stopped") {
-        historyStatus = "success";
-      } else if (status === "error") {
-        historyStatus = "error";
-      } else {
-        historyStatus = "success"; // Default to success for any other status
-      }
-
-      // Mark process as finished to avoid further stats calls
-      finishedProcesses.add(processId);
-
-      // Also mark by internal_id if it's different from processId
-      if (internal_id && internal_id !== processId) {
-        finishedProcesses.add(internal_id);
-      }
-
-      // Remove from checking processes if it was being checked
-      checkingProcesses.delete(processId);
-      if (internal_id && internal_id !== processId) {
-        checkingProcesses.delete(internal_id);
-      }
-
-      // Remove from failed stats checks cache
-      failedStatsChecks.delete(processId);
-      if (internal_id && internal_id !== processId) {
-        failedStatsChecks.delete(internal_id);
-      }
-
-      // Update history status immediately
-      updateHistoryStatus(processId, historyStatus);
-
-      console.log(`Process ${processId} status updated to: ${historyStatus}`);
-    },
-  );
-
-  // Listen for PTY exit events (for terminal-based task execution)
-  unlistenPtyExit = await appStore.safeListen(
-    "pty-exit",
-    async (event: any) => {
-      const { pty_id, exit_code } = event.payload;
-      console.log(
-        `[FRONTEND] PTY exit event - PTY ID: ${pty_id}, Exit Code: ${exit_code}`,
-      );
-
-      // Find history item by ptyId
-      const historyItem = runConfigStore.history.find(
-        (item) => item.ptyId === pty_id,
-      );
-
-      if (historyItem) {
-        // Determine status based on exit code
-        const historyStatus: "running" | "success" | "error" =
-          exit_code === 0 || exit_code === null ? "success" : "error";
-
-        // Calculate duration
-        const endTime = Date.now();
-        const duration = historyItem.startTime
-          ? endTime - historyItem.startTime
-          : 0;
-
-        console.log(
-          `[FRONTEND] PTY ${pty_id} finished, duration: ${duration}ms, status: ${historyStatus}`,
-        );
-
-        // Update history
-        runConfigStore.updateHistory(historyItem.id, {
-          status: historyStatus,
-          duration: duration,
-        });
-
-        // Notify taskManager that task has exited (for SSH tasks)
-        if (historyItem.configId) {
-          try {
-            const { useTaskManagerStore } =
-              await import("./stores/taskManager");
-            const taskManager = useTaskManagerStore();
-            taskManager.onTaskExit(historyItem.ptyId || historyItem.configId);
-          } catch (error) {
-            console.error("[App] Failed to notify taskManager:", error);
-          }
-        }
-
-        // Update selected history item if it's the same
-        if (uiStore.selectedHistoryItem?.id === historyItem.id) {
-          uiStore.selectedHistoryItem.status = historyStatus;
-          uiStore.selectedHistoryItem.duration = duration;
-        }
-      } else {
-        console.log(`[FRONTEND] No history item found for PTY ${pty_id}`);
-      }
-    },
-  );
-
-  // Listen for SSH output events
-  unlistenSshOutput = await appStore.safeListen(
-    "ssh-output",
-    async (event: any) => {
-      const { taskId, type, content } = event.payload;
-      console.log(`[FRONTEND] SSH output - Task ID: ${taskId}, Type: ${type}`);
-
-      // Find history item by task ID (ptyId is the exec_id for SSH tasks)
-      const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId,
-      );
-
-      if (historyItem) {
-        // Map SSH output type to history output type
-        const outputType =
-          type === "stdout"
-            ? "stdout"
-            : type === "stderr"
-              ? "stderr"
-              : "system";
-        appendOutputToHistory(historyItem.ptyId || taskId, content, outputType);
-      } else {
-        // Buffer output if history item doesn't exist yet
-        if (!outputBuffer.value[taskId]) {
-          outputBuffer.value[taskId] = [];
-        }
-        outputBuffer.value[taskId].push({ content, outputType: type });
-      }
-    },
-  );
-
-  unlistenSshProcessStarted = await appStore.safeListen(
-    "ssh-process-started",
-    async (event: any) => {
-      const { taskId, pid } = event.payload;
-      console.log(
-        `[FRONTEND] SSH process started - Task ID: ${taskId}, PID: ${pid}`,
-      );
-
-      const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId,
-      );
-
-      if (historyItem) {
-        runConfigStore.updateHistory(historyItem.id, {
-          pid,
-          ptyId: taskId, // Use taskId as ptyId for SSH tasks
-        });
-      }
-    },
-  );
-
-  unlistenSshProcessFinished = await appStore.safeListen(
-    "ssh-process-finished",
-    async (event: any) => {
-      const { taskId, exitCode } = event.payload;
-      console.log(
-        `[FRONTEND] SSH process finished - Task ID: ${taskId}, Exit Code: ${exitCode}`,
-      );
-
-      const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId,
-      );
-
-      if (historyItem) {
-        const historyStatus: "running" | "success" | "error" =
-          exitCode === 0 || exitCode === null ? "success" : "error";
-
-        const endTime = Date.now();
-        const duration = historyItem.startTime
-          ? endTime - historyItem.startTime
-          : 0;
-
-        runConfigStore.updateHistory(historyItem.id, {
-          status: historyStatus,
-          duration: duration,
-        });
-
-        // Update selected history item if it's the same
-        if (uiStore.selectedHistoryItem?.id === historyItem.id) {
-          uiStore.selectedHistoryItem.status = historyStatus;
-          uiStore.selectedHistoryItem.duration = duration;
-        }
-
-        // Notify taskManager that task has exited
-        if (historyItem.configId) {
-          try {
-            const { useTaskManagerStore } =
-              await import("./stores/taskManager");
-            const taskManager = useTaskManagerStore();
-            taskManager.onTaskExit(taskId);
-          } catch (error) {
-            console.error("[App] Failed to notify taskManager:", error);
-          }
-        }
-      }
-    },
-  );
-
-  unlistenSshError = await appStore.safeListen(
-    "ssh-error",
-    async (event: any) => {
-      const { taskId, message } = event.payload;
-      console.error(
-        `[FRONTEND] SSH error - Task ID: ${taskId}, Message: ${message}`,
-      );
-
-      const historyItem = runConfigStore.history.find(
-        (item) => item.configId === taskId || item.ptyId === taskId,
-      );
-
-      if (historyItem) {
-        runConfigStore.updateHistory(historyItem.id, {
-          status: "error",
-          output: (historyItem.output || "") + `[SSH ERROR] ${message}\n`,
-        });
-      }
-    },
-  );
 
   // Start process monitoring
   startProcessMonitoring();
 
-  // Initialize tray menu service for dynamic tray menu updates
   await initTrayService();
-
-  // Initialize system tray context menu
-  // Note: Tray is now created in Rust backend for better stability on macOS
-  // Uncomment the line below if you want dynamic tray menus managed by frontend
-  // setupSystemTrayMenu(runConfigStore);
 });
 
 // Clean up event listeners on unmount
@@ -1875,15 +1526,6 @@ onUnmounted(() => {
 
   // Unregister file picker
   unregisterFilePicker();
-
-  if (unlistenOutput) unlistenOutput();
-  if (unlistenStarted) unlistenStarted();
-  if (unlistenStopped) unlistenStopped();
-  if (unlistenPtyExit) unlistenPtyExit();
-  if (unlistenSshOutput) unlistenSshOutput();
-  if (unlistenSshProcessStarted) unlistenSshProcessStarted();
-  if (unlistenSshProcessFinished) unlistenSshProcessFinished();
-  if (unlistenSshError) unlistenSshError();
 
   // Stop process monitoring
   stopProcessMonitoring();

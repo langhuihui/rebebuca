@@ -183,7 +183,6 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
           // Enable extended features for Claude (official API only)
           'anthropic-beta': 'interleaved-thinking-2025-05-14,output-128k-2025-02-19',
         } : undefined,
-        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
         fetch: proxyFetch,
       });
       return anthropic(model);
@@ -193,7 +192,6 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const openai = createOpenAI({
         apiKey,
         baseURL: baseUrl,
-        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
         fetch: proxyFetch,
       });
       return openai(model);
@@ -211,7 +209,6 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const openai = createOpenAI({
         apiKey: effectiveApiKey,
         baseURL: baseUrl || providerConfig.baseUrl,
-        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
         fetch: proxyFetch,
       });
       return openai(model);
@@ -221,7 +218,6 @@ export async function createLanguageModel(config: ProviderConfig): Promise<Langu
       const google = createGoogleGenerativeAI({
         apiKey,
         baseURL: baseUrl,
-        // Use Tauri HTTP plugin to bypass CORS in Tauri environment
         fetch: proxyFetch,
       });
       return google(model);
@@ -348,8 +344,7 @@ export async function testProviderConnection(config: ProviderConfig): Promise<{
     // First, test if the baseUrl is reachable
     const baseUrl = config.baseUrl || PROVIDER_CONFIG[config.type]?.baseUrl;
     if (baseUrl) {
-      // Note: In Tauri, fetch requests are not subject to CORS restrictions
-      // "Load failed" usually means the endpoint is unreachable or SSL/TLS issues
+      // "Load failed" often means the endpoint is unreachable or SSL/TLS issues
       console.log('[Provider] Testing connection to:', baseUrl);
     }
     

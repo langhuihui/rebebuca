@@ -1,6 +1,5 @@
-export const runtime = 'edge';
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { jwtVerify } from 'jose';
 import { getDB, generateId, User, createInvitationCodesForUser } from '@/lib/db';
 import { createAccessToken, createRefreshToken, getRefreshTokenExpiry } from '@/lib/auth';
@@ -45,7 +44,7 @@ function isAllowedLoopbackRedirect(raw: string): boolean {
   }
 }
 
-// GitHub OAuth callback for Tauri/desktop apps.
+// GitHub OAuth callback for loopback / local web UI flows.
 // Exchanges `code` for GitHub token, creates Rebebuca session tokens, then:
 // - if state contains a loopback redirect, redirects browser to it with tokens
 // - otherwise returns JSON
@@ -72,7 +71,7 @@ export async function GET(request: NextRequest) {
   // Verify signed state (stateless, no cookies)
   let appRedirect: string | undefined;
   try {
-    const ctx = getRequestContext();
+    const ctx = await getCloudflareContext({ async: true });
     const secret = new TextEncoder().encode(ctx.env.JWT_SECRET || 'default-secret-change-in-production');
     const { payload } = await jwtVerify(state, secret);
 
@@ -98,7 +97,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const ctx = getRequestContext();
+    const ctx = await getCloudflareContext({ async: true });
     const clientId = ctx.env.GITHUB_CLIENT_ID;
     const clientSecret = ctx.env.GITHUB_CLIENT_SECRET;
 
@@ -179,7 +178,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const db = getDB();
+    const db = await getDB();
     const now = new Date().toISOString();
 
     // Find or create user

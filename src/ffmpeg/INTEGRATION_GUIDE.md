@@ -104,26 +104,9 @@ export default {
 
 ## 5. 执行实际的 FFmpeg 命令
 
-### 使用 Tauri (桌面应用)
+### 使用 Node.js（服务端）
 
-```typescript
-import { Command } from '@tauri-apps/plugin-shell';
-
-async function executeFFmpegCommand(command: string): Promise<void> {
-  try {
-    const result = await Command.create('ffmpeg', command.split(' ').slice(1)).execute();
-    console.log('Exit code:', result.code);
-    console.log('Stdout:', result.stdout);
-    console.log('Stderr:', result.stderr);
-  } catch (error) {
-    console.error('Failed to execute FFmpeg:', error);
-  }
-}
-
-// 使用示例
-const command = store.commandPreview;
-await executeFFmpegCommand(command);
-```
+在 Node 侧用 `child_process` 或项目提供的 HTTP API 执行 FFmpeg；浏览器内请走下方 Web API。
 
 ### 使用 API (Web 应用)
 
@@ -412,7 +395,7 @@ const handleCancelEncoding = () => {
 
 ## 注意事项
 
-1. **文件路径处理**: 在桌面应用中使用 Tauri 的路径 API,在 Web 应用中使用相对路径或通过 API 处理
+1. **文件路径处理**: 在桌面应用中使用 Node.js 的路径 API,在 Web 应用中使用相对路径或通过 API 处理
 2. **性能考虑**: 批量处理时限制并发数量,避免系统过载
 3. **错误处理**: 捕获所有可能的错误并提供友好的错误提示
 4. **进度反馈**: 在长时间操作时提供进度反馈

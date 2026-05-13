@@ -559,7 +559,7 @@ export default {
     error: 'Error',
     update: 'Update',
     frontendError: 'Frontend Error',
-    tauriError: 'Tauri Error',
+    backendError: 'Backend Error',
     warning: 'Warning',
     info: 'Info',
   },
@@ -701,8 +701,8 @@ export default {
     naiveui: 'Modern Vue 3 component library',
     pinia: 'Lightweight state management',
     vite: 'Next generation build tool',
-    tauri: 'Lightweight desktop app framework',
-    rust: 'Systems programming language'
+    nuxt: 'Vue full-stack toolkit for static and server builds',
+    nodeRuntime: 'Node.js runtime for the Rebebuca server'
   },
   download: {
     title: 'Download',
@@ -783,13 +783,13 @@ export default {
     tasks: {
       install: 'Install Dependencies',
       dev: 'Start Dev Server',
-      tauri: 'Start Tauri App',
+      preview: 'Preview production build',
       features: 'View Features',
       techstack: 'View Tech Stack',
       version: 'View Version',
       help: 'View Help',
       build: 'Build Frontend',
-      tauribuild: 'Build Desktop App',
+      buildStatic: 'Build static web UI',
       test: 'Run Tests',
       viewFeatures: 'View Features',
       viewTech: 'View Tech Stack',

@@ -1,4 +1,4 @@
-// Program icon and safe invoke (Tauri removed; invoke not available)
+// Program icon and safe invoke (no native invoke; use adapter / server API)
 
 export const getProgramIcon = (command: string) => {
   if (!command) return "?";
@@ -8,5 +8,5 @@ export const getProgramIcon = (command: string) => {
 };
 
 export const safeInvoke = async <T = unknown>(_command: string, _args?: any): Promise<T | undefined> => {
-  throw new Error('Invoke is not available (desktop/Tauri removed). Use adapter or server API.');
+  throw new Error('Native invoke is not available. Use adapter or server API.');
 };

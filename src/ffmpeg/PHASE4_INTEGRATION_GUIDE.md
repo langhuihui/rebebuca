@@ -463,7 +463,7 @@ const preset = {
 - Naive UI
 - Pinia
 - vuedraggable (滤镜链排序)
-- @tauri-apps/plugin-dialog (文件选择)
+- Node/browser APIs (文件选择)
 
 ## 测试建议
 

@@ -221,7 +221,7 @@ const handleStartEncoding = async () => {
     message.info(`命令: ${command}`);
 
     // 这里可以集成到实际的转码流程
-    // 例如调用 Tauri 的 shell 命令或通过 API 执行
+    // 例如通过 node-server API 或本地 shell 执行
 
     message.success('转码任务已创建（演示）');
   } catch (error) {

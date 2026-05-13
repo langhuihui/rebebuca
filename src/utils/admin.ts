@@ -1,5 +1,5 @@
 /**
- * Admin / elevated execution helpers. Tauri-only (invoke) has been removed; server mode uses adapter.
+ * Admin / elevated execution helpers (server adapter; no native invoke).
  */
 
 import { getAdapter } from '../adapters';

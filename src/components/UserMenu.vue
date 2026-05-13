@@ -131,7 +131,7 @@ type OAuthTokensPayload = {
   provider?: string | null;
 };
 
-// Loopback OAuth is only supported in desktop (Tauri) mode
+// Loopback OAuth for a packaged desktop shell is not used; web UI uses email login.
 async function getLoopbackRedirectUrl(): Promise<string> {
   throw new Error('GitHub/Google login via loopback is not available in web mode. Use Email login.');
 }
@@ -151,7 +151,7 @@ async function startOAuthLogin(provider: 'github' | 'google') {
     const tokensPromise = waitForOAuthTokens(provider);
 
     // Get provider OAuth URL from server
-    const response = await proxyFetch(`${AUTH_SERVER_URL}/api/auth/tauri/${provider}?redirect=${encodeURIComponent(redirectUrl)}`, {
+    const response = await proxyFetch(`${AUTH_SERVER_URL}/api/auth/desktop/${provider}?redirect=${encodeURIComponent(redirectUrl)}`, {
       method: 'GET',
     });
 

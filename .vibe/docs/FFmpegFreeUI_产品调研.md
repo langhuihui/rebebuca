@@ -386,7 +386,7 @@ Public Shared Property HostCall_MediaStreamVisualSelector As Action(...)
 
 ### 7.1 Rebebuca 项目概况
 
-**Rebebuca** 是一个现代化的桌面应用，基于 Tauri + Vue 3 构建，用于快速管理和执行各种命令与脚本。
+**Rebebuca** 是一个现代化的桌面应用，基于 Node.js + Vue 3 构建，用于快速管理和执行各种命令与脚本。
 
 **核心功能**:
 - 🚀 快速启动 - 一键创建和运行配置
@@ -400,7 +400,7 @@ Public Shared Property HostCall_MediaStreamVisualSelector As Action(...)
 
 **技术栈**:
 - 前端: Vue 3 + TypeScript + Naive UI + Pinia + Vite
-- 后端: Tauri + Rust
+- 后端: Node.js + Rust
 
 ### 7.2 功能互补性分析
 
@@ -629,7 +629,7 @@ Rebebuca 可以增强 FFmpegFreeUI 的预设管理能力，提供更友好的预
 两个项目在多个维度上高度互补:
 - **功能互补**: FFmpegFreeUI 擅长 FFmpeg 参数配置，Rebebuca 擅长命令执行管理
 - **用户互补**: FFmpegFreeUI 服务视频专业用户，Rebebuca 服务开发者和命令行用户
-- **技术互补**: FFmpegFreeUI 是 .NET WinForm，Rebebuca 是 Tauri + Vue，技术栈不同
+- **技术互补**: FFmpegFreeUI 是 .NET WinForm，Rebebuca 是 Node.js + Vue，技术栈不同
 - **定位互补**: FFmpegFreeUI 专注视频处理，Rebebuca 专注通用命令管理
 
 #### 8.2.2 协同潜力

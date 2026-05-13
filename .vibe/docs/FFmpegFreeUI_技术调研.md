@@ -51,7 +51,7 @@ Rebebuca 是一个现代化的运行配置管理工具，具有以下特点：
 | **UI组件库** | Naive UI | 2.43 | 现代 Vue 3 组件库 |
 | **状态管理** | Pinia | 3.0 | Vue 生态的状态管理方案 |
 | **构建工具** | Vite | 7.2 | 下一代前端构建工具 |
-| **桌面框架** | Tauri 2 | 2.x | 基于 Rust 的轻量级框架 |
+| **桌面框架** | Node.js | 2.x | 基于 Rust 的轻量级框架 |
 | **后端语言** | Rust | - | 系统级编程语言 |
 | **架构模式** | 前后端分离 | - | 现代化 SPA 架构 |
 
@@ -203,11 +203,11 @@ rebebuca/
 │   │   └── authService.ts
 │   ├── composables/         # Vue 组合式函数
 │   ├── adapters/           # 适配器层
-│   │   ├── tauri.ts       # Tauri 适配器
+│   │   ├── node.js.ts       # Node.js 适配器
 │   │   ├── server.ts       # 服务器适配器
 │   │   └── mock.ts        # Mock 适配器
 │   └── main.ts
-├── src-tauri/             # Rust 后端
+├── src-node.js/             # Rust 后端
 │   └── src/
 │       └── main.rs
 └── package.json
@@ -223,7 +223,7 @@ const executeTask = async (task: Task) => {
   // 1. 创建新标签页
   const tab = createTab(task);
 
-  // 2. 执行命令（通过 Tauri 调用系统命令）
+  // 2. 执行命令（通过 Node.js 调用系统命令）
   const process = await invoke('spawn_command', {
     command: task.command,
     args: task.args,
@@ -389,7 +389,7 @@ Public Shared Property HostCall_AddMissionToQueueWith3fuiFile As Action(Of Strin
 
 **设计理念**:
 - 统一接口，多种后端
-- 支持 Mock/Server/Tauri 三种模式
+- 支持 Mock/Server/Node.js 三种模式
 - 便于测试和切换环境
 
 ---
@@ -403,7 +403,7 @@ Public Shared Property HostCall_AddMissionToQueueWith3fuiFile As Action(Of Strin
 | 方案 | 难度 | 风险 | 说明 |
 |------|------|------|------|
 | **直接移植代码** | 🔴 极高 | 极高 | VB.NET 代码无法直接移植到 TypeScript/Vue 生态 |
-| **嵌入运行** | 🔴 高 | 高 | 需要在 Tauri 中嵌入 .NET 运行时，架构复杂 |
+| **嵌入运行** | 🔴 高 | 高 | 需要在 Node.js 中嵌入 .NET 运行时，架构复杂 |
 | **进程通信** | 🟡 中 | 中 | 通过 IPC 通信，但需要重构大量代码 |
 
 #### ⚠️ 功能借鉴方案（推荐）
@@ -780,7 +780,7 @@ export const useFFmpegPresetsStore = defineStore('ffmpegPresets', {
 | **VB.NET 代码无法直接复用** | 🔴 高 | 需要重写所有业务逻辑 | 采用功能借鉴而非代码移植 |
 | **FFmpeg 参数复杂性** | 🟡 中 | 参数众多，容易遗漏 | 参考 3FUI 的完整参数列表，逐步实现 |
 | **UI 重构工作量大** | 🟡 中 | 需要重新设计界面 | 参考布局，简化参数展示方式 |
-| **进程控制差异** | 🟡 中 | Windows API vs Tauri | 使用 Tauri 的进程管理 API |
+| **进程控制差异** | 🟡 中 | Windows API vs Node.js | 使用 Node.js 的进程管理 API |
 | **插件系统不兼容** | 🟢 低 | 插件架构完全不同 | 设计新的插件系统，不考虑兼容 |
 
 ### 6.2 业务风险
@@ -897,7 +897,7 @@ export const FFmpegTool = {
 **目标**: 基于 Rebebuca 架构开发独立的 FFmpeg 转码工具
 
 **技术方案**:
-- 复用 Rebebuca 的基础架构（Tauri + Vue 3）
+- 复用 Rebebuca 的基础架构（Node.js + Vue 3）
 - 借鉴 FFmpegFreeUI 的功能设计
 - 开发全新的 UI 和交互
 
@@ -1029,7 +1029,7 @@ const timeToSeconds = (timeStr: string): number => {
 
 ### 9.1 技术调研结论
 
-1. **技术栈差异极大**: FFmpegFreeUI (VB.NET + WinForms) 与 Rebebuca (Vue 3 + Tauri) 属于完全不同的技术生态，直接移植代码不可行。
+1. **技术栈差异极大**: FFmpegFreeUI (VB.NET + WinForms) 与 Rebebuca (Vue 3 + Node.js) 属于完全不同的技术生态，直接移植代码不可行。
 
 2. **功能借鉴价值高**: FFmpegFreeUI 在 FFmpeg 参数生成、进度解析、预设管理等方面有丰富的经验，值得借鉴。
 

@@ -36,26 +36,6 @@ export default defineNuxtConfig({
           return null;
         },
       },
-      {
-        name: 'tauri-stub',
-        resolveId(id: string) {
-          if (id.startsWith('@tauri-apps/')) return '\0' + id;
-          return null;
-        },
-        load(id: string) {
-          if (!id.startsWith('\0@tauri-apps/')) return null;
-          const stub = `export const listen = async () => () => {};
-export const invoke = async () => null;
-export const getCurrentWindow = async () => null;
-export const getVersion = async () => '';
-export const platform = async () => 'linux';
-export const openUrl = async () => {};
-export const check = async () => null;
-export const relaunch = async () => {};
-export default {};`;
-          return stub;
-        },
-      },
     ],
   },
   app: {

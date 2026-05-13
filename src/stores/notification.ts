@@ -28,7 +28,7 @@ export interface Notification {
   message: string;
   time: Date;
   read: boolean;
-  source?: 'frontend' | 'tauri' | 'process' | 'system';
+  source?: 'frontend' | 'backend' | 'process' | 'system';
 }
 
 // Maximum notifications to keep
@@ -63,7 +63,7 @@ export const useNotificationStore = defineStore('notification', () => {
     type: NotificationType,
     title: string,
     message: string,
-    source?: 'frontend' | 'tauri' | 'process' | 'system'
+    source?: 'frontend' | 'backend' | 'process' | 'system'
   ) => {
     // Debounce similar error messages
     if (type === 'error') {
@@ -102,15 +102,15 @@ export const useNotificationStore = defineStore('notification', () => {
   };
 
   // Convenience methods for different types
-  const addError = (title: string, message: string, source?: 'frontend' | 'tauri' | 'process' | 'system') => {
+  const addError = (title: string, message: string, source?: 'frontend' | 'backend' | 'process' | 'system') => {
     addNotification('error', title, message, source);
   };
 
-  const addWarning = (title: string, message: string, source?: 'frontend' | 'tauri' | 'process' | 'system') => {
+  const addWarning = (title: string, message: string, source?: 'frontend' | 'backend' | 'process' | 'system') => {
     addNotification('warning', title, message, source);
   };
 
-  const addInfo = (title: string, message: string, source?: 'frontend' | 'tauri' | 'process' | 'system') => {
+  const addInfo = (title: string, message: string, source?: 'frontend' | 'backend' | 'process' | 'system') => {
     addNotification('info', title, message, source);
   };
 

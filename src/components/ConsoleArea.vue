@@ -426,7 +426,6 @@ import {
   useMessage,
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
-import { useAppStore } from "../stores/app";
 import { useUIStore } from "../stores/ui";
 import { useTheme } from "../composables/useTheme";
 import { useSettingsHeaderTabs } from "../composables/useSettingsHeaderTabs";
@@ -448,18 +447,8 @@ import NotificationsPanel from "./NotificationsPanel.vue";
 import PortManagementPanel from "./PortManagementPanel.vue";
 import FFmpegEncoderPage from "../ffmpeg/components/FFmpegEncoderPage.vue";
 
-// Event payload type for terminal-task-created event
-interface TerminalTaskCreatedEvent {
-  taskId: string;
-  command: string;
-  tabId: string;
-  ptyId: string;
-  cwd: string;
-}
-
 const { t } = useI18n();
 const message = useMessage();
-const appStore = useAppStore();
 const uiStore = useUIStore();
 const { effectiveTheme } = useTheme();
 const runConfigStore = useRunConfigStore();
@@ -758,9 +747,6 @@ const formatHistoryTime = (timestamp?: Date): string => {
 
 // Process stats refresh interval
 let statsInterval: ReturnType<typeof setInterval> | null = null;
-// Cleanup for terminal-task-created listener (set in onMounted)
-let unlistenTaskCreated: (() => void) | null = null;
-
 // Refresh process stats for running tabs
 const refreshProcessStats = async () => {
   for (const tab of terminalStore.runningTabs) {
@@ -772,58 +758,6 @@ const refreshProcessStats = async () => {
 onMounted(async () => {
   await terminalStore.initListeners();
 
-  // Listen for terminal-task-created event (Tauri/MCP; no-op in server mode)
-  unlistenTaskCreated = await appStore.safeListen("terminal-task-created", (event: { payload: TerminalTaskCreatedEvent }) => {
-    const payload = event.payload;
-    const { taskId, command, tabId, ptyId } = payload;
-    console.log("[ConsoleArea] terminal-task-created event:", event.payload);
-
-    // Check if tab already exists
-    const existingTab = terminalStore.tabs.find((t) => t.id === tabId);
-    if (existingTab) {
-      console.log("[ConsoleArea] Tab already exists for task:", tabId);
-      return;
-    }
-
-    // Detect if this is an agent task (command starts with 'agent' or 'cbc')
-    // 'agent' = cursor CLI command, 'cbc' = codebuddy CLI command
-    const trimmedCommand = command ? command.trim() : "";
-    const isAgentTask =
-      trimmedCommand.startsWith("agent ") || trimmedCommand.startsWith("cbc ");
-
-    console.log("[ConsoleArea] Creating tab:", {
-      tabId,
-      command: trimmedCommand,
-      isAgentTask,
-      ptyId,
-      taskId,
-    });
-
-    // Create new tab for MCP task
-    terminalStore.tabs.push({
-      id: tabId,
-      type: isAgentTask ? "agent-task" : "task",
-      label: command,
-      ptyId: ptyId,
-      taskId: taskId,
-      status: "running",
-      startTime: Date.now(),
-      command: command,
-      isAgentTask: isAgentTask,
-    });
-
-    // Set as active tab
-    terminalStore.setActiveTab(tabId);
-
-    console.log(
-      "[ConsoleArea] MCP task tab created:",
-      tabId,
-      "isAgentTask:",
-      isAgentTask,
-      "activeTab:",
-      terminalStore.activeTabId,
-    );
-  });
 
   // Register screenshot handler
   terminalStore.registerScreenshotHandler(handleTerminalScreenshot);
@@ -835,8 +769,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  unlistenTaskCreated?.();
-  unlistenTaskCreated = null;
   terminalStore.cleanupListeners();
 
   // Unregister screenshot handler

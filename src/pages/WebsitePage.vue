@@ -855,9 +855,9 @@ const recentTasks = computed<DemoTask[]>(() => [
     folderHint: "rebebuca",
   },
   {
-    id: "npm-tauri",
-    name: "tauri dev",
-    icon: "🦀",
+    id: "npm-dev-web",
+    name: "dev:web",
+    icon: "🌐",
     action: "run",
     folderHint: "rebebuca",
   },
@@ -880,7 +880,7 @@ const npmTasks = ref<DemoTask[]>([
   { id: "npm-build-2", name: "build", icon: "📦", action: "run" },
   { id: "npm-preview", name: "preview", icon: "👁️", action: "run" },
   { id: "npm-lint", name: "lint", icon: "🔍", action: "run" },
-  { id: "npm-tauri-2", name: "tauri dev", icon: "🦀", action: "run" },
+  { id: "npm-dev-web-2", name: "dev:web", icon: "🌐", action: "run" },
 ]);
 
 const runningTaskId = ref<string | null>(null);
@@ -1053,7 +1053,7 @@ const getTabContent = (type: string): string[] | null => {
       "",
       "Tech Stack:",
       "  Frontend: Vue 3.5 + TypeScript 5.6 + Vite 7.x + Naive UI",
-      "  Backend: Tauri 2.0 (Rust) + tokio + portable-pty",
+      "  Backend: Node.js + ws + node-pty",
       "",
       "[Done] Process exited with code 0",
     ],
