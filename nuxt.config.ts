@@ -1,6 +1,9 @@
 import path from 'node:path';
+import { VitePWA } from 'vite-plugin-pwa';
+import { createVitePwaOptions } from './shared/pwa';
 
 const rootDir = path.resolve(process.cwd());
+const pwaBase = createVitePwaOptions();
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -36,6 +39,13 @@ export default defineNuxtConfig({
           return null;
         },
       },
+      VitePWA({
+        ...pwaBase,
+        devOptions: {
+          ...pwaBase.devOptions,
+          enabled: process.env.NODE_ENV !== 'production',
+        },
+      }),
     ],
   },
   app: {
@@ -43,7 +53,15 @@ export default defineNuxtConfig({
     rootTag: 'div',
     head: {
       title: 'Rebebuca',
-      link: [{ rel: 'icon', href: '/logo.svg' }],
+      meta: [
+        { name: 'theme-color', content: '#5A00FF' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+      ],
+      link: [
+        { rel: 'icon', href: '/logo.svg' },
+        { rel: 'apple-touch-icon', href: '/pwa-192.png' },
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+      ],
     },
   },
 });

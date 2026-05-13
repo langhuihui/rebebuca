@@ -5,6 +5,7 @@
  * that make the dest resolve *inside* the source tree; Node's cpSync then
  * throws ERR_FS_CP_EINVAL on Linux CI.
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,6 +21,11 @@ if (!fs.existsSync(src)) {
   console.error('copy-server-static: missing', src, '— run nuxi generate first.');
   process.exit(1);
 }
+
+spawnSync(process.execPath, [path.join(__dirname, 'sync-nuxt-pwa-assets.mjs')], {
+  cwd: root,
+  stdio: 'inherit',
+});
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rebebuca-server-'));
 const staging = path.join(tmpDir, 'out');

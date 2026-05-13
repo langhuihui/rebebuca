@@ -4,6 +4,8 @@ import { resolve } from "path";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { NaiveUiResolver } from "unplugin-vue-components/resolvers";
+import { VitePWA } from "vite-plugin-pwa";
+import { createVitePwaOptions } from "./shared/pwa";
 
 // Check if building for web demo
 const isWebBuild = process.env.VITE_BUILD_TARGET === 'web';
@@ -12,6 +14,12 @@ const isServerAppBuild = process.env.VITE_BUILD_TARGET === 'server';
 
 // Get backend type from environment
 const backendType = process.env.VITE_BACKEND || '';
+
+const enablePwa =
+  isWebBuild ||
+  isServerAppBuild ||
+  (process.env.NODE_ENV !== "production" &&
+    (backendType === "mock" || backendType === "server"));
 
 console.log('[Vite Config] VITE_BACKEND:', backendType);
 
@@ -35,6 +43,16 @@ export default defineConfig(async () => ({
     Components({
       resolvers: [NaiveUiResolver()]
     }),
+    ...(enablePwa
+      ? [
+          VitePWA({
+            ...createVitePwaOptions(),
+            devOptions: {
+              enabled: process.env.NODE_ENV !== "production",
+            },
+          }),
+        ]
+      : []),
   ],
   
   // Define environment variables - use 'process.env.VITE_BACKEND' for replacement
