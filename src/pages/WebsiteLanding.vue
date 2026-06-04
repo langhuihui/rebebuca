@@ -1,5 +1,5 @@
 <!--
- * Rebebuca marketing landing — minimal, focused on one-command launch.
+ * Rebebuca marketing landing — product value first; CLI docs collapsed below.
  -->
 <template>
   <div
@@ -85,6 +85,21 @@
       <h1 class="title">{{ t.title }}</h1>
       <p class="lead">{{ t.lead }}</p>
 
+      <section class="value" :aria-label="t.valueAria">
+        <ul class="value-grid">
+          <li
+            v-for="(item, idx) in t.valueProps"
+            :key="'value-' + idx"
+            class="value-card"
+          >
+            <h2 class="value-title">{{ item.title }}</h2>
+            <p class="value-desc">{{ item.desc }}</p>
+          </li>
+        </ul>
+      </section>
+
+      <p class="try-label">{{ t.tryLabel }}</p>
+
       <div class="cmd-row">
         <code class="cmd" tabindex="0">{{ installCmd }}</code>
         <button type="button" class="copy" @click="copyCmd">
@@ -95,7 +110,7 @@
 
       <p class="meta">{{ t.meta }}</p>
 
-      <figure class="snap">
+      <figure class="snap" aria-labelledby="snap-cap-heading">
         <img
           :src="snapSrc"
           :alt="t.snapAlt"
@@ -104,53 +119,73 @@
           loading="lazy"
           decoding="async"
         />
+        <figcaption class="snap-cap">
+          <p id="snap-cap-heading" class="snap-cap-title">{{ t.snapCaption }}</p>
+          <ul class="snap-legend">
+            <li
+              v-for="(item, idx) in t.snapRegions"
+              :key="'snap-' + idx"
+              class="snap-legend-item"
+              :class="'snap-legend-item--' + item.tone"
+            >
+              <span class="snap-legend-label">{{ item.label }}</span>
+              <span class="snap-legend-desc">{{ item.desc }}</span>
+            </li>
+          </ul>
+        </figcaption>
       </figure>
 
-      <section class="cli-docs" aria-labelledby="cli-heading">
-        <h2 id="cli-heading" class="cli-title">{{ t.cliTitle }}</h2>
-        <p class="cli-intro">{{ t.cliIntro }}</p>
-        <p class="cli-env">{{ t.cliEnvNote }}</p>
-        <h3 class="cli-subheading">{{ t.cliOptionsHeading }}</h3>
-        <ul class="cli-list">
-          <li
-            v-for="(row, idx) in t.cliOptions"
-            :key="'cli-opt-' + idx"
-            class="cli-item"
-          >
-            <code class="cli-flag">{{ row[0] }}</code>
-            <span class="cli-desc">{{ row[1] }}</span>
-          </li>
-        </ul>
-        <h3 class="cli-subheading">{{ t.cliCommandsHeading }}</h3>
-        <ul class="cli-list">
-          <li
-            v-for="(row, idx) in t.cliCommands"
-            :key="'cli-cmd-' + idx"
-            class="cli-item"
-          >
-            <code class="cli-flag cli-flag--wide">{{ row[0] }}</code>
-            <span class="cli-desc">{{ row[1] }}</span>
-          </li>
-        </ul>
-        <p class="cli-help">{{ t.cliHelpHint }}</p>
-      </section>
-
-      <section class="cli-docs ph-docs" aria-labelledby="ph-heading">
-        <h2 id="ph-heading" class="cli-title">{{ t.portHunterTitle }}</h2>
-        <p class="cli-intro">{{ t.portHunterIntro }}</p>
-        <div class="cmd-row ph-cmd-row">
-          <code class="cmd" tabindex="0">{{ portHunterInstallCmd }}</code>
-          <button type="button" class="copy" @click="copyPortHunterCmd">
-            {{ phCopied ? t.copied : t.copy }}
-          </button>
+      <details class="docs-fold">
+        <summary class="docs-fold-summary">{{ t.cliFoldSummary }}</summary>
+        <div class="docs-fold-panel cli-docs">
+          <h2 class="cli-title">{{ t.cliTitle }}</h2>
+          <p class="cli-intro">{{ t.cliIntro }}</p>
+          <p class="cli-env">{{ t.cliEnvNote }}</p>
+          <h3 class="cli-subheading">{{ t.cliOptionsHeading }}</h3>
+          <ul class="cli-list">
+            <li
+              v-for="(row, idx) in t.cliOptions"
+              :key="'cli-opt-' + idx"
+              class="cli-item"
+            >
+              <code class="cli-flag">{{ row[0] }}</code>
+              <span class="cli-desc">{{ row[1] }}</span>
+            </li>
+          </ul>
+          <h3 class="cli-subheading">{{ t.cliCommandsHeading }}</h3>
+          <ul class="cli-list">
+            <li
+              v-for="(row, idx) in t.cliCommands"
+              :key="'cli-cmd-' + idx"
+              class="cli-item"
+            >
+              <code class="cli-flag cli-flag--wide">{{ row[0] }}</code>
+              <span class="cli-desc">{{ row[1] }}</span>
+            </li>
+          </ul>
+          <p class="cli-help">{{ t.cliHelpHint }}</p>
         </div>
-        <ul class="ph-list">
-          <li v-for="(line, idx) in t.portHunterBullets" :key="'ph-' + idx">
-            {{ line }}
-          </li>
-        </ul>
-        <p class="cli-help ph-repo">{{ t.portHunterRepo }}</p>
-      </section>
+      </details>
+
+      <details class="docs-fold docs-fold--secondary">
+        <summary class="docs-fold-summary">{{ t.portHunterFoldSummary }}</summary>
+        <div class="docs-fold-panel cli-docs ph-docs">
+          <h2 class="cli-title">{{ t.portHunterTitle }}</h2>
+          <p class="cli-intro">{{ t.portHunterIntro }}</p>
+          <div class="cmd-row ph-cmd-row">
+            <code class="cmd" tabindex="0">{{ portHunterInstallCmd }}</code>
+            <button type="button" class="copy" @click="copyPortHunterCmd">
+              {{ phCopied ? t.copied : t.copy }}
+            </button>
+          </div>
+          <ul class="ph-list">
+            <li v-for="(line, idx) in t.portHunterBullets" :key="'ph-' + idx">
+              {{ line }}
+            </li>
+          </ul>
+          <p class="cli-help ph-repo">{{ t.portHunterRepo }}</p>
+        </div>
+      </details>
     </main>
 
     <div v-if="lang === 'zh'" class="qq-card">
@@ -258,10 +293,30 @@ const lang = ref<Lang>(
 
 const strings = {
   en: {
-    eyebrow: "Run configuration",
-    title: "One command to run everything",
+    eyebrow: "Developer task runner",
+    title: "Save dev commands. Run them in the browser.",
     lead:
-      "Save shell tasks, open a terminal in the browser, and launch with one click—no global install.",
+      "Rebebuca is a local web app for everyday shell work—npm scripts, builds, dev servers, tests. Organize tasks in a sidebar, run them in multi-tab terminals, and review history. Start with one command, no global install.",
+    valueAria: "What Rebebuca does",
+    valueProps: [
+      {
+        title: "Task library",
+        desc: "Save name, command, working directory, and env vars—run any task with one click.",
+      },
+      {
+        title: "Browser terminals",
+        desc: "Multi-tab output in the UI; a local Node backend runs commands on your machine.",
+      },
+      {
+        title: "Auto-discover",
+        desc: "Import npm scripts, VS Code tasks, and more instead of retyping commands.",
+      },
+      {
+        title: "SSH & MCP",
+        desc: "Run on remote hosts over SSH; optional MCP endpoint for Cursor and other agents.",
+      },
+    ],
+    tryLabel: "Try it now",
     copy: "Copy",
     copied: "Copied",
     hint: "Requires Node.js 18+. Default port 3000; use --port to change.",
@@ -269,7 +324,27 @@ const strings = {
     qqGroup: "",
     themeToggle: "Switch to light theme",
     themeToggleLight: "Switch to dark theme",
-    snapAlt: "Rebebuca interface screenshot",
+    snapCaption: "Main workspace after launch",
+    snapAlt:
+      "Rebebuca UI: task sidebar on the left, multi-tab terminals in the center, run history on the right",
+    snapRegions: [
+      {
+        tone: "left",
+        label: "Left — Tasks",
+        desc: "Saved commands plus auto-discovered npm and VS Code tasks.",
+      },
+      {
+        tone: "center",
+        label: "Center — Terminals",
+        desc: "Multi-tab live output; each run gets its own tab.",
+      },
+      {
+        tone: "right",
+        label: "Right — History",
+        desc: "Past runs—re-launch or review output.",
+      },
+    ],
+    cliFoldSummary: "CLI flags & subcommands (power users)",
     bukaFriends: "Buka series",
     beianCopyright: "",
     cliTitle: "Command-line options",
@@ -313,6 +388,7 @@ const strings = {
       ],
     ],
     cliHelpHint: "Tip: run npx rebebuca --help in your terminal for the full, up-to-date usage text.",
+    portHunterFoldSummary: "Related: Port Hunter CLI (find & kill port listeners)",
     portHunterTitle: "Port Hunter CLI",
     portHunterIntro:
       "A terminal tool to list TCP listeners, inspect commands and resource usage, and stop processes with two-step confirmation—bundled in the same repository as Rebebuca.",
@@ -325,10 +401,30 @@ const strings = {
       "Package directory: port-hunter-cli — source on GitHub with Rebebuca.",
   },
   zh: {
-    eyebrow: "运行配置管理",
-    title: "一条命令，一键运行",
+    eyebrow: "开发者任务运行台",
+    title: "常用命令，在浏览器里一键运行",
     lead:
-      "把常用命令存成配置，在浏览器里开终端、点一下即跑——无需全局安装。",
+      "Rebebuca 是本地 Web 开发运行工具：把 npm scripts、构建、本地服务、测试等存成任务，在侧边栏管理、多标签终端里执行，并保留运行历史。一条 npx 命令即可使用，无需全局安装。",
+    valueAria: "Rebebuca 能做什么",
+    valueProps: [
+      {
+        title: "任务库",
+        desc: "保存名称、命令、工作目录与环境变量，点一下即可运行。",
+      },
+      {
+        title: "浏览器终端",
+        desc: "在网页多标签里查看实时输出，由本机 Node 后端执行命令。",
+      },
+      {
+        title: "自动发现",
+        desc: "识别 npm scripts、VS Code tasks 等，少记命令、少手工录入。",
+      },
+      {
+        title: "SSH 与 MCP",
+        desc: "支持 SSH 远程执行；可选 MCP 端点，供 Cursor 等 AI 工具调用任务。",
+      },
+    ],
+    tryLabel: "立即试用",
     copy: "复制",
     copied: "已复制",
     hint: "需要 Node.js 18+。默认端口 3000，可用 --port 指定。",
@@ -336,7 +432,27 @@ const strings = {
     qqGroup: "加入 QQ 群",
     themeToggle: "切换到浅色主题",
     themeToggleLight: "切换到深色主题",
-    snapAlt: "Rebebuca 界面截图",
+    snapCaption: "启动后的主工作区",
+    snapAlt:
+      "Rebebuca 界面：左侧任务列表、中间多标签终端、右侧运行历史",
+    snapRegions: [
+      {
+        tone: "left",
+        label: "左侧 · 任务",
+        desc: "已保存的命令与自动发现的 npm、VS Code 任务。",
+      },
+      {
+        tone: "center",
+        label: "中间 · 终端",
+        desc: "多标签实时输出，每次运行独占一个标签页。",
+      },
+      {
+        tone: "right",
+        label: "右侧 · 历史",
+        desc: "过往运行记录，可再次执行或查看输出。",
+      },
+    ],
+    cliFoldSummary: "命令行参数与子命令（进阶）",
     bukaFriends: "不卡系列",
     beianCopyright:
       "©2025 Rebebuca All Rights Reserved 南京莫妮不卡科技有限公司",
@@ -375,6 +491,7 @@ const strings = {
       ],
     ],
     cliHelpHint: "提示：在终端执行 npx rebebuca --help 可查看与当前版本一致的完整说明。",
+    portHunterFoldSummary: "相关工具：Port Hunter CLI（终端查杀占用端口）",
     portHunterTitle: "Port Hunter CLI（端口猎人）",
     portHunterIntro:
       "在终端查看本机 TCP 监听、进程命令行与资源占用，并在双重确认后结束进程；与 Rebebuca 同属一个开源仓库。",
@@ -637,8 +754,54 @@ async function copyPortHunterCmd() {
   font-size: 1.0625rem;
   line-height: 1.6;
   color: #a1a8b8;
-  margin: 0 0 2rem;
-  max-width: 34rem;
+  margin: 0 0 1.75rem;
+  max-width: 36rem;
+}
+
+.value {
+  margin: 0 0 1.75rem;
+  max-width: 40rem;
+  width: 100%;
+}
+
+.value-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.value-card {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 17, 24, 0.55);
+}
+
+.value-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #e2e8f0;
+  margin: 0 0 0.35rem;
+}
+
+.value-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #8b93a5;
+  margin: 0;
+}
+
+.try-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #818cf8;
+  margin: 0 0 0.65rem;
 }
 
 .cmd-row {
@@ -700,9 +863,70 @@ async function copyPortHunterCmd() {
 }
 
 .cli-docs {
-  margin: 2.25rem 0 0;
+  margin: 0;
   max-width: 38rem;
   width: 100%;
+}
+
+.docs-fold {
+  margin: 1.5rem 0 0;
+  max-width: 40rem;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 17, 24, 0.45);
+  overflow: hidden;
+}
+
+.docs-fold--secondary {
+  margin-top: 0.75rem;
+  border-color: rgba(148, 163, 184, 0.1);
+  background: rgba(15, 17, 24, 0.28);
+}
+
+.docs-fold-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #c7d2fe;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.docs-fold-summary::-webkit-details-marker {
+  display: none;
+}
+
+.docs-fold-summary::after {
+  content: "";
+  flex-shrink: 0;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  opacity: 0.65;
+  transition: transform 0.15s ease;
+}
+
+.docs-fold[open] > .docs-fold-summary::after {
+  transform: rotate(45deg);
+  margin-top: -0.15rem;
+}
+
+.docs-fold-panel {
+  padding: 0 1rem 1.1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.docs-fold--secondary .docs-fold-summary {
+  font-size: 0.8125rem;
+  color: #94a3b8;
 }
 
 .cli-title {
@@ -728,7 +952,7 @@ async function copyPortHunterCmd() {
 }
 
 .ph-docs {
-  margin-top: 2.25rem;
+  margin-top: 0;
 }
 
 .ph-cmd-row {
@@ -811,6 +1035,12 @@ async function copyPortHunterCmd() {
   margin-bottom: 0;
 }
 
+@media (max-width: 640px) {
+  .value-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 520px) {
   .cli-item {
     grid-template-columns: 1fr;
@@ -840,6 +1070,69 @@ async function copyPortHunterCmd() {
   box-shadow:
     0 4px 6px rgba(0, 0, 0, 0.15),
     0 24px 48px rgba(0, 0, 0, 0.4);
+}
+
+.snap-cap {
+  margin: 1rem 0 0;
+}
+
+.snap-cap-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #818cf8;
+  margin: 0 0 0.75rem;
+}
+
+.snap-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.snap-legend-item {
+  padding: 0.65rem 0.75rem 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 17, 24, 0.5);
+  border-left-width: 3px;
+}
+
+.snap-legend-item--left {
+  border-left-color: #818cf8;
+}
+
+.snap-legend-item--center {
+  border-left-color: #38bdf8;
+}
+
+.snap-legend-item--right {
+  border-left-color: #a78bfa;
+}
+
+.snap-legend-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 0.25rem;
+}
+
+.snap-legend-desc {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #8b93a5;
+}
+
+@media (max-width: 720px) {
+  .snap-legend {
+    grid-template-columns: 1fr;
+  }
 }
 
 .qq-card {
@@ -988,6 +1281,24 @@ async function copyPortHunterCmd() {
   color: #475569;
 }
 
+.landing--light .value-card {
+  background: #fff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.landing--light .value-title {
+  color: #0f172a;
+}
+
+.landing--light .value-desc {
+  color: #64748b;
+}
+
+.landing--light .try-label {
+  color: #4f46e5;
+}
+
 .landing--light .cmd {
   background: #fff;
   border-color: #e2e8f0;
@@ -1041,6 +1352,44 @@ async function copyPortHunterCmd() {
   box-shadow:
     0 4px 6px rgba(15, 23, 42, 0.06),
     0 20px 40px rgba(15, 23, 42, 0.1);
+}
+
+.landing--light .snap-cap-title {
+  color: #4f46e5;
+}
+
+.landing--light .snap-legend-item {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+
+.landing--light .snap-legend-label {
+  color: #0f172a;
+}
+
+.landing--light .snap-legend-desc {
+  color: #64748b;
+}
+
+.landing--light .docs-fold {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+
+.landing--light .docs-fold--secondary {
+  background: #f8fafc;
+}
+
+.landing--light .docs-fold-summary {
+  color: #4338ca;
+}
+
+.landing--light .docs-fold--secondary .docs-fold-summary {
+  color: #64748b;
+}
+
+.landing--light .docs-fold-panel {
+  border-top-color: #e2e8f0;
 }
 
 .landing--light .foot {
