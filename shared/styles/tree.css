@@ -162,10 +162,6 @@
   --action-bg: rgba(255, 255, 255, 0.95);
 }
 
-.light-theme .task-actions-float {
-  --action-bg: rgba(255, 255, 255, 0.95);
-}
-
 /* Action button */
 .action-btn {
   padding: 2px !important;
