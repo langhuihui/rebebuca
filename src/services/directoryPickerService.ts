@@ -9,6 +9,7 @@ import type { DirEntry } from '../adapters/types';
 export interface DirectoryPickerOptions {
   title?: string;
   defaultPath?: string;
+  homeDir?: string;
 }
 
 export interface DirectoryPickerService {

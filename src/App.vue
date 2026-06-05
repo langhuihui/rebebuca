@@ -178,6 +178,7 @@
           v-model:show="isDirectoryPickerVisible"
           :title="directoryPickerOptions.title"
           :default-path="directoryPickerOptions.defaultPath"
+          :home-dir="directoryPickerOptions.homeDir"
           :fs-adapter="directoryPickerFsAdapter"
           @select="onDirectoryPickerSelect"
         />
@@ -188,6 +189,7 @@
           v-model:show="isFilePickerVisible"
           :title="filePickerOptions.title"
           :default-path="filePickerOptions.defaultPath"
+          :home-dir="filePickerOptions.homeDir"
           :filters="filePickerOptions.filters"
           :fs-adapter="filePickerFsAdapter"
           @select="onFilePickerSelect"
