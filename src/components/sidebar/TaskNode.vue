@@ -443,6 +443,10 @@ const canEdit = computed(() => {
   --action-bg: rgba(255, 255, 255, 0.95);
 }
 
+:global(.light-theme) .task-actions-float {
+  --action-bg: rgba(255, 255, 255, 0.95);
+}
+
 :global(.n-config-provider--light) .action-btn:hover {
   background: rgba(0, 0, 0, 0.08);
 }
