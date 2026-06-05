@@ -515,9 +515,30 @@ class ServerStorageAdapter implements StorageAdapter {
 // ============================================================================
 
 class ServerDialogAdapter implements DialogAdapter {
+  private client: WebSocketClient;
+
+  constructor(client: WebSocketClient) {
+    this.client = client;
+  }
+
+  private async getHomeDir(): Promise<string | null> {
+    try {
+      return await this.client.request<string>('system.getHomeDirectory');
+    } catch {
+      return null;
+    }
+  }
+
   async selectFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null> {
-    // Use the directory picker service to show remote directory browser
-    return showDirectoryPicker(options);
+    // Use the directory picker service to show remote directory browser.
+    // When no defaultPath is supplied, start at the system home directory so
+    // that the picker opens at a sensible location on all platforms (fixes the
+    // "/" default that is invalid on Windows).
+    const homeDir = await this.getHomeDir();
+    return showDirectoryPicker({
+      ...options,
+      ...(homeDir && { defaultPath: options?.defaultPath || homeDir, homeDir }),
+    });
   }
 
   async selectFile(options?: {
@@ -525,8 +546,12 @@ class ServerDialogAdapter implements DialogAdapter {
     defaultPath?: string;
     filters?: Array<{ name: string; extensions: string[] }>;
   }): Promise<string | null> {
-    // Use the file picker service to show remote file browser
-    return showFilePicker(options);
+    // Use the file picker service to show remote file browser.
+    const homeDir = await this.getHomeDir();
+    return showFilePicker({
+      ...options,
+      ...(homeDir && { defaultPath: options?.defaultPath || homeDir, homeDir }),
+    });
   }
 
   async showMessage(options: { title: string; message: string; type?: 'info' | 'warning' | 'error' }): Promise<void> {
@@ -831,7 +856,7 @@ export class ServerAdapter implements BackendAdapter {
     this.serverTerminalAdapter = new ServerTerminalAdapter(this.client);
     this.terminal = this.serverTerminalAdapter;
     this.fs = new ServerFileSystemAdapter(this.client);
-    this.dialog = new ServerDialogAdapter();
+    this.dialog = new ServerDialogAdapter(this.client);
     this.storage = new ServerStorageAdapter(this.client);
     this.system = new ServerSystemAdapter(this.client);
     this.window = new ServerWindowAdapter();

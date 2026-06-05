@@ -34,7 +34,7 @@
       <div class="path-bar">
         <n-input-group>
           <n-button 
-            :disabled="loading || currentPath === '/'"
+            :disabled="loading || !currentPath || isRootPath(currentPath)"
             @click="navigateUp"
           >
             <template #icon>
@@ -130,6 +130,7 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../utils/icons';
+import { isRootPath, getParentPath } from '../utils/pathUtils';
 import type { DirEntry } from '../adapters/types';
 
 interface DirectoryEntry {
@@ -147,6 +148,7 @@ const props = defineProps<{
   show: boolean;
   title?: string;
   defaultPath?: string;
+  homeDir?: string;
   filters?: FileFilter[];
   fsAdapter: {
     readDir: (path: string) => Promise<DirEntry[]>;
@@ -167,10 +169,13 @@ const showDialog = computed({
 
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
-const currentPath = ref('/');
-const inputPath = ref('/');
+const currentPath = ref('');
+const inputPath = ref('');
 const selectedFilePath = ref<string | null>(null);
 const entries = ref<DirectoryEntry[]>([]);
+
+// Derive the effective home/root to use when no better value is known
+const effectiveHome = computed(() => props.homeDir || props.defaultPath || '/');
 
 // Get filter description
 const filterDescription = computed(() => {
@@ -221,10 +226,12 @@ const loadDirectory = async (path: string) => {
 
   try {
     const result = await props.fsAdapter.readDir(path);
-    // Handle both snake_case (from server) and camelCase (from types)
+    // Handle both snake_case (from server) and camelCase (from types).
+    // Use the server-provided entry.path directly so that Windows-style paths
+    // (with backslashes) are preserved correctly.
     entries.value = result.map(entry => ({
       name: entry.name,
-      path: path === '/' ? `/${entry.name}` : `${path}/${entry.name}`,
+      path: entry.path,
       isDirectory: entry.isDirectory || (entry as any).is_directory || false,
     }));
     currentPath.value = path;
@@ -243,21 +250,18 @@ const loadDirectory = async (path: string) => {
 
 // Navigate up one directory
 const navigateUp = () => {
-  if (currentPath.value === '/') return;
-  const parts = currentPath.value.split('/').filter(Boolean);
-  parts.pop();
-  const newPath = '/' + parts.join('/');
-  loadDirectory(newPath || '/');
+  if (!currentPath.value || isRootPath(currentPath.value)) return;
+  loadDirectory(getParentPath(currentPath.value));
 };
 
 // Navigate to home directory
 const navigateHome = () => {
-  loadDirectory('/');
+  loadDirectory(effectiveHome.value);
 };
 
 // Navigate to typed path
 const navigateToPath = () => {
-  const path = inputPath.value.trim() || '/';
+  const path = inputPath.value.trim() || effectiveHome.value;
   loadDirectory(path);
 };
 
@@ -299,7 +303,7 @@ const handleCancel = () => {
 watch(() => props.show, async (show) => {
   if (show && props.fsAdapter) {
     selectedFilePath.value = null;
-    const initialPath = props.defaultPath || '/';
+    const initialPath = props.defaultPath || effectiveHome.value;
     await loadDirectory(initialPath);
   }
 }, { immediate: true });

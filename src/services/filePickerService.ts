@@ -9,6 +9,7 @@ import type { DirEntry } from '../adapters/types';
 export interface FilePickerOptions {
   title?: string;
   defaultPath?: string;
+  homeDir?: string;
   filters?: Array<{ name: string; extensions: string[] }>;
 }
 
