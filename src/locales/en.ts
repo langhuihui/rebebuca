@@ -175,6 +175,10 @@ export default {
     scan: 'Scan for Tasks',
     openFolder: 'Open Folder',
     openInExplorer: 'Open in Explorer',
+    openInTerminal: 'Open in Terminal',
+    openPathUnavailable: 'This task does not have an openable folder path',
+    openInExplorerFailed: 'Failed to open folder',
+    openInTerminalFailed: 'Failed to open terminal',
     quickScan: 'Quick Scan',
     quickScanGroupName: 'Quick Scan Results',
     addFolder: 'Add directory',
@@ -309,6 +313,12 @@ export default {
     confirmCleanOrphaned:
       'Terminate {count} orphaned or zombie listener process(es)? They are usually safe to stop.',
     cleanOrphanedDone: 'Terminated {ok} of {total} process(es).',
+    closeService: 'Close Service',
+    confirmCloseService:
+      'Kill the service process(es) listening on port {port} and shut down the service?',
+    closeServiceNotFound: 'No service process found listening on port {port}',
+    closeServiceSuccess: 'Closed {count} service process(es)',
+    closeServiceFailed: 'Failed to close service: {error}',
     admin: 'Admin',
     adminRequired: 'This command requires administrator privileges',
     adminExecuting: 'Executing with admin privileges...',

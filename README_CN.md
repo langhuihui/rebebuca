@@ -38,6 +38,16 @@ npx rebebuca --no-mcp             # 关闭同端口上的 MCP 路由
 npx rebebuca --help               # 查看帮助
 ```
 
+### 后台运行（无 CMD 弹窗）
+
+```bash
+npm install -g rebebuca
+npm install -g runbg
+runbg cmd /c rebebuca
+```
+
+配合界面中的「关闭服务」按钮，可在需要时查杀 Rebebuca 服务端口并退出服务。
+
 ### 无界面 CLI（不启动网页）
 
 适合脚本、终端工作流和偏好 CLI 的 AI 工具链。
