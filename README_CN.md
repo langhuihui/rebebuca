@@ -46,7 +46,7 @@ npm install -g runbg
 runbg cmd /c rebebuca
 ```
 
-配合界面中的「关闭服务」按钮，可在需要时查杀 Rebebuca 服务端口并退出服务。
+配合界面中的「关闭服务」按钮，可在需要时终止 Rebebuca 服务端口对应进程并退出服务。
 
 ### 无界面 CLI（不启动网页）
 

@@ -243,6 +243,8 @@ interface GroupedPortProcess {
   dockerImage?: string;
 }
 
+const DEFAULT_BACKEND_PORT = 3000;
+
 const { t } = useI18n();
 const message = useMessage();
 const dialog = useDialog();
@@ -427,12 +429,12 @@ const resolveBackendPort = (): number => {
     try {
       const url = new URL(serverUrl);
       if (url.port) return Number(url.port);
-      return url.protocol === 'https:' || url.protocol === 'wss:' ? 443 : 80;
+      return DEFAULT_BACKEND_PORT;
     } catch {
       // fallback below
     }
   }
-  return 3000;
+  return DEFAULT_BACKEND_PORT;
 };
 
 const handleCloseService = () => {
