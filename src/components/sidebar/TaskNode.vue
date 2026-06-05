@@ -86,6 +86,32 @@
             </template>
           </n-button>
           <n-button
+            size="tiny"
+            quaternary
+            class="action-btn"
+            :title="t('task.openInTerminal')"
+            @click.stop="$emit('open-terminal', task)"
+          >
+            <template #icon>
+              <n-icon size="12">
+                <component :is="svgIcons.terminal" />
+              </n-icon>
+            </template>
+          </n-button>
+          <n-button
+            size="tiny"
+            quaternary
+            class="action-btn"
+            :title="t('task.openInExplorer')"
+            @click.stop="$emit('open-folder', task)"
+          >
+            <template #icon>
+              <n-icon size="12">
+                <component :is="svgIcons.folderOpen" />
+              </n-icon>
+            </template>
+          </n-button>
+          <n-button
             v-if="showFavorite"
             size="tiny"
             quaternary
@@ -162,6 +188,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { NTooltip, NIcon, NButton } from "naive-ui";
+import { useI18n } from "vue-i18n";
 import { svgIcons, getCommandIconName } from "../../utils/icons";
 import { useSettingsStore } from "../../stores/settings";
 import type { Task } from "../../providers/types";
@@ -200,6 +227,8 @@ defineEmits<{
   (e: "stop", task: Task): void;
   (e: "edit", task: Task): void;
   (e: "delete", task: Task): void;
+  (e: "open-terminal", task: Task): void;
+  (e: "open-folder", task: Task): void;
   (e: "toggle-favorite", task: Task): void;
   (e: "dragstart", event: DragEvent, task: Task): void;
   (e: "dragend"): void;
@@ -207,6 +236,7 @@ defineEmits<{
 }>();
 
 const settingsStore = useSettingsStore();
+const { t } = useI18n();
 
 const fullCommand = computed(() => {
   let cmd = props.task.command || "";

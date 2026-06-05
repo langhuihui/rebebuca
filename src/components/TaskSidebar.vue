@@ -177,6 +177,8 @@
                   @run="handleTaskRun"
                   @stop="handleTaskStop"
                   @edit="handleTaskEditVisual"
+                  @open-terminal="handleOpenTaskInTerminal"
+                  @open-folder="handleOpenTaskInExplorer"
                   @toggle-favorite="handleToggleFavorite"
                 />
               </template>
@@ -234,6 +236,8 @@
                   @run="handleTaskRun"
                   @stop="handleTaskStop"
                   @edit="handleTaskEditVisual"
+                  @open-terminal="handleOpenTaskInTerminal"
+                  @open-folder="handleOpenTaskInExplorer"
                   @toggle-favorite="handleToggleFavorite"
                   @mousedown="
                     (event: MouseEvent) =>
@@ -315,6 +319,8 @@
                   @stop="handleTaskStop"
                   @edit="handleTaskEditVisual"
                   @delete="handleDeleteUserTask"
+                  @open-terminal="handleOpenTaskInTerminal"
+                  @open-folder="handleOpenTaskInExplorer"
                   @toggle-favorite="handleToggleFavorite"
                   @dragstart="handleDragStart"
                   @dragend="handleDragEnd"
@@ -528,6 +534,8 @@
                             @run="handleTaskRun"
                             @stop="handleTaskStop"
                             @edit="handleTaskEditVisual"
+                            @open-terminal="handleOpenTaskInTerminal"
+                            @open-folder="handleOpenTaskInExplorer"
                             @toggle-favorite="handleToggleFavorite"
                           />
                         </template>
@@ -619,6 +627,8 @@
                         @run="handleTaskRun"
                         @stop="handleTaskStop"
                         @edit="handleTaskEditVisual"
+                        @open-terminal="handleOpenTaskInTerminal"
+                        @open-folder="handleOpenTaskInExplorer"
                         @toggle-favorite="handleToggleFavorite"
                       />
                     </template>
@@ -1160,6 +1170,74 @@ const handleOpenInExplorer = async (folderPath: string) => {
       );
       console.error("[TaskSidebar] Failed to open folder:", error);
     }
+  }
+};
+
+const resolveTaskFolderPath = (task: Task): string | null => {
+  if (task.cwd) return task.cwd;
+  if (!task.sourceFile) return null;
+
+  const source = task.sourceFile.replace(/\\/g, "/");
+  if (source.endsWith("/package.json")) {
+    return source.slice(0, -"/package.json".length);
+  }
+  if (source.endsWith("/.vscode/tasks.json")) {
+    return source.slice(0, -"/.vscode/tasks.json".length);
+  }
+  if (source.endsWith("/tasks.json")) {
+    return source.slice(0, -"/tasks.json".length);
+  }
+  const idx = source.lastIndexOf("/");
+  return idx > 0 ? source.slice(0, idx) : null;
+};
+
+const handleOpenTaskInExplorer = async (task: Task) => {
+  const folderPath = resolveTaskFolderPath(task);
+  if (!folderPath) {
+    message.warning(t("task.openPathUnavailable"));
+    return;
+  }
+  await handleOpenInExplorer(folderPath);
+};
+
+const handleOpenTaskInTerminal = async (task: Task) => {
+  const folderPath = resolveTaskFolderPath(task);
+  if (!folderPath) {
+    message.warning(t("task.openPathUnavailable"));
+    return;
+  }
+
+  try {
+    const adapter = await getAdapter();
+    const preferredTerminal = settingsStore.settings.preferredTerminal;
+    const placeholderCommand = "echo rebebuca";
+
+    if (preferredTerminal) {
+      try {
+        await adapter.system.openInSpecificTerminal(
+          preferredTerminal,
+          placeholderCommand,
+          folderPath,
+        );
+      } catch {
+        await adapter.system.openInSystemTerminal(
+          placeholderCommand,
+          folderPath,
+        );
+      }
+    } else {
+      await adapter.system.openInSystemTerminal(
+        placeholderCommand,
+        folderPath,
+      );
+    }
+  } catch (error) {
+    notificationStore.addError(
+      t("task.openInTerminalFailed"),
+      String(error),
+      "system",
+    );
+    console.error("[TaskSidebar] Failed to open terminal:", error);
   }
 };
 

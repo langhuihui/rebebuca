@@ -37,6 +37,16 @@ npx rebebuca --no-mcp             # Disable MCP routes on the same port
 npx rebebuca --help               # Show all options
 ```
 
+### Background run (no visible cmd window on Windows)
+
+```bash
+npm install -g rebebuca
+npm install -g runbg
+runbg cmd /c rebebuca
+```
+
+With the new **Close Service** button in the UI, you can stop the Rebebuca service process when needed.
+
 ### Headless CLI (no web server)
 
 Useful for scripts, terminals, and AI agents that prefer a plain CLI over MCP.
@@ -236,4 +246,3 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
   <p>Made with ❤️</p>
   <p>If this project helps you, please give it a ⭐️</p>
 </div>
-
