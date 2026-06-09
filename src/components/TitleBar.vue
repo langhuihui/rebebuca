@@ -367,6 +367,21 @@
           </n-button>
         </n-dropdown>
         <n-button
+          v-if="isServerMode && !uiStore.miniMode"
+          text
+          size="small"
+          class="titlebar-button close-service-button"
+          :title="t('task.closeService')"
+          @click="closeService"
+          @mousedown.stop
+        >
+          <template #icon>
+            <n-icon size="18" color="#e88080">
+              <component :is="svgIcons.power" />
+            </n-icon>
+          </template>
+        </n-button>
+        <n-button
           v-if="!uiStore.miniMode"
           text
           size="small"
@@ -520,6 +535,8 @@ import { useNotificationStore } from "../stores/notification";
 import { useFeatureFlagsStore } from "../stores/featureFlags";
 import { useAuthStore } from "../stores/auth";
 import { svgIcons } from "../utils/icons";
+import { isServer } from "../adapters";
+import { useCloseService } from "../composables/useCloseService";
 import UserMenu from "../../shared/components/UserMenu.vue";
 import {
   minimizeWindow,
@@ -580,6 +597,9 @@ const handleFFmpegEncoder = () => {
 const handleToggleSplitMode = () => {
   terminalStore.toggleSplitMode();
 };
+
+const isServerMode = isServer();
+const { closeService } = useCloseService();
 
 interface Props {
   effectiveTheme: string;

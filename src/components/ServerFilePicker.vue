@@ -130,7 +130,7 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../utils/icons';
-import { isRootPath, getParentPath } from '../utils/pathUtils';
+import { isRootPath, getParentPath, joinPath } from '../utils/pathUtils';
 import type { DirEntry } from '../adapters/types';
 
 interface DirectoryEntry {
@@ -231,7 +231,7 @@ const loadDirectory = async (path: string) => {
     // (with backslashes) are preserved correctly.
     entries.value = result.map(entry => ({
       name: entry.name,
-      path: entry.path,
+      path: entry.path || joinPath(path, entry.name),
       isDirectory: entry.isDirectory || (entry as any).is_directory || false,
     }));
     currentPath.value = path;

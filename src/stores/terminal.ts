@@ -477,6 +477,11 @@ export const useTerminalStore = defineStore('terminal', () => {
       ptyId,
       status: 'pending', // wait until TerminalView is ready, then startShell()
       startTime: Date.now(),
+      execParams: {
+        command: 'default',
+        cwd: options?.cwd,
+        env: options?.env,
+      },
     };
 
     tabs.value.push(tab);
@@ -509,8 +514,8 @@ export const useTerminalStore = defineStore('terminal', () => {
           command: 'default',
           args: [],
           shellPath: shell,
-          cwd: undefined,
-          env: {},
+          cwd: tab.execParams?.cwd,
+          env: tab.execParams?.env ?? {},
           rows: 24,
           cols: 80,
           meta: {

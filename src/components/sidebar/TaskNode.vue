@@ -341,11 +341,15 @@ const canEdit = computed(() => {
   transform: translateY(-50%);
   display: flex;
   gap: 0;
-  background: linear-gradient(90deg, transparent 0%, var(--action-bg) 20%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--action-bg, rgba(36, 36, 36, 0.95)) 15%,
+    var(--action-bg, rgba(36, 36, 36, 0.95)) 100%
+  );
   padding-left: 16px;
   opacity: 0;
   transition: opacity 0.15s;
-  --action-bg: rgba(36, 36, 36, 0.95);
 }
 
 .tree-node:hover .task-actions-float {
@@ -474,7 +478,8 @@ const canEdit = computed(() => {
   --action-bg: rgba(255, 255, 255, 0.95);
 }
 
-:global(.n-config-provider--light) .action-btn:hover {
+:global(.n-config-provider--light) .action-btn:hover,
+:global(.light-theme) .action-btn:hover {
   background: rgba(0, 0, 0, 0.08);
 }
 

@@ -50,3 +50,13 @@ export const getParentPath = (p: string): string => {
   }
   return parent;
 };
+
+/**
+ * Join a directory path with a child name, preserving Windows or Unix separators.
+ */
+export const joinPath = (dir: string, name: string): string => {
+  if (!dir || dir === '/') return `/${name}`;
+  const sep = dir.includes('\\') ? '\\' : '/';
+  const trimmed = dir.replace(/[/\\]+$/, '');
+  return `${trimmed}${sep}${name}`;
+};

@@ -420,6 +420,19 @@
                     </template>
                   </n-button>
                   <UserMenu />
+                  <n-button
+                    v-if="showCloseService"
+                    quaternary
+                    circle
+                    type="error"
+                    :title="t('task.closeService')"
+                    class="app-header-close-service-btn"
+                    @click="closeService"
+                  >
+                    <template #icon>
+                      <n-icon :size="18"><component :is="svgIcons.power" /></n-icon>
+                    </template>
+                  </n-button>
                 </div>
               </div>
 
@@ -484,6 +497,8 @@ import ServerDirectoryPicker from "./components/ServerDirectoryPicker.vue";
 import ServerFilePicker from "./components/ServerFilePicker.vue";
 import RemoteNotificationModal from "./components/RemoteNotificationModal.vue";
 import { useTheme } from "./composables/useTheme";
+import { useCloseService } from "./composables/useCloseService";
+import { isServer } from "./adapters";
 import { isWindows } from "./utils/platform";
 import { initTrayService, cleanupTrayService } from "./services/trayService";
 import {
@@ -527,6 +542,9 @@ const { t } = useI18n();
 
 // Theme
 const { currentTheme, effectiveTheme, toggleTheme } = useTheme();
+
+const showCloseService = computed(() => !props.embedded && isServer());
+const { closeService } = useCloseService();
 
 // Store management
 const runConfigStore = useRunConfigStore();

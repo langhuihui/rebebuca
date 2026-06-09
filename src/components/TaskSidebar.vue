@@ -1160,8 +1160,7 @@ const handleOpenInExplorer = async (folderPath: string) => {
   if (folderPath) {
     try {
       const adapter = await getAdapter();
-      // Pass path directly, adapter should handle it
-      await adapter.system.openExternal(folderPath);
+      await adapter.system.openInFolder(folderPath);
     } catch (error) {
       notificationStore.addError(
         t("task.openInExplorerFailed") || "Failed to open folder",
@@ -1208,29 +1207,13 @@ const handleOpenTaskInTerminal = async (task: Task) => {
   }
 
   try {
-    const adapter = await getAdapter();
-    const preferredTerminal = settingsStore.settings.preferredTerminal;
-    const placeholderCommand = "echo rebebuca";
-
-    if (preferredTerminal) {
-      try {
-        await adapter.system.openInSpecificTerminal(
-          preferredTerminal,
-          placeholderCommand,
-          folderPath,
-        );
-      } catch {
-        await adapter.system.openInSystemTerminal(
-          placeholderCommand,
-          folderPath,
-        );
-      }
-    } else {
-      await adapter.system.openInSystemTerminal(
-        placeholderCommand,
-        folderPath,
-      );
+    if (uiStore.miniMode) {
+      await uiStore.toggleMiniMode();
     }
+    await terminalStore.createShellTerminal({
+      cwd: folderPath,
+      label: task.name || folderPath.split(/[/\\]/).pop() || t("terminal.title"),
+    });
   } catch (error) {
     notificationStore.addError(
       t("task.openInTerminalFailed"),

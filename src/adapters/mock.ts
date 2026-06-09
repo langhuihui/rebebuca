@@ -510,6 +510,10 @@ class MockSystemAdapter implements SystemAdapter {
     }
   }
 
+  async openInFolder(_folderPath: string): Promise<void> {
+    console.log('[Mock] openInFolder not available in browser');
+  }
+
   async openInSystemTerminal(_command: string, _cwd?: string, _env?: Record<string, string>): Promise<void> {
     console.log('[Mock] openInSystemTerminal not available in browser');
   }

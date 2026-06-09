@@ -721,6 +721,12 @@ export const svgIcons = {
     h('rect', { x: '6', y: '6', width: '12', height: '12', rx: '1', fill: 'currentColor' }),
   ]),
 
+  // 电源/关机图标（与 sun/moon 等同 viewBox 垂直居中）
+  power: createSvgIcon([
+    h('path', { d: 'M12 2v10' }),
+    h('path', { d: 'M18.36 6.64a9 9 0 1 1-12.73 0' }),
+  ]),
+
   // 警告图标
   warning: createSvgIcon([
     h('path', { d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),

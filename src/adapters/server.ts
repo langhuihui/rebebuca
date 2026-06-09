@@ -419,8 +419,15 @@ class ServerSystemAdapter implements SystemAdapter {
   }
 
   async openExternal(url: string): Promise<void> {
-    // Open in browser for server mode
-    window.open(url, '_blank');
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, '_blank');
+      return;
+    }
+    await this.client.request('system.openExternal', { url });
+  }
+
+  async openInFolder(folderPath: string): Promise<void> {
+    await this.client.request('system.openInFolder', { path: folderPath });
   }
 
   async openInSystemTerminal(command: string, cwd?: string, env?: Record<string, string>): Promise<void> {
@@ -529,15 +536,18 @@ class ServerDialogAdapter implements DialogAdapter {
     }
   }
 
-  async selectFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null> {
-    // Use the directory picker service to show remote directory browser.
-    // When no defaultPath is supplied, start at the system home directory so
-    // that the picker opens at a sensible location on all platforms (fixes the
-    // "/" default that is invalid on Windows).
+  private async resolvePickerPaths(options?: { defaultPath?: string }) {
     const homeDir = await this.getHomeDir();
+    const defaultPath = options?.defaultPath || homeDir || undefined;
+    return { defaultPath, homeDir: homeDir || undefined };
+  }
+
+  async selectFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null> {
+    const { defaultPath, homeDir } = await this.resolvePickerPaths(options);
     return showDirectoryPicker({
       ...options,
-      ...(homeDir && { defaultPath: options?.defaultPath || homeDir, homeDir }),
+      ...(defaultPath && { defaultPath }),
+      ...(homeDir && { homeDir }),
     });
   }
 
@@ -546,11 +556,11 @@ class ServerDialogAdapter implements DialogAdapter {
     defaultPath?: string;
     filters?: Array<{ name: string; extensions: string[] }>;
   }): Promise<string | null> {
-    // Use the file picker service to show remote file browser.
-    const homeDir = await this.getHomeDir();
+    const { defaultPath, homeDir } = await this.resolvePickerPaths(options);
     return showFilePicker({
       ...options,
-      ...(homeDir && { defaultPath: options?.defaultPath || homeDir, homeDir }),
+      ...(defaultPath && { defaultPath }),
+      ...(homeDir && { homeDir }),
     });
   }
 

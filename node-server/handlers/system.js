@@ -402,6 +402,21 @@ export async function openExternal(url) {
   }
 }
 
+/**
+ * Open a folder in the system file manager (Finder on macOS, Explorer on Windows).
+ */
+export async function openInFolder(folderPath) {
+  const platform = os.platform();
+  if (platform === 'darwin') {
+    spawn('open', [folderPath], { detached: true, stdio: 'ignore' }).unref();
+  } else if (platform === 'win32') {
+    const normalized = String(folderPath).replace(/\//g, '\\');
+    spawn('explorer.exe', [normalized], { detached: true, stdio: 'ignore' }).unref();
+  } else {
+    spawn('xdg-open', [folderPath], { detached: true, stdio: 'ignore' }).unref();
+  }
+}
+
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
@@ -414,16 +429,20 @@ function shellQuote(value) {
  * @param {'posix'|'cmd'|'powershell'} cwdStyle
  */
 function buildTerminalCommand(command, cwd, cwdStyle = 'posix') {
-  if (!cwd) return command;
+  const cmd = command || '';
+  if (!cwd) return cmd;
   if (cwdStyle === 'powershell') {
     const lit = String(cwd).replace(/'/g, "''");
-    return `Set-Location -LiteralPath '${lit}'; ${command}`;
+    const cd = `Set-Location -LiteralPath '${lit}'`;
+    return cmd ? `${cd}; ${cmd}` : cd;
   }
   if (cwdStyle === 'cmd') {
     const escaped = String(cwd).replace(/"/g, '""');
-    return `cd /d "${escaped}" && ${command}`;
+    const cd = `cd /d "${escaped}"`;
+    return cmd ? `${cd} && ${cmd}` : cd;
   }
-  return `cd ${shellQuote(cwd)}; ${command}`;
+  const cd = `cd ${shellQuote(cwd)}`;
+  return cmd ? `${cd}; ${cmd}` : cd;
 }
 
 /** Merge caller env overrides into process.env for detached spawns */

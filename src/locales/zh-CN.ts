@@ -316,6 +316,7 @@ export default {
     confirmCloseService: '将查杀端口 {port} 对应的服务进程并关闭服务，是否继续？',
     closeServiceNotFound: '未找到监听端口 {port} 的服务进程',
     closeServiceSuccess: '已关闭 {count} 个服务进程',
+    closeServiceTabHint: '服务已关闭，可以关闭此标签页。',
     closeServiceFailed: '关闭服务失败：{error}',
     admin: '管理员',
     adminRequired: '此命令需要管理员权限',

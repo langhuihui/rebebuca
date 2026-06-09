@@ -32,11 +32,14 @@ export function detectBackendType(): BackendType {
       return 'server';
     }
     
-    // Check if the page was served with /ws path available (server mode indicator)
-    // The node-server (local or remote) serves static files and has /ws endpoint
-    const isServerMode = window.location.port === '8765' || 
-                         window.location.pathname.startsWith('/app');
-    if (isServerMode) {
+    // npx rebebuca default HTTP port (when build lacks __VITE_BACKEND__ at runtime)
+    const { hostname, port } = window.location;
+    const isLocalHost =
+      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+    if (isLocalHost && (port === '3000' || port === '8765')) {
+      return 'server';
+    }
+    if (window.location.pathname.startsWith('/app')) {
       return 'server';
     }
   }

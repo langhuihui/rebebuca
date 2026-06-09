@@ -318,6 +318,7 @@ export default {
       'Kill the service process(es) listening on port {port} and shut down the service?',
     closeServiceNotFound: 'No service process found listening on port {port}',
     closeServiceSuccess: 'Closed {count} service process(es)',
+    closeServiceTabHint: 'Service stopped. You can close this tab.',
     closeServiceFailed: 'Failed to close service: {error}',
     admin: 'Admin',
     adminRequired: 'This command requires administrator privileges',

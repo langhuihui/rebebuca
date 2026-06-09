@@ -57,6 +57,7 @@ import {
   renameLogFile,
   readLogFile as systemReadLogFile,
   openExternal,
+  openInFolder,
   openInSystemTerminal,
   openInSpecificTerminal,
   executeWithAdmin,
@@ -266,6 +267,10 @@ async function handleRequest(clientId, request, clientPtyIds) {
         break;
       case 'system.openExternal':
         await openExternal(params.url);
+        result = null;
+        break;
+      case 'system.openInFolder':
+        await openInFolder(params.path);
         result = null;
         break;
       case 'system.openInSystemTerminal':

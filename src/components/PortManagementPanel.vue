@@ -227,6 +227,7 @@ import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../utils/icons';
 import { getAdapter } from '../adapters';
 import type { PortInfo, PortListenerStatus } from '../adapters/types';
+import { useCloseService } from '../composables/useCloseService';
 
 interface GroupedPortProcess {
   pid: number;
@@ -243,11 +244,10 @@ interface GroupedPortProcess {
   dockerImage?: string;
 }
 
-const DEFAULT_BACKEND_PORT = 3000;
-
 const { t } = useI18n();
 const message = useMessage();
 const dialog = useDialog();
+const { closeService: handleCloseService } = useCloseService();
 
 /** Wider label column in port detail modal (n-descriptions). */
 const portDetailLabelStyle: CSSProperties = {
@@ -419,53 +419,6 @@ const handleCleanOrphaned = () => {
       }
       message.success(t('task.cleanOrphanedDone', { ok, total: targets.length }));
       await loadPortProcesses();
-    },
-  });
-};
-
-const resolveBackendPort = (): number => {
-  const serverUrl = import.meta.env.VITE_SERVER_URL;
-  if (serverUrl) {
-    try {
-      const url = new URL(serverUrl);
-      if (url.port) return Number(url.port);
-      return DEFAULT_BACKEND_PORT;
-    } catch {
-      // fallback below
-    }
-  }
-  return DEFAULT_BACKEND_PORT;
-};
-
-const handleCloseService = () => {
-  const targetPort = resolveBackendPort();
-  dialog.warning({
-    title: t('task.closeService'),
-    content: t('task.confirmCloseService', { port: targetPort }),
-    positiveText: t('common.confirm'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      try {
-        const adapter = await getAdapter();
-        const ports = await adapter.system.listPorts({ showAll: true });
-        const targetPids = Array.from(
-          new Set(ports.filter((p) => p.port === targetPort && p.pid > 0).map((p) => p.pid)),
-        );
-
-        if (targetPids.length === 0) {
-          message.warning(t('task.closeServiceNotFound', { port: targetPort }));
-          return;
-        }
-
-        for (const pid of targetPids) {
-          await adapter.system.killProcessForce(pid);
-        }
-
-        message.success(t('task.closeServiceSuccess', { count: targetPids.length }));
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        message.error(t('task.closeServiceFailed', { error: errorMsg }));
-      }
     },
   });
 };
