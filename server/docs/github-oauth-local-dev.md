@@ -52,12 +52,14 @@ The redirect_uri is not associated with this application.
 
 ## 当前配置
 
-检查 `.dev.vars` 文件中的 GitHub OAuth 配置：
+在 `.dev.vars`（已 gitignore，勿提交）中配置 GitHub OAuth：
 
 ```bash
-GITHUB_CLIENT_ID=Ov23lic5LMk9sDjV9Mfc
-GITHUB_CLIENT_SECRET=e8321394e9a8b9d4a8f0c175ef19201bd272526d
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
 ```
+
+生产环境请通过 Cloudflare Secrets 注入，参见 `server/wrangler.jsonc` 注释。
 
 ## 验证配置
 
