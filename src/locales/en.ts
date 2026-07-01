@@ -354,6 +354,7 @@ export default {
     connectionError: 'Connection Error',
     reconnect: 'Reconnect',
     emptyDirectory: 'Empty directory',
+    noMatchingDirectories: 'No matching directories',
     selectedPath: 'Selected path',
     noSshConfigSelected: 'No SSH configuration selected',
     // Remote shell

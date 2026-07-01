@@ -55,6 +55,7 @@
           <n-input 
             v-model:value="inputPath"
             :placeholder="t('task.enterPath')"
+            clearable
             @keyup.enter="navigateToPath"
           />
           <n-button 
@@ -76,13 +77,13 @@
 
       <!-- Directory listing -->
       <div class="directory-list">
-        <n-spin :show="loading">
+        <n-spin :show="loading || isNavigatingFromInput || pendingInputNavigation">
           <n-scrollbar style="max-height: 400px;">
-            <div v-if="entries.length === 0 && !loading" class="empty-dir">
-              {{ t('task.emptyDirectory') }}
+            <div v-if="displayedEntries.length === 0 && !loading" class="empty-dir">
+              {{ entryFilter ? t('task.noMatchingDirectories') : t('task.emptyDirectory') }}
             </div>
             <div
-              v-for="entry in entries"
+              v-for="entry in displayedEntries"
               :key="entry.path"
               class="directory-entry"
               @click="handleEntryClick(entry)"
@@ -122,6 +123,8 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useSshStore } from '../../../stores/ssh';
 import { svgIcons } from '../../../utils/icons';
+import { getDirectoryEntryFilter, hasPendingDirectoryNavigation } from '../../../utils/pathUtils';
+import { useDirectoryInputNavigation } from '../../../composables/useDirectoryInputNavigation';
 
 export interface RemoteDirectoryEntry {
   name: string;
@@ -156,8 +159,18 @@ const inputPath = ref('/');
 const entries = ref<RemoteDirectoryEntry[]>([]);
 const homeDir = ref('/');
 
+const sortedEntries = computed(() => {
+  return [...entries.value].sort((a, b) => a.name.localeCompare(b.name));
+});
+
+const pickerEntries = computed(() =>
+  entries.value.map(entry => ({ name: entry.name, path: entry.path }))
+);
+
+let continueInputNavigation: () => Promise<void> = async () => {};
+
 // Load directory contents
-const loadDirectory = async (path: string) => {
+const loadDirectory = async (path: string, options?: { preserveInput?: boolean }) => {
   if (!props.sshConfigId) {
     connectionError.value = t('task.noSshConfigSelected');
     return;
@@ -170,14 +183,41 @@ const loadDirectory = async (path: string) => {
     const result = await sshStore.listDirectory(props.sshConfigId, path);
     entries.value = result;
     currentPath.value = path;
-    inputPath.value = path;
+    if (!options?.preserveInput) {
+      inputPath.value = path;
+    }
   } catch (error) {
     connectionError.value = error instanceof Error ? error.message : String(error);
     entries.value = [];
   } finally {
     loading.value = false;
+    if (options?.preserveInput) {
+      await continueInputNavigation();
+    }
   }
 };
+
+const { isNavigatingFromInput, applyInputNavigation } = useDirectoryInputNavigation({
+  currentPath,
+  inputPath,
+  entries: pickerEntries,
+  loading,
+  loadDirectory,
+});
+continueInputNavigation = applyInputNavigation;
+
+const entryFilter = computed(() => getDirectoryEntryFilter(inputPath.value, currentPath.value));
+
+const pendingInputNavigation = computed(() =>
+  hasPendingDirectoryNavigation(inputPath.value, currentPath.value, pickerEntries.value)
+);
+
+const displayedEntries = computed(() => {
+  if (pendingInputNavigation.value || isNavigatingFromInput.value) return [];
+  const filter = entryFilter.value.toLowerCase();
+  if (!filter) return sortedEntries.value;
+  return sortedEntries.value.filter(entry => entry.name.toLowerCase().includes(filter));
+});
 
 // Load home directory
 const loadHomeDirectory = async () => {
@@ -205,10 +245,27 @@ const navigateHome = () => {
   loadDirectory(homeDir.value);
 };
 
-// Navigate to typed path
+// Navigate to typed path or filter match
 const navigateToPath = () => {
-  const path = inputPath.value.trim() || '/';
-  loadDirectory(path);
+  const input = inputPath.value.trim();
+  const filter = entryFilter.value;
+
+  if (filter) {
+    const exactMatch = entries.value.find(
+      entry => entry.name.toLowerCase() === filter.toLowerCase()
+    );
+    if (exactMatch) {
+      loadDirectory(exactMatch.path);
+      return;
+    }
+
+    if (displayedEntries.value.length === 1) {
+      loadDirectory(displayedEntries.value[0].path);
+      return;
+    }
+  }
+
+  loadDirectory(input || '/');
 };
 
 // Handle entry click (select directory)

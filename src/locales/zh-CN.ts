@@ -373,6 +373,7 @@ export default {
     connectionError: '连接错误',
     reconnect: '重新连接',
     emptyDirectory: '空目录',
+    noMatchingDirectories: '没有匹配的目录',
     selectedPath: '选择的路径',
     noSshConfigSelected: '未选择 SSH 配置',
     // Remote shell

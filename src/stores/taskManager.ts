@@ -278,6 +278,22 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
   // Loading state
   const isScanning = ref(false);
+  const scanningFolderPaths = ref<string[]>([]);
+
+  const isFolderScanning = (folderPath: string): boolean => {
+    return scanningFolderPaths.value.includes(folderPath);
+  };
+
+  async function withFolderScanning<T>(folderPath: string, fn: () => Promise<T>): Promise<T> {
+    if (!scanningFolderPaths.value.includes(folderPath)) {
+      scanningFolderPaths.value = [...scanningFolderPaths.value, folderPath];
+    }
+    try {
+      return await fn();
+    } finally {
+      scanningFolderPaths.value = scanningFolderPaths.value.filter(p => p !== folderPath);
+    }
+  }
 
   // Initialization flag
   const initialized = ref(false);
@@ -453,7 +469,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
         expanded: true,
         children: [],
         hasError: folder.hasError,
-        errorMessage: folder.errorMessage
+        errorMessage: folder.errorMessage,
       };
 
       // Group tasks by their cwd (subfolder), then by source
@@ -559,6 +575,18 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
       // Always add folder item even if empty, so users can remove invalid/empty folders
       items.push(folderItem);
+    }
+
+    for (const scanPath of scanningFolderPaths.value) {
+      if (folders.value.some(f => f.path === scanPath)) continue;
+      const name = scanPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() || scanPath;
+      items.push({
+        id: `folder:${scanPath}`,
+        label: name,
+        type: 'folder',
+        expanded: true,
+        children: [],
+      });
     }
 
     return items;
@@ -1179,8 +1207,6 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   async function initialize(): Promise<void> {
     if (initialized.value) return;
 
-    initialized.value = true;
-
     // Load favorites first
     await loadFavorites();
 
@@ -1210,6 +1236,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
     // Initial sync of tasks to MCP
     await syncTasksToMCP(combinedTasks.value);
+
+    initialized.value = true;
   }
 
   /**
@@ -1218,6 +1246,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
   async function scanFolders(folderPaths: string[]): Promise<void> {
     isScanning.value = true;
     errors.value = [];
+    const pathsToScan = [...folderPaths];
+    scanningFolderPaths.value = [...new Set([...scanningFolderPaths.value, ...pathsToScan])];
 
     try {
       const scannedFolders: TaskFolder[] = [];
@@ -1245,6 +1275,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
 
       console.log(`[TaskManager] Scan complete: ${scannedTasks.length} tasks found in ${scannedFolders.length} folders`);
     } finally {
+      scanningFolderPaths.value = scanningFolderPaths.value.filter(p => !pathsToScan.includes(p));
       isScanning.value = false;
     }
   }
@@ -1259,9 +1290,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       return;
     }
 
-    isScanning.value = true;
-
-    try {
+    await withFolderScanning(folderPath, async () => {
       const folder = await scanFolder(folderPath);
 
       // Add folder to existing list
@@ -1282,9 +1311,45 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       await syncTasksToMCP(combinedTasks.value);
 
       console.log(`[TaskManager] Added folder: ${folderPath} with ${newTasks.length} tasks`);
-    } finally {
-      isScanning.value = false;
-    }
+    });
+  }
+
+  /**
+   * Rescan a single folder without affecting other folders
+   */
+  async function rescanFolder(folderPath: string): Promise<void> {
+    const folderIndex = folders.value.findIndex(f => f.path === folderPath);
+    if (folderIndex === -1) return;
+
+    await withFolderScanning(folderPath, async () => {
+      const oldFolder = folders.value[folderIndex];
+      const oldTaskIds = new Set<string>();
+      for (const tasks of oldFolder.tasksBySource.values()) {
+        for (const task of tasks) {
+          oldTaskIds.add(task.id);
+        }
+      }
+
+      const folder = await scanFolder(folderPath);
+      const updatedFolders = [...folders.value];
+      updatedFolders[folderIndex] = folder;
+      folders.value = updatedFolders;
+
+      const newTasks: Task[] = [];
+      for (const tasks of folder.tasksBySource.values()) {
+        newTasks.push(...tasks);
+      }
+      allTasks.value = [
+        ...allTasks.value.filter(t => !oldTaskIds.has(t.id)),
+        ...newTasks,
+      ];
+      lastScanTime.value = Date.now();
+
+      await saveFolderPaths();
+      await syncTasksToMCP(combinedTasks.value);
+
+      console.log(`[TaskManager] Rescanned folder: ${folderPath} with ${newTasks.length} tasks`);
+    });
   }
 
   /**
@@ -2264,6 +2329,8 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     allTasks,
     userGroups,
     isScanning,
+    scanningFolderPaths,
+    isFolderScanning,
     lastScanTime,
     errors,
     scanRecursively,
@@ -2294,6 +2361,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     scanFolder,
     scanFolders,
     addFolder,
+    rescanFolder,
     removeFolder,
     refresh,
     clear,

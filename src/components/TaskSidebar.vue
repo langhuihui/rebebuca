@@ -53,9 +53,9 @@
 
       <div class="task-tree-container">
         <n-scrollbar>
-          <!-- Loading state -->
+          <!-- Loading state (initial load only) -->
           <div
-            v-if="!taskManager.initialized || taskManager.isScanning"
+            v-if="!taskManager.initialized"
             class="loading-state"
           >
             <n-spin size="small" />
@@ -385,7 +385,7 @@
                       <n-button
                         size="tiny"
                         quaternary
-                        :loading="taskManager.isScanning"
+                        :loading="taskManager.isFolderScanning(folder.id.replace('folder:', ''))"
                         @click.stop="
                           handleScanFolder(folder.id.replace('folder:', ''))
                         "
@@ -571,7 +571,7 @@
                             <n-button
                               size="tiny"
                               quaternary
-                              :loading="taskManager.isScanning"
+                              :loading="taskManager.isFolderScanning(getSourceFolderPath(child.id))"
                               @click.stop="
                                 handleScanFolder(getSourceFolderPath(child.id))
                               "
@@ -1104,6 +1104,7 @@ const handleConfirmAddFolder = async (data: AddFolderFormData) => {
   } else {
     try {
       await taskManager.addFolder(data.sourceFolder);
+      expandedNodes.value.add(`folder:${data.sourceFolder}`);
     } catch (error) {
       console.error("[TaskSidebar] Failed to add folder:", error);
     }
@@ -1151,7 +1152,7 @@ const handleRemoveFolder = (folderPath: string) => {
 // Handle scan folder
 const handleScanFolder = async (folderPath: string) => {
   if (folderPath) {
-    await taskManager.scanFolders([folderPath]);
+    await taskManager.rescanFolder(folderPath);
   }
 };
 

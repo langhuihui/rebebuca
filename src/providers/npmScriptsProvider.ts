@@ -17,6 +17,7 @@
  */
 
 import { getAdapter, type FileSystemAdapter } from '../adapters';
+import { scopedTaskId } from '../utils/pathUtils';
 import { 
   TaskProvider, 
   Task, 
@@ -222,7 +223,7 @@ export class NpmScriptsProvider implements TaskProvider {
     const isDefault = scriptName === 'build' || scriptName === 'test';
     
     return {
-      id: `npm:${packageName}:${scriptName}`,
+      id: scopedTaskId('npm', folderPath, scriptName),
       name: scriptName,
       source: 'npm',
       sourceFile,

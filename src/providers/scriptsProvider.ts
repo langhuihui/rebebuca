@@ -17,6 +17,7 @@
  */
 
 import { getAdapter, type FileSystemAdapter, type SystemAdapter } from '../adapters';
+import { scopedTaskId } from '../utils/pathUtils';
 import { 
   TaskProvider, 
   Task, 
@@ -27,11 +28,6 @@ import {
 
 function pathJoin(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
-}
-
-function pathBasename(p: string): string {
-  const parts = p.replace(/\\/g, '/').split('/');
-  return parts[parts.length - 1] || '';
 }
 
 /**
@@ -258,8 +254,6 @@ export class ScriptsProvider implements TaskProvider {
       const platformType = await this.getPlatform();
       const extension = filename.substring(filename.lastIndexOf('.')).toLowerCase();
       const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
-      const folderName = pathBasename(folderPath);
-      
       // Determine command based on file extension
       let command: string;
       let args: string[];
@@ -312,7 +306,7 @@ export class ScriptsProvider implements TaskProvider {
       const group = this.inferGroup(nameWithoutExt);
       
       return {
-        id: `script:${folderName}:${filename}`,
+        id: scopedTaskId('script', folderPath, filename),
         name: filename,
         source: 'script',
         sourceFile: scriptPath,

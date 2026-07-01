@@ -18,6 +18,7 @@
 
 import JSON5 from 'json5';
 import { getAdapter, type FileSystemAdapter, type SystemAdapter } from '../adapters';
+import { scopedTaskId } from '../utils/pathUtils';
 import { 
   TaskProvider, 
   Task, 
@@ -30,11 +31,6 @@ import {
 
 function pathJoin(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
-}
-
-function pathBasename(p: string): string {
-  const parts = p.replace(/\\/g, '/').split('/');
-  return parts[parts.length - 1] || '';
 }
 
 /**
@@ -346,7 +342,7 @@ export class VSCodeTasksProvider implements TaskProvider {
     }
     
     return {
-      id: `vscode:${pathBasename(folderPath)}:${task.label}`,
+      id: scopedTaskId('vscode', folderPath, task.label),
       name: task.label,
       source: 'vscode',
       sourceFile,

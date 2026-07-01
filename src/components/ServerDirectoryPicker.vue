@@ -56,6 +56,7 @@
           <n-input 
             v-model:value="inputPath"
             :placeholder="t('task.enterPath')"
+            clearable
             @keyup.enter="navigateToPath"
           />
           <n-button 
@@ -76,13 +77,13 @@
 
       <!-- Directory listing -->
       <div class="directory-list">
-        <n-spin :show="loading">
+        <n-spin :show="loading || isNavigatingFromInput || pendingInputNavigation">
           <n-scrollbar style="max-height: 400px;">
-            <div v-if="entries.length === 0 && !loading" class="empty-dir">
-              {{ t('task.emptyDirectory') }}
+            <div v-if="displayedEntries.length === 0 && !loading" class="empty-dir">
+              {{ entryFilter ? t('task.noMatchingDirectories') : t('task.emptyDirectory') }}
             </div>
             <div
-              v-for="entry in sortedEntries"
+              v-for="entry in displayedEntries"
               :key="entry.path"
               class="directory-entry"
               :class="{ selected: entry.path === selectedPath }"
@@ -122,7 +123,8 @@ import {
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { svgIcons } from '../utils/icons';
-import { isRootPath, getParentPath, joinPath } from '../utils/pathUtils';
+import { isRootPath, getParentPath, joinPath, getDirectoryEntryFilter, hasPendingDirectoryNavigation } from '../utils/pathUtils';
+import { useDirectoryInputNavigation } from '../composables/useDirectoryInputNavigation';
 import type { DirEntry } from '../adapters/types';
 
 interface DirectoryEntry {
@@ -172,8 +174,10 @@ const sortedEntries = computed(() => {
   });
 });
 
+let continueInputNavigation: () => Promise<void> = async () => {};
+
 // Load directory contents
-const loadDirectory = async (path: string) => {
+const loadDirectory = async (path: string, options?: { preserveInput?: boolean }) => {
   loading.value = true;
   errorMessage.value = null;
 
@@ -189,15 +193,42 @@ const loadDirectory = async (path: string) => {
         isDirectory: entry.isDirectory || (entry as any).is_directory || false,
       }));
     currentPath.value = path;
-    inputPath.value = path;
+    if (!options?.preserveInput) {
+      inputPath.value = path;
+    }
     selectedPath.value = null;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
     entries.value = [];
   } finally {
     loading.value = false;
+    if (options?.preserveInput) {
+      await continueInputNavigation();
+    }
   }
 };
+
+const { isNavigatingFromInput, applyInputNavigation } = useDirectoryInputNavigation({
+  currentPath,
+  inputPath,
+  entries,
+  loading,
+  loadDirectory,
+});
+continueInputNavigation = applyInputNavigation;
+
+const entryFilter = computed(() => getDirectoryEntryFilter(inputPath.value, currentPath.value));
+
+const pendingInputNavigation = computed(() =>
+  hasPendingDirectoryNavigation(inputPath.value, currentPath.value, entries.value)
+);
+
+const displayedEntries = computed(() => {
+  if (pendingInputNavigation.value || isNavigatingFromInput.value) return [];
+  const filter = entryFilter.value.toLowerCase();
+  if (!filter) return sortedEntries.value;
+  return sortedEntries.value.filter(entry => entry.name.toLowerCase().includes(filter));
+});
 
 // Navigate up one directory
 const navigateUp = () => {
@@ -210,10 +241,27 @@ const navigateHome = () => {
   loadDirectory(effectiveHome.value);
 };
 
-// Navigate to typed path
+// Navigate to typed path or filter match
 const navigateToPath = () => {
-  const path = inputPath.value.trim() || effectiveHome.value;
-  loadDirectory(path);
+  const input = inputPath.value.trim();
+  const filter = entryFilter.value;
+
+  if (filter) {
+    const exactMatch = entries.value.find(
+      entry => entry.isDirectory && entry.name.toLowerCase() === filter.toLowerCase()
+    );
+    if (exactMatch) {
+      loadDirectory(exactMatch.path);
+      return;
+    }
+
+    if (displayedEntries.value.length === 1 && displayedEntries.value[0].isDirectory) {
+      loadDirectory(displayedEntries.value[0].path);
+      return;
+    }
+  }
+
+  loadDirectory(input || effectiveHome.value);
 };
 
 // Handle entry click (select directory)
