@@ -897,6 +897,8 @@ export class MockAdapter implements BackendAdapter {
     }
   }
 
+  prepareShutdown(): void {}
+
   async dispose(): Promise<void> {
     // Clear active terminals
     activeTerminals.forEach((terminal) => {

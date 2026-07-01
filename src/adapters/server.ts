@@ -194,9 +194,12 @@ class WebSocketClient {
   }
 
   private handleDisconnect() {
-    // Reject all pending requests
+    const disconnectError = this.closingIntentionally
+      ? 'Service shutdown'
+      : 'WebSocket disconnected';
+
     this.pendingRequests.forEach(({ reject }) => {
-      reject(new Error('WebSocket disconnected'));
+      reject(new Error(disconnectError));
     });
     this.pendingRequests.clear();
 
@@ -245,6 +248,12 @@ class WebSocketClient {
     return () => {
       this.eventHandlers.get(event)?.delete(handler);
     };
+  }
+
+  /** Mark an imminent service shutdown — keeps the socket open for final requests, suppresses reconnect. */
+  prepareShutdown(): void {
+    this.closingIntentionally = true;
+    this.reconnectAttempts = this.maxReconnectAttempts;
   }
 
   close() {
@@ -883,6 +892,10 @@ export class ServerAdapter implements BackendAdapter {
     setFilePickerFsAdapter(this.fs);
 
     console.log('[Server] Server adapter initialized');
+  }
+
+  prepareShutdown(): void {
+    this.client.prepareShutdown();
   }
 
   async dispose(): Promise<void> {

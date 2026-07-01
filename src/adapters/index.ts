@@ -13,6 +13,8 @@ export * from './types';
 let adapterInstance: BackendAdapter | null = null;
 // Promise for adapter creation (to prevent race conditions)
 let adapterPromise: Promise<BackendAdapter> | null = null;
+/** True while the user is intentionally stopping the local backend (close-service button). */
+let serviceShuttingDown = false;
 
 // Declare the global constant defined by Vite
 declare const __VITE_BACKEND__: string;
@@ -121,6 +123,18 @@ export async function resetAdapter(): Promise<void> {
     await adapterInstance.dispose();
     adapterInstance = null;
   }
+  adapterPromise = null;
+}
+
+/** Whether the local backend is being stopped on purpose (not an unexpected disconnect). */
+export function isServiceShuttingDown(): boolean {
+  return serviceShuttingDown;
+}
+
+/** Call before killing the backend process so WebSocket teardown is treated as expected. */
+export function markServiceShuttingDown(): void {
+  serviceShuttingDown = true;
+  adapterInstance?.prepareShutdown?.();
 }
 
 /**

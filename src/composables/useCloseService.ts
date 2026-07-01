@@ -1,13 +1,33 @@
 import { createDiscreteApi } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
-import { getAdapter } from '../adapters';
+import { getAdapter, markServiceShuttingDown, resetAdapter } from '../adapters';
 import { resolveBackendPort } from '../utils/backendPort';
 import { closeBrowserWindow } from '../utils/windowControls';
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog']);
 
+const SHUTDOWN_SETTLE_MS = 300;
+
+function isExpectedShutdownDisconnect(error: unknown): boolean {
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  return (
+    errorMsg.includes('WebSocket disconnected') ||
+    errorMsg.includes('WebSocket not connected') ||
+    errorMsg.includes('Service shutdown')
+  );
+}
+
 export function useCloseService() {
   const { t } = useI18n();
+
+  const finishServiceShutdown = async (fallbackMessage: string) => {
+    try {
+      await resetAdapter();
+    } catch {
+      // ignore — backend is already gone
+    }
+    closeBrowserWindow(fallbackMessage);
+  };
 
   const closeService = () => {
     const targetPort = resolveBackendPort();
@@ -29,13 +49,27 @@ export function useCloseService() {
             return;
           }
 
+          markServiceShuttingDown();
+
           for (const pid of targetPids) {
-            await adapter.system.killProcessForce(pid);
+            try {
+              await adapter.system.killProcessForce(pid);
+            } catch (error) {
+              if (!isExpectedShutdownDisconnect(error)) {
+                throw error;
+              }
+              break;
+            }
           }
 
-          message.success(t('task.closeServiceSuccess', { count: targetPids.length }));
-          window.setTimeout(() => closeBrowserWindow(t('task.closeServiceTabHint')), 400);
+          const fallbackMessage = t('task.closeServiceTabHint');
+          await new Promise((resolve) => window.setTimeout(resolve, SHUTDOWN_SETTLE_MS));
+          await finishServiceShutdown(fallbackMessage);
         } catch (error) {
+          if (isExpectedShutdownDisconnect(error)) {
+            await finishServiceShutdown(t('task.closeServiceTabHint'));
+            return;
+          }
           const errorMsg = error instanceof Error ? error.message : String(error);
           message.error(t('task.closeServiceFailed', { error: errorMsg }));
         }

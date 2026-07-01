@@ -539,6 +539,9 @@ export interface BackendAdapter {
   
   // Cleanup
   dispose(): Promise<void>;
+
+  /** Suppress reconnect / pending-request errors before intentional backend shutdown */
+  prepareShutdown?(): void;
 }
 
 /**
