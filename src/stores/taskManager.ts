@@ -349,6 +349,26 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     return combinedTasks.value.filter(t => !favoriteSet.has(t.id));
   });
 
+  /** Pick top-N recent tasks from a candidate list using run stats + sort mode */
+  const selectRecentTasks = (candidates: Task[], count: number): Task[] => {
+    if (count === 0 || taskRunStats.value.size === 0) return [];
+
+    return candidates
+      .filter(t => taskRunStats.value.has(t.id))
+      .map(task => {
+        const stats = taskRunStats.value.get(task.id)!;
+        return { task, lastRunTime: stats.lastRunTime, runCount: stats.runCount };
+      })
+      .sort((a, b) => {
+        if (recentSortMode.value === 'frequency') {
+          return b.runCount - a.runCount;
+        }
+        return b.lastRunTime - a.lastRunTime;
+      })
+      .slice(0, count)
+      .map(item => item.task);
+  };
+
   // Recent tasks (sorted by last run time or frequency based on recentSortMode)
   const recentTasks = computed(() => {
     const settingsStore = useSettingsStore();
@@ -363,30 +383,25 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
       sortMode: recentSortMode.value,
     });
 
-    if (count === 0) return [];
-    if (statsSize === 0) return [];
-
-    // Filter tasks that have run stats (include favorites - they can appear in both sections)
-    const matchingTasks = combinedTasks.value.filter(t => taskRunStats.value.has(t.id));
-
-    const tasksWithStats = matchingTasks
-      .map(task => {
-        const stats = taskRunStats.value.get(task.id)!;
-        return { task, lastRunTime: stats.lastRunTime, runCount: stats.runCount };
-      })
-      .sort((a, b) => {
-        // Sort based on mode
-        if (recentSortMode.value === 'frequency') {
-          return b.runCount - a.runCount; // Most frequent first
-        }
-        return b.lastRunTime - a.lastRunTime; // Most recent first
-      })
-      .slice(0, count)
-      .map(item => item.task);
+    const tasksWithStats = selectRecentTasks(combinedTasks.value, count);
 
     console.log('[TaskManager] recentTasks result:', tasksWithStats.length, tasksWithStats.map(t => t.name));
     return tasksWithStats;
   });
+
+  /** Recent tasks belonging to a scanned first-level folder */
+  function getRecentTasksForFolder(folderPath: string): Task[] {
+    const settingsStore = useSettingsStore();
+    const count = settingsStore.settings.recentTasksCount ?? 5;
+    const folder = folders.value.find(f => f.path === folderPath);
+    if (!folder) return [];
+
+    const folderTasks: Task[] = [];
+    for (const tasks of folder.tasksBySource.values()) {
+      folderTasks.push(...tasks);
+    }
+    return selectRecentTasks(folderTasks, count);
+  }
 
   // Recent tasks with timestamp (for tray menu)
   // Returns tasks with their last run timestamp for display in dock/tray menu
@@ -2355,6 +2370,7 @@ export const useTaskManagerStore = defineStore('taskManager', () => {
     combinedTasks,
 
     // Methods
+    getRecentTasksForFolder,
     initialize,
     registerProvider,
     unregisterProvider,

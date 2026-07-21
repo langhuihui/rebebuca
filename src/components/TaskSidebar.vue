@@ -433,8 +433,65 @@
                 </div>
               </div>
 
-              <!-- Children nodes (subfolder or source) -->
+              <!-- Children nodes (recent / subfolder / source) -->
               <template v-if="isExpanded(folder.id)">
+                <!-- Per-folder recent runs -->
+                <template v-if="showRecentSection">
+                  <div
+                    class="tree-node folder-recent-node"
+                    @click="toggleNode(getFolderRecentNodeId(folder.id))"
+                  >
+                    <n-icon size="14" class="tree-icon expand-icon">
+                      <component
+                        :is="
+                          isExpanded(getFolderRecentNodeId(folder.id))
+                            ? svgIcons.chevronDown
+                            : svgIcons.chevronRight
+                        "
+                      />
+                    </n-icon>
+                    <n-icon size="16" class="tree-icon recent-icon">
+                      <component
+                        :is="
+                          taskManager.recentSortMode === 'time'
+                            ? svgIcons.clock
+                            : svgIcons.chart
+                        "
+                      />
+                    </n-icon>
+                    <span class="tree-label">{{
+                      taskManager.recentSortMode === "time"
+                        ? t("task.recent")
+                        : t("task.frequent")
+                    }}</span>
+                    <span class="tree-badge">{{
+                      getFolderRecentTasks(folder.id).length
+                    }}</span>
+                  </div>
+
+                  <template
+                    v-if="isExpanded(getFolderRecentNodeId(folder.id))"
+                  >
+                    <TaskNode
+                      v-for="task in getFolderRecentTasks(folder.id)"
+                      :key="`folder-recent-${folder.id}-${task.id}`"
+                      :task="task"
+                      :is-running="taskManager.isTaskRunning(task.id)"
+                      :is-favorite="taskManager.isFavorite(task.id)"
+                      :show-icon="settingsStore.settings.showTaskIcons"
+                      :show-edit="true"
+                      node-class="folder-recent-task-node"
+                      @click="handleTaskClick"
+                      @run="handleTaskRun"
+                      @stop="handleTaskStop"
+                      @edit="handleTaskEditVisual"
+                      @open-terminal="handleOpenTaskInTerminal"
+                      @open-folder="handleOpenTaskInExplorer"
+                      @toggle-favorite="handleToggleFavorite"
+                    />
+                  </template>
+                </template>
+
                 <template v-for="child in folder.children" :key="child.id">
                   <!-- Subfolder node -->
                   <template v-if="child.type === 'subfolder'">
@@ -982,6 +1039,11 @@ const getSubfolderPath = (folderId: string, relativePath?: string): string => {
   if (!relativePath) return folderPath;
   return `${folderPath}/${relativePath}`;
 };
+
+const getFolderRecentNodeId = (folderId: string) => `recent:${folderId}`;
+
+const getFolderRecentTasks = (folderId: string) =>
+  taskManager.getRecentTasksForFolder(folderId.replace("folder:", ""));
 
 // Get folder label for favorite tasks
 const getFavoriteFolderLabel = (task: Task): string | null => {
@@ -1768,6 +1830,10 @@ onUnmounted(() => {
 }
 
 .subfolder-node {
+  padding-left: 24px;
+}
+
+.folder-recent-node {
   padding-left: 24px;
 }
 
