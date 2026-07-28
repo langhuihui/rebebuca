@@ -39,13 +39,7 @@ export default defineNuxtConfig({
           return null;
         },
       },
-      VitePWA({
-        ...pwaBase,
-        devOptions: {
-          ...pwaBase.devOptions,
-          enabled: process.env.NODE_ENV !== 'production',
-        },
-      }),
+      VitePWA(pwaBase),
     ],
   },
   app: {

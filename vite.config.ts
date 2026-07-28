@@ -43,16 +43,7 @@ export default defineConfig(async () => ({
     Components({
       resolvers: [NaiveUiResolver()]
     }),
-    ...(enablePwa
-      ? [
-          VitePWA({
-            ...createVitePwaOptions(),
-            devOptions: {
-              enabled: process.env.NODE_ENV !== "production",
-            },
-          }),
-        ]
-      : []),
+    ...(enablePwa ? [VitePWA(createVitePwaOptions())] : []),
   ],
   
   // Define environment variables - use 'process.env.VITE_BACKEND' for replacement
