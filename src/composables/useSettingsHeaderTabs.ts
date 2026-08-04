@@ -32,7 +32,6 @@ export function useSettingsHeaderTabs() {
       tabs.push({ name: "ssh", label: t("settings.ssh"), icon: ServerOutline });
     }
     tabs.push({ name: "mcp", label: "MCP", icon: GitBranchOutline });
-    tabs.push({ name: "openclaw", label: t("settings.openClaw"), icon: null });
     return tabs;
   });
 

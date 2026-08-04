@@ -515,7 +515,6 @@ export default {
     updateViaNpm: 'Update via npm',
     updatingInTerminal: 'Updating in system terminal, please complete the update there',
     aiTools: 'AI Tools',
-    openClaw: '🦞 OpenClaw',
     // Release notes
     releaseNotes: 'Release Notes',
     loadReleaseNotes: 'Load Release Notes',
@@ -917,16 +916,6 @@ export default {
     uninstallNotSupported: 'Uninstall not supported for this tool',
     confirmUninstall: 'Confirm Uninstall',
     confirmUninstallMessage: 'Are you sure you want to uninstall {tool}?',
-  },
-  openClaw: {
-    title: 'OpenClaw Ecosystem',
-    coreFeatures: 'Core Features',
-    visitWebsite: 'Visit Website',
-    installOptions: 'Installation',
-    techStack: 'Tech Stack',
-    commandCopied: 'Command copied to clipboard',
-    copyFailed: 'Copy failed',
-    viewTutorial: 'Tutorial',
   },
   supervisorAI: {
     title: 'Supervisor AI',

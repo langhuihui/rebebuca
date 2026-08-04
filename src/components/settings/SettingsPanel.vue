@@ -152,10 +152,6 @@
       <div v-show="activeTab === 'mcp'" class="settings-tab-pane">
         <MCPPanel />
       </div>
-
-      <div v-show="activeTab === 'openclaw'" class="settings-tab-pane">
-        <OpenClawPanel />
-      </div>
     </div>
   </div>
 </template>
@@ -190,7 +186,6 @@ import BackendLogViewer from '../BackendLogViewer.vue';
 import AIToolsPanel from './AIToolsPanel.vue';
 import SshPanel from './SshPanel.vue';
 import MCPPanel from './MCPPanel.vue';
-import OpenClawPanel from './OpenClawPanel.vue';
 
 withDefaults(
   defineProps<{
