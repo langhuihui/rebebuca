@@ -311,8 +311,8 @@ export async function createTerminal(params) {
         }
       } else {
         const cmdString = buildCommandString(command, args);
-        // Use login shell to load PATH and env (zsh/bash)
-        finalArgs = ['-lc', cmdString];
+        // Use interactive login shell to load PATH and env (zsh/bash), including ~/.zshrc
+        finalArgs = ['-ilc', cmdString];
       }
     }
   }
